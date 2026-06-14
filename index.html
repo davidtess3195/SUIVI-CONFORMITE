@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PREVA — Suivi réglementaire incendie ERP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{
+  --bg:#eef1f6; --surface:#ffffff; --surface-2:#f6f8fb;
+  --navy:#0e1b2e; --navy-2:#16263d; --line:#e2e8f0; --line-2:#eef2f7;
+  --ink:#0f172a; --muted:#64748b; --muted-2:#94a3b8;
+  --primary:#2563eb; --primary-d:#1d4ed8;
+  --critique:#b91c1c; --majeur:#ef4444; --moyen:#f59e0b; --faible:#eab308;
+  --conforme:#16a34a; --info:#64748b; --inter:#2563eb;
+  --r:14px; --r-sm:9px;
+  --sh:0 1px 2px rgba(15,23,42,.04),0 4px 16px rgba(15,23,42,.06);
+  --sh-l:0 8px 40px rgba(15,23,42,.16);
+  --ff:'Inter',system-ui,sans-serif; --fd:'Space Grotesk',var(--ff);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--ff);background:var(--bg);color:var(--ink);font-size:14.5px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+input,select,textarea{font-family:inherit;font-size:14px}
+h1,h2,h3{font-family:var(--fd);font-weight:600;letter-spacing:-.01em}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:8px;border:2px solid var(--bg)}
+
+/* ---------- Layout ---------- */
+#app{display:flex;min-height:100vh}
+.sidebar{width:248px;background:var(--navy);color:#cbd5e1;display:flex;flex-direction:column;position:fixed;inset:0 auto 0 0;z-index:40;transition:transform .25s}
+.brand{display:flex;align-items:center;gap:11px;padding:20px 20px 16px}
+.brand .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#ef4444,#b91c1c);display:grid;place-items:center;flex:0 0 auto;box-shadow:0 4px 14px rgba(185,28,28,.5)}
+.brand .logo svg{width:19px;height:19px}
+.brand .name{font-family:var(--fd);font-weight:700;font-size:17px;color:#fff;line-height:1}
+.brand .sub{font-size:10.5px;color:#7c8ba1;letter-spacing:.08em;text-transform:uppercase;margin-top:3px}
+.nav{flex:1;overflow-y:auto;padding:8px 12px}
+.nav .grp{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:#5d7290;padding:16px 12px 7px}
+.nav a{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:9px;color:#aab8cc;font-weight:500;font-size:13.6px;margin-bottom:1px;transition:.12s}
+.nav a svg{width:18px;height:18px;flex:0 0 auto;opacity:.85}
+.nav a:hover{background:var(--navy-2);color:#fff}
+.nav a.active{background:var(--primary);color:#fff;box-shadow:0 4px 14px rgba(37,99,235,.4)}
+.nav a.active svg{opacity:1}
+.nav a .badge{margin-left:auto;background:var(--critique);color:#fff;font-size:11px;font-weight:700;min-width:19px;height:19px;border-radius:10px;display:grid;place-items:center;padding:0 5px}
+.side-foot{padding:12px;border-top:1px solid var(--navy-2)}
+.user-chip{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;cursor:pointer}
+.user-chip:hover{background:var(--navy-2)}
+.avatar{width:32px;height:32px;border-radius:8px;background:#2b3f5c;color:#dbe5f1;display:grid;place-items:center;font-weight:600;font-size:13px;flex:0 0 auto}
+.user-chip .info{min-width:0}
+.user-chip .info b{color:#e7edf5;font-size:13px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-chip .info span{font-size:11px;color:#7c8ba1;text-transform:capitalize}
+
+.main{flex:1;margin-left:248px;min-width:0;display:flex;flex-direction:column}
+.topbar{position:sticky;top:0;z-index:30;background:rgba(238,241,246,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:12px 26px;min-height:62px}
+.burger{display:none}
+.scope{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.scope-sel{display:flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:7px 11px;font-size:13px;box-shadow:var(--sh)}
+.scope-sel svg{width:15px;height:15px;color:var(--muted)}
+.scope-sel select{border:none;background:none;font-weight:600;color:var(--ink);outline:none;max-width:190px}
+.search{margin-left:auto;position:relative;display:flex;align-items:center}
+.search svg{position:absolute;left:12px;width:16px;height:16px;color:var(--muted-2)}
+.search input{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 12px 9px 35px;width:230px;outline:none;box-shadow:var(--sh)}
+.search input:focus{border-color:var(--primary)}
+.content{padding:26px;flex:1;max-width:1320px;width:100%}
+
+/* ---------- Generic ---------- */
+.page-head{display:flex;align-items:flex-end;gap:16px;margin-bottom:22px;flex-wrap:wrap}
+.page-head .t h1{font-size:25px}
+.page-head .t p{color:var(--muted);font-size:13.5px;margin-top:3px}
+.page-head .actions{margin-left:auto;display:flex;gap:9px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border-radius:10px;font-weight:600;font-size:13.5px;background:var(--surface);border:1px solid var(--line);color:var(--ink);transition:.12s;box-shadow:var(--sh)}
+.btn:hover{border-color:#cbd5e1;background:var(--surface-2)}
+.btn svg{width:16px;height:16px}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff;box-shadow:0 4px 14px rgba(37,99,235,.35)}
+.btn.primary:hover{background:var(--primary-d)}
+.btn.ghost{background:none;box-shadow:none;border-color:transparent}
+.btn.ghost:hover{background:var(--surface-2)}
+.btn.sm{padding:6px 11px;font-size:12.5px}
+.btn.danger{color:var(--critique);border-color:#f3c6c6}
+.btn.danger:hover{background:#fef2f2}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh)}
+.card-pad{padding:20px}
+.grid{display:grid;gap:16px}
+
+/* KPI cards */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:14px;margin-bottom:22px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px 17px;box-shadow:var(--sh);position:relative;overflow:hidden}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c,var(--info))}
+.kpi .lab{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12.5px;font-weight:500}
+.kpi .lab .dot{width:9px;height:9px;border-radius:3px;background:var(--c,var(--info))}
+.kpi .val{font-family:var(--fd);font-size:32px;font-weight:700;margin-top:9px;line-height:1}
+.kpi .hint{font-size:11.5px;color:var(--muted-2);margin-top:5px}
+
+/* Table */
+.tbl-wrap{overflow-x:auto;border-radius:var(--r);border:1px solid var(--line);background:var(--surface);box-shadow:var(--sh)}
+table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+table.tbl th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;padding:12px 15px;background:var(--surface-2);border-bottom:1px solid var(--line);white-space:nowrap}
+table.tbl td{padding:12px 15px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+table.tbl tr:last-child td{border-bottom:none}
+table.tbl tbody tr{cursor:pointer;transition:.1s}
+table.tbl tbody tr:hover{background:var(--surface-2)}
+table.tbl .mono{font-family:var(--fd);font-weight:600;font-size:12.5px;color:var(--muted)}
+
+/* Badges / pills */
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.pill .d{width:7px;height:7px;border-radius:50%}
+.pill.crit{background:#fdeaea;color:var(--critique)} .pill.crit .d{background:var(--critique)}
+.pill.maj{background:#fdecec;color:#c0392b} .pill.maj .d{background:var(--majeur)}
+.pill.moy{background:#fef4e6;color:#b97309} .pill.moy .d{background:var(--moyen)}
+.pill.fai{background:#fefae6;color:#9a7d0a} .pill.fai .d{background:var(--faible)}
+.pill.ok{background:#e8f6ee;color:#15803d} .pill.ok .d{background:var(--conforme)}
+.pill.inf{background:#eef2f7;color:#475569} .pill.inf .d{background:var(--info)}
+.pill.int{background:#e8eefe;color:#1d4ed8} .pill.int .d{background:var(--inter)}
+
+.empty{text-align:center;padding:54px 20px;color:var(--muted)}
+.empty svg{width:46px;height:46px;color:#cbd5e1;margin-bottom:12px}
+.empty h3{font-size:16px;color:var(--ink);margin-bottom:5px}
+.empty p{font-size:13.5px;max-width:340px;margin:0 auto 16px}
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(2px);z-index:60;display:grid;place-items:center;padding:18px;opacity:0;pointer-events:none;transition:.18s}
+.overlay.on{opacity:1;pointer-events:auto}
+.modal{background:var(--surface);border-radius:18px;box-shadow:var(--sh-l);width:100%;max-width:560px;max-height:92vh;overflow:auto;transform:translateY(8px) scale(.99);transition:.18s}
+.overlay.on .modal{transform:none}
+.modal.wide{max-width:760px}
+.modal-head{display:flex;align-items:center;gap:12px;padding:20px 22px 0}
+.modal-head h2{font-size:18px}
+.modal-head .x{margin-left:auto;width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--muted)}
+.modal-head .x:hover{background:var(--surface-2)}
+.modal-body{padding:18px 22px 22px}
+.modal-foot{display:flex;gap:10px;justify-content:flex-end;padding:0 22px 22px}
+
+/* Forms */
+.fld{margin-bottom:14px}
+.fld label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.fld label .req{color:var(--majeur)}
+.fld input,.fld select,.fld textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);outline:none;transition:.12s;color:var(--ink)}
+.fld input:focus,.fld select:focus,.fld textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.fld textarea{resize:vertical;min-height:74px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.checkrow{display:flex;align-items:center;gap:9px;padding:9px 0}
+.checkrow input{width:18px;height:18px;accent-color:var(--primary)}
+
+/* Tabs */
+.tabs{display:flex;gap:3px;border-bottom:1px solid var(--line);margin-bottom:20px;overflow-x:auto}
+.tabs button{padding:11px 15px;font-weight:600;font-size:13.5px;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
+.tabs button.active{color:var(--primary);border-bottom-color:var(--primary)}
+
+/* Detail header */
+.dh{display:flex;align-items:flex-start;gap:16px;margin-bottom:8px}
+.dh .ic{width:50px;height:50px;border-radius:13px;background:linear-gradient(135deg,#2563eb,#1d4ed8);display:grid;place-items:center;color:#fff;flex:0 0 auto}
+.dh .ic svg{width:24px;height:24px}
+.dh h1{font-size:23px}
+.dh .meta{color:var(--muted);font-size:13px;margin-top:3px;display:flex;gap:12px;flex-wrap:wrap}
+
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;background:var(--line-2);border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+.info-grid .it{background:var(--surface);padding:13px 15px}
+.info-grid .it .k{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.info-grid .it .v{font-size:14.5px;font-weight:500;margin-top:4px}
+
+/* Toast */
+#toasts{position:fixed;right:18px;bottom:18px;z-index:90;display:flex;flex-direction:column;gap:9px}
+.toast{background:var(--navy);color:#fff;padding:12px 16px;border-radius:11px;box-shadow:var(--sh-l);font-size:13.5px;display:flex;align-items:center;gap:10px;max-width:340px;animation:tin .25s}
+.toast.ok{background:#15803d}.toast.err{background:#b91c1c}
+@keyframes tin{from{transform:translateY(10px);opacity:0}}
+
+/* Auth */
+.auth{min-height:100vh;display:grid;grid-template-columns:1.05fr .95fr}
+.auth .left{background:var(--navy);color:#fff;padding:54px;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.auth .left::after{content:"";position:absolute;right:-120px;bottom:-120px;width:380px;height:380px;background:radial-gradient(circle,rgba(239,68,68,.22),transparent 70%)}
+.auth .left .brand2{display:flex;align-items:center;gap:12px;margin-bottom:auto;position:relative}
+.auth .left .brand2 .logo{width:42px;height:42px;border-radius:11px;background:linear-gradient(135deg,#ef4444,#b91c1c);display:grid;place-items:center}
+.auth .left .brand2 .logo svg{width:23px;height:23px}
+.auth .left .brand2 b{font-family:var(--fd);font-size:21px}
+.auth .left h2{font-family:var(--fd);font-size:34px;line-height:1.15;max-width:430px;position:relative;margin-bottom:18px}
+.auth .left p{color:#9fb0c6;max-width:430px;font-size:15px;position:relative}
+.auth .left .feats{margin-top:30px;display:flex;flex-direction:column;gap:13px;position:relative}
+.auth .left .feats div{display:flex;align-items:center;gap:11px;color:#cbd5e1;font-size:14px}
+.auth .left .feats svg{width:18px;height:18px;color:#34d399;flex:0 0 auto}
+.auth .right{display:flex;align-items:center;justify-content:center;padding:40px}
+.auth .form{width:100%;max-width:370px}
+.auth .form h1{font-size:25px;margin-bottom:6px}
+.auth .form>p{color:var(--muted);margin-bottom:24px}
+.auth .switch{margin-top:18px;font-size:13.5px;color:var(--muted);text-align:center}
+.auth .switch a{color:var(--primary);font-weight:600;cursor:pointer}
+.lnk{color:var(--primary);font-weight:600;cursor:pointer;font-size:12.5px}
+
+/* QR public page */
+.qrpub{min-height:100vh;background:var(--navy);display:flex;align-items:flex-start;justify-content:center;padding:0}
+.qrpub .sheet{background:var(--bg);width:100%;max-width:520px;min-height:100vh;display:flex;flex-direction:column}
+.qrpub .hd{background:var(--navy);color:#fff;padding:22px 22px 26px}
+.qrpub .hd .b{display:flex;align-items:center;gap:10px}
+.qrpub .hd .b .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#ef4444,#b91c1c);display:grid;place-items:center}
+.qrpub .hd .b .logo svg{width:18px;height:18px}
+.qrpub .hd h1{font-size:18px;margin-top:16px}
+.qrpub .hd p{color:#9fb0c6;font-size:13.5px;margin-top:3px}
+.qrpub .body{padding:20px;flex:1}
+.seg{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:4px;margin-bottom:18px}
+.seg button{flex:1;padding:9px;border-radius:8px;font-weight:600;font-size:13.5px;color:var(--muted)}
+.seg button.active{background:var(--primary);color:#fff}
+.urg-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.urg-grid label{border:1.5px solid var(--line);border-radius:11px;padding:12px;text-align:center;font-weight:600;font-size:13px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px}
+.urg-grid label .d{width:11px;height:11px;border-radius:50%}
+.urg-grid input{display:none}
+.urg-grid input:checked+span{}
+.urg-grid label:has(input:checked){border-color:var(--primary);background:#eff4ff}
+
+.qrbox{display:flex;flex-direction:column;align-items:center;gap:14px;padding:6px}
+.qrbox .qc{background:#fff;padding:16px;border-radius:14px;border:1px solid var(--line)}
+
+.loading{display:grid;place-items:center;min-height:60vh;color:var(--muted)}
+.spin{width:30px;height:30px;border:3px solid var(--line);border-top-color:var(--primary);border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.skel{background:linear-gradient(90deg,#eef2f7,#f6f8fb,#eef2f7);background-size:200% 100%;animation:sk 1.2s infinite;border-radius:8px}
+@keyframes sk{to{background-position:-200% 0}}
+
+/* Config banner */
+.cfgbanner{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;padding:11px 16px;border-radius:11px;font-size:13px;margin-bottom:18px;display:flex;align-items:center;gap:10px}
+.cfgbanner b{font-weight:700}
+.cfgbanner a{color:#c2410c;font-weight:700;cursor:pointer;text-decoration:underline}
+
+@media(max-width:960px){
+  .auth{grid-template-columns:1fr}
+  .auth .left{display:none}
+}
+@media(max-width:840px){
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:none}
+  .main{margin-left:0}
+  .burger{display:grid;place-items:center;width:38px;height:38px;border-radius:9px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--sh)}
+  .burger svg{width:20px;height:20px}
+  .search input{width:150px}
+  .content{padding:18px}
+  .row2,.row3{grid-template-columns:1fr}
+  .topbar{padding:10px 16px}
+  .scrim{position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:39}
+}
+</style>
+</head>
+<body>
+<div id="root"><div class="loading"><div class="spin"></div></div></div>
+<div id="toasts"></div>
+<div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
+
+<script>
+/* =====================================================================
+   CONFIG SUPABASE
+===================================================================== */
+const SUPABASE_URL = "https://twjvloctrjqcokuuxghc.supabase.co";
+// Clé publique "anon" (publishable, conçue pour le navigateur) — pré-remplie.
+let SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR3anZsb2N0cmpxY29rdXV4Z2hjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0NDU5NjAsImV4cCI6MjA5NzAyMTk2MH0.aC9ihbGL9eEc6ZKcACB89Heyp_w8csLNp6GVlDsz3Ic";
+
+function loadCfg(){
+  try{ const k = localStorage.getItem("preva_anon"); if(k) SUPABASE_ANON_KEY=k; }catch(e){}
+  return !!SUPABASE_ANON_KEY;
+}
+function saveCfg(k){ SUPABASE_ANON_KEY=k.trim(); try{localStorage.setItem("preva_anon",SUPABASE_ANON_KEY);}catch(e){} }
+
+let sb = null;
+function initSb(){
+  if(!SUPABASE_ANON_KEY) return false;
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  return true;
+}
+
+/* =====================================================================
+   ICONS
+===================================================================== */
+const I = {
+  flame:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+  dash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>',
+  clients:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  erp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9v0M9 12v0M9 15v0"/></svg>',
+  inter:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
+  reserve:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/></svg>',
+  doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>',
+  qr:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3M21 14v0M14 21h7M17 21v0"/></svg>',
+  photo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+  prest:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>',
+  settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  journal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z" opacity="0"/><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  chk:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  menu:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>',
+  dl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>',
+  out:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>',
+  clock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+};
+
+/* =====================================================================
+   HELPERS
+===================================================================== */
+const $ = (s,r=document)=>r.querySelector(s);
+const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtDate = d => d ? new Date(d).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+const fmtDT = d => d ? new Date(d).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
+const todayISO = ()=> new Date().toISOString().slice(0,10);
+
+function toast(msg,type=''){
+  const t=document.createElement('div'); t.className='toast '+type;
+  t.innerHTML=(type==='ok'?I.chk:type==='err'?I.x:'')+`<span>${esc(msg)}</span>`;
+  $('#toasts').appendChild(t); setTimeout(()=>{t.style.opacity=0;t.style.transform='translateY(8px)';setTimeout(()=>t.remove(),250)},3200);
+}
+
+let modalOnClose=null;
+function openModal(html,cls=''){ const m=$('#modal'); m.className='modal '+cls; m.innerHTML=html; $('#overlay').classList.add('on'); }
+function closeModal(){ $('#overlay').classList.remove('on'); modalOnClose&&modalOnClose(); modalOnClose=null; }
+$('#overlay').addEventListener('click',e=>{ if(e.target.id==='overlay') closeModal(); });
+
+const CRIT = {critique:['Critique','crit'],majeur:['Majeur','maj'],moyen:['Moyen','moy'],faible:['Faible','fai'],info:['Information','inf']};
+function critPill(c){ const x=CRIT[c]||CRIT.info; return `<span class="pill ${x[1]}"><span class="d"></span>${x[0]}</span>`; }
+function statusPill(s,map){ const x=map[s]||['',s||'—','inf']; return `<span class="pill ${x[2]}">${esc(x[1])}</span>`; }
+
+/* =====================================================================
+   STATE + AUTH
+===================================================================== */
+const state = { user:null, profile:null, clients:[], erps:[], currentClient:'all', currentErp:'all', counts:{} };
+
+async function boot(){
+  if(!loadCfg() || !initSb()){ renderConfig(); return; }
+  const { data } = await sb.auth.getSession();
+  if(data.session){ state.user=data.session.user; await afterLogin(); }
+  else renderAuth('login');
+  sb.auth.onAuthStateChange((_e,session)=>{
+    if(!session && state.user){ state.user=null; location.hash=''; renderAuth('login'); }
+  });
+}
+
+async function afterLogin(){
+  try{
+    const { data:prof } = await sb.from('profiles').select('*').eq('id',state.user.id).single();
+    state.profile = prof || {nom:state.user.email,role:'consultant',email:state.user.email};
+    await loadScope();
+    if(!location.hash || location.hash==='#/login') location.hash='#/';
+    renderApp();
+  }catch(e){ console.error(e); toast('Erreur de chargement du profil','err'); renderAuth('login'); }
+}
+
+async function loadScope(){
+  const { data:cl } = await sb.from('clients').select('id,code_client,raison_sociale,statut').order('raison_sociale');
+  state.clients = cl||[];
+  const { data:er } = await sb.from('erps').select('id,code_erp,nom,client_id,statut,qr_token').order('nom');
+  state.erps = er||[];
+}
+
+/* ---------- ROUTER ---------- */
+const routes = {};
+function route(path,fn){ routes[path]=fn; }
+function navigate(h){ location.hash=h; }
+window.addEventListener('hashchange',renderRoute);
+
+function renderRoute(){
+  const hash = location.hash.replace(/^#/,'')||'/';
+  // public QR route works without login
+  if(hash.startsWith('/qr/')){ renderQrPublic(hash.split('/')[2]); return; }
+  if(!state.user){ renderAuth('login'); return; }
+  const parts = hash.split('/').filter(Boolean);
+  const base = '/'+(parts[0]||'');
+  setActiveNav(base);
+  const content = $('#content'); if(!content) { renderApp(); return; }
+  if(base==='/' || hash==='/') return viewDashboard(content);
+  if(base==='/clients') return parts[1]?viewClient(content,parts[1]):viewClients(content);
+  if(base==='/erps') return parts[1]?viewErp(content,parts[1]):viewErps(content);
+  if(base==='/interventions') return viewInterventions(content);
+  if(base==='/reserves') return viewReserves(content);
+  if(base==='/documents') return viewDocuments(content);
+  if(base==='/pointage') return viewPointage(content);
+  if(base==='/photos') return viewPhotos(content);
+  if(base==='/prestataires') return viewPrestataires(content);
+  if(base==='/parametres') return viewParametres(content);
+  viewDashboard(content);
+}
+
+/* =====================================================================
+   CONFIG SCREEN
+===================================================================== */
+function renderConfig(){
+  $('#root').innerHTML = `<div class="auth"><div class="left">
+    <div class="brand2"><div class="logo">${I.flame}</div><b>PREVA</b></div>
+    <h2>Suivi réglementaire incendie ERP</h2>
+    <p>Ne jamais oublier une vérification, ne jamais perdre un rapport, ne jamais laisser une réserve sans suivi.</p>
+  </div><div class="right"><div class="form">
+    <h1>Configuration</h1>
+    <p>Renseigne la clé publique <b>anon</b> de ton projet Supabase pour démarrer.</p>
+    <div class="fld"><label>URL du projet</label><input value="${SUPABASE_URL}" disabled></div>
+    <div class="fld"><label>Clé anon (publique) <span class="req">*</span></label>
+      <input id="cfgkey" placeholder="eyJhbGciOi..." type="password"></div>
+    <button class="btn primary" style="width:100%;justify-content:center" id="cfgsave">Enregistrer et continuer</button>
+    <p style="font-size:12px;color:var(--muted);margin-top:16px">Project Settings → API → Project API keys → <b>anon public</b>. Cette clé est publique et conçue pour le navigateur.</p>
+  </div></div></div>`;
+  $('#cfgsave').onclick=()=>{
+    const k=$('#cfgkey').value; if(!k.trim()){toast('Colle ta clé anon','err');return;}
+    saveCfg(k); if(initSb()){ toast('Configuration enregistrée','ok'); boot(); }
+  };
+  $('#cfgkey').addEventListener('keydown',e=>{if(e.key==='Enter')$('#cfgsave').click();});
+}
+
+/* =====================================================================
+   AUTH SCREENS
+===================================================================== */
+function renderAuth(mode){
+  const forms = {
+    login:`<h1>Connexion</h1><p>Accède à ton portefeuille de clients et ERP.</p>
+      <div class="fld"><label>Email</label><input id="email" type="email" placeholder="vous@exemple.fr"></div>
+      <div class="fld"><label>Mot de passe</label><input id="pwd" type="password" placeholder="••••••••">
+        <div style="text-align:right;margin-top:6px"><span class="lnk" onclick="renderAuth('reset')">Mot de passe oublié ?</span></div></div>
+      <button class="btn primary" id="go" style="width:100%;justify-content:center">Se connecter</button>
+      <div class="switch">Pas encore de compte ? <a onclick="renderAuth('signup')">Créer un compte</a></div>`,
+    signup:`<h1>Créer un compte</h1><p>Quelques secondes suffisent.</p>
+      <div class="fld"><label>Nom complet</label><input id="nom" placeholder="Prénom Nom"></div>
+      <div class="fld"><label>Email</label><input id="email" type="email" placeholder="vous@exemple.fr"></div>
+      <div class="fld"><label>Mot de passe</label><input id="pwd" type="password" placeholder="8 caractères min."></div>
+      <button class="btn primary" id="go" style="width:100%;justify-content:center">Créer le compte</button>
+      <div class="switch">Déjà inscrit ? <a onclick="renderAuth('login')">Se connecter</a></div>`,
+    reset:`<h1>Réinitialiser</h1><p>On t'envoie un lien par email.</p>
+      <div class="fld"><label>Email</label><input id="email" type="email" placeholder="vous@exemple.fr"></div>
+      <button class="btn primary" id="go" style="width:100%;justify-content:center">Envoyer le lien</button>
+      <div class="switch"><a onclick="renderAuth('login')">Retour à la connexion</a></div>`
+  };
+  $('#root').innerHTML=`<div class="auth"><div class="left">
+    <div class="brand2"><div class="logo">${I.flame}</div><b>PREVA</b></div>
+    <h2>Pilotez la sécurité incendie de vos ERP, sans rien oublier.</h2>
+    <p>Obligations, échéances, rapports, réserves et commissions : tout devient une action datée, relancée et historisée.</p>
+    <div class="feats">
+      <div>${I.chk} Tableau de bord trié par criticité</div>
+      <div>${I.chk} QR code & pointage des intervenants</div>
+      <div>${I.chk} Photos d'urgence rattachées à l'ERP</div>
+      <div>${I.chk} Classeur commission prêt à imprimer</div>
+    </div>
+  </div><div class="right"><div class="form">${forms[mode]}</div></div></div>`;
+  const go=$('#go'); if(go) go.onclick=()=>doAuth(mode,go);
+  ['email','pwd'].forEach(id=>{const el=$('#'+id); if(el)el.addEventListener('keydown',e=>{if(e.key==='Enter')go.click();});});
+}
+window.renderAuth=renderAuth;
+
+async function doAuth(mode,btn){
+  const email=$('#email')?.value.trim(), pwd=$('#pwd')?.value, nom=$('#nom')?.value.trim();
+  btn.disabled=true; const old=btn.textContent; btn.textContent='…';
+  try{
+    if(mode==='login'){
+      const {error}=await sb.auth.signInWithPassword({email,password:pwd});
+      if(error) throw error;
+      const {data}=await sb.auth.getSession(); state.user=data.session.user; await afterLogin();
+    } else if(mode==='signup'){
+      if(pwd.length<8) throw {message:'Mot de passe : 8 caractères minimum.'};
+      const {data,error}=await sb.auth.signUp({email,password:pwd,options:{data:{nom}}});
+      if(error) throw error;
+      if(data.session){ state.user=data.session.user; await afterLogin(); }
+      else { toast('Compte créé. Vérifie ta boîte mail pour confirmer.','ok'); renderAuth('login'); }
+    } else {
+      const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
+      if(error) throw error; toast('Email de réinitialisation envoyé','ok'); renderAuth('login');
+    }
+  }catch(e){ toast(e.message||'Échec de l\'authentification','err'); btn.disabled=false; btn.textContent=old; }
+}
+
+async function logout(){ await sb.auth.signOut(); state.user=null; renderAuth('login'); }
+window.logout=logout;
+
+/* =====================================================================
+   APP SHELL
+===================================================================== */
+const NAV = [
+  ['Pilotage', [['/','Tableau de bord',I.dash],['/interventions','Interventions',I.inter],['/reserves','Réserves',I.reserve],['/photos','Photos urgentes',I.photo]]],
+  ['Référentiel', [['/clients','Clients',I.clients],['/erps','ERP',I.erp],['/prestataires','Prestataires',I.prest]]],
+  ['Documents & terrain', [['/documents','Documents (GED)',I.doc],['/pointage','Pointage & journal',I.qr]]],
+];
+
+function renderApp(){
+  const initials=(state.profile?.nom||'?').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase();
+  $('#root').innerHTML=`<div id="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><div class="logo">${I.flame}</div><div><div class="name">PREVA</div><div class="sub">Sécurité incendie ERP</div></div></div>
+      <nav class="nav" id="nav">${NAV.map(g=>`
+        <div class="grp">${g[0]}</div>
+        ${g[1].map(([p,l,ic])=>`<a href="#${p}" data-base="${p}">${ic}<span>${l}</span>${p==='/photos'?'<span class="badge" id="badge-photos" style="display:none">0</span>':''}</a>`).join('')}
+      `).join('')}</nav>
+      <div class="side-foot">
+        <div class="user-chip" onclick="navigate('/parametres')">
+          <div class="avatar">${initials}</div>
+          <div class="info"><b>${esc(state.profile?.nom||'')}</b><span>${esc(state.profile?.role||'')}</span></div>
+        </div>
+      </div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <button class="burger" onclick="document.getElementById('sidebar').classList.toggle('open')">${I.menu}</button>
+        <div class="scope">
+          <div class="scope-sel">${I.clients}<select id="selClient" onchange="onScope('client',this.value)"></select></div>
+          <div class="scope-sel">${I.erp}<select id="selErp" onchange="onScope('erp',this.value)"></select></div>
+        </div>
+        <div class="search">${I.search}<input id="globalSearch" placeholder="Rechercher…" onkeydown="if(event.key==='Enter')doSearch(this.value)"></div>
+      </header>
+      <main class="content" id="content"></main>
+    </div>
+  </div>`;
+  fillScopeSelectors();
+  renderRoute();
+}
+
+function fillScopeSelectors(){
+  const sc=$('#selClient'), se=$('#selErp');
+  if(sc){ sc.innerHTML=`<option value="all">Tous les clients</option>`+state.clients.map(c=>`<option value="${c.id}">${esc(c.raison_sociale)}</option>`).join(''); sc.value=state.currentClient; }
+  if(se){ const erps=state.currentClient==='all'?state.erps:state.erps.filter(e=>e.client_id===state.currentClient);
+    se.innerHTML=`<option value="all">Tous les ERP</option>`+erps.map(e=>`<option value="${e.id}">${esc(e.nom)}</option>`).join(''); se.value=state.currentErp; }
+}
+function onScope(kind,val){
+  if(kind==='client'){ state.currentClient=val; state.currentErp='all'; }
+  else state.currentErp=val;
+  fillScopeSelectors(); renderRoute();
+}
+window.onScope=onScope; window.navigate=navigate;
+function setActiveNav(base){ document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('active',a.dataset.base===base)); document.getElementById('sidebar')?.classList.remove('open'); }
+function erpFilter(q){ if(state.currentErp!=='all') return q.eq('erp_id',state.currentErp);
+  if(state.currentClient!=='all'){ const ids=state.erps.filter(e=>e.client_id===state.currentClient).map(e=>e.id); return q.in('erp_id',ids.length?ids:['00000000-0000-0000-0000-000000000000']); } return q; }
+function doSearch(v){ if(v.trim()) toast('Recherche : "'+v+'" — module en cours'); }
+window.doSearch=doSearch;
+
+function loadingBlock(){ return `<div style="display:grid;gap:14px"><div class="skel" style="height:90px"></div><div class="skel" style="height:260px"></div></div>`; }
+function emptyBlock(icon,title,desc,btn){ return `<div class="card"><div class="empty">${icon}<h3>${title}</h3><p>${desc}</p>${btn||''}</div></div>`; }
+
+/* =====================================================================
+   DASHBOARD
+===================================================================== */
+async function viewDashboard(c){
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Tableau de bord</h1><p>Vos priorités, triées par criticité.</p></div></div>${loadingBlock()}`;
+  const erpIds = state.currentErp!=='all'?[state.currentErp]
+    : (state.currentClient!=='all'?state.erps.filter(e=>e.client_id===state.currentClient).map(e=>e.id):state.erps.map(e=>e.id));
+  const inScope = arr => state.currentClient==='all'&&state.currentErp==='all'?arr:arr.filter(x=>erpIds.includes(x.erp_id));
+
+  try{
+    const [ob,re,it,ph] = await Promise.all([
+      sb.from('obligations').select('id,erp_id,libelle,prochaine_echeance,statut,criticite,domaine'),
+      sb.from('reserves').select('id,erp_id,libelle,criticite,statut,date_limite,localisation'),
+      sb.from('interventions').select('id,erp_id,code_int,objet,statut,date_prevue,type'),
+      sb.from('photos_urgentes').select('id,erp_id,niveau_urgence,statut,commentaire,created_at,localisation'),
+    ]);
+    const obs=inScope(ob.data||[]), res=inScope(re.data||[]), its=inScope(it.data||[]), phs=inScope(ph.data||[]);
+    const today=todayISO();
+    const enRetard = obs.filter(o=>o.prochaine_echeance && o.prochaine_echeance<today && !['a_jour','non_applicable'].includes(o.statut));
+    const aProg = its.filter(i=>['a_programmer','a_reprogrammer'].includes(i.statut));
+    const resCrit = res.filter(r=>r.criticite==='critique' && !['cloturee','levee','rejetee'].includes(r.statut));
+    const resOuv = res.filter(r=>!['cloturee','levee','rejetee'].includes(r.statut));
+    const photoNT = phs.filter(p=>['recue','a_traiter','vue'].includes(p.statut));
+    const badge=$('#badge-photos'); if(badge){ if(photoNT.length){badge.style.display='grid';badge.textContent=photoNT.length;}else badge.style.display='none'; }
+
+    const kpis=[
+      ['Vérifications en retard',enRetard.length,'critique','Échéances dépassées'],
+      ['Réserves critiques',resCrit.length,'critique','Correction immédiate'],
+      ['À programmer',aProg.length,'moyen','Interventions sans date'],
+      ['Réserves ouvertes',resOuv.length,'majeur','En cours de levée'],
+      ['Photos urgentes',photoNT.length,'majeur','Alertes terrain à traiter'],
+    ];
+
+    const priorities = [
+      ...resCrit.map(r=>({c:'critique',t:'Réserve critique',d:r.libelle,loc:r.localisation,go:'/reserves'})),
+      ...enRetard.map(o=>({c:'critique',t:'Vérification en retard — '+(o.domaine||''),d:o.libelle,loc:fmtDate(o.prochaine_echeance),go:'/interventions'})),
+      ...photoNT.filter(p=>p.niveau_urgence==='critique'||p.niveau_urgence==='urgent').map(p=>({c:'majeur',t:'Photo urgente',d:p.commentaire,loc:p.localisation,go:'/photos'})),
+      ...aProg.map(i=>({c:'moyen',t:'À programmer',d:i.objet||i.code_int,loc:fmtDate(i.date_prevue),go:'/interventions'})),
+    ].slice(0,12);
+
+    c.innerHTML=`<div class="page-head"><div class="t"><h1>Tableau de bord</h1><p>Vos priorités, triées par criticité.</p></div>
+      <div class="actions"><button class="btn primary" onclick="quickIntervention()">${I.plus} Nouvelle intervention</button></div></div>
+      ${cfgHint()}
+      <div class="kpis">${kpis.map(k=>`<div class="kpi" style="--c:var(--${k[2]==='critique'?'critique':k[2]==='majeur'?'majeur':'moyen'})">
+        <div class="lab"><span class="dot"></span>${k[0]}</div><div class="val">${k[1]}</div><div class="hint">${k[3]}</div></div>`).join('')}</div>
+      <div class="card"><div class="card-pad" style="display:flex;align-items:center;gap:10px"><h2 style="font-size:16px">À traiter en priorité</h2>
+        <span class="pill inf" style="margin-left:auto">${priorities.length} action(s)</span></div>
+        ${priorities.length?`<div class="tbl-wrap" style="border:none;box-shadow:none;border-radius:0">
+        <table class="tbl"><tbody>${priorities.map(p=>`<tr onclick="navigate('${p.go}')">
+          <td style="width:130px">${critPill(p.c)}</td>
+          <td><b>${esc(p.t)}</b><div style="color:var(--muted);font-size:12.5px">${esc(p.d||'')}</div></td>
+          <td style="text-align:right;color:var(--muted)">${esc(p.loc||'')}</td></tr>`).join('')}</tbody></table></div>`
+        :`<div class="empty">${I.chk}<h3>Tout est à jour</h3><p>Aucune action critique en attente sur ce périmètre.</p></div>`}
+      </div>`;
+  }catch(e){ c.innerHTML=errBlock(e); }
+}
+function cfgHint(){ return state.clients.length?'':`<div class="cfgbanner">${I.flame.replace(/#fff/g,'#9a3412')}<div><b>Base prête ?</b> Crée ton premier client pour démarrer le suivi. <a onclick="navigate('/clients')">Aller aux clients →</a></div></div>`; }
+function errBlock(e){ console.error(e); return `<div class="card"><div class="empty">${I.reserve}<h3>Impossible de charger les données</h3><p>${esc(e.message||'Vérifie que le schéma SQL a bien été exécuté sur Supabase.')}</p></div></div>`; }
+
+/* =====================================================================
+   CLIENTS
+===================================================================== */
+async function viewClients(c){
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Clients</h1><p>${state.clients.length} client(s) dans votre portefeuille.</p></div>
+    <div class="actions"><button class="btn primary" onclick="formClient()">${I.plus} Nouveau client</button></div></div>`;
+  if(!state.clients.length){ c.innerHTML+=emptyBlock(I.clients,'Aucun client','Créez votre premier client pour rattacher ses ERP, contacts et documents.',`<button class="btn primary" onclick="formClient()">${I.plus} Créer un client</button>`); return; }
+  const rows=state.clients.map(cl=>{ const n=state.erps.filter(e=>e.client_id===cl.id).length;
+    return `<tr onclick="navigate('/clients/${cl.id}')"><td class="mono">${esc(cl.code_client||'')}</td>
+      <td><b>${esc(cl.raison_sociale)}</b></td><td>${n} ERP</td>
+      <td>${statusPill(cl.statut,{actif:['','Actif','ok'],brouillon:['','Brouillon','inf'],archive:['','Archivé','inf']})}</td></tr>`;}).join('');
+  c.innerHTML+=`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Code</th><th>Raison sociale</th><th>ERP</th><th>Statut</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function formClient(cl){
+  const e=cl||{};
+  openModal(`<div class="modal-head"><h2>${cl?'Modifier le client':'Nouveau client'}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+  <div class="modal-body">
+    <div class="fld"><label>Raison sociale <span class="req">*</span></label><input id="f_rs" value="${esc(e.raison_sociale)}"></div>
+    <div class="row2"><div class="fld"><label>Nom commercial</label><input id="f_nc" value="${esc(e.nom_commercial)}"></div>
+      <div class="fld"><label>SIRET</label><input id="f_siret" value="${esc(e.siret)}"></div></div>
+    <div class="fld"><label>Adresse siège</label><input id="f_adr" value="${esc(e.adresse_siege)}"></div>
+    <div class="row2"><div class="fld"><label>Téléphone</label><input id="f_tel" value="${esc(e.telephone)}"></div>
+      <div class="fld"><label>Email</label><input id="f_email" value="${esc(e.email)}"></div></div>
+    <div class="fld"><label>Statut</label><select id="f_statut"><option value="actif"${e.statut==='actif'?' selected':''}>Actif</option><option value="brouillon"${e.statut==='brouillon'?' selected':''}>Brouillon</option><option value="archive"${e.statut==='archive'?' selected':''}>Archivé</option></select></div>
+  </div>
+  <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">${cl?'Enregistrer':'Créer le client'}</button></div>`);
+  $('#save').onclick=async()=>{
+    const rs=$('#f_rs').value.trim(); if(!rs){toast('La raison sociale est requise','err');return;}
+    const payload={raison_sociale:rs,nom_commercial:$('#f_nc').value.trim()||null,siret:$('#f_siret').value.trim()||null,
+      adresse_siege:$('#f_adr').value.trim()||null,telephone:$('#f_tel').value.trim()||null,email:$('#f_email').value.trim()||null,statut:$('#f_statut').value};
+    try{ if(cl){ await sb.from('clients').update(payload).eq('id',cl.id); } else { await sb.from('clients').insert(payload); }
+      await loadScope(); fillScopeSelectors(); closeModal(); toast(cl?'Client modifié':'Client créé','ok'); renderRoute();
+    }catch(err){ toast(err.message,'err'); }
+  };
+}
+window.formClient=formClient; window.closeModal=closeModal;
+
+async function viewClient(c,id){
+  c.innerHTML=loadingBlock();
+  try{
+    const {data:cl}=await sb.from('clients').select('*').eq('id',id).single();
+    if(!cl){ c.innerHTML=emptyBlock(I.clients,'Client introuvable','',''); return; }
+    const erps=state.erps.filter(e=>e.client_id===id);
+    const {data:contacts}=await sb.from('client_contacts').select('*').eq('client_id',id);
+    c.innerHTML=`<div class="page-head"><div class="t">
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:6px"><span class="lnk" onclick="navigate('/clients')">Clients</span> / ${esc(cl.code_client)}</div>
+      <div class="dh"><div class="ic">${I.clients}</div><div><h1>${esc(cl.raison_sociale)}</h1>
+        <div class="meta"><span>${esc(cl.code_client)}</span>${cl.siret?'<span>SIRET '+esc(cl.siret)+'</span>':''}<span>${erps.length} ERP</span></div></div></div></div>
+      <div class="actions"><button class="btn" onclick='formClient(${JSON.stringify(cl).replace(/'/g,"&#39;")})'>Modifier</button>
+        <button class="btn primary" onclick="formErp(null,'${id}')">${I.plus} Ajouter un ERP</button></div></div>
+      <div class="info-grid" style="margin-bottom:20px">
+        <div class="it"><div class="k">Adresse siège</div><div class="v">${esc(cl.adresse_siege)||'—'}</div></div>
+        <div class="it"><div class="k">Téléphone</div><div class="v">${esc(cl.telephone)||'—'}</div></div>
+        <div class="it"><div class="k">Email</div><div class="v">${esc(cl.email)||'—'}</div></div>
+        <div class="it"><div class="k">Contacts</div><div class="v">${(contacts||[]).length||0}</div></div>
+      </div>
+      <h2 style="font-size:16px;margin-bottom:12px">Établissements (ERP)</h2>
+      ${erps.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Code</th><th>Nom</th><th>Type</th><th>Statut</th></tr></thead><tbody>
+        ${erps.map(e=>`<tr onclick="navigate('/erps/${e.id}')"><td class="mono">${esc(e.code_erp)}</td><td><b>${esc(e.nom)}</b></td><td>—</td>
+          <td>${statusPill(e.statut,{validee:['','Validée','ok'],brouillon:['','Brouillon','inf'],a_completer:['','À compléter','moy'],archive:['','Archivé','inf']})}</td></tr>`).join('')}
+        </tbody></table></div>`:emptyBlock(I.erp,'Aucun ERP','Ajoutez le premier établissement de ce client.',`<button class="btn primary" onclick="formErp(null,'${id}')">${I.plus} Ajouter un ERP</button>`)}`;
+  }catch(e){ c.innerHTML=errBlock(e); }
+}
+
+/* =====================================================================
+   ERP  (+ QR)
+===================================================================== */
+async function viewErps(c){
+  const erps = state.currentClient==='all'?state.erps:state.erps.filter(e=>e.client_id===state.currentClient);
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>ERP</h1><p>${erps.length} établissement(s).</p></div>
+    <div class="actions"><button class="btn primary" onclick="formErp()">${I.plus} Nouvel ERP</button></div></div>`;
+  if(!erps.length){ c.innerHTML+=emptyBlock(I.erp,'Aucun ERP','Créez un établissement et son QR code de pointage sera généré automatiquement.',`<button class="btn primary" onclick="formErp()">${I.plus} Créer un ERP</button>`); return; }
+  const clientName=id=>state.clients.find(x=>x.id===id)?.raison_sociale||'';
+  c.innerHTML+=`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Code</th><th>Nom</th><th>Client</th><th>Statut</th><th></th></tr></thead><tbody>
+    ${erps.map(e=>`<tr onclick="navigate('/erps/${e.id}')"><td class="mono">${esc(e.code_erp)}</td><td><b>${esc(e.nom)}</b></td>
+      <td>${esc(clientName(e.client_id))}</td>
+      <td>${statusPill(e.statut,{validee:['','Validée','ok'],brouillon:['','Brouillon','inf'],a_completer:['','À compléter','moy'],archive:['','Archivé','inf']})}</td>
+      <td style="text-align:right"><button class="btn sm" onclick="event.stopPropagation();showQR('${e.qr_token}','${esc(e.nom)}','${esc(e.code_erp)}')">${I.qr} QR</button></td></tr>`).join('')}
+    </tbody></table></div>`;
+}
+
+function formErp(er,clientId){
+  const e=er||{}; const cid=clientId||e.client_id||state.currentClient!=='all'?state.currentClient:'';
+  const clientOpts=state.clients.map(c=>`<option value="${c.id}"${(clientId||e.client_id)===c.id?' selected':''}>${esc(c.raison_sociale)}</option>`).join('');
+  openModal(`<div class="modal-head"><h2>${er?'Modifier l\'ERP':'Nouvel ERP'}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+  <div class="modal-body">
+    <div class="fld"><label>Client <span class="req">*</span></label><select id="f_client"${er?' disabled':''}><option value="">— choisir —</option>${clientOpts}</select></div>
+    <div class="fld"><label>Nom de l'ERP <span class="req">*</span></label><input id="f_nom" value="${esc(e.nom)}"></div>
+    <div class="fld"><label>Adresse</label><input id="f_adr" value="${esc(e.adresse)}"></div>
+    <div class="row3"><div class="fld"><label>Type</label><input id="f_type" placeholder="M, L, N…" value="${esc(e.type_erp)}"></div>
+      <div class="fld"><label>Catégorie</label><input id="f_cat" placeholder="1re…5e" value="${esc(e.categorie)}"></div>
+      <div class="fld"><label>Niveaux</label><input id="f_niv" placeholder="R+2…" value="${esc(e.niveaux)}"></div></div>
+    <div class="row2"><div class="fld"><label>Effectif public</label><input id="f_efp" type="number" value="${esc(e.effectif_public)}"></div>
+      <div class="fld"><label>Activité</label><input id="f_act" value="${esc(e.activite)}"></div></div>
+    <div class="checkrow"><input type="checkbox" id="f_som"${e.locaux_sommeil?' checked':''}><label style="margin:0">Locaux à sommeil</label></div>
+  </div>
+  <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">${er?'Enregistrer':'Créer l\'ERP'}</button></div>`);
+  if(clientId){ const s=$('#f_client'); if(s) s.value=clientId; }
+  $('#save').onclick=async()=>{
+    const client_id=$('#f_client').value, nom=$('#f_nom').value.trim();
+    if(!client_id){toast('Sélectionne un client','err');return;} if(!nom){toast('Le nom est requis','err');return;}
+    const payload={client_id,nom,adresse:$('#f_adr').value.trim()||null,type_erp:$('#f_type').value.trim()||null,
+      categorie:$('#f_cat').value.trim()||null,niveaux:$('#f_niv').value.trim()||null,
+      effectif_public:$('#f_efp').value?parseInt($('#f_efp').value):null,activite:$('#f_act').value.trim()||null,
+      locaux_sommeil:$('#f_som').checked};
+    try{ if(er){ delete payload.client_id; await sb.from('erps').update(payload).eq('id',er.id);}else{await sb.from('erps').insert(payload);}
+      await loadScope(); fillScopeSelectors(); closeModal(); toast(er?'ERP modifié':'ERP créé — QR généré','ok');
+      navigate('/erps'+(er?'/'+er.id:''));
+    }catch(err){ toast(err.message,'err'); }
+  };
+}
+window.formErp=formErp;
+
+async function viewErp(c,id){
+  c.innerHTML=loadingBlock();
+  try{
+    const {data:e}=await sb.from('erps').select('*').eq('id',id).single();
+    if(!e){ c.innerHTML=emptyBlock(I.erp,'ERP introuvable','',''); return; }
+    const cl=state.clients.find(x=>x.id===e.client_id);
+    const [eq,ob,it,re] = await Promise.all([
+      sb.from('equipements').select('*').eq('erp_id',id),
+      sb.from('obligations').select('*').eq('erp_id',id).order('prochaine_echeance'),
+      sb.from('interventions').select('*').eq('erp_id',id).order('date_prevue',{ascending:false}),
+      sb.from('reserves').select('*').eq('erp_id',id).order('created_at',{ascending:false}),
+    ]);
+    const tab = (location.hash.split('?t=')[1])||'apercu';
+    const data={e,cl,eq:eq.data||[],ob:ob.data||[],it:it.data||[],re:re.data||[]};
+    c.innerHTML=`<div class="page-head"><div class="t">
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:6px"><span class="lnk" onclick="navigate('/erps')">ERP</span> / ${esc(e.code_erp)}</div>
+      <div class="dh"><div class="ic">${I.erp}</div><div><h1>${esc(e.nom)}</h1>
+        <div class="meta"><span>${esc(e.code_erp)}</span><span>${esc(cl?.raison_sociale||'')}</span>${e.type_erp?'<span>Type '+esc(e.type_erp)+(e.categorie?' · '+esc(e.categorie)+' cat.':'')+'</span>':''}</div></div></div></div>
+      <div class="actions"><button class="btn" onclick="showQR('${e.qr_token}','${esc(e.nom)}','${esc(e.code_erp)}')">${I.qr} QR code</button>
+        <button class="btn" onclick='formErp(${JSON.stringify(e).replace(/'/g,"&#39;")})'>Modifier</button></div></div>
+      <div class="tabs">
+        ${[['apercu','Aperçu'],['equip','Équipements'],['oblig','Obligations'],['inter','Interventions'],['reserves','Réserves']].map(t=>`<button class="${tab===t[0]?'active':''}" onclick="navigate('/erps/${id}?t=${t[0]}')">${t[1]}</button>`).join('')}
+      </div><div id="erptab"></div>`;
+    renderErpTab(tab,data);
+  }catch(err){ c.innerHTML=errBlock(err); }
+}
+function renderErpTab(tab,d){
+  const w=$('#erptab'); const e=d.e;
+  if(tab==='apercu'){
+    w.innerHTML=`<div class="info-grid">
+      <div class="it"><div class="k">Adresse</div><div class="v">${esc(e.adresse)||'—'}</div></div>
+      <div class="it"><div class="k">Type / catégorie</div><div class="v">${esc(e.type_erp)||'—'} ${e.categorie?'· '+esc(e.categorie):''}</div></div>
+      <div class="it"><div class="k">Niveaux</div><div class="v">${esc(e.niveaux)||'—'}</div></div>
+      <div class="it"><div class="k">Effectif public</div><div class="v">${e.effectif_public??'—'}</div></div>
+      <div class="it"><div class="k">Locaux à sommeil</div><div class="v">${e.locaux_sommeil?'Oui':'Non'}</div></div>
+      <div class="it"><div class="k">Activité</div><div class="v">${esc(e.activite)||'—'}</div></div>
+      <div class="it"><div class="k">Équipements</div><div class="v">${d.eq.length}</div></div>
+      <div class="it"><div class="k">Obligations</div><div class="v">${d.ob.length}</div></div>
+      <div class="it"><div class="k">Réserves ouvertes</div><div class="v">${d.re.filter(r=>!['cloturee','levee','rejetee'].includes(r.statut)).length}</div></div>
+    </div>`;
+  }
+  else if(tab==='equip'){
+    w.innerHTML=`<div style="display:flex;margin-bottom:14px"><button class="btn primary" style="margin-left:auto" onclick="formEquip('${e.id}')">${I.plus} Ajouter un équipement</button></div>
+    ${d.eq.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Équipement</th><th>Présence</th><th>Quantité</th><th>Périodicité</th><th>Acteur</th></tr></thead><tbody>
+      ${d.eq.map(x=>`<tr><td><b>${esc(x.type)}</b></td><td>${x.presence?'<span class="pill ok"><span class="d"></span>Oui</span>':'<span class="pill inf">Non</span>'}</td>
+        <td>${esc(x.quantite)||'—'}</td><td>${esc(x.periodicite)||'—'}</td><td>${esc(x.acteur_suivi)||'—'}</td></tr>`).join('')}</tbody></table></div>`
+      :emptyBlock(I.erp,'Aucun équipement','Recensez extincteurs, SSI, BAES, désenfumage…',`<button class="btn primary" onclick="formEquip('${e.id}')">${I.plus} Ajouter</button>`)}`;
+  }
+  else if(tab==='oblig'){
+    w.innerHTML=`<div style="display:flex;margin-bottom:14px"><button class="btn primary" style="margin-left:auto" onclick="formOblig('${e.id}')">${I.plus} Nouvelle obligation</button></div>
+    ${d.ob.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Domaine</th><th>Obligation</th><th>Périodicité</th><th>Échéance</th><th>Criticité</th><th>Statut</th></tr></thead><tbody>
+      ${d.ob.map(o=>{const late=o.prochaine_echeance&&o.prochaine_echeance<todayISO();return `<tr><td>${esc(o.domaine)||'—'}</td><td><b>${esc(o.libelle)}</b></td>
+        <td>${esc(o.periodicite)||'—'}</td><td style="${late?'color:var(--critique);font-weight:600':''}">${fmtDate(o.prochaine_echeance)}</td>
+        <td>${critPill(o.criticite)}</td><td>${statusPill(o.statut,OBST)}</td></tr>`}).join('')}</tbody></table></div>`
+      :emptyBlock(I.reserve,'Aucune obligation','Transformez un équipement en obligation suivie avec échéance.',`<button class="btn primary" onclick="formOblig('${e.id}')">${I.plus} Créer</button>`)}`;
+  }
+  else if(tab==='inter'){
+    w.innerHTML=`<div style="display:flex;margin-bottom:14px"><button class="btn primary" style="margin-left:auto" onclick="formInter('${e.id}')">${I.plus} Programmer</button></div>
+    ${d.it.length?interTable(d.it):emptyBlock(I.inter,'Aucune intervention','Programmez une vérification préventive ou un dépannage.',`<button class="btn primary" onclick="formInter('${e.id}')">${I.plus} Programmer</button>`)}`;
+  }
+  else if(tab==='reserves'){
+    w.innerHTML=`<div style="display:flex;margin-bottom:14px"><button class="btn primary" style="margin-left:auto" onclick="formReserve('${e.id}')">${I.plus} Nouvelle réserve</button></div>
+    ${d.re.length?reserveTable(d.re):emptyBlock(I.reserve,'Aucune réserve','Les réserves issues des rapports apparaîtront ici après validation.',`<button class="btn primary" onclick="formReserve('${e.id}')">${I.plus} Saisir une réserve</button>`)}`;
+  }
+}
+const OBST={proposee:['','Proposée','inf'],applicable:['','Applicable','int'],non_applicable:['','Non applicable','inf'],conseillee:['','Conseillée','moy'],a_jour:['','À jour','ok'],en_retard:['','En retard','crit'],suspendue:['','Suspendue','inf']};
+
+function formEquip(erpId){
+  const types=['Extincteurs','RIA','SSI / centrale incendie','BAES / éclairage de sécurité','Désenfumage naturel','Désenfumage mécanique','Clapets coupe-feu','Sprinklers','Portes coupe-feu','Thermographie électrique','Ascenseur','Appareils de cuisson','Parking'];
+  const pers=['','mensuelle','trimestrielle','semestrielle','annuelle','3 ans','5 ans'];
+  openModal(`<div class="modal-head"><h2>Ajouter un équipement</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+  <div class="modal-body">
+    <div class="fld"><label>Équipement <span class="req">*</span></label><select id="f_type">${types.map(t=>`<option>${t}</option>`).join('')}</select></div>
+    <div class="row2"><div class="fld"><label>Quantité / type</label><input id="f_qte"></div>
+      <div class="fld"><label>Localisation</label><input id="f_loc"></div></div>
+    <div class="row2"><div class="fld"><label>Périodicité</label><select id="f_per">${pers.map(p=>`<option value="${p}">${p||'—'}</option>`).join('')}</select></div>
+      <div class="fld"><label>Acteur de suivi</label><select id="f_act"><option value="">—</option><option>Mainteneur</option><option>Bureau de contrôle</option><option>Exploitant</option><option>Consultant</option></select></div></div>
+    <div class="checkrow"><input type="checkbox" id="f_pres" checked><label style="margin:0">Présent dans l'ERP</label></div>
+  </div>
+  <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">Ajouter</button></div>`);
+  $('#save').onclick=async()=>{
+    try{ await sb.from('equipements').insert({erp_id:erpId,type:$('#f_type').value,quantite:$('#f_qte').value||null,
+      localisation:$('#f_loc').value||null,periodicite:$('#f_per').value||null,acteur_suivi:$('#f_act').value||null,presence:$('#f_pres').checked});
+      closeModal(); toast('Équipement ajouté','ok'); renderRoute();
+    }catch(e){ toast(e.message,'err'); }
+  };
+}
+window.formEquip=formEquip;
+
+function formOblig(erpId){
+  openModal(`<div class="modal-head"><h2>Nouvelle obligation</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+  <div class="modal-body">
+    <div class="fld"><label>Libellé <span class="req">*</span></label><input id="f_lib" placeholder="Vérification annuelle SSI"></div>
+    <div class="row2"><div class="fld"><label>Domaine</label><input id="f_dom" placeholder="SSI, Électricité…"></div>
+      <div class="fld"><label>Périodicité</label><input id="f_per" placeholder="annuelle"></div></div>
+    <div class="row2"><div class="fld"><label>Dernière vérification</label><input id="f_dv" type="date"></div>
+      <div class="fld"><label>Prochaine échéance</label><input id="f_pe" type="date"></div></div>
+    <div class="row2"><div class="fld"><label>Acteur</label><select id="f_act"><option value="">—</option><option>Mainteneur</option><option>Bureau de contrôle</option><option>Exploitant</option></select></div>
+      <div class="fld"><label>Criticité</label><select id="f_crit"><option value="moyen">Moyen</option><option value="majeur">Majeur</option><option value="critique">Critique</option><option value="faible">Faible</option><option value="info">Information</option></select></div></div>
+    <div class="fld"><label>Preuve attendue</label><input id="f_preuve" placeholder="Rapport de vérification"></div>
+  </div>
+  <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">Créer</button></div>`);
+  $('#save').onclick=async()=>{
+    const lib=$('#f_lib').value.trim(); if(!lib){toast('Le libellé est requis','err');return;}
+    const pe=$('#f_pe').value; const st=pe&&pe<todayISO()?'en_retard':'applicable';
+    try{ await sb.from('obligations').insert({erp_id:erpId,libelle:lib,domaine:$('#f_dom').value||null,periodicite:$('#f_per').value||null,
+      derniere_verif:$('#f_dv').value||null,prochaine_echeance:pe||null,acteur:$('#f_act').value||null,criticite:$('#f_crit').value,
+      preuve_attendue:$('#f_preuve').value||null,statut:st});
+      closeModal(); toast('Obligation créée','ok'); renderRoute();
+    }catch(e){ toast(e.message,'err'); }
+  };
+}
+window.formOblig=formOblig;
+
+/* ---------- QR ---------- */
+function showQR(token,nom,code){
+  const url=location.origin+location.pathname+'#/qr/'+token;
+  openModal(`<div class="modal-head"><h2>QR code — ${esc(nom)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+  <div class="modal-body"><div class="qrbox">
+    <div class="qc" id="qrcanvas"></div>
+    <div style="text-align:center"><b>${esc(code)}</b><div style="color:var(--muted);font-size:13px;margin-top:3px">Pointage des intervenants & photos urgentes</div></div>
+    <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:12px;color:var(--muted);word-break:break-all;width:100%">${esc(url)}</div>
+  </div></div>
+  <div class="modal-foot"><button class="btn" onclick="navigator.clipboard.writeText('${url}').then(()=>toast('Lien copié','ok'))">Copier le lien</button>
+    <button class="btn primary" id="dlqr">${I.dl} Télécharger PNG</button></div>`);
+  setTimeout(()=>{ const el=$('#qrcanvas'); el.innerHTML='';
+    new QRCode(el,{text:url,width:208,height:208,colorDark:'#0e1b2e',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
+    $('#dlqr').onclick=()=>{ const img=el.querySelector('img')||el.querySelector('canvas');
+      let dataUrl = img.tagName==='IMG'?img.src:img.toDataURL('image/png');
+      const a=document.createElement('a'); a.href=dataUrl; a.download='QR_'+code+'.png'; a.click(); };
+  },60);
+}
+window.showQR=showQR;
+
+/* =====================================================================
+   INTERVENTIONS
+===================================================================== */
+const ITST={a_programmer:['','À programmer','moy'],demandee:['','Demandée','int'],programmee:['','Programmée','int'],realisee:['','Réalisée','inf'],
+  rapport_attendu:['','Rapport attendu','moy'],rapport_recu:['','Rapport reçu','ok'],a_analyser:['','À analyser','moy'],cloturee:['','Clôturée','ok'],
+  annulee_prestataire:['','Annulée (prestataire)','crit'],annulee_exploitant:['','Annulée (exploitant)','crit'],annulee_consultant:['','Annulée','crit'],a_reprogrammer:['','À reprogrammer','moy']};
+function interTable(rows){
+  const erpName=id=>state.erps.find(e=>e.id===id)?.nom||'';
+  return `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Code</th><th>Objet</th><th>ERP</th><th>Type</th><th>Date</th><th>Statut</th></tr></thead><tbody>
+    ${rows.map(i=>`<tr onclick="formInter(null,${JSON.stringify(i).replace(/"/g,'&quot;').replace(/'/g,'&#39;')})"><td class="mono">${esc(i.code_int)}</td>
+      <td><b>${esc(i.objet||i.domaine||'—')}</b></td><td>${esc(erpName(i.erp_id))}</td><td style="text-transform:capitalize">${esc(i.type)}</td>
+      <td>${fmtDate(i.date_prevue)}</td><td>${statusPill(i.statut,ITST)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+async function viewInterventions(c){
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Interventions</h1><p>Préventif, dépannages et travaux.</p></div>
+    <div class="actions"><button class="btn primary" onclick="formInter()">${I.plus} Nouvelle intervention</button></div></div>${loadingBlock()}`;
+  try{ let q=sb.from('interventions').select('*').order('date_prevue',{ascending:false,nullsFirst:false}); q=erpFilter(q);
+    const {data}=await q;
+    c.querySelector('.loading')||(c.innerHTML=c.innerHTML.split(loadingBlock())[0]);
+    c.innerHTML=`<div class="page-head"><div class="t"><h1>Interventions</h1><p>${(data||[]).length} intervention(s).</p></div>
+      <div class="actions"><button class="btn primary" onclick="formInter()">${I.plus} Nouvelle intervention</button></div></div>
+      ${(data&&data.length)?interTable(data):emptyBlock(I.inter,'Aucune intervention','Programmez la première vérification préventive.',`<button class="btn primary" onclick="formInter()">${I.plus} Programmer</button>`)}`;
+  }catch(e){ c.innerHTML=errBlock(e); }
+}
+function quickIntervention(){ formInter(); } window.quickIntervention=quickIntervention;
+async function formInter(erpId,it){
+  it=it||{}; const e=erpId||it.erp_id||(state.currentErp!=='all'?state.currentErp:'');
+  const {data:prest}=await sb.from('prestataires').select('id,nom').order('nom');
+  const erpOpts=state.erps.map(x=>`<option value="${x.id}"${e===x.id?' selected':''}>${esc(x.nom)}</option>`).join('');
+  const prestOpts=(prest||[]).map(p=>`<option value="${p.id}"${it.prestataire_id===p.id?' selected':''}>${esc(p.nom)}</option>`).join('');
+  openModal(`<div class="modal-head"><h2>${it.id?'Intervention '+esc(it.code_int):'Nouvelle intervention'}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+  <div class="modal-body">
+    <div class="fld"><label>ERP <span class="req">*</span></label><select id="f_erp"${it.id?' disabled':''}><option value="">— choisir —</option>${erpOpts}</select></div>
+    <div class="row2"><div class="fld"><label>Type</label><select id="f_type">
+      ${['preventive','corrective','travaux','visite'].map(t=>`<option value="${t}"${it.type===t?' selected':''} style="text-transform:capitalize">${t}</option>`).join('')}</select></div>
+      <div class="fld"><label>Domaine</label><input id="f_dom" value="${esc(it.domaine)}" placeholder="SSI, Extincteurs…"></div></div>
+    <div class="fld"><label>Objet</label><input id="f_obj" value="${esc(it.objet)}" placeholder="Vérification annuelle…"></div>
+    <div class="row2"><div class="fld"><label>Prestataire</label><select id="f_prest"><option value="">—</option>${prestOpts}</select></div>
+      <div class="fld"><label>Date prévue</label><input id="f_date" type="date" value="${esc(it.date_prevue)}"></div></div>
+    ${it.id?`<div class="fld"><label>Statut</label><select id="f_statut">${Object.keys(ITST).map(s=>`<option value="${s}"${it.statut===s?' selected':''}>${ITST[s][1]}</option>`).join('')}</select></div>`:''}
+  </div>
+  <div class="modal-foot">${it.id?'<button class="btn danger" id="del" style="margin-right:auto">Supprimer</button>':''}<button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">${it.id?'Enregistrer':'Créer'}</button></div>`);
+  if(erpId){const s=$('#f_erp'); if(s)s.value=erpId;}
+  $('#save').onclick=async()=>{
+    const erp_id=$('#f_erp').value; if(!erp_id){toast('Sélectionne un ERP','err');return;}
+    const payload={erp_id,type:$('#f_type').value,domaine:$('#f_dom').value||null,objet:$('#f_obj').value||null,
+      prestataire_id:$('#f_prest').value||null,date_prevue:$('#f_date').value||null};
+    if(it.id)payload.statut=$('#f_statut').value;
+    try{ if(it.id){delete payload.erp_id; await sb.from('interventions').update(payload).eq('id',it.id);}
+      else{ payload.statut=$('#f_date').value?'programmee':'a_programmer'; await sb.from('interventions').insert(payload);}
+      closeModal(); toast(it.id?'Intervention modifiée':'Intervention créée','ok'); renderRoute();
+    }catch(e){ toast(e.message,'err'); }
+  };
+  const del=$('#del'); if(del)del.onclick=async()=>{ if(!confirm('Supprimer cette intervention ?'))return;
+    await sb.from('interventions').delete().eq('id',it.id); closeModal(); toast('Supprimée','ok'); renderRoute(); };
+}
+window.formInter=formInter;
+
+/* =====================================================================
+   RESERVES
+===================================================================== */
+const REST={detectee:['','Détectée','moy'],a_valider:['','À valider','moy'],validee:['','Validée','int'],affectee:['','Affectée','int'],
+  en_cours:['','En cours','int'],preuve_deposee:['','Preuve déposée','moy'],a_controler:['','À contrôler','moy'],levee:['','Levée','ok'],cloturee:['','Clôturée','ok'],rejetee:['','Rejetée','inf']};
+function reserveTable(rows){
+  const erpName=id=>state.erps.find(e=>e.id===id)?.nom||'';
+  return `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Réserve</th><th>ERP</th><th>Localisation</th><th>Criticité</th><th>Échéance</th><th>Statut</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr onclick="formReserve(null,${JSON.stringify(r).replace(/"/g,'&quot;').replace(/'/g,'&#39;')})">
+      <td><b>${esc(r.libelle)}</b></td><td>${esc(erpName(r.erp_id))}</td><td>${esc(r.localisation)||'—'}</td>
+      <td>${critPill(r.criticite)}</td><td>${fmtDate(r.date_limite)}</td><td>${statusPill(r.statut,REST)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+async function viewReserves(c){
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Réserves</h1><p>Suivi jusqu'à la preuve et la clôture.</p></div>
+    <div class="actions"><button class="btn primary" onclick="formReserve()">${I.plus} Nouvelle réserve</button></div></div>${loadingBlock()}`;
+  try{ let q=sb.from('reserves').select('*').order('created_at',{ascending:false}); q=erpFilter(q); const {data}=await q;
+    c.innerHTML=`<div class="page-head"><div class="t"><h1>Réserves</h1><p>${(data||[]).length} réserve(s).</p></div>
+      <div class="actions"><button class="btn primary" onclick="formReserve()">${I.plus} Nouvelle réserve</button></div></div>
+      ${(data&&data.length)?reserveTable(data):emptyBlock(I.reserve,'Aucune réserve','Saisissez une réserve manuellement ou validez celles issues des rapports.',`<button class="btn primary" onclick="formReserve()">${I.plus} Saisir une réserve</button>`)}`;
+  }catch(e){ c.innerHTML=errBlock(e); }
+}
+function formReserve(erpId,r){
+  r=r||{}; const e=erpId||r.erp_id||(state.currentErp!=='all'?state.currentErp:'');
+  const erpOpts=state.erps.map(x=>`<option value="${x.id}"${e===x.id?' selected':''}>${esc(x.nom)}</option>`).join('');
+  openModal(`<div class="modal-head"><h2>${r.id?'Réserve':'Nouvelle réserve'}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+  <div class="modal-body">
+    <div class="fld"><label>ERP <span class="req">*</span></label><select id="f_erp"${r.id?' disabled':''}><option value="">— choisir —</option>${erpOpts}</select></div>
+    <div class="fld"><label>Libellé <span class="req">*</span></label><input id="f_lib" value="${esc(r.libelle)}" placeholder="Extincteur non conforme…"></div>
+    <div class="row2"><div class="fld"><label>Localisation</label><input id="f_loc" value="${esc(r.localisation)}"></div>
+      <div class="fld"><label>Matériel</label><input id="f_mat" value="${esc(r.materiel)}"></div></div>
+    <div class="row2"><div class="fld"><label>Criticité</label><select id="f_crit">${['critique','majeur','moyen','faible','info'].map(x=>`<option value="${x}"${r.criticite===x?' selected':''}>${CRIT[x][0]}</option>`).join('')}</select></div>
+      <div class="fld"><label>Date limite</label><input id="f_dl" type="date" value="${esc(r.date_limite)}"></div></div>
+    <div class="row2"><div class="fld"><label>Responsable</label><input id="f_resp" value="${esc(r.responsable)}"></div>
+      <div class="fld"><label>Preuve attendue</label><input id="f_preuve" value="${esc(r.preuve_attendue)}"></div></div>
+    ${r.id?`<div class="fld"><label>Statut</label><select id="f_statut">${Object.keys(REST).map(s=>`<option value="${s}"${r.statut===s?' selected':''}>${REST[s][1]}</option>`).join('')}</select></div>`:''}
+  </div>
+  <div class="modal-foot">${r.id?'<button class="btn danger" id="del" style="margin-right:auto">Supprimer</button>':''}<button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">${r.id?'Enregistrer':'Créer'}</button></div>`);
+  if(erpId){const s=$('#f_erp');if(s)s.value=erpId;}
+  $('#save').onclick=async()=>{
+    const erp_id=$('#f_erp').value, lib=$('#f_lib').value.trim();
+    if(!erp_id){toast('Sélectionne un ERP','err');return;} if(!lib){toast('Le libellé est requis','err');return;}
+    const payload={erp_id,libelle:lib,localisation:$('#f_loc').value||null,materiel:$('#f_mat').value||null,
+      criticite:$('#f_crit').value,date_limite:$('#f_dl').value||null,responsable:$('#f_resp').value||null,preuve_attendue:$('#f_preuve').value||null,source:'manuelle'};
+    if(r.id)payload.statut=$('#f_statut').value;
+    try{ if(r.id){delete payload.erp_id;delete payload.source; await sb.from('reserves').update(payload).eq('id',r.id);}
+      else{ payload.statut='a_valider'; await sb.from('reserves').insert(payload);}
+      closeModal(); toast(r.id?'Réserve modifiée':'Réserve créée','ok'); renderRoute();
+    }catch(e){ toast(e.message,'err'); }
+  };
+  const del=$('#del'); if(del)del.onclick=async()=>{ if(!confirm('Supprimer cette réserve ?'))return;
+    await sb.from('reserves').delete().eq('id',r.id); closeModal(); toast('Supprimée','ok'); renderRoute(); };
+}
+window.formReserve=formReserve;
+
+/* =====================================================================
+   PHOTOS URGENTES
+===================================================================== */
+const PHST={recue:['','Reçue','crit'],a_traiter:['','À traiter','crit'],vue:['','Vue','moy'],action_creee:['','Action créée','int'],cloturee:['','Clôturée','ok'],rejetee:['','Rejetée','inf']};
+const URG={critique:['Critique','crit'],urgent:['Urgent','maj'],a_suivre:['À suivre','moy'],info:['Information','inf']};
+async function viewPhotos(c){
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Photos urgentes</h1><p>Centre d'alertes terrain envoyées via QR code.</p></div></div>${loadingBlock()}`;
+  try{ let q=sb.from('photos_urgentes').select('*').order('created_at',{ascending:false}); q=erpFilter(q); const {data}=await q;
+    const rows=data||[]; const erpName=id=>state.erps.find(e=>e.id===id)?.nom||'';
+    c.innerHTML=`<div class="page-head"><div class="t"><h1>Photos urgentes</h1><p>${rows.length} alerte(s).</p></div></div>`;
+    if(!rows.length){ c.innerHTML+=emptyBlock(I.photo,'Aucune alerte photo','Les intervenants peuvent envoyer des photos d\'urgence en scannant le QR code d\'un ERP.',''); return; }
+    c.innerHTML+=`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">${rows.map(p=>{
+      const img=p.photo_path?publicPhoto(p.photo_path):null; const u=URG[p.niveau_urgence]||URG.info;
+      return `<div class="card" style="overflow:hidden">
+        ${img?`<img src="${img}" style="width:100%;height:170px;object-fit:cover;display:block" onerror="this.style.display='none'">`:`<div style="height:120px;background:var(--surface-2);display:grid;place-items:center;color:var(--muted-2)">${I.photo}</div>`}
+        <div class="card-pad" style="padding:14px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="pill ${u[1]}"><span class="d"></span>${u[0]}</span>${statusPill(p.statut,PHST)}</div>
+          <b style="font-size:14px">${esc(p.commentaire)||'Sans commentaire'}</b>
+          <div style="color:var(--muted);font-size:12.5px;margin-top:6px">${esc(erpName(p.erp_id))} · ${esc(p.localisation)||'—'}</div>
+          <div style="color:var(--muted-2);font-size:12px;margin-top:3px">${fmtDT(p.created_at)}</div>
+          <div style="display:flex;gap:7px;margin-top:12px">
+            <button class="btn sm" onclick="setPhotoStatut('${p.id}','vue')">Marquer vue</button>
+            <button class="btn sm primary" onclick="reserveFromPhoto('${p.erp_id}','${esc((p.commentaire||'').replace(/'/g,''))}','${esc(p.localisation||'')}')">Créer réserve</button>
+          </div></div></div>`;}).join('')}</div>`;
+  }catch(e){ c.innerHTML=errBlock(e); }
+}
+function publicPhoto(path){ return `${SUPABASE_URL}/storage/v1/object/public/urgent-photos/${path}`; }
+async function setPhotoStatut(id,st){ try{ await sb.from('photos_urgentes').update({statut:st}).eq('id',id); toast('Mis à jour','ok'); renderRoute(); }catch(e){toast(e.message,'err');} }
+window.setPhotoStatut=setPhotoStatut;
+function reserveFromPhoto(erpId,comm,loc){ formReserve(erpId,{libelle:comm,localisation:loc,criticite:'majeur',source:'terrain'}); }
+window.reserveFromPhoto=reserveFromPhoto;
+
+/* =====================================================================
+   POINTAGE & JOURNAL
+===================================================================== */
+async function viewPointage(c){
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Pointage & journal</h1><p>Présences des intervenants et heures cumulées.</p></div></div>${loadingBlock()}`;
+  try{ let q=sb.from('pointages').select('*').order('heure_arrivee',{ascending:false}); q=erpFilter(q); const {data}=await q;
+    const rows=data||[]; const erpName=id=>state.erps.find(e=>e.id===id)?.nom||'';
+    let totalH=0; rows.forEach(p=>{ if(p.heure_depart){ const h=(new Date(p.heure_depart)-new Date(p.heure_arrivee))/3.6e6*(p.nb_intervenants||1); totalH+=h; }});
+    c.innerHTML=`<div class="page-head"><div class="t"><h1>Pointage & journal</h1><p>${rows.length} passage(s) · ${totalH.toFixed(1)} h cumulées.</p></div></div>`;
+    if(!rows.length){ c.innerHTML+=emptyBlock(I.qr,'Aucun pointage','Les intervenants pointent en scannant le QR code d\'un ERP. Génère un QR depuis une fiche ERP.',`<button class="btn primary" onclick="navigate('/erps')">Voir les ERP</button>`); return; }
+    c.innerHTML+=`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Intervenant</th><th>Société</th><th>ERP</th><th>Mission</th><th>Arrivée</th><th>Départ</th><th>Durée × pers.</th><th>Mode</th></tr></thead><tbody>
+      ${rows.map(p=>{ const dur=p.heure_depart?((new Date(p.heure_depart)-new Date(p.heure_arrivee))/3.6e6):null;
+        const cum=dur!=null?(dur*(p.nb_intervenants||1)):null;
+        return `<tr><td><b>${esc(p.prenom)} ${esc(p.nom)}</b><div style="color:var(--muted);font-size:12px">${esc(p.telephone)||''}</div></td>
+        <td>${esc(p.societe)||'—'}</td><td>${esc(erpName(p.erp_id))}</td><td>${esc(p.mission)||'—'}${p.nb_intervenants>1?` <span class="pill inf">×${p.nb_intervenants}</span>`:''}</td>
+        <td>${fmtDT(p.heure_arrivee)}</td><td>${p.heure_depart?fmtDT(p.heure_depart):'<span class="pill moy"><span class="d"></span>En cours</span>'}</td>
+        <td>${cum!=null?cum.toFixed(1)+' h':'—'}</td><td><span class="pill ${p.mode_saisie==='qr'?'int':'inf'}">${p.mode_saisie==='qr'?'QR':'Manuel'}</span></td></tr>`;}).join('')}</tbody></table></div>`;
+  }catch(e){ c.innerHTML=errBlock(e); }
+}
+
+/* =====================================================================
+   DOCUMENTS (GED)
+===================================================================== */
+async function viewDocuments(c){
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Documents (GED)</h1><p>Rapports, PV, plans, DOE, attestations.</p></div>
+    <div class="actions"><button class="btn primary" onclick="formDoc()">${I.plus} Déposer un document</button></div></div>${loadingBlock()}`;
+  try{ let q=sb.from('documents').select('*').order('created_at',{ascending:false}); q=erpFilter(q); const {data}=await q;
+    const rows=data||[]; const erpName=id=>state.erps.find(e=>e.id===id)?.nom||'';
+    c.innerHTML=`<div class="page-head"><div class="t"><h1>Documents (GED)</h1><p>${rows.length} document(s).</p></div>
+      <div class="actions"><button class="btn primary" onclick="formDoc()">${I.plus} Déposer un document</button></div></div>`;
+    if(!rows.length){ c.innerHTML+=emptyBlock(I.doc,'Aucun document','Déposez rapports, PV de commission, plans, DOE et attestations.',`<button class="btn primary" onclick="formDoc()">${I.plus} Déposer</button>`); return; }
+    c.innerHTML+=`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Document</th><th>ERP</th><th>Type</th><th>Lot</th><th>Date</th><th></th></tr></thead><tbody>
+      ${rows.map(d=>`<tr><td><b>${esc(d.nom_original||'Document')}</b></td><td>${esc(erpName(d.erp_id))}</td><td>${esc(d.type)||'—'}</td>
+        <td>${esc(d.lot)||'—'}</td><td>${fmtDate(d.created_at)}</td>
+        <td style="text-align:right"><button class="btn sm" onclick="dlDoc('${d.fichier_path}','${esc(d.nom_original||'doc')}')">${I.dl}</button></td></tr>`).join('')}</tbody></table></div>`;
+  }catch(e){ c.innerHTML=errBlock(e); }
+}
+async function dlDoc(path,name){ try{ const {data,error}=await sb.storage.from('documents').createSignedUrl(path,300); if(error)throw error;
+  const a=document.createElement('a'); a.href=data.signedUrl; a.download=name; a.target='_blank'; a.click(); }catch(e){toast(e.message,'err');} }
+window.dlDoc=dlDoc;
+function formDoc(){
+  const erpOpts=state.erps.map(x=>`<option value="${x.id}"${state.currentErp===x.id?' selected':''}>${esc(x.nom)}</option>`).join('');
+  openModal(`<div class="modal-head"><h2>Déposer un document</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+  <div class="modal-body">
+    <div class="fld"><label>ERP <span class="req">*</span></label><select id="f_erp"><option value="">— choisir —</option>${erpOpts}</select></div>
+    <div class="row2"><div class="fld"><label>Type</label><select id="f_type"><option>Rapport</option><option>PV commission</option><option>Plan</option><option>DOE</option><option>Attestation</option><option>Preuve</option><option>Photo</option></select></div>
+      <div class="fld"><label>Lot</label><input id="f_lot" placeholder="SSI, Électricité…"></div></div>
+    <div class="fld"><label>Fichier <span class="req">*</span></label><input id="f_file" type="file"></div>
+  </div>
+  <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">Déposer</button></div>`);
+  $('#save').onclick=async()=>{
+    const erp_id=$('#f_erp').value, file=$('#f_file').files[0];
+    if(!erp_id){toast('Sélectionne un ERP','err');return;} if(!file){toast('Choisis un fichier','err');return;}
+    const btn=$('#save'); btn.disabled=true; btn.textContent='Envoi…';
+    try{ const path=erp_id+'/'+Date.now()+'_'+file.name.replace(/[^\w.\-]/g,'_');
+      const {error:upErr}=await sb.storage.from('documents').upload(path,file); if(upErr)throw upErr;
+      await sb.from('documents').insert({erp_id,type:$('#f_type').value,lot:$('#f_lot').value||null,fichier_path:path,nom_original:file.name});
+      closeModal(); toast('Document déposé','ok'); renderRoute();
+    }catch(e){ toast(e.message,'err'); btn.disabled=false; btn.textContent='Déposer'; }
+  };
+}
+window.formDoc=formDoc;
+
+/* =====================================================================
+   PRESTATAIRES
+===================================================================== */
+async function viewPrestataires(c){
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Prestataires</h1><p>Annuaire des mainteneurs et bureaux de contrôle.</p></div>
+    <div class="actions"><button class="btn primary" onclick="formPrest()">${I.plus} Nouveau prestataire</button></div></div>${loadingBlock()}`;
+  try{ const {data}=await sb.from('prestataires').select('*').order('nom'); const rows=data||[];
+    c.innerHTML=`<div class="page-head"><div class="t"><h1>Prestataires</h1><p>${rows.length} prestataire(s).</p></div>
+      <div class="actions"><button class="btn primary" onclick="formPrest()">${I.plus} Nouveau prestataire</button></div></div>`;
+    if(!rows.length){ c.innerHTML+=emptyBlock(I.prest,'Aucun prestataire','Centralisez mainteneurs, bureaux de contrôle et entreprises.',`<button class="btn primary" onclick="formPrest()">${I.plus} Ajouter</button>`); return; }
+    c.innerHTML+=`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Nom</th><th>Type</th><th>Domaines</th><th>Email rapports</th><th>Téléphone</th></tr></thead><tbody>
+      ${rows.map(p=>`<tr onclick='formPrest(${JSON.stringify(p).replace(/'/g,"&#39;")})'><td><b>${esc(p.nom)}</b></td><td>${esc(p.type)||'—'}</td>
+        <td>${esc(p.domaines)||'—'}</td><td>${esc(p.email_rapports)||'—'}</td><td>${esc(p.telephone)||'—'}</td></tr>`).join('')}</tbody></table></div>`;
+  }catch(e){ c.innerHTML=errBlock(e); }
+}
+function formPrest(p){
+  p=p||{};
+  openModal(`<div class="modal-head"><h2>${p.id?'Modifier':'Nouveau prestataire'}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+  <div class="modal-body">
+    <div class="fld"><label>Nom <span class="req">*</span></label><input id="f_nom" value="${esc(p.nom)}"></div>
+    <div class="row2"><div class="fld"><label>Type</label><select id="f_type"><option value="">—</option>${['Mainteneur','Bureau de contrôle','Entreprise travaux','Dépanneur'].map(t=>`<option${p.type===t?' selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="fld"><label>Domaines</label><input id="f_dom" value="${esc(p.domaines)}" placeholder="SSI, Extincteurs…"></div></div>
+    <div class="row2"><div class="fld"><label>Email rapports</label><input id="f_email" value="${esc(p.email_rapports)}"></div>
+      <div class="fld"><label>Téléphone</label><input id="f_tel" value="${esc(p.telephone)}"></div></div>
+  </div>
+  <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">${p.id?'Enregistrer':'Créer'}</button></div>`);
+  $('#save').onclick=async()=>{
+    const nom=$('#f_nom').value.trim(); if(!nom){toast('Le nom est requis','err');return;}
+    const payload={nom,type:$('#f_type').value||null,domaines:$('#f_dom').value||null,email_rapports:$('#f_email').value||null,telephone:$('#f_tel').value||null};
+    try{ if(p.id)await sb.from('prestataires').update(payload).eq('id',p.id); else await sb.from('prestataires').insert(payload);
+      closeModal(); toast(p.id?'Modifié':'Créé','ok'); renderRoute();
+    }catch(e){ toast(e.message,'err'); }
+  };
+}
+window.formPrest=formPrest;
+
+/* =====================================================================
+   PARAMETRES
+===================================================================== */
+function viewParametres(c){
+  const p=state.profile||{};
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Paramètres</h1><p>Votre compte et l'application.</p></div></div>
+  <div class="card card-pad" style="max-width:560px">
+    <h2 style="font-size:16px;margin-bottom:16px">Profil</h2>
+    <div class="fld"><label>Nom</label><input id="p_nom" value="${esc(p.nom)}"></div>
+    <div class="fld"><label>Email</label><input value="${esc(p.email||state.user.email)}" disabled></div>
+    <div class="fld"><label>Rôle</label><input value="${esc(p.role)}" disabled style="text-transform:capitalize"></div>
+    <button class="btn primary" id="psave">Enregistrer</button>
+  </div>
+  <div class="card card-pad" style="max-width:560px;margin-top:16px">
+    <h2 style="font-size:16px;margin-bottom:8px">Session</h2>
+    <p style="color:var(--muted);font-size:13.5px;margin-bottom:14px">Connecté en tant que ${esc(state.user.email)}.</p>
+    <button class="btn danger" onclick="logout()">${I.out} Se déconnecter</button>
+  </div>`;
+  $('#psave').onclick=async()=>{ try{ await sb.from('profiles').update({nom:$('#p_nom').value.trim()}).eq('id',state.user.id);
+    state.profile.nom=$('#p_nom').value.trim(); toast('Profil enregistré','ok'); renderApp(); }catch(e){toast(e.message,'err');} };
+}
+
+/* =====================================================================
+   PAGE PUBLIQUE QR — POINTAGE / PHOTO (sans connexion)
+===================================================================== */
+async function renderQrPublic(token){
+  if(!sb){ if(!loadCfg()||!initSb()){ $('#root').innerHTML='<div class="loading">Configuration requise</div>'; return; } }
+  $('#root').innerHTML=`<div class="qrpub"><div class="sheet"><div class="loading"><div class="spin"></div></div></div></div>`;
+  let info;
+  try{ const {data,error}=await sb.rpc('qr_erp_info',{p_token:token}); if(error)throw error; info=data&&data[0]; }catch(e){}
+  if(!info){ $('#root').innerHTML=`<div class="qrpub"><div class="sheet"><div class="hd"><div class="b"><div class="logo">${I.flame}</div><b style="font-family:var(--fd)">PREVA</b></div></div><div class="body"><div class="empty">${I.qr}<h3>QR code invalide</h3><p>Cet ERP n'existe pas ou le lien est incorrect.</p></div></div></div></div>`; return; }
+  qrPointageUI(token,info);
+}
+function qrPointageUI(token,info){
+  $('#root').innerHTML=`<div class="qrpub"><div class="sheet">
+    <div class="hd"><div class="b"><div class="logo">${I.flame}</div><b style="font-family:var(--fd);font-size:18px">PREVA</b></div>
+      <h1>${esc(info.erp_nom)}</h1><p>${esc(info.client_nom)} · Pointage intervenant</p></div>
+    <div class="body" id="qrbody"></div></div></div>`;
+  qrArrivee(token,info);
+}
+function qrArrivee(token,info){
+  $('#qrbody').innerHTML=`
+    <div class="seg"><button class="active">Arrivée</button><button onclick="qrSwitchDepart('${token}')">Départ</button></div>
+    <div class="card card-pad">
+      <div class="row2"><div class="fld"><label>Nom <span class="req">*</span></label><input id="q_nom"></div>
+        <div class="fld"><label>Prénom <span class="req">*</span></label><input id="q_prenom"></div></div>
+      <div class="fld"><label>Téléphone <span class="req">*</span></label><input id="q_tel" type="tel"></div>
+      <div class="fld"><label>Société <span class="req">*</span></label><input id="q_soc"></div>
+      <div class="row2"><div class="fld"><label>Nombre d'intervenants <span class="req">*</span></label><input id="q_nb" type="number" value="1" min="1"></div>
+        <div class="fld"><label>Mission <span class="req">*</span></label><select id="q_mis"><option>Maintenance</option><option>Bureau de contrôle</option><option>Dépannage</option><option>Travaux</option><option>Audit</option><option>Autre</option></select></div></div>
+      <div class="fld"><label>Domaine / lot</label><select id="q_dom"><option value="">—</option><option>SSI</option><option>Extincteurs</option><option>Électricité</option><option>Désenfumage</option><option>CVC</option><option>Ascenseur</option><option>Autre</option></select></div>
+      <button class="btn primary" id="q_go" style="width:100%;justify-content:center">Valider mon arrivée</button>
+    </div>
+    <button class="btn" style="width:100%;justify-content:center;margin-top:12px" onclick="qrPhotoUI('${token}')">${I.photo} Envoyer une photo urgente</button>`;
+  $('#q_go').onclick=async()=>{
+    const v=id=>$('#'+id).value.trim();
+    if(!v('q_nom')||!v('q_prenom')||!v('q_tel')||!v('q_soc')){toast('Remplis les champs obligatoires','err');return;}
+    const btn=$('#q_go'); btn.disabled=true; btn.textContent='…';
+    try{ const {data,error}=await sb.rpc('qr_pointage_arrivee',{p_token:token,p_nom:v('q_nom'),p_prenom:v('q_prenom'),
+        p_telephone:v('q_tel'),p_societe:v('q_soc'),p_nb:parseInt($('#q_nb').value||'1'),p_mission:$('#q_mis').value,p_domaine:$('#q_dom').value||null});
+      if(error)throw error;
+      try{localStorage.setItem('preva_pointage_'+token,data);}catch(e){}
+      qrConfirm(token,'Arrivée enregistrée','Bonne intervention. Pensez à pointer votre départ en repassant ici.',data);
+    }catch(e){ toast(e.message,'err'); btn.disabled=false; btn.textContent='Valider mon arrivée'; }
+  };
+}
+function qrSwitchDepart(token){ qrDepart(token); }
+window.qrSwitchDepart=qrSwitchDepart;
+function qrDepart(token){
+  let pid=null; try{pid=localStorage.getItem('preva_pointage_'+token);}catch(e){}
+  $('#qrbody').innerHTML=`
+    <div class="seg"><button onclick="renderQrPublic('${token}')">Arrivée</button><button class="active">Départ</button></div>
+    <div class="card card-pad">
+      ${pid?'':'<div class="cfgbanner" style="margin-bottom:14px">Aucune arrivée trouvée sur cet appareil. Contacte le consultant pour une saisie manuelle.</div>'}
+      <div class="fld"><label>Mission réalisée <span class="req">*</span></label><select id="d_mis"><option>Oui</option><option>Partiellement</option><option>Non</option></select></div>
+      <div class="fld"><label>Compte rendu <span class="req">*</span></label><textarea id="d_cr" placeholder="Synthèse de l'intervention…"></textarea></div>
+      <button class="btn primary" id="d_go" style="width:100%;justify-content:center"${pid?'':' disabled'}>Valider mon départ</button>
+    </div>`;
+  if(pid)$('#d_go').onclick=async()=>{
+    if(!$('#d_cr').value.trim()){toast('Le compte rendu est requis','err');return;}
+    const btn=$('#d_go'); btn.disabled=true; btn.textContent='…';
+    try{ const {error}=await sb.rpc('qr_pointage_depart',{p_pointage:pid,p_mission_realisee:$('#d_mis').value,p_compte_rendu:$('#d_cr').value.trim()});
+      if(error)throw error; try{localStorage.removeItem('preva_pointage_'+token);}catch(e){}
+      qrConfirm(token,'Départ enregistré','Merci, votre temps de présence a été comptabilisé.');
+    }catch(e){ toast(e.message,'err'); btn.disabled=false; btn.textContent='Valider mon départ'; }
+  };
+}
+function qrPhotoUI(token){
+  let pid=null; try{pid=localStorage.getItem('preva_pointage_'+token);}catch(e){}
+  $('#qrbody').innerHTML=`
+    <button class="lnk" style="margin-bottom:12px;display:inline-block" onclick="renderQrPublic('${token}')">← Retour au pointage</button>
+    <div class="card card-pad">
+      <h2 style="font-size:16px;margin-bottom:14px">Photo urgente</h2>
+      <div class="fld"><label>Photo <span class="req">*</span></label><input id="p_file" type="file" accept="image/*" capture="environment"></div>
+      <div class="fld"><label>Commentaire <span class="req">*</span></label><textarea id="p_com" placeholder="Décrivez le problème constaté…"></textarea></div>
+      <div class="fld"><label>Niveau d'urgence <span class="req">*</span></label>
+        <div class="urg-grid">
+          ${[['critique','Critique','crit'],['urgent','Urgent','maj'],['a_suivre','À suivre','moy'],['info','Information','inf']].map((u,i)=>`
+          <label><input type="radio" name="urg" value="${u[0]}"${i==1?' checked':''}><span class="d" style="background:var(--${u[2]==='crit'?'critique':u[2]==='maj'?'majeur':u[2]==='moy'?'moyen':'info'})"></span>${u[1]}</label>`).join('')}
+        </div></div>
+      <div class="fld"><label>Localisation <span class="req">*</span></label><input id="p_loc" placeholder="Niveau, zone, local…"></div>
+      <button class="btn primary" id="p_go" style="width:100%;justify-content:center">Envoyer l'alerte</button>
+    </div>`;
+  $('#p_go').onclick=async()=>{
+    const file=$('#p_file').files[0], com=$('#p_com').value.trim(), loc=$('#p_loc').value.trim();
+    const niveau=document.querySelector('input[name=urg]:checked').value;
+    if(!file){toast('Ajoute une photo','err');return;} if(!com){toast('Ajoute un commentaire','err');return;} if(!loc){toast('Indique la localisation','err');return;}
+    const btn=$('#p_go'); btn.disabled=true; btn.textContent='Envoi…';
+    try{ const path=token+'/'+Date.now()+'_'+file.name.replace(/[^\w.\-]/g,'_');
+      const {error:upErr}=await sb.storage.from('urgent-photos').upload(path,file); if(upErr)throw upErr;
+      const {error}=await sb.rpc('qr_photo_urgente',{p_token:token,p_photo_path:path,p_commentaire:com,p_niveau:niveau,p_localisation:loc,p_mission:null,p_pointage:pid});
+      if(error)throw error; qrConfirm(token,'Alerte envoyée','Le consultant et l\'exploitant ont été notifiés.');
+    }catch(e){ toast(e.message,'err'); btn.disabled=false; btn.textContent='Envoyer l\'alerte'; }
+  };
+}
+window.qrPhotoUI=qrPhotoUI; window.renderQrPublic=renderQrPublic;
+function qrConfirm(token,title,desc,pid){
+  $('#qrbody').innerHTML=`<div class="card card-pad" style="text-align:center;padding:40px 24px">
+    <div style="width:64px;height:64px;border-radius:50%;background:#e8f6ee;color:var(--conforme);display:grid;place-items:center;margin:0 auto 18px">${I.chk.replace('width:18px','').replace('currentColor','#16a34a')}</div>
+    <h2 style="font-size:20px;margin-bottom:8px">${title}</h2><p style="color:var(--muted);max-width:300px;margin:0 auto">${desc}</p>
+    <div style="display:flex;flex-direction:column;gap:9px;margin-top:24px">
+      ${pid?`<button class="btn" onclick="qrPhotoUI('${token}')">${I.photo} Signaler un problème (photo)</button>`:''}
+      <button class="btn primary" onclick="renderQrPublic('${token}')">Retour</button>
+    </div></div>`;
+}
+
+/* =====================================================================
+   START
+===================================================================== */
+boot();
+</script>
+</body>
+</html>
