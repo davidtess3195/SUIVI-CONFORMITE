@@ -2042,7 +2042,8 @@ async function viewDashboard(c){
       </div></div></div>`;
 
     c.innerHTML=`<div class="page-head"><div class="t"><h1>Tableau de bord</h1><p>Vos priorités, triées par criticité.</p></div>
-      <div class="actions"><button class="btn primary" onclick="quickIntervention()">${I.plus} Nouvelle intervention</button></div></div>
+      <div class="actions"><button class="btn primary" onclick="quickIntervention()">${I.plus} Nouvelle intervention</button>
+        <button class="btn" title="Déconnexion" aria-label="Déconnexion" onclick="logout()" style="color:var(--danger,#dc2626)">${I.out}</button></div></div>
       ${cfgHint()}
       <div class="kpis">${kpis.map(k=>`<div class="kpi" style="--c:var(--${k[2]==='critique'?'critique':k[2]==='majeur'?'majeur':'moyen'})">
         <div class="lab"><span class="dot"></span>${k[0]}</div><div class="val">${k[1]}</div><div class="hint">${k[3]}</div></div>`).join('')}</div>
@@ -6169,8 +6170,7 @@ async function renderQrPublic(token){
   if(!sb){ loadCfg(); if(!initSb()){ $('#root').innerHTML='<div class="loading"><div class="spin"></div></div>'; return; } }
   $('#root').innerHTML=`<div class="qrpub"><div class="sheet">
     <div class="hd">
-      <div class="b"><b style="font-family:var(--fd);font-size:17px;color:#fff">PREVA CONSEILS</b></div>
-      <div id="qr-erp-head" style="margin-top:14px">
+      <div id="qr-erp-head">
         <div class="skel" style="height:22px;width:60%;border-radius:6px;margin-bottom:8px"></div>
         <div class="skel" style="height:15px;width:40%;border-radius:6px;opacity:.6"></div>
       </div>
@@ -6187,7 +6187,7 @@ async function renderQrPublic(token){
   }catch(e){ console.warn('QR RPC error:',e); }
   if(!info){
     $('#root').innerHTML=`<div class="qrpub"><div class="sheet">
-      <div class="hd"><div class="b"><b style="font-family:var(--fd);color:#fff">PREVA CONSEILS</b></div></div>
+      <div class="hd"><div class="b"><b style="font-family:var(--fd);color:#fff">&nbsp;</b></div></div>
       <div class="body"><div class="empty" style="padding-top:60px">${I.qr}<h3>QR code invalide</h3>
         <p>Cet établissement n'existe pas ou ce lien est incorrect.<br>Scannez à nouveau le QR code affiché sur l'ERP.</p></div></div>
     </div></div>`;
@@ -6249,8 +6249,8 @@ function qrArrivee(token,info){
       <button class="btn primary" id="q_go" style="width:100%;justify-content:center;padding:14px;font-size:15px;border-radius:12px">Valider mon arrivée</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:9px">
-      <button class="btn ghost" style="width:100%;justify-content:center;color:var(--muted);font-size:13px" onclick="qrDepart('${token}')">Déjà pointé → Déclarer mon départ</button>
-      <button class="btn ghost" style="width:100%;justify-content:center;color:var(--muted);font-size:13px" onclick="qrPhotoUI('${token}')">${I.photo} Signaler un problème / Envoyer des photos</button>
+      <button class="btn primary" style="width:100%;justify-content:center" onclick="qrDepart('${token}')">Déclarer mon départ</button>
+      <button class="btn primary" style="width:100%;justify-content:center" onclick="qrPhotoUI('${token}')">${I.photo} Signaler un problème / Envoyer des photos</button>
     </div>`;
   const go=$('#q_go'); if(!go) return;
   go.onclick=async()=>{
