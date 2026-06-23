@@ -385,6 +385,20 @@ table.tbl .mono{font-family:var(--fd);font-weight:600;font-size:12.5px;color:var
   .modal{max-height:94vh}
   h1{font-size:21px}
 }
+@media(max-width:640px){
+  /* Tableaux -> cartes lisibles sur mobile */
+  .tbl-wrap{overflow:visible;border:none;background:transparent;box-shadow:none;border-radius:0}
+  table.tbl{font-size:13.5px;width:100%}
+  table.tbl, table.tbl tbody{display:block;width:100%}
+  table.tbl thead{display:none}
+  table.tbl tr{display:block;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--sh);margin-bottom:12px;overflow:hidden}
+  table.tbl tbody tr:hover{background:var(--surface)}
+  table.tbl td{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:10px 14px;border-bottom:1px solid var(--line-2);text-align:right;white-space:normal;overflow-wrap:anywhere;word-break:break-word}
+  table.tbl tr td:last-child{border-bottom:none}
+  table.tbl td[data-label]:not([data-label=""])::before{content:attr(data-label);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);text-align:left;flex:0 0 40%;white-space:nowrap}
+  table.tbl td:empty{display:none}
+  table.tbl td .btn{flex:0 0 auto}
+}
 .ged-grid{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
 .ctr-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .ctr-card .ctr-head{display:flex;align-items:center;gap:9px;padding:14px 16px;border-bottom:1px solid var(--line-2)}
@@ -532,6 +546,31 @@ $('#overlay').addEventListener('click',e=>{
   if(e.target.id==='overlay'){ if(_modalDirty) return; closeModal(); }
 });
 
+/* Rend les tableaux responsives : étiquette chaque cellule avec l'intitulé de sa colonne (affiché en mode carte sur mobile) */
+function enhanceTables(scope){
+  try{
+    (scope||document).querySelectorAll('table.tbl').forEach(tbl=>{
+      const ths=[...tbl.querySelectorAll('thead th')].map(th=>(th.textContent||'').trim());
+      if(!ths.length) return;
+      tbl.querySelectorAll('tbody tr').forEach(tr=>{
+        [...tr.children].forEach((td,i)=>{ if(td.tagName==='TD' && !td.hasAttribute('data-label')) td.setAttribute('data-label', ths[i]||''); });
+      });
+    });
+  }catch(_){}
+}
+try{
+  const _tblObs=new MutationObserver(muts=>{
+    for(const mu of muts){
+      for(const node of mu.addedNodes){
+        if(node.nodeType!==1) continue;
+        if(node.matches&&node.matches('table.tbl')) enhanceTables(node.parentNode||document);
+        else if(node.querySelector&&node.querySelector('table.tbl')) enhanceTables(node);
+      }
+    }
+  });
+  _tblObs.observe(document.body,{childList:true,subtree:true});
+}catch(_){}
+
 const CRIT = {critique:['Critique','crit'],majeur:['Majeur','maj'],moyen:['Moyen','moy'],faible:['Faible','fai'],info:['Information','inf']};
 function critPill(c){ const x=CRIT[c]||CRIT.info; return `<span class="pill ${x[1]}"><span class="d"></span>${x[0]}</span>`; }
 function statusPill(s,map){ const x=map[s]||['',s||'—','inf']; return `<span class="pill ${x[2]}">${esc(x[1])}</span>`; }
@@ -619,6 +658,7 @@ function renderRoute(){
   if(base==='/interventions') return viewInterventions(content);
   if(base==='/reserves') return viewReserves(content);
   if(base==='/documents') return viewDocuments(content);
+  if(base==='/rapports') return viewRapports(content);
   if(base==='/contrats') return viewContrats(content);
   if(base==='/pointage') return viewPointage(content);
   if(base==='/photos') return viewPhotos(content);
@@ -1854,7 +1894,7 @@ window.wizFinish=wizFinish;
 const NAV = [
   ['Pilotage', [['/','Tableau de bord',I.dash],['/interventions','Interventions',I.inter],['/reserves','Levées des réserves',I.reserve],['/photos','Photos et vidéos',I.photo],['/conversations','Conversations',I.conv],['/compte-rendu','Compte rendu',I.doc]]],
   ['Référentiel', [['/clients','Clients',I.clients],['/erps','ERP',I.erp],['/prestataires','Prestataires',I.prest]]],
-  ['Documents & terrain', [['/documents','Documents (GED)',I.doc],['/contrats','Contrats de maintenance',I.doc],['/pointage','Pointage & journal',I.qr]]],
+  ['Documents & terrain', [['/documents','Documents (GED)',I.doc],['/rapports','Rapports reçus',I.doc],['/contrats','Contrats de maintenance',I.doc],['/pointage','Pointage & journal',I.qr]]],
   ['Administration', [['/admin','Tableau de bord admin',I.settings],['/parametres','Paramètres & email',I.settings]]],
 ];
 
@@ -1865,7 +1905,7 @@ function renderApp(){
       <div class="brand"><div><div class="name">PREVA CONSEILS</div></div></div>
       <nav class="nav" id="nav">${NAV.map(g=>`
         <div class="grp">${g[0]}</div>
-        ${g[1].map(([p,l,ic])=>`<a href="#${p}" data-base="${p}">${ic}<span>${l}</span>${p==='/photos'?'<span class="badge" id="badge-photos" style="display:none">0</span>':''}</a>`).join('')}
+        ${g[1].map(([p,l,ic])=>`<a href="#${p}" data-base="${p}">${ic}<span>${l}</span>${p==='/photos'?'<span class="badge" id="badge-photos" style="display:none">0</span>':''}${p==='/rapports'?'<span class="badge" id="badge-rapports" style="display:none">0</span>':''}</a>`).join('')}
       `).join('')}</nav>
       <div class="side-foot">
         <div class="user-chip" onclick="navigate('/parametres')">
@@ -1889,6 +1929,7 @@ function renderApp(){
   </div>`;
   fillScopeSelectors();
   renderRoute();
+  if(typeof updateRapportsBadge==='function') updateRapportsBadge();
 }
 
 function fillScopeSelectors(){
@@ -3174,9 +3215,31 @@ function renderErpTab(tab,d){
   }
   else if(tab==='rapports'){
     const raps = d.rap||[];
-    w.innerHTML = raps.length===0
-      ? '<div class="empty"><h3>Aucun rapport</h3><p>Les rapports envoy&#233;s par les prestataires appara&#238;tront ici.</p></div>'
-      : '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Date</th><th>&#201;metteur</th><th>Sujet</th><th>Fichier</th><th>Statut</th></tr></thead><tbody>' + raps.map(r=>'<tr><td>'+esc(r.date_reception||'')+'</td><td>'+esc(r.emetteur||'')+'</td><td>'+esc(r.type||r.sujet||'')+'</td><td>'+(r.fichier_path?'<span class="pill ok">PDF</span>':'<span class="pill inf">-</span>')+'</td><td><span class="pill ok">'+esc(r.statut||'')+'</span></td></tr>').join('') + '</tbody></table></div>';
+    if(!raps.length){
+      w.innerHTML='<div class="empty"><h3>Aucun rapport</h3><p>Les rapports envoy&#233;s par les prestataires appara&#238;tront ici.</p></div>';
+    } else {
+      w.innerHTML='<div style="display:flex;flex-direction:column;gap:9px">'+raps.map(r=>{
+        const fname=r.fichier_path?r.fichier_path.split('/').pop().replace(/^\d+-/,''):'';
+        const fnameJs=(fname||'rapport.pdf').replace(/'/g,'&#39;');
+        const pathJs=(r.fichier_path||'').replace(/'/g,'&#39;');
+        return '<div style="border:1px solid var(--line);border-radius:11px;padding:12px 14px;background:var(--surface)'+(r.statut==='traite'?';border-left:3px solid #16a34a':'')+'">'
+          +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+            +'<div style="flex:1;min-width:0">'
+              +'<div style="font-weight:600;font-size:13.5px;color:var(--ink);overflow-wrap:anywhere;word-break:break-word">'+esc(r.type||'Rapport')+'</div>'
+              +'<div style="font-size:11.5px;color:var(--muted);margin-top:2px">'+esc(fmtDate(r.date_reception)||'')+(r.emetteur?' &#183; '+esc(r.emetteur):'')+'</div>'
+              +(fname?'<div style="font-size:11px;color:var(--muted-2);margin-top:2px;overflow-wrap:anywhere">'+esc(fname)+'</div>':'')
+            +'</div>'
+            +(r.fichier_path
+               ? '<button class="btn sm" onclick="previewRapport(\''+pathJs+'\',\''+fnameJs+'\')">Visualiser</button>'
+                 +'<button class="btn sm primary" onclick="dlRapport(\''+pathJs+'\',\''+fnameJs+'\')">&#11015;&#65039; T&#233;l&#233;charger</button>'
+               : '<span style="color:var(--muted-2);font-size:12px">Pas de PDF</span>')
+            +(r.statut==='traite'
+               ? '<button class="btn sm" style="color:#16a34a;border-color:#16a34a" onclick="toggleRapportTraite(\''+r.id+'\',false)">&#10003; Trait&#233;</button>'
+               : '<button class="btn sm" onclick="toggleRapportTraite(\''+r.id+'\',true)">Marquer trait&#233;</button>')
+            +'<button class="btn sm" style="color:#dc2626" title="Supprimer" onclick="delRapport(\''+r.id+'\',\''+pathJs+'\')">&#128465;</button>'
+          +'</div></div>';
+      }).join('')+'</div>';
+    }
   }
 }
 const OBST={proposee:['','Proposée','inf'],applicable:['','Applicable','int'],non_applicable:['','Non applicable','inf'],conseillee:['','Conseillée','moy'],a_jour:['','À jour','ok'],en_retard:['','En retard','crit'],suspendue:['','Suspendue','inf']
@@ -5354,6 +5417,113 @@ async function viewPointage(c){
 /* =====================================================================
    DOCUMENTS (GED)
 ===================================================================== */
+async function updateRapportsBadge(){
+  try{
+    const {data}=await sb.from('rapports').select('statut');
+    const n=(data||[]).filter(r=>(r.statut||'')!=='traite').length;
+    const b=document.getElementById('badge-rapports');
+    if(b){ if(n>0){ b.style.display='grid'; b.textContent=n; } else { b.style.display='none'; } }
+  }catch(_){}
+}
+window.updateRapportsBadge=updateRapportsBadge;
+async function viewRapports(c){
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Rapports reçus</h1><p>Chargement…</p></div></div>${loadingBlock()}`;
+  try{
+    const {data:raps,error}=await sb.from('rapports').select('*').order('date_reception',{ascending:false});
+    if(error) throw error;
+    const list=raps||[];
+    const erpById={}; (state.erps||[]).forEach(e=>erpById[e.id]=e);
+    const clientById={}; (state.clients||[]).forEach(cl=>clientById[cl.id]=cl);
+    const clientOfRap=r=>{ const e=erpById[r.erp_id]; return e?clientById[e.client_id]:null; };
+    const total=list.length;
+    const recus=list.filter(r=>(r.statut||'')==='recu').length;
+    const nbClients=new Set(list.map(r=>{const cl=clientOfRap(r);return cl?cl.id:'__';})).size;
+    const head=`<div class="page-head"><div class="t"><h1>Rapports reçus</h1><p>${total} rapport(s) transmis par email, classés automatiquement par client.</p></div>
+      <div class="actions"><button class="btn" onclick="releverRapports(this)">↻ Relever maintenant</button></div></div>`;
+    if(!total){ c.innerHTML=head+emptyBlock(I.doc,'Aucun rapport reçu',"Dès qu'un prestataire enverra un rapport à l'adresse @conformite-securite.fr d'un client, il apparaîtra ici automatiquement."); return; }
+    const kpis=`<div class="row3" style="margin-bottom:18px">
+      ${kpiCard(['Rapports reçus',total,'',''])}
+      ${kpiCard(['À traiter',recus,'',''])}
+      ${kpiCard(['Clients concernés',nbClients,'',''])}
+    </div>`;
+    const card=r=>{
+      const e=erpById[r.erp_id];
+      const fname=r.fichier_path?r.fichier_path.split('/').pop().replace(/^\d+-/,''):'';
+      const fnameJs=(fname||'rapport.pdf').replace(/'/g,'&#39;'); const pathJs=(r.fichier_path||'').replace(/'/g,'&#39;');
+      return `<div style="border:1px solid var(--line);border-radius:12px;padding:13px 15px;background:var(--surface)${r.statut==='traite'?';border-left:3px solid #16a34a':''}">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:14px;color:var(--ink);overflow-wrap:anywhere;word-break:break-word">${esc(r.type||'Rapport')}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:3px">${esc(fmtDate(r.date_reception)||'')}${r.emetteur?' · '+esc(r.emetteur):''}${e?' · '+esc(e.nom):''}</div>
+            ${fname?`<div style="font-size:11px;color:var(--muted-2);margin-top:2px;overflow-wrap:anywhere">${esc(fname)}</div>`:''}
+          </div>
+          ${statusPill(r.statut,{recu:['','Reçu','ok'],traite:['','Traité','inf'],en_cours:['','En cours','moy']})}
+          <span style="display:flex;gap:6px;flex-wrap:wrap">
+            ${r.fichier_path?`<button class="btn sm" onclick="previewRapport('${pathJs}','${fnameJs}')">Visualiser</button>
+            <button class="btn sm primary" onclick="dlRapport('${pathJs}','${fnameJs}')">⬇️ Télécharger</button>`:'<span style="color:var(--muted-2);font-size:12px">Pas de PDF</span>'}
+            ${r.statut==='traite'
+              ? `<button class="btn sm" style="color:#16a34a;border-color:#16a34a" onclick="toggleRapportTraite('${r.id}',false)">✓ Traité</button>`
+              : `<button class="btn sm" onclick="toggleRapportTraite('${r.id}',true)">Marquer traité</button>`}
+            <button class="btn sm" style="color:#dc2626" title="Supprimer" onclick="delRapport('${r.id}','${pathJs}')">🗑</button>
+          </span>
+        </div>
+      </div>`;
+    };
+    const groups={}; list.forEach(r=>{ const cl=clientOfRap(r); const k=cl?cl.id:'__none__'; (groups[k]=groups[k]||{cl,items:[]}).items.push(r); });
+    const keys=Object.keys(groups).sort((a,b)=>((groups[a].cl&&groups[a].cl.raison_sociale)||'zzz').localeCompare((groups[b].cl&&groups[b].cl.raison_sociale)||'zzz'));
+    const body=keys.map(k=>{
+      const g=groups[k]; const name=g.cl?g.cl.raison_sociale:'Non rattaché';
+      return `<div style="margin-bottom:18px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700;color:var(--ink);margin-bottom:9px">
+          <span style="width:26px;height:26px;border-radius:7px;background:var(--surface-2);display:grid;place-items:center;flex:0 0 auto">${I.clients||''}</span>
+          <span style="overflow-wrap:anywhere">${esc(name)}</span> <span style="color:var(--muted);font-weight:500">· ${g.items.length}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:9px">${g.items.map(card).join('')}</div>
+      </div>`;
+    }).join('');
+    c.innerHTML=head+kpis+body;
+    updateRapportsBadge();
+  }catch(e){ c.innerHTML=errBlock(e); }
+}
+window.viewRapports=viewRapports;
+window.releverRapports=async function(btn){
+  if(btn){ btn.disabled=true; btn.textContent='Relève…'; }
+  try{
+    const {data,error}=await sb.functions.invoke('traiter-rapports-imap');
+    if(error){ let m=error.message||'Erreur'; try{ const j=await error.context.json(); if(j&&j.error) m=j.error; }catch(_){} throw new Error(m); }
+    const n=(data&&typeof data['traités']!=='undefined')?data['traités']:0;
+    toast(n>0?`${n} nouveau(x) rapport(s) reçu(s) ✓`:'Aucun nouveau rapport pour l\'instant','ok');
+  }catch(e){ toast('Relève impossible : '+(e.message||e),'err'); }
+  const cont=document.getElementById('content'); if(cont) viewRapports(cont);
+  updateRapportsBadge();
+};
+window.toggleRapportTraite=async function(id,toTraite){
+  try{
+    const {error}=await sb.from('rapports').update({statut: toTraite?'traite':'recu'}).eq('id',id);
+    if(error) throw error;
+    toast(toTraite?'Rapport marqué comme traité ✓':'Rapport remis en « reçu »','ok');
+    const cont=document.getElementById('content'); if(!cont) return;
+    const h=location.hash.replace(/^#/,'');
+    if(h.indexOf('/rapports')===0) viewRapports(cont);
+    else if(h.indexOf('/erps/')===0){ const erpId=(h.split('/')[2]||'').split('?')[0]; if(erpId) viewErp(cont,erpId); }
+    updateRapportsBadge();
+  }catch(e){ toast(e.message||'Erreur','err'); }
+};
+window.delRapport=async function(id,path){
+  if(!confirm('Supprimer définitivement ce rapport et son fichier ?')) return;
+  try{
+    if(path){ try{ await sb.storage.from('rapports').remove([path]); }catch(_){} }
+    const {error}=await sb.from('rapports').delete().eq('id',id); if(error) throw error;
+    toast('Rapport supprimé','ok');
+    const cont=document.getElementById('content'); if(!cont) return;
+    const h=location.hash.replace(/^#/,'');
+    if(h.indexOf('/rapports')===0) viewRapports(cont);
+    else if(h.indexOf('/erps/')===0){ const erpId=(h.split('/')[2]||'').split('?')[0]; if(erpId) viewErp(cont,erpId); }
+    updateRapportsBadge();
+  }catch(e){ toast(e.message||'Erreur','err'); }
+};
+
+
 async function viewDocuments(c){
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Documents (GED)</h1><p>Rapports, PV, plans, DOE, attestations.</p></div>
     <div class="actions"><button class="btn primary" onclick="formDoc()">${I.plus} Déposer un document</button></div></div>${loadingBlock()}`;
@@ -5598,6 +5768,28 @@ async function previewDoc(path,name){
       <button class="btn primary" onclick="dlDoc('${pj}','${nj}')">⬇️ Télécharger</button></div>`,'modal-wide');
 }
 window.previewDoc=previewDoc;
+async function dlRapport(path,name){ try{ const {data,error}=await sb.storage.from('rapports').createSignedUrl(path,300); if(error)throw error;
+  const a=document.createElement('a'); a.href=data.signedUrl; a.download=name||'rapport.pdf'; a.target='_blank'; a.click(); }catch(e){toast(e.message,'err');} }
+window.dlRapport=dlRapport;
+async function previewRapport(path,name){
+  let url='';
+  try{ const {data,error}=await sb.storage.from('rapports').createSignedUrl(path,600); if(error)throw error; url=data.signedUrl; }
+  catch(e){ toast(e.message,'err'); return; }
+  const isPdf=/\.pdf$/i.test(name||path||'');
+  const isImg=/\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name||path||'');
+  const viewer = isPdf
+    ? `<iframe src="${url}#toolbar=1&view=FitH" style="width:100%;height:74vh;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>`
+    : isImg
+      ? `<div style="text-align:center;background:var(--surface-2);border-radius:8px;padding:10px"><img src="${url}" style="max-width:100%;max-height:74vh;border-radius:6px"></div>`
+      : `<div style="padding:34px 20px;text-align:center;color:var(--muted)">Aperçu non disponible pour ce type de fichier.<br>Utilisez « Ouvrir dans un onglet » ou « Télécharger ».</div>`;
+  const pj=esc(path).replace(/'/g,"\\'"); const nj=esc(name||'rapport').replace(/'/g,"\\'");
+  openModal(`<div class="modal-head"><h2 style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:78%">${esc(name||'Rapport')}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body" style="padding-top:8px">${viewer}</div>
+    <div class="modal-foot" style="flex-wrap:wrap"><button class="btn ghost" onclick="closeModal()">Fermer</button>
+      <a class="btn" href="${url}" target="_blank" rel="noopener">↗︎ Ouvrir dans un onglet</a>
+      <button class="btn primary" onclick="dlRapport('${pj}','${nj}')">⬇️ Télécharger</button></div>`,'modal-wide');
+}
+window.previewRapport=previewRapport;
 window.crEmailSend=async function(){
   const cbs=[...document.querySelectorAll('.cr-mail-cb:checked')].map(c=>c.value);
   const extra=((document.getElementById('cr_mail_extra')?.value)||'').split(/[,;\s]+/).map(s=>s.trim()).filter(s=>/^.+@.+\..+$/.test(s));
