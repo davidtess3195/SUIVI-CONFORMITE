@@ -3172,7 +3172,7 @@ function renderErpTab(tab,d){
     w.innerHTML=`<div style="display:flex;margin-bottom:14px"><button class="btn primary" style="margin-left:auto" onclick="formReserve('${e.id}')">${I.plus} Nouvelle réserve</button></div>
     ${d.re.length?reserveTable(d.re):emptyBlock(I.reserve,'Aucune réserve','Les réserves issues des rapports apparaîtront ici après validation.',`<button class="btn primary" onclick="formReserve('${e.id}')">${I.plus} Saisir une réserve</button>`)}`;
   }
-  }else if(tab==='rapports'){
+  else if(tab==='rapports'){
     const raps = d.rap||[];
     w.innerHTML = raps.length===0
       ? '<div class="empty"><h3>Aucun rapport</h3><p>Les rapports envoy&#233;s par les prestataires appara&#238;tront ici.</p></div>'
