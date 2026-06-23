@@ -3106,15 +3106,16 @@ async function viewErp(c,id){
     if(location.hash!==myHash) return;                 // changé de fiche entre-temps
     if(!e){ c.innerHTML=emptyBlock(I.erp,'ERP introuvable','Cet ERP n\'a pas pu être chargé.',`<button class="btn" onclick="navigate('/erps')">← Retour aux ERP</button>`); return; }
     const cl=state.clients.find(x=>x.id===e.client_id);
-    const [eq,ob,it,re] = await Promise.all([
+    const [eq,ob,it,re,rap] = await Promise.all([
       sb.from('equipements').select('*').eq('erp_id',id),
       sb.from('obligations').select('*').eq('erp_id',id).order('prochaine_echeance'),
       sb.from('interventions').select('*').eq('erp_id',id).order('date_prevue',{ascending:false}),
       sb.from('reserves').select('*').eq('erp_id',id).order('created_at',{ascending:false}),
+      sb.from('rapports').select('*').eq('erp_id',id).order('date_reception',{ascending:false}),
     ]);
     if(location.hash!==myHash) return;                 // une autre fiche a été demandée pendant le chargement
     const tab = (location.hash.split('?t=')[1])||'apercu';
-    const data={e,cl,eq:eq.data||[],ob:ob.data||[],it:it.data||[],re:re.data||[]};
+    const data={e,cl,eq:eq.data||[],ob:ob.data||[],it:it.data||[],re:re.data||[],rap:rap.data||[]};
     c.innerHTML=`<div class="page-head"><div class="t">
       <div style="font-size:12.5px;color:var(--muted);margin-bottom:6px"><span class="lnk" onclick="navigate('/erps')">ERP</span> / ${esc(e.code_erp)}</div>
       <div class="dh"><div class="ic">${I.erp}</div><div><h1>${esc(e.nom)}</h1>
@@ -3123,7 +3124,7 @@ async function viewErp(c,id){
         <button class="btn" onclick='formErp(${JSON.stringify(e).replace(/'/g,"&#39;")})'>Modifier</button>
         <button class="btn danger" onclick="deleteErp('${id}')">🗑 Supprimer</button></div></div>
       <div class="tabs">
-        ${[['apercu','Aperçu'],['equip','Équipements'],['oblig','Vérifications'],['inter','Interventions'],['reserves','Réserves']].map(t=>`<button class="${tab===t[0]?'active':''}" onclick="navigate('/erps/${id}?t=${t[0]}')">${t[1]}</button>`).join('')}
+        ${[['apercu','Aperçu'],['equip','Équipements'],['oblig','Vérifications'],['inter','Interventions'],['reserves','Réserves'],['rapports','Rapports']].map(t=>`<button class="${tab===t[0]?'active':''}" onclick="navigate('/erps/${id}?t=${t[0]}')">${t[1]}</button>`).join('')}
       </div><div id="erptab"></div>`;
     renderErpTab(tab,data);
   }catch(err){ if(location.hash===myHash) c.innerHTML=errBlock(err); }
@@ -3172,7 +3173,12 @@ function renderErpTab(tab,d){
     ${d.re.length?reserveTable(d.re):emptyBlock(I.reserve,'Aucune réserve','Les réserves issues des rapports apparaîtront ici après validation.',`<button class="btn primary" onclick="formReserve('${e.id}')">${I.plus} Saisir une réserve</button>`)}`;
   }
 }
-const OBST={proposee:['','Proposée','inf'],applicable:['','Applicable','int'],non_applicable:['','Non applicable','inf'],conseillee:['','Conseillée','moy'],a_jour:['','À jour','ok'],en_retard:['','En retard','crit'],suspendue:['','Suspendue','inf']};
+const OBST={proposee:['','Proposée','inf'],applicable:['','Applicable','int'],non_applicable:['','Non applicable','inf'],conseillee:['','Conseillée','moy'],a_jour:['','À jour','ok'],en_retard:['','En retard','crit'],suspendue:['','Suspendue','inf']  }else if(tab==='rapports'){
+    const raps = d.rap||[];
+    w.innerHTML = raps.length===0
+      ? '<div class="empty"><h3>Aucun rapport</h3><p>Les rapports envoy&#233;s par les prestataires appara&#238;tront ici.</p></div>'
+      : '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Date</th><th>&#201;metteur</th><th>Sujet</th><th>Fichier</th><th>Statut</th></tr></thead><tbody>' + raps.map(r=>'<tr><td>'+esc(r.date_reception||'')+'</td><td>'+esc(r.emetteur||'')+'</td><td>'+esc(r.type||r.sujet||'')+'</td><td>'+(r.fichier_path?'<span class="pill ok">OK PDF</span>':'<span class="pill inf">-</span>')+'</td><td><span class="pill ok">'+esc(r.statut||'')+'</span></td></tr>').join('') + '</tbody></table></div>';
+};
 
 function formEquip(erpId, eq){
   eq = eq || {};
