@@ -141,6 +141,7 @@ table.tbl .mono{font-family:var(--fd);font-weight:600;font-size:12.5px;color:var
 /* Modal */
 .overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(2px);z-index:60;display:grid;place-items:center;padding:18px;opacity:0;pointer-events:none;transition:.18s}
 .overlay.on{opacity:1;pointer-events:auto}
+body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .modal{background:var(--surface);border-radius:18px;box-shadow:var(--sh-l);width:100%;max-width:560px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;transform:translateY(8px) scale(.99);transition:.18s}
 .modal.modal-wide{max-width:940px}
 .overlay.on .modal{transform:none}
@@ -430,6 +431,8 @@ table.tbl .mono{font-family:var(--fd);font-weight:600;font-size:12.5px;color:var
   .urg-grid{grid-template-columns:1fr}
   .overlay{padding:10px}
   .modal{max-height:94vh}
+  .modal-head .x{width:40px;height:40px}
+  .modal-foot{flex-wrap:wrap}
   h1{font-size:21px}
 }
 @media(max-width:640px){
@@ -580,10 +583,14 @@ function toast(msg,type=''){
 
 let modalOnClose=null;
 let _modalDirty = false;
+let _scrollLocked=false, _scrollLockY=0;
+function lockScroll(){ if(_scrollLocked) return; _scrollLockY=window.scrollY||document.documentElement.scrollTop||0; document.body.style.top=(-_scrollLockY)+'px'; document.body.classList.add('modal-open'); _scrollLocked=true; }
+function unlockScroll(){ if(!_scrollLocked) return; document.body.classList.remove('modal-open'); document.body.style.top=''; _scrollLocked=false; window.scrollTo(0,_scrollLockY); }
 function openModal(html,cls=''){
   const m=$('#modal'); m.className='modal '+cls; m.innerHTML=html;
   _modalDirty=false;
   $('#overlay').classList.add('on');
+  lockScroll();
   // Toujours repartir du haut du contenu
   const _b=m.querySelector('.modal-body'); if(_b) _b.scrollTop=0;
   // Écouter toutes les modifs dans le modal
@@ -599,7 +606,7 @@ function closeModal(){
     if(!confirm('Des modifications non enregistrées seront perdues. Quitter quand même ?')) return;
   }
   _modalDirty=false;
-  $('#overlay').classList.remove('on'); modalOnClose&&modalOnClose(); modalOnClose=null;
+  $('#overlay').classList.remove('on'); unlockScroll(); modalOnClose&&modalOnClose(); modalOnClose=null;
 }
 $('#overlay').addEventListener('click',e=>{
   if(e.target.id==='overlay'){ if(_modalDirty) return; closeModal(); }
@@ -3002,7 +3009,7 @@ function formConversation(conv){
     <div class="fld"><label>Photos / vidéos associées <span style="color:var(--muted-2);font-weight:400;font-size:11px">(cochez pour rattacher)</span></label>
       <div id="cv_photos" style="max-height:190px;overflow:auto;border:1px solid var(--line);border-radius:9px;padding:8px;background:var(--surface-2)"></div></div>
   </div>
-  <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="cv_save">Enregistrer</button></div>`);
+  <div class="modal-foot" style="${cv.id?'justify-content:space-between':''}">${cv.id?`<button class="btn ghost" onclick="delConversation('${cv.id}')" style="color:#dc2626;border-color:#fca5a5">Supprimer</button>`:''}<span style="display:flex;gap:10px"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="cv_save">Enregistrer</button></span></div>`);
   cvFillErp(cv.erp_id);
   cvLoadSocietes();
   window._cvEditId = cv.id||null;
@@ -3186,6 +3193,7 @@ async function delConversation(id){
     const cv=(window._convCache||[]).find(x=>x.id===id);
     if(cv&&cv.audio_path){ try{ await sb.storage.from('urgent-photos').remove([cv.audio_path]); }catch(_){} }
     const {error}=await sb.from('conversations').delete().eq('id',id); if(error) throw error;
+    _modalDirty=false; closeModal();
     toast('Conversation supprimée','ok'); loadConversations();
   }catch(e){ toast(e.message,'err'); }
 }
