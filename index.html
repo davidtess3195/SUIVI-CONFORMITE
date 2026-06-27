@@ -399,20 +399,6 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   font-size:11px; color:#94a3b8; text-align:center; margin-top:4px; word-break:break-all;
 }
 
-/* ── Barre navigation mobile ── */
-.mob-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:50;background:var(--navy);border-top:1px solid var(--navy-2);padding:6px 0 env(safe-area-inset-bottom,6px)}
-.mob-nav-items{display:flex;justify-content:space-around;align-items:center}
-.mob-nav-item{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 10px;border-radius:8px;color:#7c8ba1;font-size:10px;font-weight:600;cursor:pointer;text-decoration:none;transition:.12s;min-width:52px;text-align:center}
-.mob-nav-item svg{width:20px;height:20px;flex:0 0 auto}
-.mob-nav-item.active,.mob-nav-item:hover{color:#fff;background:rgba(255,255,255,.08)}
-.mob-nav-item.active{color:#60a5fa}
-.mob-badge{background:var(--critique);color:#fff;font-size:9px;font-weight:700;min-width:15px;height:15px;border-radius:8px;display:grid;place-items:center;padding:0 3px;position:absolute;top:-3px;right:-3px}
-.mob-nav-icon{position:relative;display:inline-flex}
-@media(max-width:840px){
-  .mob-nav{display:block}
-  .main{padding-bottom:68px}
-}
-
 @media(max-width:840px){
   .sidebar{transform:translateX(-100%)}
   .sidebar.open{transform:none}
@@ -2035,7 +2021,7 @@ window.wizFinish=wizFinish;
    APP SHELL
 ===================================================================== */
 const NAV = [
-  ['Pilotage', [['/','Tableau de bord',I.dash],['/verifications','Vérifications & Relances',I.verif],['/interventions','Interventions',I.inter],['/reserves','Levées des réserves',I.reserve],['/photos','Photos et vidéos',I.photo],['/conversations','Conversations',I.conv],['/compte-rendu','Compte rendu',I.doc]]],
+  ['Pilotage', [['/','Tableau de bord',I.dash],['/interventions','Interventions',I.inter],['/reserves','Levées des réserves',I.reserve],['/photos','Photos et vidéos',I.photo],['/conversations','Conversations',I.conv],['/compte-rendu','Compte rendu',I.doc],['/verifications','Vérifications & Relances',I.verif]]],
   ['Référentiel', [['/clients','Clients',I.clients],['/erps','ERP',I.erp],['/prestataires','Prestataires',I.prest]]],
   ['Documents & terrain', [['/documents','Documents (GED)',I.doc],['/rapports','Rapports reçus',I.doc],['/contrats','Contrats de maintenance',I.doc],['/pointage','Pointage & journal',I.qr]]],
   ['Administration', [['/admin','Tableau de bord admin',I.settings],['/parametres','Paramètres & email',I.settings]]],
@@ -2069,25 +2055,6 @@ function renderApp(){
       </header>
       <main class="content" id="content"></main>
     </div>
-    <nav class="mob-nav" id="mob-nav">
-      <div class="mob-nav-items">
-        <a class="mob-nav-item" data-base="/" href="#/" onclick="toggleSidebar(false)">
-          <span class="mob-nav-icon">${I.dash}</span><span>Accueil</span>
-        </a>
-        <a class="mob-nav-item" data-base="/verifications" href="#/verifications" onclick="toggleSidebar(false)">
-          <span class="mob-nav-icon" style="position:relative">${I.verif}<span class="mob-badge" id="mob-badge-verif" style="display:none">0</span></span><span>Vérifs</span>
-        </a>
-        <a class="mob-nav-item" data-base="/interventions" href="#/interventions" onclick="toggleSidebar(false)">
-          <span class="mob-nav-icon">${I.inter}</span><span>Interventions</span>
-        </a>
-        <a class="mob-nav-item" data-base="/reserves" href="#/reserves" onclick="toggleSidebar(false)">
-          <span class="mob-nav-icon">${I.reserve}</span><span>Réserves</span>
-        </a>
-        <a class="mob-nav-item" data-base="/photos" href="#/photos" onclick="toggleSidebar(false)">
-          <span class="mob-nav-icon" style="position:relative">${I.photo}<span class="mob-badge" id="mob-badge-photos" style="display:none">0</span></span><span>Photos</span>
-        </a>
-      </div>
-    </nav>
   </div>`;
   fillScopeSelectors();
   renderRoute();
@@ -2128,11 +2095,7 @@ function toggleSidebar(open){
   } else if(scrim){ scrim.remove(); }
 }
 window.toggleSidebar=toggleSidebar;
-function setActiveNav(base){
-  document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('active',a.dataset.base===base));
-  document.querySelectorAll('.mob-nav-item').forEach(a=>a.classList.toggle('active',a.dataset.base===base));
-  toggleSidebar(false);
-}
+function setActiveNav(base){ document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('active',a.dataset.base===base)); toggleSidebar(false); }
 function erpFilter(q){ if(state.currentErp!=='all') return q.eq('erp_id',state.currentErp);
   if(state.currentClient!=='all'){ const ids=state.erps.filter(e=>e.client_id===state.currentClient).map(e=>e.id); return q.in('erp_id',ids.length?ids:['00000000-0000-0000-0000-000000000000']); } return q; }
 /* Filtre GED : un document peut être rattaché à un client (client_id) ET/OU à un ERP (erp_id). On prend les deux pour ne rien masquer. */
@@ -2246,7 +2209,6 @@ async function viewDashboard(c){
     const resOuv = res.filter(r=>!['cloturee','levee','rejetee'].includes(r.statut));
     const photoNT = phs.filter(p=>['recue','a_traiter','vue'].includes(p.statut));
     const badge=$('#badge-photos'); if(badge){ if(photoNT.length){badge.style.display='grid';badge.textContent=photoNT.length;}else badge.style.display='none'; }
-    const mobBadgePhotos=document.getElementById('mob-badge-photos'); if(mobBadgePhotos){mobBadgePhotos.textContent=photoNT.length;mobBadgePhotos.style.display=photoNT.length?'grid':'none';}
 
     const kpis=[
       ['Vérifications en retard',enRetard.length,'critique','Échéances dépassées','⏰','/interventions'],
@@ -7263,7 +7225,7 @@ function viewVerifications(content){
   const EDGE=SUPA_URL+'/functions/v1';
   if(!document.getElementById('vstyle')){
     const s=document.createElement('style');s.id='vstyle';
-    s.textContent='.verif-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}.verif-tab{padding:7px 15px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:#f1f5f9;color:#475569;transition:.15s}.verif-tab:hover{background:#e2e8f0}.verif-tab.active[data-tab=repondre]{background:#f97316;color:#fff}.verif-tab.active[data-tab=sans_reponse]{background:#ef4444;color:#fff}.verif-tab.active[data-tab=a_programmer]{background:#6366f1;color:#fff}.verif-tab.active[data-tab=programmee]{background:#22c55e;color:#fff}.verif-tab.active[data-tab=reglages]{background:#64748b;color:#fff}.vbadge{background:rgba(0,0,0,.18);border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px}.vcard{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)}.vcardtitle{font-weight:600;color:#1e293b;font-size:14px}.vcardsub{color:#64748b;font-size:12px;margin-top:2px}.vcardmeta{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.vpill{background:#f1f5f9;color:#475569;border-radius:12px;padding:2px 9px;font-size:11px;font-weight:500}.vpill.red{background:#fee2e2;color:#dc2626}.vpill.orange{background:#ffedd5;color:#ea580c}.vpill.green{background:#dcfce7;color:#16a34a}.vpill.blue{background:#dbeafe;color:#2563eb}.vreply{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-top:10px;font-size:12px;color:#475569;font-family:monospace;white-space:pre-wrap;max-height:80px;overflow-y:auto}.vactions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}.vbtn{padding:6px 14px;border-radius:6px;font-size:13px;font-weight:600;border:none;cursor:pointer;transition:opacity .15s}.vbtn:hover{opacity:.85}.vbtn.g{background:#22c55e;color:#fff}.vbtn.o{background:#f97316;color:#fff}.vbtn.r{background:#ef4444;color:#fff}.vbtn.b{background:#3b82f6;color:#fff}.vbtn.p{background:#8b5cf6;color:#fff}.vbtn.s{background:#94a3b8;color:#fff}.vempty{text-align:center;padding:32px;color:#94a3b8;font-size:14px}.valert{display:flex;align-items:center;gap:12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#991b1b}.vsettings{display:grid;grid-template-columns:1fr 1fr;gap:14px}.vsgrp{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px}.vsgrp label{display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px}.vsgrp input{width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:6px 8px;font-size:13px;color:#1e293b;box-sizing:border-box}.vtog{width:44px;height:24px;background:#e2e8f0;border-radius:12px;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;display:inline-block}.vtog.on{background:#22c55e}.vtog::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:transform .2s}.vtog.on::after{transform:translateX(20px)}.vdinput{border:1px solid #cbd5e1;border-radius:6px;padding:5px 8px;font-size:13px;color:#1e293b}';
+    s.textContent='.verif-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}.verif-tab{padding:7px 15px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:#f1f5f9;color:#475569;transition:.15s}.verif-tab:hover{background:#e2e8f0}.verif-tab.active[data-tab=repondre]{background:#f97316;color:#fff}.verif-tab.active[data-tab=sans_reponse]{background:#ef4444;color:#fff}.verif-tab.active[data-tab=a_programmer]{background:#6366f1;color:#fff}.verif-tab.active[data-tab=programmee]{background:#22c55e;color:#fff}.verif-tab.active[data-tab=reglages]{background:#64748b;color:#fff}.verif-tab.active[data-tab=obligations]{background:#0891b2;color:#fff}.vbadge{background:rgba(0,0,0,.18);border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px}.vcard{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)}.vcardtitle{font-weight:600;color:#1e293b;font-size:14px}.vcardsub{color:#64748b;font-size:12px;margin-top:2px}.vcardmeta{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.vpill{background:#f1f5f9;color:#475569;border-radius:12px;padding:2px 9px;font-size:11px;font-weight:500}.vpill.red{background:#fee2e2;color:#dc2626}.vpill.orange{background:#ffedd5;color:#ea580c}.vpill.green{background:#dcfce7;color:#16a34a}.vpill.blue{background:#dbeafe;color:#2563eb}.vreply{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-top:10px;font-size:12px;color:#475569;font-family:monospace;white-space:pre-wrap;max-height:80px;overflow-y:auto}.vactions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}.vbtn{padding:6px 14px;border-radius:6px;font-size:13px;font-weight:600;border:none;cursor:pointer;transition:opacity .15s}.vbtn:hover{opacity:.85}.vbtn.g{background:#22c55e;color:#fff}.vbtn.o{background:#f97316;color:#fff}.vbtn.r{background:#ef4444;color:#fff}.vbtn.b{background:#3b82f6;color:#fff}.vbtn.p{background:#8b5cf6;color:#fff}.vbtn.s{background:#94a3b8;color:#fff}.vempty{text-align:center;padding:32px;color:#94a3b8;font-size:14px}.valert{display:flex;align-items:center;gap:12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#991b1b}.vsettings{display:grid;grid-template-columns:1fr 1fr;gap:14px}.vsgrp{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px}.vsgrp label{display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px}.vsgrp input{width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:6px 8px;font-size:13px;color:#1e293b;box-sizing:border-box}.vtog{width:44px;height:24px;background:#e2e8f0;border-radius:12px;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;display:inline-block}.vtog.on{background:#22c55e}.vtog::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:transform .2s}.vtog.on::after{transform:translateX(20px)}.vdinput{border:1px solid #cbd5e1;border-radius:6px;padding:5px 8px;font-size:13px;color:#1e293b}';
     document.head.appendChild(s);
   }
   let vtab='repondre',vd={repondre:[],sans_reponse:[],a_programmer:[],programmee:[]},vcfg={},verp={},vpr={};
@@ -7275,6 +7237,7 @@ function viewVerifications(content){
       <button class="verif-tab" data-tab="sans_reponse" onclick="verifSetTab('sans_reponse')">🔴 Sans réponse <span class="vbadge" id="bvs">0</span></button>
       <button class="verif-tab" data-tab="a_programmer" onclick="verifSetTab('a_programmer')">📅 À programmer <span class="vbadge" id="bvap">0</span></button>
       <button class="verif-tab" data-tab="programmee" onclick="verifSetTab('programmee')">✅ Programmées <span class="vbadge" id="bvp">0</span></button>
+      <button class="verif-tab" data-tab="obligations" onclick="verifSetTab('obligations')">📋 Obligations <span class="vbadge" id="bvobl">0</span></button>
       <button class="verif-tab" data-tab="reglages" onclick="verifSetTab('reglages')">⚙️ Réglages</button>
     </div>
     <div id="vcontent"><div style="text-align:center;padding:32px;color:#94a3b8">Chargement…</div></div>`;
@@ -7296,15 +7259,19 @@ function viewVerifications(content){
     ]);
     vd={repondre:r1||[],sans_reponse:r2||[],a_programmer:r3||[],programmee:r4||[]};vcfg=c;
     [['repondre','bvr'],['sans_reponse','bvs'],['a_programmer','bvap'],['programmee','bvp']].forEach(([k,bid])=>{const el=document.getElementById(bid);if(el)el.textContent=vd[k].length;});
+    // Charger les obligations
+    const oblRaw=await vapi('obligations?select=*,erps(nom),prestataires(nom,email_rapports)&statut=eq.applicable&order=prochaine_echeance.asc');
+    vd.obligations=oblRaw||[];
+    const oblEl=document.getElementById('bvobl');if(oblEl)oblEl.textContent=vd.obligations.length;
     const tot=vd.repondre.length+vd.sans_reponse.length;
     const nb=document.getElementById('badge-verif');if(nb){nb.textContent=tot;nb.style.display=tot?'':'none';}
-    const mnb=document.getElementById('mob-badge-verif');if(mnb){mnb.textContent=tot;mnb.style.display=tot?'grid':'none';}
     const al=document.getElementById('valert'),alt=document.getElementById('valerttxt');
     if(al&&alt){if(tot>0){al.style.display='flex';alt.textContent=tot+' action(s) : '+(vd.repondre.length?vd.repondre.length+' réponse(s) prestataire':'')+((vd.repondre.length&&vd.sans_reponse.length)?' · ':'')+( vd.sans_reponse.length?vd.sans_reponse.length+' sans réponse':'');}else al.style.display='none';}
   }
   function vrender(){
     const el=document.getElementById('vcontent');if(!el)return;
     if(vtab==='reglages'){el.innerHTML=vrsettings();return;}
+    if(vtab==='obligations'){el.innerHTML=vrobligations();return;}
     const items=vd[vtab]||[];
     if(!items.length){el.innerHTML='<div class="vempty">✓ Aucun élément</div>';return;}
     el.innerHTML=items.map(i=>vrcard(i,vtab)).join('');
@@ -7358,6 +7325,77 @@ function viewVerifications(content){
       <button class="btn" style="background:#8b5cf6;color:#fff;border-color:#8b5cf6" onclick="verifRunNow()">▶ Lancer maintenant</button>
     </div>`;
   }
+  function vrobligations(){
+    const obls=vd.obligations||[];
+    if(!obls.length)return'<div class="vempty">Aucune obligation applicable</div>';
+    const today=new Date();
+    return obls.map(o=>{
+      const erp=o.erps||{};const pr=o.prestataires||{};
+      const dl=o.prochaine_echeance?Math.round((new Date(o.prochaine_echeance)-today)/86400000):null;
+      const dc=dl===null?'':dl<0?'red':dl<=30?'orange':dl<=90?'blue':'green';
+      const dlabel=dl===null?'':dl<0?Math.abs(dl)+'j dépassé':dl===0?"Aujourd'hui":'J-'+dl;
+      const isCommission=(o.domaine||'').toLowerCase().includes('commission');
+      const periodiciteSelector=isCommission?`
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
+          <span style="font-size:12px;color:#0369a1;font-weight:600">⏱ Périodicité :</span>
+          <select id="per-${o.id}" onchange="verifUpdatePeriodicite('${o.id}',this.value)" style="border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px;font-size:13px;background:#fff;color:#1e293b">
+            <option value="triennale" ${(o.periodicite||'')==='triennale'?'selected':''}>3 ans</option>
+            <option value="quinquennale" ${(o.periodicite||'')==='quinquennale'?'selected':''}>5 ans</option>
+          </select>
+          <span style="font-size:11px;color:#64748b">(selon catégorie ERP)</span>
+        </div>`:''`;
+      return \`<div class="vcard">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+          <div>
+            <div class="vcardtitle">\${esc(o.libelle||o.domaine||'—')}</div>
+            <div class="vcardsub">\${esc(erp.nom||'—')}\${pr.nom?' · '+esc(pr.nom):''}</div>
+          </div>
+          <button class="vbtn b" onclick="verifProgrammerObligation('\${o.id}','\${o.erp_id}','\${esc(o.libelle||o.domaine||'')}','\${o.prochaine_echeance||''}','\${(o.prestataires?.id)||''}','\${(o.prestataires?.email_rapports)||''}')" style="flex-shrink:0">▶ Programmer</button>
+        </div>
+        <div class="vcardmeta">
+          \${dlabel?\`<span class="vpill \${dc}">\${dlabel}</span>\`:''}
+          \${o.prochaine_echeance?\`<span class="vpill">📅 \${vfd(o.prochaine_echeance)}</span>\`:''}
+          \${!isCommission&&o.periodicite?\`<span class="vpill">\${esc(o.periodicite)}</span>\`:''}
+          \${o.criticite?\`<span class="vpill \${o.criticite==='critique'?'red':o.criticite==='majeur'?'orange':'blue'}">\${esc(o.criticite)}</span>\`:''}
+          \${o.derniere_verif?\`<span class="vpill green">✓ Dernière vérif \${vfd(o.derniere_verif)}</span>\`:'<span class="vpill">Jamais vérifiée</span>'}
+        </div>
+        \${periodiciteSelector}
+      </div>\`;
+    }).join('');
+  }
+
+  window.verifUpdatePeriodicite=async function(oblId,val){
+    await fetch(SUPA_URL+'/rest/v1/obligations?id=eq.'+oblId,{
+      method:'PATCH',
+      headers:{apikey:ANON_KEY,'Authorization':'Bearer '+ANON_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify({periodicite:val})
+    });
+    // Mettre à jour localement
+    const obl=vd.obligations.find(o=>o.id===oblId);
+    if(obl)obl.periodicite=val;
+    const label=val==='triennale'?'3 ans':'5 ans';
+    toast('Périodicité mise à jour : '+label,'ok');
+  };
+
+  window.verifProgrammerObligation=async function(oblId,erpId,libelle,datePrevue,prestaId,prestaEmail){
+    const dateProposee=prompt('Date de l\'intervention (JJ/MM/AAAA) :', datePrevue?new Date(datePrevue).toLocaleDateString('fr-FR'):'');
+    if(!dateProposee)return;
+    const p=dateProposee.split('/');
+    const iso=p.length===3?p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0'):datePrevue||null;
+    if(!iso){toast('Format invalide (JJ/MM/AAAA)','err');return;}
+    // Créer l'intervention
+    const body={erp_id:erpId,obligation_id:oblId,objet:libelle,type:'preventive',statut:'programmee',date_prevue:iso,rapport_attendu:true};
+    if(prestaId)body.prestataire_id=prestaId;
+    if(prestaEmail)body.email_to=prestaEmail;
+    const res=await fetch(SUPA_URL+'/rest/v1/interventions',{method:'POST',headers:{apikey:ANON_KEY,'Authorization':'Bearer '+ANON_KEY,'Content-Type':'application/json','Prefer':'return=representation'},body:JSON.stringify(body)});
+    if(!res.ok){const err=await res.text();toast('Erreur: '+err,'err');return;}
+    // Mettre à jour prochaine_echeance de l'obligation
+    await fetch(SUPA_URL+'/rest/v1/obligations?id=eq.'+oblId,{method:'PATCH',headers:{apikey:ANON_KEY,'Authorization':'Bearer '+ANON_KEY,'Content-Type':'application/json'},body:JSON.stringify({prochaine_echeance:iso})});
+    toast('✅ Intervention programmée le '+new Date(iso).toLocaleDateString('fr-FR'),'ok');
+    await verifRefresh();
+    verifSetTab('programmee');
+  };
+
   window.verifRefresh=async function(){const el=document.getElementById('vcontent');if(el)el.innerHTML='<div style="text-align:center;padding:32px;color:#94a3b8">Chargement…</div>';await vload();vrender();};
   window.verifSetTab=function(tab){vtab=tab;document.querySelectorAll('.verif-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));vrender();};
   window.verifToggleDry=function(){vcfg.dry_run=!vcfg.dry_run;vrender();};
