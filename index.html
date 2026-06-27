@@ -399,6 +399,17 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   font-size:11px; color:#94a3b8; text-align:center; margin-top:4px; word-break:break-all;
 }
 
+/* ── Barre navigation mobile ── */
+.mob-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:50;background:var(--navy);border-top:1px solid var(--navy-2);padding:6px 0 env(safe-area-inset-bottom,6px)}
+.mob-nav-items{display:flex;justify-content:space-around;align-items:center}
+.mob-nav-item{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 10px;border-radius:8px;color:#7c8ba1;font-size:10px;font-weight:600;cursor:pointer;text-decoration:none;transition:.12s;min-width:52px;text-align:center}
+.mob-nav-item svg{width:20px;height:20px;flex:0 0 auto}
+.mob-nav-item.active,.mob-nav-item:hover{color:#fff;background:rgba(255,255,255,.08)}
+.mob-nav-item.active{color:#60a5fa}
+.mob-badge{background:var(--critique);color:#fff;font-size:9px;font-weight:700;min-width:15px;height:15px;border-radius:8px;display:grid;place-items:center;padding:0 3px;position:absolute;top:-3px;right:-3px}
+.mob-nav-icon{position:relative;display:inline-flex}
+@media(max-width:840px){.mob-nav{display:block}.main{padding-bottom:68px}}
+
 @media(max-width:840px){
   .sidebar{transform:translateX(-100%)}
   .sidebar.open{transform:none}
@@ -2021,7 +2032,7 @@ window.wizFinish=wizFinish;
    APP SHELL
 ===================================================================== */
 const NAV = [
-  ['Pilotage', [['/','Tableau de bord',I.dash],['/interventions','Interventions',I.inter],['/reserves','Levées des réserves',I.reserve],['/photos','Photos et vidéos',I.photo],['/conversations','Conversations',I.conv],['/compte-rendu','Compte rendu',I.doc],['/verifications','Vérifications & Relances',I.verif]]],
+  ['Pilotage', [['/','Tableau de bord',I.dash],['/verifications','Vérifications & Relances',I.verif],['/interventions','Interventions',I.inter],['/reserves','Levées des réserves',I.reserve],['/photos','Photos et vidéos',I.photo],['/conversations','Conversations',I.conv],['/compte-rendu','Compte rendu',I.doc]]],
   ['Référentiel', [['/clients','Clients',I.clients],['/erps','ERP',I.erp],['/prestataires','Prestataires',I.prest]]],
   ['Documents & terrain', [['/documents','Documents (GED)',I.doc],['/rapports','Rapports reçus',I.doc],['/contrats','Contrats de maintenance',I.doc],['/pointage','Pointage & journal',I.qr]]],
   ['Administration', [['/admin','Tableau de bord admin',I.settings],['/parametres','Paramètres & email',I.settings]]],
@@ -2095,7 +2106,11 @@ function toggleSidebar(open){
   } else if(scrim){ scrim.remove(); }
 }
 window.toggleSidebar=toggleSidebar;
-function setActiveNav(base){ document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('active',a.dataset.base===base)); toggleSidebar(false); }
+function setActiveNav(base){
+  document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('active',a.dataset.base===base));
+  document.querySelectorAll('.mob-nav-item').forEach(a=>a.classList.toggle('active',a.dataset.base===base));
+  toggleSidebar(false);
+}
 function erpFilter(q){ if(state.currentErp!=='all') return q.eq('erp_id',state.currentErp);
   if(state.currentClient!=='all'){ const ids=state.erps.filter(e=>e.client_id===state.currentClient).map(e=>e.id); return q.in('erp_id',ids.length?ids:['00000000-0000-0000-0000-000000000000']); } return q; }
 /* Filtre GED : un document peut être rattaché à un client (client_id) ET/OU à un ERP (erp_id). On prend les deux pour ne rien masquer. */
@@ -2209,6 +2224,7 @@ async function viewDashboard(c){
     const resOuv = res.filter(r=>!['cloturee','levee','rejetee'].includes(r.statut));
     const photoNT = phs.filter(p=>['recue','a_traiter','vue'].includes(p.statut));
     const badge=$('#badge-photos'); if(badge){ if(photoNT.length){badge.style.display='grid';badge.textContent=photoNT.length;}else badge.style.display='none'; }
+    const mobBadgePhotos=document.getElementById('mob-badge-photos'); if(mobBadgePhotos){mobBadgePhotos.textContent=photoNT.length;mobBadgePhotos.style.display=photoNT.length?'grid':'none';}
 
     const kpis=[
       ['Vérifications en retard',enRetard.length,'critique','Échéances dépassées','⏰','/interventions'],
@@ -7259,12 +7275,12 @@ function viewVerifications(content){
     ]);
     vd={repondre:r1||[],sans_reponse:r2||[],a_programmer:r3||[],programmee:r4||[]};vcfg=c;
     [['repondre','bvr'],['sans_reponse','bvs'],['a_programmer','bvap'],['programmee','bvp']].forEach(([k,bid])=>{const el=document.getElementById(bid);if(el)el.textContent=vd[k].length;});
-    // Charger les obligations
     const oblRaw=await vapi('obligations?select=*,erps(nom),prestataires(nom,email_rapports)&statut=eq.applicable&order=prochaine_echeance.asc');
     vd.obligations=oblRaw||[];
     const oblEl=document.getElementById('bvobl');if(oblEl)oblEl.textContent=vd.obligations.length;
     const tot=vd.repondre.length+vd.sans_reponse.length;
     const nb=document.getElementById('badge-verif');if(nb){nb.textContent=tot;nb.style.display=tot?'':'none';}
+    const mnb=document.getElementById('mob-badge-verif');if(mnb){mnb.textContent=tot;mnb.style.display=tot?'grid':'none';}
     const al=document.getElementById('valert'),alt=document.getElementById('valerttxt');
     if(al&&alt){if(tot>0){al.style.display='flex';alt.textContent=tot+' action(s) : '+(vd.repondre.length?vd.repondre.length+' réponse(s) prestataire':'')+((vd.repondre.length&&vd.sans_reponse.length)?' · ':'')+( vd.sans_reponse.length?vd.sans_reponse.length+' sans réponse':'');}else al.style.display='none';}
   }
@@ -7325,77 +7341,6 @@ function viewVerifications(content){
       <button class="btn" style="background:#8b5cf6;color:#fff;border-color:#8b5cf6" onclick="verifRunNow()">▶ Lancer maintenant</button>
     </div>`;
   }
-  function vrobligations(){
-    const obls=vd.obligations||[];
-    if(!obls.length)return'<div class="vempty">Aucune obligation applicable</div>';
-    const today=new Date();
-    return obls.map(o=>{
-      const erp=o.erps||{};const pr=o.prestataires||{};
-      const dl=o.prochaine_echeance?Math.round((new Date(o.prochaine_echeance)-today)/86400000):null;
-      const dc=dl===null?'':dl<0?'red':dl<=30?'orange':dl<=90?'blue':'green';
-      const dlabel=dl===null?'':dl<0?Math.abs(dl)+'j dépassé':dl===0?"Aujourd'hui":'J-'+dl;
-      const isCommission=(o.domaine||'').toLowerCase().includes('commission');
-      const periodiciteSelector=isCommission?`
-        <div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
-          <span style="font-size:12px;color:#0369a1;font-weight:600">⏱ Périodicité :</span>
-          <select id="per-${o.id}" onchange="verifUpdatePeriodicite('${o.id}',this.value)" style="border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px;font-size:13px;background:#fff;color:#1e293b">
-            <option value="triennale" ${(o.periodicite||'')==='triennale'?'selected':''}>3 ans</option>
-            <option value="quinquennale" ${(o.periodicite||'')==='quinquennale'?'selected':''}>5 ans</option>
-          </select>
-          <span style="font-size:11px;color:#64748b">(selon catégorie ERP)</span>
-        </div>`:''`;
-      return \`<div class="vcard">
-        <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
-          <div>
-            <div class="vcardtitle">\${esc(o.libelle||o.domaine||'—')}</div>
-            <div class="vcardsub">\${esc(erp.nom||'—')}\${pr.nom?' · '+esc(pr.nom):''}</div>
-          </div>
-          <button class="vbtn b" onclick="verifProgrammerObligation('\${o.id}','\${o.erp_id}','\${esc(o.libelle||o.domaine||'')}','\${o.prochaine_echeance||''}','\${(o.prestataires?.id)||''}','\${(o.prestataires?.email_rapports)||''}')" style="flex-shrink:0">▶ Programmer</button>
-        </div>
-        <div class="vcardmeta">
-          \${dlabel?\`<span class="vpill \${dc}">\${dlabel}</span>\`:''}
-          \${o.prochaine_echeance?\`<span class="vpill">📅 \${vfd(o.prochaine_echeance)}</span>\`:''}
-          \${!isCommission&&o.periodicite?\`<span class="vpill">\${esc(o.periodicite)}</span>\`:''}
-          \${o.criticite?\`<span class="vpill \${o.criticite==='critique'?'red':o.criticite==='majeur'?'orange':'blue'}">\${esc(o.criticite)}</span>\`:''}
-          \${o.derniere_verif?\`<span class="vpill green">✓ Dernière vérif \${vfd(o.derniere_verif)}</span>\`:'<span class="vpill">Jamais vérifiée</span>'}
-        </div>
-        \${periodiciteSelector}
-      </div>\`;
-    }).join('');
-  }
-
-  window.verifUpdatePeriodicite=async function(oblId,val){
-    await fetch(SUPA_URL+'/rest/v1/obligations?id=eq.'+oblId,{
-      method:'PATCH',
-      headers:{apikey:ANON_KEY,'Authorization':'Bearer '+ANON_KEY,'Content-Type':'application/json'},
-      body:JSON.stringify({periodicite:val})
-    });
-    // Mettre à jour localement
-    const obl=vd.obligations.find(o=>o.id===oblId);
-    if(obl)obl.periodicite=val;
-    const label=val==='triennale'?'3 ans':'5 ans';
-    toast('Périodicité mise à jour : '+label,'ok');
-  };
-
-  window.verifProgrammerObligation=async function(oblId,erpId,libelle,datePrevue,prestaId,prestaEmail){
-    const dateProposee=prompt('Date de l\'intervention (JJ/MM/AAAA) :', datePrevue?new Date(datePrevue).toLocaleDateString('fr-FR'):'');
-    if(!dateProposee)return;
-    const p=dateProposee.split('/');
-    const iso=p.length===3?p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0'):datePrevue||null;
-    if(!iso){toast('Format invalide (JJ/MM/AAAA)','err');return;}
-    // Créer l'intervention
-    const body={erp_id:erpId,obligation_id:oblId,objet:libelle,type:'preventive',statut:'programmee',date_prevue:iso,rapport_attendu:true};
-    if(prestaId)body.prestataire_id=prestaId;
-    if(prestaEmail)body.email_to=prestaEmail;
-    const res=await fetch(SUPA_URL+'/rest/v1/interventions',{method:'POST',headers:{apikey:ANON_KEY,'Authorization':'Bearer '+ANON_KEY,'Content-Type':'application/json','Prefer':'return=representation'},body:JSON.stringify(body)});
-    if(!res.ok){const err=await res.text();toast('Erreur: '+err,'err');return;}
-    // Mettre à jour prochaine_echeance de l'obligation
-    await fetch(SUPA_URL+'/rest/v1/obligations?id=eq.'+oblId,{method:'PATCH',headers:{apikey:ANON_KEY,'Authorization':'Bearer '+ANON_KEY,'Content-Type':'application/json'},body:JSON.stringify({prochaine_echeance:iso})});
-    toast('✅ Intervention programmée le '+new Date(iso).toLocaleDateString('fr-FR'),'ok');
-    await verifRefresh();
-    verifSetTab('programmee');
-  };
-
   window.verifRefresh=async function(){const el=document.getElementById('vcontent');if(el)el.innerHTML='<div style="text-align:center;padding:32px;color:#94a3b8">Chargement…</div>';await vload();vrender();};
   window.verifSetTab=function(tab){vtab=tab;document.querySelectorAll('.verif-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));vrender();};
   window.verifToggleDry=function(){vcfg.dry_run=!vcfg.dry_run;vrender();};
