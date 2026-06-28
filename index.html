@@ -3902,7 +3902,7 @@ async function formInter(erpId,it){
     <div class="fld"><label>Type</label><select id="f_type">
       ${['preventive','corrective','travaux','visite'].map(t=>`<option value="${t}"${it.type===t?' selected':''} style="text-transform:capitalize">${t}</option>`).join('')}<option value="commission_securite"${it.type==='commission_securite'?' selected':''}>Commission de sécurité</option></select></div>
     <div class="fld"><label>Domaine / spécialité</label><div id="f_dom_wrap">${domSelHtml}</div></div>
-    <div class="fld"><label>Objet</label><input id="f_obj" value="${esc(it.objet)}" placeholder="Vérification annuelle…"></div>
+    <div class="fld"><label>Commentaire</label><input id="f_obj" value="${esc(it.objet)}" placeholder="Commentaire…"></div>
     <div class="row2"><div class="fld"><label>Prestataire</label><select id="f_prest"><option value="">—</option>${prestOpts}</select></div>
       <div class="fld"><label>Date prévue</label><input id="f_date" type="date" value="${esc(it.date_prevue)}"></div></div>
     ${it.id?`<div class="fld"><label>Statut</label><select id="f_statut">${Object.keys(ITST).map(s=>`<option value="${s}"${it.statut===s?' selected':''}>${ITST[s][1]}</option>`).join('')}</select></div>`:''}
