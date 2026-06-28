@@ -708,7 +708,7 @@ async function afterLogin(){
 async function loadScope(){
   const { data:cl } = await sb.from('clients').select('id,code_client,raison_sociale,statut').order('raison_sociale');
   state.clients = cl||[];
-  const { data:er } = await sb.from('erps').select('id,code_erp,nom,client_id,statut,qr_token').order('nom');
+  const { data:er } = await sb.from('erps').select('id,code_erp,nom,client_id,statut,qr_token,adresse').order('nom');
   state.erps = er||[];
 }
 
@@ -3965,7 +3965,9 @@ async function formInter(erpId,it){
     }
     // Récupère les infos du formulaire pour construire l'email
     const erpId2=$('#f_erp').value;
-    const erpNom=(window._interErpList||[]).find(x=>x.id===erpId2)?.nom||erpId2;
+    const erpObj=(window._interErpList||[]).find(x=>x.id===erpId2)||{};
+    const erpNom=erpObj.nom||erpId2;
+    const erpAdresse=erpObj.adresse||'';
     const typeInter=$('#f_type').value;
     const domSel2=$('#f_dom_sel')?.value;
     const domaineInter=domSel2==='__autre__'?($('#f_dom')?.value.trim()||''):domSel2;
@@ -4035,6 +4037,7 @@ async function formInter(erpId,it){
           <p style="margin:0 0 20px;color:#1e293b">Nous vous contactons pour vous soumettre une demande d'intervention :</p>
           <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
             <tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;width:40%;color:#475569">ERP</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(erpNom)}</td></tr>
+            ${erpAdresse?`<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Adresse</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(erpAdresse)}</td></tr>`:''}
             <tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Type</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(typeLabel)}</td></tr>
             ${domaineInter?`<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Domaine / spécialité</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(domaineInter)}</td></tr>`:''}
             <tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Date souhaitée</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(dateStr)}</td></tr>
