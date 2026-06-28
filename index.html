@@ -6558,16 +6558,19 @@ async function viewPlanMaintenance(c){
       return;
     }
     list.innerHTML=window._pmItems.map((it,i)=>`
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);background:${it.checked?'var(--primary-light,#eff6ff)':''}">
-        <input type="checkbox" ${it.checked?'checked':''} onchange="window._pmItems[${i}].checked=this.checked;pmRender()" style="width:20px;height:20px;flex-shrink:0;cursor:pointer">
-        <div style="flex:1;min-width:0">
-          <b style="font-size:13.5px">${esc(it.type)}</b>
-          ${it.localisation?`<span style="color:var(--muted);font-size:11px;margin-left:6px">${esc(it.localisation)}</span>`:''}
+      <div id="pm_item_${i}" style="border-bottom:1px solid var(--line)">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:${it.checked?'var(--primary-light,#eff6ff)':''}">
+          <input type="checkbox" ${it.checked?'checked':''} onchange="window._pmItems[${i}].checked=this.checked;pmRender()" style="width:20px;height:20px;flex-shrink:0;cursor:pointer">
+          <div style="flex:1;min-width:0">
+            <b style="font-size:13.5px">${esc(it.type)}</b>
+            ${it.localisation?`<span style="color:var(--muted);font-size:11px;margin-left:6px">${esc(it.localisation)}</span>`:''}
+          </div>
+          ${it.acteur?`<span style="background:#e0e7ff;color:#3730a3;font-size:11px;padding:2px 8px;border-radius:5px;font-weight:600;white-space:nowrap">${esc(it.acteur)}</span>`:''}
+          ${it.periodicite?`<span style="font-size:12px;font-weight:600;color:var(--primary);white-space:nowrap">${esc(it.periodicite)}</span>`:''}
+          ${it.attestation?'<span style="color:var(--ok,#16a34a);font-size:13px;white-space:nowrap">✓ attest.</span>':''}
+          <button class="btn sm" onclick="pmEditRow(${i})" style="flex-shrink:0" title="Modifier">✏️</button>
+          <button class="btn sm danger" onclick="window._pmItems.splice(${i},1);window.pmRender()" style="flex-shrink:0" title="Supprimer">🗑</button>
         </div>
-        ${it.acteur?`<span style="background:#e0e7ff;color:#3730a3;font-size:11px;padding:2px 8px;border-radius:5px;font-weight:600;white-space:nowrap">${esc(it.acteur)}</span>`:''}
-        ${it.periodicite?`<span style="font-size:12px;font-weight:600;color:var(--primary);white-space:nowrap">${esc(it.periodicite)}</span>`:''}
-        ${it.attestation?'<span style="color:var(--ok,#16a34a);font-size:13px;white-space:nowrap">✓ attest.</span>':''}
-        <button class="btn sm danger" onclick="window._pmItems.splice(${i},1);pmRender()" style="flex-shrink:0">🗑</button>
       </div>`).join('');
   }
 
@@ -6649,7 +6652,52 @@ async function viewPlanMaintenance(c){
     </div>
   </div>`;
 
+  window.pmRender=pmRender;
   pmRender();
+
+  // ── Édition inline ──
+  window.pmEditRow=function(i){
+    const it=window._pmItems[i]; if(!it) return;
+    const wrap=document.getElementById('pm_item_'+i); if(!wrap) return;
+    wrap.innerHTML=`<div style="padding:10px 12px;background:#fafafa;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+      <div class="fld" style="flex:2;min-width:140px;margin-bottom:0">
+        <label style="font-size:11px">Équipement</label>
+        <input id="pme_type_${i}" list="pm_type_datalist" value="${esc(it.type)}" style="width:100%">
+      </div>
+      <div class="fld" style="flex:1;min-width:120px;margin-bottom:0">
+        <label style="font-size:11px">Acteur</label>
+        <select id="pme_acteur_${i}" style="width:100%">
+          <option value="">—</option>
+          ${['Exploitant','Mainteneur','Bureau de contrôle','Commission'].map(a=>`<option value="${a}"${it.acteur===a?' selected':''}>${a}</option>`).join('')}
+        </select>
+      </div>
+      <div class="fld" style="flex:1;min-width:110px;margin-bottom:0">
+        <label style="font-size:11px">Périodicité</label>
+        <input id="pme_peri_${i}" list="pm_peri_datalist" value="${esc(it.periodicite)}" style="width:100%">
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;padding-bottom:2px">
+        <label style="font-size:11px">Attest.</label>
+        <input type="checkbox" id="pme_att_${i}" ${it.attestation?'checked':''} style="width:18px;height:18px;cursor:pointer">
+      </div>
+      <div style="display:flex;gap:6px;align-items:flex-end;padding-bottom:2px">
+        <button class="btn sm primary" onclick="pmSaveRow(${i})">✓ OK</button>
+        <button class="btn sm ghost" onclick="pmRender()">✕</button>
+      </div>
+    </div>`;
+    document.getElementById('pme_type_'+i)?.focus();
+  };
+  window.pmSaveRow=function(i){
+    const type=(document.getElementById('pme_type_'+i)?.value||'').trim();
+    if(!type){toast('Saisissez un équipement','err');return;}
+    window._pmItems[i]={
+      ...window._pmItems[i],
+      type,
+      acteur:document.getElementById('pme_acteur_'+i)?.value||'',
+      periodicite:(document.getElementById('pme_peri_'+i)?.value||'').trim(),
+      attestation:document.getElementById('pme_att_'+i)?.checked||false,
+    };
+    pmRender();
+  };
 
   // ── Ajout rapide ──
   window.pmQuickAdd=function(){
