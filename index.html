@@ -2238,7 +2238,7 @@ async function viewDashboard(c){
     ];
 
     const priorities = [
-      ...enRetard.map(o=>({c:'critique',isRetard:true,t:'🚨 Vérification en retard — '+(o.domaine||''),d:o.libelle,loc:fmtDate(o.prochaine_echeance),go:'/erps/'+o.erp_id+'?t=oblig'})),
+      ...enRetard.map(o=>({c:'critique',isRetard:true,t:'Vérification en retard — '+(o.domaine||''),d:o.libelle,loc:fmtDate(o.prochaine_echeance),go:'/erps/'+o.erp_id+'?t=oblig'})),
       ...sansRep.map(i=>({c:'critique',t:'Prestataire sans réponse',d:(i.objet||i.domaine||'')+' — relancé '+(i.nb_relances||0)+'×',loc:'',go:'/interventions'})),
       ...aRepondre.map(i=>({c:'majeur',t:'Réponse prestataire à traiter',d:i.objet||i.domaine||'',loc:'',go:'/interventions'})),
       ...photoNT.filter(p=>(p.niveau_urgence==='critique'||p.niveau_urgence==='urgent')&&p.traitement!=='fait').map(p=>({c:'majeur',isPhoto:true,traitement:p.traitement,traitement_date:p.traitement_date,t:'Photo urgente',d:p.commentaire,loc:p.localisation,go:'/photos',photoPath:p.photo_path})),
