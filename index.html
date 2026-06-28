@@ -3486,7 +3486,7 @@ const OBST={proposee:['','Proposée','inf'],applicable:['','Applicable','int'],n
 async function formEquip(erpId, eq){
   eq = eq || {};
   const editing = !!eq.id;
-  const baseTypes=['Extincteurs','RIA','SSI / centrale incendie','BAES / éclairage de sécurité','Désenfumage naturel','Désenfumage mécanique','Clapets coupe-feu','Sprinklers','Portes coupe-feu','Thermographie électrique','Ascenseur','Appareils de cuisson','Parking'];
+  const baseTypes=['Appareils de cuisson','Ascenseur','BAES / éclairage de sécurité','Clapet coupe-feu','Désenfumage mécanique','Désenfumage naturel','Extincteur','Parking','Porte coupe-feu','RIA','Sprinklers','SSI / centrale incendie','Thermographie électrique'];
   // Charger les types personnalisés existants en base (tous ERPs)
   const {data:existingEquips}=await sb.from('equipements').select('type');
   const customTypes=[...new Set((existingEquips||[]).map(e=>e.type).filter(t=>t&&!baseTypes.includes(t)))].sort();
@@ -4349,7 +4349,7 @@ const PREST_TYPES_BDC=[
   'Désenfumage mesure des débits'
 ];
 const PREST_TYPES_PREST=[
-  'Extincteurs','RIA','Porte coupe-feu','BAES/BAEH','SSI',
+  'Extincteur','RIA','Porte coupe-feu','BAES/BAEH','SSI',
   'Portail','Porte coulissante','Porte de garage','Barrière',
   'Dératisation, désinsectisation','Désenfumage naturelle','Désenfumage mécanique',
   'Climatisation','Ventilation','Evaporateur',
