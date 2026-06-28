@@ -6473,6 +6473,7 @@ let _prestOnglet='prestataire';
 ===================================================================== */
 async function viewPlanMaintenance(c){
   const baseTypes=['Appareils de cuisson','Ascenseur','BAES / éclairage de sécurité','Clapet coupe-feu','Désenfumage mécanique','Désenfumage naturel','Extincteur','Parking','Porte coupe-feu','RIA','Sprinklers','SSI / centrale incendie','Thermographie électrique'];
+  const periList=['mensuelle','trimestrielle','semestrielle','annuelle','biannuelle','quinquennale'];
 
   c.innerHTML=`<div class="page-head"><div class="t">
     <h1>Plan de maintenance</h1>
@@ -6487,23 +6488,23 @@ async function viewPlanMaintenance(c){
         </select>
       </div>
       <div class="fld"><label>ERP</label>
-        <select id="pm_erp" style="width:100%">
+        <select id="pm_erp" onchange="pmErpChange()" style="width:100%">
           <option value="">— Choisir d'abord un client —</option>
         </select>
       </div>
     </div>
   </div>
   <div class="tbl-wrap" style="overflow-x:auto;margin-bottom:0">
-    <table class="tbl" style="min-width:760px">
+    <table class="tbl" style="min-width:800px">
       <thead><tr>
         <th style="min-width:200px">Équipement</th>
         <th style="min-width:130px">Localisation</th>
         <th style="min-width:160px">Acteur</th>
         <th style="min-width:170px">Périodicité</th>
-        <th style="text-align:center;min-width:100px">Attestation</th>
+        <th style="text-align:center;min-width:110px">Attestation</th>
         <th style="width:44px"></th>
       </tr></thead>
-      <tbody id="pm_tbody"></tbody>
+      <tbody id="pm_tbody"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Choisissez un client et un ERP pour commencer</td></tr></tbody>
     </table>
   </div>
   <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
@@ -6514,16 +6515,60 @@ async function viewPlanMaintenance(c){
   window.pmSelectClient = async function(){
     const clientId=$('#pm_client').value;
     const erpSel=$('#pm_erp');
-    if(!clientId){erpSel.innerHTML='<option value="">— Choisir d\'abord un client —</option>';return;}
+    if(!clientId){
+      erpSel.innerHTML='<option value="">— Choisir d\'abord un client —</option>';
+      document.getElementById('pm_tbody').innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Choisissez un client et un ERP pour commencer</td></tr>';
+      return;
+    }
     erpSel.innerHTML='<option value="">Chargement…</option>';
     const {data:erps}=await sb.from('erps').select('id,nom,code_erp').eq('client_id',clientId).order('nom');
     erpSel.innerHTML='<option value="">— Choisir un ERP —</option>'+(erps||[]).map(e=>`<option value="${e.id}">${esc(e.nom)} (${esc(e.code_erp)})</option>`).join('');
   };
 
+  window.pmErpChange = async function(){
+    const erpId=$('#pm_erp').value;
+    if(!erpId){ document.getElementById('pm_tbody').innerHTML=''; return; }
+    await pmLoadErp(erpId);
+  };
+
+  window.pmLoadErp = async function(erpId){
+    const tbody=document.getElementById('pm_tbody');
+    tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:16px">Chargement…</td></tr>';
+    const {data:obls}=await sb.from('obligations').select('id,libelle,domaine,acteur,periodicite,preuve_attendue').eq('erp_id',erpId).order('domaine').order('acteur');
+    tbody.innerHTML='';
+    if(obls && obls.length){
+      for(const o of obls){
+        const tr=document.createElement('tr');
+        tr.setAttribute('data-obl-id',o.id);
+        tr.style.cssText='background:var(--line-2,#eef2f7)';
+        const attYes=!!(o.preuve_attendue);
+        tr.innerHTML=`
+          <td><b style="font-size:13px">${esc(o.domaine||o.libelle)}</b></td>
+          <td style="color:var(--muted);font-size:12px">—</td>
+          <td>${o.acteur?`<span style="background:var(--primary-light,#eff6ff);color:var(--primary);font-size:11px;padding:2px 7px;border-radius:5px;font-weight:600">${esc(o.acteur)}</span>`:'<span style="color:var(--muted)">—</span>'}</td>
+          <td>${o.periodicite?`<span style="font-weight:600;font-size:12px">${esc(o.periodicite)}</span>`:'<span style="color:var(--muted)">—</span>'}</td>
+          <td style="text-align:center">${attYes?'<span style="color:var(--ok,#16a34a);font-size:16px">✓</span>':'<span style="color:var(--muted)">—</span>'}</td>
+          <td><button class="btn sm danger" onclick="pmDeleteObl('${o.id}',this)">🗑</button></td>`;
+        tbody.appendChild(tr);
+      }
+    }
+  };
+
+  window.pmDeleteObl = async function(oblId,btn){
+    if(!confirm('Supprimer cette vérification ?')) return;
+    btn.disabled=true;
+    const {error}=await sb.from('obligations').delete().eq('id',oblId);
+    if(error){toast(error.message,'err');btn.disabled=false;return;}
+    btn.closest('tr').remove();
+    toast('Vérification supprimée','ok');
+  };
+
   window.pmAddRow = function(){
     const tbody=document.getElementById('pm_tbody');
+    // Remove placeholder if present
+    const ph=tbody.querySelector('td[colspan]');if(ph) ph.closest('tr').remove();
     const typeOpts=baseTypes.map(t=>`<option value="${t}">${esc(t)}</option>`).join('')+'<option value="__autre__">— Autre (saisie libre) —</option>';
-    const periOpts=['mensuelle','trimestrielle','semestrielle','annuelle','biannuelle','quinquennale'].map(p=>`<option value="${p}">${p.charAt(0).toUpperCase()+p.slice(1)}</option>`).join('')+'<option value="__autre__">Autre…</option>';
+    const periOpts=periList.map(p=>`<option value="${p}">${p.charAt(0).toUpperCase()+p.slice(1)}</option>`).join('')+'<option value="__autre__">Autre…</option>';
     const idx='r'+Date.now();
     const tr=document.createElement('tr');
     tr.id='pm_row_'+idx;
@@ -6566,10 +6611,11 @@ async function viewPlanMaintenance(c){
   window.pmSave=async function(){
     const erpId=$('#pm_erp').value;
     if(!erpId){toast('Choisissez un ERP avant de valider','err');return;}
-    const rows=[...document.querySelectorAll('#pm_tbody tr')];
-    if(!rows.length){toast('Ajoutez au moins une ligne','err');return;}
+    // Only process NEW rows (no data-obl-id)
+    const newRows=[...document.querySelectorAll('#pm_tbody tr[id^="pm_row_"]')];
+    if(!newRows.length){toast('Aucune nouvelle ligne à enregistrer','err');return;}
     const items=[];
-    for(const tr of rows){
+    for(const tr of newRows){
       const idx=tr.id.replace('pm_row_','');
       const typeSel=tr.querySelector('select');
       const rawType=typeSel?typeSel.value:'';
@@ -6577,7 +6623,8 @@ async function viewPlanMaintenance(c){
       const type=rawType==='__autre__'?customType:rawType;
       if(!type){toast('Sélectionnez un type d\'équipement pour chaque ligne','err');return;}
       const acteur=(document.getElementById('pm_acteur_'+idx)?.value||'');
-      const periSel=tr.querySelectorAll('select')[1];
+      const periSels=tr.querySelectorAll('select');
+      const periSel=periSels[1];
       const rawPeri=periSel?periSel.value:'';
       const customPeri=(document.getElementById('pm_peri_custom_'+idx)?.value||'').trim();
       const periodicite=rawPeri==='__autre__'?customPeri:rawPeri;
@@ -6588,17 +6635,36 @@ async function viewPlanMaintenance(c){
     const btn=document.getElementById('pm_save_btn');
     btn.disabled=true;btn.textContent='Enregistrement…';
     try{
-      // Équipements — créer les types absents
+      // Équipements — créer les types absents avec periodicite + localisation
       const uniqueTypes=[...new Set(items.map(i=>i.type))];
-      const {data:existEq}=await sb.from('equipements').select('id,type').eq('erp_id',erpId);
-      const existMap=Object.fromEntries((existEq||[]).map(e=>[e.type,e.id]));
+      const typeFirstItem={};
+      items.forEach(i=>{ if(!typeFirstItem[i.type]) typeFirstItem[i.type]=i; });
+      const {data:existEq}=await sb.from('equipements').select('id,type,periodicite').eq('erp_id',erpId);
+      const existMap=Object.fromEntries((existEq||[]).map(e=>[e.type,e]));
       const newEqTypes=uniqueTypes.filter(t=>!existMap[t]);
       if(newEqTypes.length){
-        const {data:ins,error:eErr}=await sb.from('equipements').insert(newEqTypes.map(t=>({erp_id:erpId,type:t}))).select('id,type');
+        const {data:ins,error:eErr}=await sb.from('equipements').insert(
+          newEqTypes.map(t=>({
+            erp_id:erpId,
+            type:t,
+            periodicite:typeFirstItem[t].periodicite||null,
+            localisation:typeFirstItem[t].localisation||null,
+            acteur_suivi:typeFirstItem[t].acteur||null,
+          }))
+        ).select('id,type');
         if(eErr) throw eErr;
-        (ins||[]).forEach(e=>existMap[e.type]=e.id);
+        (ins||[]).forEach(e=>{ existMap[e.type]={id:e.id,type:e.type}; });
       }
-      // Obligations — une par ligne
+      // Mettre à jour periodicite des équipements existants si elle était vide
+      for(const type of uniqueTypes){
+        if(existMap[type] && !existMap[type].periodicite && typeFirstItem[type].periodicite){
+          await sb.from('equipements').update({
+            periodicite:typeFirstItem[type].periodicite,
+            localisation:typeFirstItem[type].localisation||null,
+          }).eq('id',existMap[type].id);
+        }
+      }
+      // Obligations — une par nouvelle ligne
       const oblPayloads=items.map(i=>({
         erp_id:erpId,
         libelle:i.type+(i.acteur?' — '+i.acteur:''),
@@ -6611,11 +6677,11 @@ async function viewPlanMaintenance(c){
       }));
       const {error:oErr}=await sb.from('obligations').insert(oblPayloads);
       if(oErr) throw oErr;
-      toast(items.length+' vérification(s) créée(s) avec succès ✓','ok');
-      btn.textContent='✅ Plan enregistré';
-      // Vider le tableau pour nouvelle saisie
-      document.getElementById('pm_tbody').innerHTML='';
-      setTimeout(()=>{btn.disabled=false;btn.textContent='💾 Valider le plan';},3000);
+      toast(items.length+' vérification(s) enregistrée(s) ✓','ok');
+      btn.textContent='✅ Enregistré';
+      // Recharger les lignes existantes
+      await pmLoadErp(erpId);
+      setTimeout(()=>{btn.disabled=false;btn.textContent='💾 Valider le plan';},2500);
     }catch(e){toast(e.message||'Erreur lors de l\'enregistrement','err');btn.disabled=false;btn.textContent='💾 Valider le plan';}
   };
 }
