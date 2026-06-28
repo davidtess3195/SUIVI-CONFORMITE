@@ -3953,10 +3953,12 @@ async function formInter(erpId,it){
     if(p.contacts){
       try{
         const cts=typeof p.contacts==='string'?JSON.parse(p.contacts):p.contacts;
-        (cts||[]).forEach(c=>{
-          if(c.email && !emails.find(x=>x.email===c.email)){
-            const nom=[c.prenom,c.nom].filter(Boolean).join(' ');
-            emails.push({label:(nom||c.fonction||'Contact')+(c.fonction&&nom?' — '+c.fonction:''),email:c.email});
+        // contacts peut être un objet {sav:{...}, charge_affaire:{...}} ou un tableau
+        const ctsList=Array.isArray(cts)?cts:Object.values(cts||{});
+        ctsList.forEach(c=>{
+          if(c && c.email && !emails.find(x=>x.email===c.email)){
+            const nom=c.nom||'';
+            emails.push({label:nom||'Contact',email:c.email});
           }
         });
       }catch(e){}
