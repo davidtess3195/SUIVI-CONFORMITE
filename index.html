@@ -6563,18 +6563,25 @@ async function viewPlanMaintenance(c){
     toast('Vérification supprimée','ok');
   };
 
-  window.pmAddRow = function(){
+  window.pmAddRow = async function(){
     const tbody=document.getElementById('pm_tbody');
     // Remove placeholder if present
     const ph=tbody.querySelector('td[colspan]');if(ph) ph.closest('tr').remove();
-    const typeOpts=baseTypes.map(t=>`<option value="${t}">${esc(t)}</option>`).join('')+'<option value="__autre__">— Autre (saisie libre) —</option>';
+    // Charger les types custom depuis la BD (tous ERP confondus)
+    let allTypes=[...baseTypes];
+    try{
+      const {data:existingEquips}=await sb.from('equipements').select('type');
+      const customTypes=[...new Set((existingEquips||[]).map(e=>e.type).filter(t=>t&&!baseTypes.includes(t)))].sort();
+      allTypes=[...baseTypes,...customTypes];
+    }catch(_){}
+    const typeOpts=allTypes.map(t=>`<option value="${t}">${esc(t)}</option>`).join('')+'<option value="__autre__">— Autre (saisie libre) —</option>';
     const periOpts=periList.map(p=>`<option value="${p}">${p.charAt(0).toUpperCase()+p.slice(1)}</option>`).join('')+'<option value="__autre__">Autre…</option>';
     const idx='r'+Date.now();
     const tr=document.createElement('tr');
     tr.id='pm_row_'+idx;
     tr.innerHTML=`
       <td>
-        <select onchange="pmTypeChange(this,'${idx}')" style="width:100%">
+        <select id="pm_type_sel_${idx}" onchange="pmTypeChange(this,'${idx}')" style="width:100%">
           <option value="">— choisir —</option>${typeOpts}
         </select>
         <input id="pm_type_custom_${idx}" type="text" placeholder="Saisir le type…" style="display:none;margin-top:5px;width:100%">
@@ -6589,7 +6596,7 @@ async function viewPlanMaintenance(c){
         </select>
       </td>
       <td>
-        <select onchange="pmPeriChange(this,'${idx}')" style="width:100%">
+        <select id="pm_peri_sel_${idx}" onchange="pmPeriChange(this,'${idx}')" style="width:100%">
           <option value="">—</option>${periOpts}
         </select>
         <input id="pm_peri_custom_${idx}" type="text" placeholder="Ex: tous les 3 ans" style="display:none;margin-top:5px;width:100%">
@@ -6601,30 +6608,32 @@ async function viewPlanMaintenance(c){
 
   window.pmTypeChange=function(sel,idx){
     const ci=document.getElementById('pm_type_custom_'+idx);
-    if(ci) ci.style.display=sel.value==='__autre__'?'':'none';
+    if(ci) ci.style.display=sel.value==='__autre__'?'block':'none';
   };
   window.pmPeriChange=function(sel,idx){
     const ci=document.getElementById('pm_peri_custom_'+idx);
-    if(ci) ci.style.display=sel.value==='__autre__'?'':'none';
+    if(ci) ci.style.display=sel.value==='__autre__'?'block':'none';
   };
 
   window.pmSave=async function(){
     const erpId=$('#pm_erp').value;
     if(!erpId){toast('Choisissez un ERP avant de valider','err');return;}
-    // Only process NEW rows (no data-obl-id)
+    // Uniquement les nouvelles lignes (id^=pm_row_)
     const newRows=[...document.querySelectorAll('#pm_tbody tr[id^="pm_row_"]')];
     if(!newRows.length){toast('Aucune nouvelle ligne à enregistrer','err');return;}
     const items=[];
     for(const tr of newRows){
       const idx=tr.id.replace('pm_row_','');
-      const typeSel=tr.querySelector('select');
+      // Type — via ID explicite
+      const typeSel=document.getElementById('pm_type_sel_'+idx);
       const rawType=typeSel?typeSel.value:'';
       const customType=(document.getElementById('pm_type_custom_'+idx)?.value||'').trim();
       const type=rawType==='__autre__'?customType:rawType;
-      if(!type){toast('Sélectionnez un type d\'équipement pour chaque ligne','err');return;}
+      if(!type){toast('Sélectionnez ou saisissez un type d\'équipement pour chaque ligne','err');return;}
+      // Acteur
       const acteur=(document.getElementById('pm_acteur_'+idx)?.value||'');
-      const periSels=tr.querySelectorAll('select');
-      const periSel=periSels[1];
+      // Périodicité — via ID explicite
+      const periSel=document.getElementById('pm_peri_sel_'+idx);
       const rawPeri=periSel?periSel.value:'';
       const customPeri=(document.getElementById('pm_peri_custom_'+idx)?.value||'').trim();
       const periodicite=rawPeri==='__autre__'?customPeri:rawPeri;
