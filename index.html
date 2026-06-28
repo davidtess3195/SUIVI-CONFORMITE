@@ -3859,9 +3859,35 @@ async function viewInterventions(c){
 function quickIntervention(){ formInter(); } window.quickIntervention=quickIntervention;
 function interDomChange(){ const sel=$('#f_dom_sel'), inp=$('#f_dom'); if(!sel||!inp) return; inp.style.display = sel.value==='__autre__' ? 'block' : 'none'; if(sel.value==='__autre__') inp.focus(); }
 window.interDomChange=interDomChange;
+function buildDomSel(domaines, currentDomaine){
+  const inList=domaines.includes(currentDomaine||'');
+  const domCustom=!!(currentDomaine && !inList);
+  const opts=domaines.map(d=>`<option value="${esc(d)}"${currentDomaine===d?' selected':''}>${esc(d)}</option>`).join('');
+  return {html:`<select id="f_dom_sel" onchange="interDomChange()">
+      <option value="">— choisir —</option>
+      ${domaines.length?`<optgroup label="📋 Plan de maintenance ERP">${opts}</optgroup>`:'<option disabled style="color:#94a3b8">— aucune vérification enregistrée —</option>'}
+      <option value="__autre__"${domCustom?' selected':''}>✏️ Autre (préciser)…</option>
+    </select>
+    <input id="f_dom" value="${esc(domCustom?currentDomaine:'')}" placeholder="Préciser le domaine / la spécialité" style="margin-top:6px;display:${domCustom?'block':'none'}">`, domCustom};
+}
+window.interErpChange=async function(){
+  const newErpId=document.getElementById('f_erp')?.value;
+  const domWrap=document.getElementById('f_dom_wrap');
+  if(!domWrap) return;
+  let domaines=[];
+  if(newErpId){
+    const {data:od}=await sb.from('obligations').select('domaine,libelle').eq('erp_id',newErpId).eq('statut','applicable').order('domaine');
+    domaines=[...new Set((od||[]).map(o=>o.domaine||o.libelle).filter(Boolean))];
+  }
+  domWrap.innerHTML=buildDomSel(domaines,'').html;
+};
 async function formInter(erpId,it){
   it=it||{}; const e=erpId||it.erp_id||(state.currentErp!=='all'?state.currentErp:'');
-  const {data:prest}=await sb.from('prestataires').select('id,nom,categorie').order('nom');
+  const [{data:prest},oblRes]=await Promise.all([
+    sb.from('prestataires').select('id,nom,categorie').order('nom'),
+    e?sb.from('obligations').select('domaine,libelle').eq('erp_id',e).eq('statut','applicable').order('domaine'):Promise.resolve({data:[]})
+  ]);
+  const domaines=[...new Set((oblRes.data||[]).map(o=>o.domaine||o.libelle).filter(Boolean))];
   const erpOpts=state.erps.map(x=>`<option value="${x.id}"${e===x.id?' selected':''}>${esc(x.nom)}</option>`).join('');
   const opt=p=>`<option value="${p.id}"${it.prestataire_id===p.id?' selected':''}>${esc(p.nom)}</option>`;
   const bdcList=(prest||[]).filter(p=>p.categorie==='bureau_de_controle');
@@ -3869,22 +3895,13 @@ async function formInter(erpId,it){
   let prestOpts='';
   if(bdcList.length) prestOpts+=`<optgroup label="Bureaux de contrôle">${bdcList.map(opt).join('')}</optgroup>`;
   if(presList.length) prestOpts+=`<optgroup label="Prestataires">${presList.map(opt).join('')}</optgroup>`;
-  const allDom=[...PREST_TYPES_BDC,...PREST_TYPES_PREST];
-  const domCustom = !!(it.domaine && !allDom.includes(it.domaine));
-  const domOpt=t=>`<option value="${esc(t)}"${it.domaine===t?' selected':''}>${esc(t)}</option>`;
+  const {html:domSelHtml}=buildDomSel(domaines,it.domaine||'');
   openModal(`<div class="modal-head"><h2>${it.id?'Intervention '+esc(it.code_int):'Nouvelle intervention'}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
   <div class="modal-body">
-    <div class="fld"><label>ERP <span class="req">*</span></label><select id="f_erp"${it.id?' disabled':''}><option value="">— choisir —</option>${erpOpts}</select></div>
+    <div class="fld"><label>ERP <span class="req">*</span></label><select id="f_erp"${it.id?' disabled':' onchange="interErpChange()"'}><option value="">— choisir —</option>${erpOpts}</select></div>
     <div class="fld"><label>Type</label><select id="f_type">
       ${['preventive','corrective','travaux','visite'].map(t=>`<option value="${t}"${it.type===t?' selected':''} style="text-transform:capitalize">${t}</option>`).join('')}<option value="commission_securite"${it.type==='commission_securite'?' selected':''}>Commission de sécurité</option></select></div>
-    <div class="fld"><label>Domaine / spécialité</label>
-      <select id="f_dom_sel" onchange="interDomChange()">
-        <option value="">— choisir —</option>
-        <optgroup label="Bureaux de contrôle">${PREST_TYPES_BDC.map(domOpt).join('')}</optgroup>
-        <optgroup label="Prestataires">${PREST_TYPES_PREST.map(domOpt).join('')}</optgroup>
-        <option value="__autre__"${domCustom?' selected':''}>Autre (préciser)…</option>
-      </select>
-      <input id="f_dom" value="${esc(domCustom?it.domaine:'')}" placeholder="Préciser le domaine / la spécialité" style="margin-top:6px;display:${domCustom?'block':'none'}"></div>
+    <div class="fld"><label>Domaine / spécialité</label><div id="f_dom_wrap">${domSelHtml}</div></div>
     <div class="fld"><label>Objet</label><input id="f_obj" value="${esc(it.objet)}" placeholder="Vérification annuelle…"></div>
     <div class="row2"><div class="fld"><label>Prestataire</label><select id="f_prest"><option value="">—</option>${prestOpts}</select></div>
       <div class="fld"><label>Date prévue</label><input id="f_date" type="date" value="${esc(it.date_prevue)}"></div></div>
