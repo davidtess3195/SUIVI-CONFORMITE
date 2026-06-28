@@ -3860,12 +3860,16 @@ function quickIntervention(){ formInter(); } window.quickIntervention=quickInter
 function interDomChange(){ const sel=$('#f_dom_sel'), inp=$('#f_dom'); if(!sel||!inp) return; inp.style.display = sel.value==='__autre__' ? 'block' : 'none'; if(sel.value==='__autre__') inp.focus(); }
 window.interDomChange=interDomChange;
 function buildDomSel(domaines, currentDomaine){
-  const inList=domaines.includes(currentDomaine||'');
+  const allGeneric=[...PREST_TYPES_BDC,...PREST_TYPES_PREST];
+  const inList=domaines.includes(currentDomaine||'')||allGeneric.includes(currentDomaine||'');
   const domCustom=!!(currentDomaine && !inList);
-  const opts=domaines.map(d=>`<option value="${esc(d)}"${currentDomaine===d?' selected':''}>${esc(d)}</option>`).join('');
+  const pmOpts=domaines.map(d=>`<option value="${esc(d)}"${currentDomaine===d?' selected':''}>${esc(d)}</option>`).join('');
+  const domOpt=t=>`<option value="${esc(t)}"${currentDomaine===t?' selected':''}>${esc(t)}</option>`;
   return {html:`<select id="f_dom_sel" onchange="interDomChange()">
       <option value="">— choisir —</option>
-      ${domaines.length?`<optgroup label="📋 Plan de maintenance ERP">${opts}</optgroup>`:'<option disabled style="color:#94a3b8">— aucune vérification enregistrée —</option>'}
+      ${domaines.length?`<optgroup label="📋 Plan de maintenance ERP">${pmOpts}</optgroup>`:''}
+      <optgroup label="Bureaux de contrôle">${PREST_TYPES_BDC.map(domOpt).join('')}</optgroup>
+      <optgroup label="Prestataires">${PREST_TYPES_PREST.map(domOpt).join('')}</optgroup>
       <option value="__autre__"${domCustom?' selected':''}>✏️ Autre (préciser)…</option>
     </select>
     <input id="f_dom" value="${esc(domCustom?currentDomaine:'')}" placeholder="Préciser le domaine / la spécialité" style="margin-top:6px;display:${domCustom?'block':'none'}">`, domCustom};
