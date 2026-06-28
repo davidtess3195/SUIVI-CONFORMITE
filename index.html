@@ -2238,7 +2238,7 @@ async function viewDashboard(c){
     ];
 
     const priorities = [
-      ...enRetard.map(o=>({c:'critique',t:'Vérification en retard — '+(o.domaine||''),d:o.libelle,loc:fmtDate(o.prochaine_echeance),go:'/interventions'})),
+      ...enRetard.map(o=>({c:'critique',isRetard:true,t:'🚨 Vérification en retard — '+(o.domaine||''),d:o.libelle,loc:fmtDate(o.prochaine_echeance),go:'/erps/'+o.erp_id+'?t=oblig'})),
       ...sansRep.map(i=>({c:'critique',t:'Prestataire sans réponse',d:(i.objet||i.domaine||'')+' — relancé '+(i.nb_relances||0)+'×',loc:'',go:'/interventions'})),
       ...aRepondre.map(i=>({c:'majeur',t:'Réponse prestataire à traiter',d:i.objet||i.domaine||'',loc:'',go:'/interventions'})),
       ...photoNT.filter(p=>(p.niveau_urgence==='critique'||p.niveau_urgence==='urgent')&&p.traitement!=='fait').map(p=>({c:'majeur',isPhoto:true,traitement:p.traitement,traitement_date:p.traitement_date,t:'Photo urgente',d:p.commentaire,loc:p.localisation,go:'/photos',photoPath:p.photo_path})),
@@ -2332,10 +2332,15 @@ async function viewDashboard(c){
           const rowClick = p.photoPath
             ? `onclick="navigate('${p.go}');setTimeout(()=>zoomPhoto('${publicPhoto(p.photoPath)}'),450)"`
             : `onclick="navigate('${p.go}')"`;
-          return `<tr ${rowClick}>
+          const retardStyle = p.isRetard
+            ? 'background:linear-gradient(90deg,#fef2f2,#fff);border-left:4px solid #ef4444;'
+            : '';
+          return `<tr ${rowClick} style="${retardStyle}cursor:pointer">
             <td style="width:175px">${p.isPhoto ? traitementPill(p.traitement, p.traitement_date) : critPill(p.c)}</td>
-            <td><b>${esc(p.t)}</b>${miniature}<div style="color:var(--muted);font-size:12.5px">${esc(p.d||'')}</div></td>
-            <td style="text-align:right;color:var(--muted)">${esc(p.loc||'')}</td></tr>`;
+            <td><b style="${p.isRetard?'color:#b91c1c;':''}">${esc(p.t)}</b>${miniature}
+              ${p.isRetard?`<div style="display:inline-flex;align-items:center;gap:4px;background:#fee2e2;border:1px solid #fca5a5;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:700;color:#991b1b;margin-left:6px;vertical-align:middle">URGENT</div>`:''}
+              <div style="color:var(--muted);font-size:12.5px">${esc(p.d||'')}</div></td>
+            <td style="text-align:right;color:${p.isRetard?'#b91c1c':'var(--muted)'}"><b>${esc(p.loc||'')}</b></td></tr>`;
         }).join('')}</tbody></table></div>`
         :`<div class="empty">${I.chk}<h3>Tout est à jour</h3><p>Aucune action critique en attente sur ce périmètre.</p></div>`}
         </div>
