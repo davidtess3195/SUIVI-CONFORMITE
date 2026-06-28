@@ -4035,7 +4035,6 @@ async function formInter(erpId,it){
           <div style="border-radius:8px;overflow:hidden;margin-bottom:14px;border:1px solid #e2e8f0">
             <div style="background:#1e3a5f;padding:12px 16px">
               <p style="color:#fff;margin:0;font-size:13px;font-weight:600">Demande d'intervention</p>
-              <p style="color:#93c5fd;margin:2px 0 0;font-size:11px">PREVA Conseils — Suivi réglementaire ERP</p>
             </div>
             <div style="padding:12px 16px;background:#fff">
               <p style="margin:0 0 10px;font-size:12px;color:#1e293b">Bonjour,<br>Nous vous contactons pour vous soumettre une demande d'intervention :</p>
@@ -4065,10 +4064,6 @@ async function formInter(erpId,it){
       document.getElementById('esel_step2').style.display='block';
       document.getElementById('esel_title').textContent='Aperçu et commentaire';
       document.getElementById('esel_to_label').querySelector('b').textContent=emailTo;
-      // Mise à jour live du commentaire dans l'aperçu
-      const ta=document.getElementById('esel_comment');
-      const tbl=document.getElementById('esel_preview_table');
-      ta.oninput=()=>{ if(tbl) tbl.innerHTML=previewRows(ta.value); };
     };
     // Retour
     document.getElementById('esel_back').onclick=()=>{
@@ -4085,7 +4080,6 @@ async function formInter(erpId,it){
       const html=`<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">
         <div style="background:#1e3a5f;padding:20px 24px;border-radius:8px 8px 0 0">
           <h2 style="color:#fff;margin:0;font-size:18px">Demande d'intervention</h2>
-          <p style="color:#93c5fd;margin:4px 0 0;font-size:13px">PREVA Conseils — Suivi réglementaire ERP</p>
         </div>
         <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:24px">
           <p style="margin:0 0 16px;color:#1e293b">Bonjour,</p>
