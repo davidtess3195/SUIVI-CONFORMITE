@@ -7257,9 +7257,10 @@ function viewVerifications(content){
       <button class="verif-tab" data-tab="reglages" onclick="verifSetTab('reglages')">⚙️ Réglages</button>
     </div>
     <div id="vcontent"><div style="text-align:center;padding:32px;color:#94a3b8">Chargement…</div></div>`;
-  function vapi(p){return fetch(SUPA_URL+'/rest/v1/'+p,{headers:{apikey:ANON_KEY,'Authorization':'Bearer '+ANON_KEY}}).then(r=>r.json());}
-  function vedge(s,b={}){return fetch(EDGE+'/'+s,{method:'POST',headers:{'Authorization':'Bearer '+ANON_KEY,'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json());}
-  function vpatch(t,id,b){return fetch(SUPA_URL+'/rest/v1/'+t+'?id=eq.'+id,{method:'PATCH',headers:{apikey:ANON_KEY,'Authorization':'Bearer '+ANON_KEY,'Content-Type':'application/json'},body:JSON.stringify(b)});}
+  async function vtok(){const {data}=await sb.auth.getSession();return data?.session?.access_token||ANON_KEY;}
+  async function vapi(p){const tok=await vtok();return fetch(SUPA_URL+'/rest/v1/'+p,{headers:{apikey:ANON_KEY,'Authorization':'Bearer '+tok}}).then(r=>r.json());}
+  async function vedge(s,b={}){const tok=await vtok();return fetch(EDGE+'/'+s,{method:'POST',headers:{'Authorization':'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json());}
+  async function vpatch(t,id,b){const tok=await vtok();return fetch(SUPA_URL+'/rest/v1/'+t+'?id=eq.'+id,{method:'PATCH',headers:{apikey:ANON_KEY,'Authorization':'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify(b)});}
   function vfd(d){if(!d)return'—';const x=new Date(d);return isNaN(+x)?d:x.toLocaleDateString('fr-FR');}
   function vdl(d){if(!d)return null;return Math.round((new Date(d)-new Date())/86400000);}
   function ptom(p){const s=(p||'').toLowerCase();if(/hebdo/.test(s))return 0.25;if(/mensuel|1 mois/.test(s))return 1;if(/trimestr|3 mois/.test(s))return 3;if(/semestr|6 mois/.test(s))return 6;if(/annuel|1 an/.test(s))return 12;if(/2 ans/.test(s))return 24;if(/3 ans/.test(s))return 36;return null;}
@@ -7395,9 +7396,10 @@ function viewVerifications(content){
   }
 
   window.verifUpdatePeriodicite=async function(oblId,val){
+    const tok=await vtok();
     await fetch(SUPA_URL+'/rest/v1/obligations?id=eq.'+oblId,{
       method:'PATCH',
-      headers:{apikey:ANON_KEY,'Authorization':'Bearer '+ANON_KEY,'Content-Type':'application/json'},
+      headers:{apikey:ANON_KEY,'Authorization':'Bearer '+tok,'Content-Type':'application/json'},
       body:JSON.stringify({periodicite:val})
     });
     const obl=vd.obligations.find(o=>o.id===oblId);
@@ -7412,13 +7414,14 @@ function viewVerifications(content){
     const body={erp_id:erpId,obligation_id:oblId,objet:libelle,type:'preventive',statut:'programmee',date_prevue:iso,rapport_attendu:true};
     if(prestaId)body.prestataire_id=prestaId;
     if(prestaEmail)body.email_to=prestaEmail;
+    const tok=await vtok();
     const res=await fetch(SUPA_URL+'/rest/v1/interventions',{method:'POST',
-      headers:{apikey:ANON_KEY,'Authorization':'Bearer '+ANON_KEY,'Content-Type':'application/json','Prefer':'return=representation'},
+      headers:{apikey:ANON_KEY,'Authorization':'Bearer '+tok,'Content-Type':'application/json','Prefer':'return=representation'},
       body:JSON.stringify(body)});
     if(!res.ok){const err=await res.text();toast('Erreur: '+err,'err');return;}
     // Mettre à jour prochaine_echeance
     await fetch(SUPA_URL+'/rest/v1/obligations?id=eq.'+oblId,{method:'PATCH',
-      headers:{apikey:ANON_KEY,'Authorization':'Bearer '+ANON_KEY,'Content-Type':'application/json'},
+      headers:{apikey:ANON_KEY,'Authorization':'Bearer '+tok,'Content-Type':'application/json'},
       body:JSON.stringify({prochaine_echeance:iso})});
     toast('✅ Intervention programmée le '+new Date(iso).toLocaleDateString('fr-FR'),'ok');
     await verifRefresh();
@@ -7470,7 +7473,7 @@ function viewVerifications(content){
     await vpatch('interventions',id,{statut:'realisee'});
     if(oblId){const obl=await vapi('obligations?select=periodicite&id=eq.'+oblId).then(a=>a[0]);
       if(obl?.periodicite){const m=ptom(obl.periodicite);if(m){const nd=new Date();nd.setMonth(nd.getMonth()+m);const ni=nd.toISOString().slice(0,10);
-        await fetch(SUPA_URL+'/rest/v1/obligations?id=eq.'+oblId,{method:'PATCH',headers:{apikey:ANON_KEY,'Authorization':'Bearer '+ANON_KEY,'Content-Type':'application/json'},body:JSON.stringify({derniere_verif:new Date().toISOString().slice(0,10),prochaine_echeance:ni})});
+        const tok2=await vtok();await fetch(SUPA_URL+'/rest/v1/obligations?id=eq.'+oblId,{method:'PATCH',headers:{apikey:ANON_KEY,'Authorization':'Bearer '+tok2,'Content-Type':'application/json'},body:JSON.stringify({derniere_verif:new Date().toISOString().slice(0,10),prochaine_echeance:ni})});
       }}
     }
     toast('Réalisée ✓','ok');await verifRefresh();
