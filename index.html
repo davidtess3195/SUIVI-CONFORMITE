@@ -7861,6 +7861,12 @@ function viewVerifications(content){
           ${o.criticite?`<span class="vpill ${o.criticite==='critique'?'red':o.criticite==='majeur'?'orange':'blue'}">${esc(o.criticite)}</span>`:''}
           ${o.derniere_verif?`<span class="vpill green">✓ Dernière vérif ${vfd(o.derniere_verif)}</span>`:'<span class="vpill">Jamais vérifiée</span>'}
         </div>
+        ${periodiciteSelector}
+        ${programmerForm}
+      </div>`;
+    }).join('');
+  }
+
   window.verifUpdatePeriodicite=async function(oblId,val){
     const tok=await vtok();
     await fetch(SUPA_URL+'/rest/v1/obligations?id=eq.'+oblId,{
