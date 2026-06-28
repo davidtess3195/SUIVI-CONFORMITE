@@ -6473,55 +6473,100 @@ let _prestOnglet='prestataire';
 ===================================================================== */
 async function viewPlanMaintenance(c){
   const PM_BASE=['Appareils de cuisson','Ascenseur','BAES / éclairage de sécurité','Clapet coupe-feu','Désenfumage mécanique','Désenfumage naturel','Extincteur','Parking','Porte coupe-feu','RIA','Sprinklers','SSI / centrale incendie','Thermographie électrique'];
-  const baseTypes=PM_BASE;
   const periList=['mensuelle','trimestrielle','semestrielle','annuelle','biannuelle','quinquennale'];
+  if(!window._pmItems) window._pmItems=[];
 
-  // Charger les modèles sauvegardés
   const pmModels=()=>JSON.parse(localStorage.getItem('pm_models')||'[]');
-  const pmSaveModel=(name,items)=>{
-    const models=pmModels().filter(m=>m.name!==name);
-    models.unshift({name,items,saved:new Date().toISOString()});
-    localStorage.setItem('pm_models',JSON.stringify(models.slice(0,20)));
-  };
+  const pmSaveModel=(name,items)=>{const m=pmModels().filter(x=>x.name!==name);m.unshift({name,items});localStorage.setItem('pm_models',JSON.stringify(m.slice(0,20)));};
+
+  // Charger types custom existants
+  let allTypes=[...PM_BASE];
+  try{const {data:eq}=await sb.from('equipements').select('type');
+    const custom=[...new Set((eq||[]).map(e=>e.type).filter(t=>t&&!PM_BASE.includes(t)))].sort();
+    allTypes=[...PM_BASE,...custom];}catch(_){}
 
   const clientOpts=(state.clients||[]).slice().sort((a,b)=>(a.raison_sociale||'').localeCompare(b.raison_sociale||'')).map(cl=>`<option value="${cl.id}">${esc(cl.raison_sociale)}</option>`).join('');
 
+  // ── Rendu de la liste ──
+  function pmRender(){
+    const list=document.getElementById('pm_list');
+    if(!list) return;
+    if(!window._pmItems.length){
+      list.innerHTML='<div style="text-align:center;color:var(--muted);padding:24px 0">Aucun équipement — utilisez le formulaire ci-dessus pour en ajouter.</div>';
+      return;
+    }
+    list.innerHTML=window._pmItems.map((it,i)=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);background:${it.checked?'var(--primary-light,#eff6ff)':''}">
+        <input type="checkbox" ${it.checked?'checked':''} onchange="window._pmItems[${i}].checked=this.checked;pmRender()" style="width:20px;height:20px;flex-shrink:0;cursor:pointer">
+        <div style="flex:1;min-width:0">
+          <b style="font-size:13.5px">${esc(it.type)}</b>
+          ${it.localisation?`<span style="color:var(--muted);font-size:11px;margin-left:6px">${esc(it.localisation)}</span>`:''}
+        </div>
+        ${it.acteur?`<span style="background:#e0e7ff;color:#3730a3;font-size:11px;padding:2px 8px;border-radius:5px;font-weight:600;white-space:nowrap">${esc(it.acteur)}</span>`:''}
+        ${it.periodicite?`<span style="font-size:12px;font-weight:600;color:var(--primary);white-space:nowrap">${esc(it.periodicite)}</span>`:''}
+        ${it.attestation?'<span style="color:var(--ok,#16a34a);font-size:13px;white-space:nowrap">✓ attest.</span>':''}
+        <button class="btn sm danger" onclick="window._pmItems.splice(${i},1);pmRender()" style="flex-shrink:0">🗑</button>
+      </div>`).join('');
+  }
+
   c.innerHTML=`<div class="page-head"><div class="t">
     <h1>Plan de maintenance</h1>
-    <p style="color:var(--muted);margin-top:4px;font-size:13px">Composez votre plan, puis appliquez-le à l'ERP de votre choix.</p>
+    <p style="color:var(--muted);margin-top:4px;font-size:13px">Ajoutez vos équipements, sélectionnez-les, puis enregistrez dans l'ERP.</p>
   </div>
   <div class="actions">
-    <select id="pm_load_sel" onchange="pmLoadModel()" style="min-width:180px">
+    <select id="pm_load_sel" onchange="pmLoadModel()" style="min-width:160px">
       <option value="">📂 Charger un modèle…</option>
       ${pmModels().map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('')}
     </select>
-    <button class="btn" onclick="pmSaveAsModel()">💾 Sauvegarder comme modèle</button>
+    <button class="btn" onclick="pmSaveAsModel()">💾 Sauvegarder</button>
   </div></div>
 
-  <div class="tbl-wrap" style="overflow-x:auto;margin-bottom:0">
-    <table class="tbl" style="min-width:800px">
-      <thead><tr>
-        <th style="min-width:210px">Équipement</th>
-        <th style="min-width:130px">Localisation</th>
-        <th style="min-width:160px">Acteur</th>
-        <th style="min-width:170px">Périodicité</th>
-        <th style="text-align:center;min-width:110px">Attestation</th>
-        <th style="width:44px"></th>
-      </tr></thead>
-      <tbody id="pm_tbody">
-        <tr id="pm_placeholder"><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">
-          Cliquez sur "+ Ajouter une ligne" pour commencer votre plan
-        </td></tr>
-      </tbody>
-    </table>
-  </div>
-  <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center">
-    <button class="btn" onclick="pmAddRow()">${I.plus} Ajouter une ligne</button>
-    <button class="btn ghost" onclick="pmClearRows()" style="margin-left:4px">🗑 Vider le plan</button>
+  <!-- Formulaire d'ajout rapide -->
+  <div class="card" style="padding:16px 18px;margin-bottom:16px">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div class="fld" style="flex:2;min-width:160px;margin-bottom:0">
+        <label style="font-size:12px">Équipement <span style="color:var(--muted);font-weight:400">(tapez librement)</span></label>
+        <input id="pm_new_type" list="pm_type_datalist" placeholder="Ex: Extincteur, Nacelle…"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();pmQuickAdd();}"
+          style="width:100%">
+        <datalist id="pm_type_datalist">${allTypes.map(t=>`<option value="${esc(t)}">`).join('')}</datalist>
+      </div>
+      <div class="fld" style="flex:1;min-width:130px;margin-bottom:0">
+        <label style="font-size:12px">Acteur</label>
+        <select id="pm_new_acteur" style="width:100%">
+          <option value="">—</option>
+          <option value="Exploitant">Exploitant</option>
+          <option value="Mainteneur">Mainteneur</option>
+          <option value="Bureau de contrôle">Bureau de contrôle</option>
+        </select>
+      </div>
+      <div class="fld" style="flex:1;min-width:120px;margin-bottom:0">
+        <label style="font-size:12px">Périodicité</label>
+        <input id="pm_new_peri" list="pm_peri_datalist" placeholder="annuelle…" style="width:100%"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();pmQuickAdd();}">
+        <datalist id="pm_peri_datalist">${periList.map(p=>`<option value="${p}">`).join('')}</datalist>
+      </div>
+      <div class="fld" style="flex:0;min-width:80px;margin-bottom:0;text-align:center">
+        <label style="font-size:12px;display:block">Attestation</label>
+        <input type="checkbox" id="pm_new_att" style="width:22px;height:22px;margin-top:6px;cursor:pointer">
+      </div>
+      <button class="btn primary" onclick="pmQuickAdd()" style="white-space:nowrap;align-self:flex-end">${I.plus} Ajouter</button>
+    </div>
   </div>
 
+  <!-- Liste des équipements -->
+  <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+    <button class="btn ghost" onclick="window._pmItems.forEach(i=>i.checked=true);pmRender()">Tout cocher</button>
+    <button class="btn ghost" onclick="window._pmItems.forEach(i=>i.checked=false);pmRender()">Tout décocher</button>
+    <button class="btn ghost" onclick="if(confirm('Vider la liste ?')){window._pmItems=[];pmRender()}" style="margin-left:auto">🗑 Vider</button>
+  </div>
+  <div id="pm_list" style="border:1px solid var(--line);border-radius:10px;overflow:hidden;min-height:60px"></div>
+
+  <!-- Appliquer à un ERP -->
   <div style="margin-top:28px;padding-top:20px;border-top:2px solid var(--line)">
-    <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px">Appliquer ce plan à un ERP</div>
+    <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px">
+      Enregistrer la sélection dans un ERP
+    </div>
     <div class="row2" style="max-width:660px">
       <div class="fld"><label>Client</label>
         <select id="pm_client" onchange="pmSelectClient()" style="width:100%">
@@ -6534,207 +6579,70 @@ async function viewPlanMaintenance(c){
         </select>
       </div>
     </div>
-    <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button class="btn primary" id="pm_apply_btn" onclick="pmApply()">✅ Créer les vérifications pour cet ERP</button>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn primary" id="pm_apply_btn" onclick="pmApply()" style="font-size:14px;padding:10px 20px">
+        ✅ Enregistrer dans cet ERP
+      </button>
       <span id="pm_apply_info" style="font-size:12px;color:var(--muted)"></span>
     </div>
-    <div id="pm_erp_preview" style="margin-top:16px"></div>
   </div>`;
 
-  // ── Helpers lecture lignes ──
-  window.pmReadRows = function(){
-    const rows=[...document.querySelectorAll('#pm_tbody tr[id^="pm_row_"]')];
-    const items=[];
-    for(const tr of rows){
-      const idx=tr.id.replace('pm_row_','');
-      const typeSel=document.getElementById('pm_type_sel_'+idx);
-      const rawType=typeSel?typeSel.value:'';
-      const customType=(document.getElementById('pm_type_custom_'+idx)?.value||'').trim();
-      const type=rawType==='__autre__'?customType:rawType;
-      if(!type) continue;
-      const acteur=document.getElementById('pm_acteur_'+idx)?.value||'';
-      const periSel=document.getElementById('pm_peri_sel_'+idx);
-      const rawPeri=periSel?periSel.value:'';
-      const customPeri=(document.getElementById('pm_peri_custom_'+idx)?.value||'').trim();
-      const periodicite=rawPeri==='__autre__'?customPeri:rawPeri;
-      const localisation=(document.getElementById('pm_loc_'+idx)?.value||'').trim();
-      const attestation=document.getElementById('pm_att_'+idx)?.checked||false;
-      items.push({type,acteur,periodicite,localisation,attestation});
-    }
-    return items;
+  pmRender();
+
+  // ── Ajout rapide ──
+  window.pmQuickAdd=function(){
+    const type=(document.getElementById('pm_new_type')?.value||'').trim();
+    if(!type){document.getElementById('pm_new_type').focus();toast('Saisissez un équipement','err');return;}
+    const acteur=document.getElementById('pm_new_acteur')?.value||'';
+    const periodicite=(document.getElementById('pm_new_peri')?.value||'').trim();
+    const attestation=document.getElementById('pm_new_att')?.checked||false;
+    window._pmItems.push({type,acteur,periodicite,localisation:'',attestation,checked:true});
+    pmRender();
+    // Remettre à zéro le formulaire (garde acteur et peri)
+    document.getElementById('pm_new_type').value='';
+    document.getElementById('pm_new_att').checked=false;
+    document.getElementById('pm_new_type').focus();
   };
 
-  // ── Ajouter une ligne ──
-  window.pmAddRow = async function(){
-    document.getElementById('pm_placeholder')?.remove();
-    let allTypes=[...baseTypes];
-    try{
-      const {data:eq}=await sb.from('equipements').select('type');
-      const custom=[...new Set((eq||[]).map(e=>e.type).filter(t=>t&&!baseTypes.includes(t)))].sort();
-      allTypes=[...baseTypes,...custom];
-    }catch(_){}
-    const typeOpts=allTypes.map(t=>`<option value="${t}">${esc(t)}</option>`).join('')+'<option value="__autre__">— Autre (saisie libre) —</option>';
-    const periOpts=periList.map(p=>`<option value="${p}">${p.charAt(0).toUpperCase()+p.slice(1)}</option>`).join('')+'<option value="__autre__">Autre…</option>';
-    const idx='r'+Date.now();
-    const tr=document.createElement('tr');
-    tr.id='pm_row_'+idx;
-    tr.innerHTML=`
-      <td>
-        <select id="pm_type_sel_${idx}" onchange="pmTypeChange(this,'${idx}')" style="width:100%">
-          <option value="">— choisir —</option>${typeOpts}
-        </select>
-        <div id="pm_type_custom_wrap_${idx}" style="display:none;margin-top:5px">
-          <input id="pm_type_custom_${idx}" type="text" placeholder="Nom de l'équipement…" style="width:100%;flex:1"
-            onkeydown="if(event.key==='Enter'){event.preventDefault();pmConfirmType('${idx}');}">
-          <button type="button" class="btn sm" style="white-space:nowrap;margin-top:4px;width:100%" onclick="pmConfirmType('${idx}')">✓ Confirmer</button>
-        </div>
-      </td>
-      <td><input id="pm_loc_${idx}" type="text" placeholder="Bâtiment A…" style="width:100%"></td>
-      <td>
-        <select id="pm_acteur_${idx}" style="width:100%">
-          <option value="">—</option>
-          <option value="Exploitant">Exploitant</option>
-          <option value="Mainteneur">Mainteneur</option>
-          <option value="Bureau de contrôle">Bureau de contrôle</option>
-        </select>
-      </td>
-      <td>
-        <select id="pm_peri_sel_${idx}" onchange="pmPeriChange(this,'${idx}')" style="width:100%">
-          <option value="">—</option>${periOpts}
-        </select>
-        <div id="pm_peri_custom_wrap_${idx}" style="display:none;margin-top:5px">
-          <input id="pm_peri_custom_${idx}" type="text" placeholder="Ex: tous les 3 ans" style="width:100%"
-            onkeydown="if(event.key==='Enter'){event.preventDefault();pmConfirmPeri('${idx}');}">
-          <button type="button" class="btn sm" style="width:100%;margin-top:4px" onclick="pmConfirmPeri('${idx}')">✓ Confirmer</button>
-        </div>
-      </td>
-      <td style="text-align:center"><input type="checkbox" id="pm_att_${idx}" style="width:18px;height:18px;cursor:pointer"></td>
-      <td><button class="btn sm danger" onclick="document.getElementById('pm_row_${idx}').remove()" title="Supprimer">🗑</button></td>`;
-    document.getElementById('pm_tbody').appendChild(tr);
-  };
-
-  window.pmTypeChange=function(sel,idx){
-    const wrap=document.getElementById('pm_type_custom_wrap_'+idx);
-    if(wrap) wrap.style.display=sel.value==='__autre__'?'block':'none';
-  };
-  window.pmPeriChange=function(sel,idx){
-    const wrap=document.getElementById('pm_peri_custom_wrap_'+idx);
-    if(wrap) wrap.style.display=sel.value==='__autre__'?'block':'none';
-  };
-  // Confirmer le type custom → l'ajoute dans le select et sélectionne
-  window.pmConfirmType=function(idx){
-    const input=document.getElementById('pm_type_custom_'+idx);
-    const sel=document.getElementById('pm_type_sel_'+idx);
-    const val=(input?.value||'').trim();
-    if(!val){input.focus();return;}
-    // Ajouter l'option si absente
-    if(![...sel.options].some(o=>o.value===val)){
-      const opt=document.createElement('option');
-      opt.value=val; opt.textContent=val;
-      sel.insertBefore(opt,sel.querySelector('option[value="__autre__"]'));
-    }
-    sel.value=val;
-    document.getElementById('pm_type_custom_wrap_'+idx).style.display='none';
-  };
-  // Confirmer la périodicité custom
-  window.pmConfirmPeri=function(idx){
-    const input=document.getElementById('pm_peri_custom_'+idx);
-    const sel=document.getElementById('pm_peri_sel_'+idx);
-    const val=(input?.value||'').trim();
-    if(!val){input.focus();return;}
-    if(![...sel.options].some(o=>o.value===val)){
-      const opt=document.createElement('option');
-      opt.value=val; opt.textContent=val;
-      sel.insertBefore(opt,sel.querySelector('option[value="__autre__"]'));
-    }
-    sel.value=val;
-    document.getElementById('pm_peri_custom_wrap_'+idx).style.display='none';
-  };
-  window.pmClearRows=function(){
-    if(!confirm('Vider toutes les lignes du plan ?')) return;
-    const tbody=document.getElementById('pm_tbody');
-    tbody.innerHTML='<tr id="pm_placeholder"><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Cliquez sur "+ Ajouter une ligne" pour commencer votre plan</td></tr>';
-  };
-
-  // ── Sauvegarder / Charger modèles ──
+  // ── Modèles ──
   window.pmSaveAsModel=function(){
-    const items=pmReadRows();
-    if(!items.length){toast('Ajoutez des lignes avant de sauvegarder','err');return;}
-    const name=prompt('Nom de ce modèle :','Plan type');
+    if(!window._pmItems.length){toast('Ajoutez des équipements d\'abord','err');return;}
+    const name=prompt('Nom du modèle :','Plan type');
     if(!name||!name.trim()) return;
-    pmSaveModel(name.trim(),items);
-    // Rafraîchir le select
+    pmSaveModel(name.trim(),[...window._pmItems]);
     const sel=document.getElementById('pm_load_sel');
-    if(sel){
-      sel.innerHTML='<option value="">📂 Charger un modèle…</option>'+pmModels().map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('');
-    }
+    if(sel) sel.innerHTML='<option value="">📂 Charger un modèle…</option>'+pmModels().map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('');
     toast('Modèle "'+name.trim()+'" sauvegardé ✓','ok');
   };
   window.pmLoadModel=function(){
-    const name=document.getElementById('pm_load_sel').value;
-    if(!name) return;
-    const model=pmModels().find(m=>m.name===name);
-    if(!model) return;
-    if(!confirm('Charger le modèle "'+name+'" ? Les lignes actuelles seront remplacées.')) return;
-    const tbody=document.getElementById('pm_tbody');
-    tbody.innerHTML='';
-    model.items.forEach(item=>{
-      const idx='r'+Date.now()+Math.random().toString(36).slice(2,6);
-      const periOpts=periList.map(p=>`<option value="${p}"${item.periodicite===p?' selected':''}>${p.charAt(0).toUpperCase()+p.slice(1)}</option>`).join('')+'<option value="__autre__">Autre…</option>';
-      const tr=document.createElement('tr');
-      tr.id='pm_row_'+idx;
-      const isCustomType=item.type&&![...baseTypes].includes(item.type);
-      const allOpts=[...baseTypes,...(isCustomType?[item.type]:[])].map(t=>`<option value="${t}"${t===item.type?' selected':''}>${esc(t)}</option>`).join('')+'<option value="__autre__">— Autre (saisie libre) —</option>';
-      tr.innerHTML=`
-        <td>
-          <select id="pm_type_sel_${idx}" onchange="pmTypeChange(this,'${idx}')" style="width:100%">
-            <option value="">— choisir —</option>${allOpts}
-          </select>
-          <input id="pm_type_custom_${idx}" type="text" value="${esc(isCustomType?item.type:'')}" placeholder="Saisir le type…" style="display:${isCustomType?'block':'none'};margin-top:5px;width:100%">
-        </td>
-        <td><input id="pm_loc_${idx}" type="text" value="${esc(item.localisation||'')}" placeholder="Bâtiment A…" style="width:100%"></td>
-        <td>
-          <select id="pm_acteur_${idx}" style="width:100%">
-            <option value="">—</option>
-            ${['Exploitant','Mainteneur','Bureau de contrôle'].map(a=>`<option value="${a}"${item.acteur===a?' selected':''}>${a}</option>`).join('')}
-          </select>
-        </td>
-        <td>
-          <select id="pm_peri_sel_${idx}" onchange="pmPeriChange(this,'${idx}')" style="width:100%">
-            <option value="">—</option>${periOpts}
-          </select>
-          <input id="pm_peri_custom_${idx}" type="text" value="${esc((!periList.includes(item.periodicite)&&item.periodicite)?item.periodicite:'')}" placeholder="Ex: tous les 3 ans" style="display:${(!periList.includes(item.periodicite)&&item.periodicite)?'block':'none'};margin-top:5px;width:100%">
-        </td>
-        <td style="text-align:center"><input type="checkbox" id="pm_att_${idx}" ${item.attestation?'checked':''} style="width:18px;height:18px;cursor:pointer"></td>
-        <td><button class="btn sm danger" onclick="document.getElementById('pm_row_${idx}').remove()">🗑</button></td>`;
-      tbody.appendChild(tr);
-    });
-    toast('Modèle "'+name+'" chargé — '+model.items.length+' ligne(s)','ok');
+    const name=document.getElementById('pm_load_sel').value; if(!name) return;
+    const model=pmModels().find(m=>m.name===name); if(!model) return;
+    if(!confirm('Charger "'+name+'" ?')) return;
+    window._pmItems=model.items.map(i=>({...i,checked:true}));
+    pmRender();
+    toast(model.items.length+' ligne(s) chargée(s)','ok');
   };
 
-  // ── Sélection client / ERP ──
+  // ── Client / ERP ──
   window.pmSelectClient=async function(){
-    const clientId=$('#pm_client').value;
-    const erpSel=$('#pm_erp');
-    if(!clientId){erpSel.innerHTML='<option value="">— Choisir d\'abord un client —</option>';document.getElementById('pm_erp_preview').innerHTML='';return;}
+    const clientId=$('#pm_client').value; const erpSel=$('#pm_erp');
+    if(!clientId){erpSel.innerHTML='<option value="">— Choisir d\'abord un client —</option>';return;}
     erpSel.innerHTML='<option value="">Chargement…</option>';
     const {data:erps}=await sb.from('erps').select('id,nom,code_erp').eq('client_id',clientId).order('nom');
     erpSel.innerHTML='<option value="">— Choisir un ERP —</option>'+(erps||[]).map(e=>`<option value="${e.id}">${esc(e.nom)} (${esc(e.code_erp)})</option>`).join('');
   };
 
-  // ── Appliquer le plan à l'ERP ──
+  // ── Appliquer ──
   window.pmApply=async function(){
     const erpId=$('#pm_erp').value;
     if(!erpId){toast('Choisissez un ERP','err');return;}
-    const items=pmReadRows();
-    if(!items.length){toast('Ajoutez au moins une ligne au plan','err');return;}
-    // Vérifier lignes incomplètes
-    for(const i of items){ if(!i.type){toast('Complétez tous les types d\'équipement','err');return;} }
+    const selected=window._pmItems.filter(i=>i.checked);
+    if(!selected.length){toast('Cochez au moins un équipement','err');return;}
     const btn=document.getElementById('pm_apply_btn');
-    btn.disabled=true;btn.textContent='Application en cours…';
+    btn.disabled=true;btn.textContent='Enregistrement…';
     try{
-      const uniqueTypes=[...new Set(items.map(i=>i.type))];
-      const typeFirst={};items.forEach(i=>{if(!typeFirst[i.type])typeFirst[i.type]=i;});
+      const uniqueTypes=[...new Set(selected.map(i=>i.type))];
+      const typeFirst={};selected.forEach(i=>{if(!typeFirst[i.type])typeFirst[i.type]=i;});
       const {data:existEq}=await sb.from('equipements').select('id,type,periodicite').eq('erp_id',erpId);
       const existMap=Object.fromEntries((existEq||[]).map(e=>[e.type,e]));
       const newEqTypes=uniqueTypes.filter(t=>!existMap[t]);
@@ -6745,25 +6653,24 @@ async function viewPlanMaintenance(c){
         if(eErr) throw eErr;
         (ins||[]).forEach(e=>{existMap[e.type]={id:e.id,type:e.type};});
       }
-      // Mettre à jour periodicite des équipements existants si vide
       for(const type of uniqueTypes){
         if(existMap[type]&&!existMap[type].periodicite&&typeFirst[type].periodicite){
-          await sb.from('equipements').update({periodicite:typeFirst[type].periodicite,localisation:typeFirst[type].localisation||null}).eq('id',existMap[type].id);
+          await sb.from('equipements').update({periodicite:typeFirst[type].periodicite}).eq('id',existMap[type].id);
         }
       }
-      const {error:oErr}=await sb.from('obligations').insert(items.map(i=>({
+      const {error:oErr}=await sb.from('obligations').insert(selected.map(i=>({
         erp_id:erpId,libelle:i.type+(i.acteur?' — '+i.acteur:''),domaine:i.type,
         periodicite:i.periodicite||null,acteur:i.acteur||null,
         preuve_attendue:i.attestation?'Attestation / rapport de vérification':null,
         statut:'applicable',criticite:'moyen',
       })));
       if(oErr) throw oErr;
-      const erpNom=document.getElementById('pm_erp').options[document.getElementById('pm_erp').selectedIndex]?.text||'';
-      toast(items.length+' vérification(s) créée(s) pour '+erpNom+' ✓','ok');
-      document.getElementById('pm_apply_info').textContent=items.length+' vérifications créées le '+new Date().toLocaleDateString('fr-FR');
-      btn.textContent='✅ Appliqué';
-      setTimeout(()=>{btn.disabled=false;btn.textContent='✅ Créer les vérifications pour cet ERP';},3000);
-    }catch(e){toast(e.message||'Erreur','err');btn.disabled=false;btn.textContent='✅ Créer les vérifications pour cet ERP';}
+      const erpNom=$('#pm_erp').options[$('#pm_erp').selectedIndex]?.text||'';
+      toast(selected.length+' vérification(s) enregistrée(s) dans '+erpNom+' ✓','ok');
+      document.getElementById('pm_apply_info').textContent='✓ '+selected.length+' créée(s) le '+new Date().toLocaleDateString('fr-FR');
+      btn.textContent='✅ Enregistré';
+      setTimeout(()=>{btn.disabled=false;btn.textContent='✅ Enregistrer dans cet ERP';},3000);
+    }catch(e){toast(e.message||'Erreur','err');btn.disabled=false;btn.textContent='✅ Enregistrer dans cet ERP';}
   };
 }
 window.viewPlanMaintenance=viewPlanMaintenance;
