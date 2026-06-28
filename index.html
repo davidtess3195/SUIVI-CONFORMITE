@@ -3893,7 +3893,7 @@ window.interErpChange=async function(){
 async function formInter(erpId,it){
   it=it||{}; const e=erpId||it.erp_id||(state.currentErp!=='all'?state.currentErp:'');
   const [{data:prest},oblRes]=await Promise.all([
-    sb.from('prestataires').select('id,nom,categorie').order('nom'),
+    sb.from('prestataires').select('id,nom,categorie,email_rapports,telephone,contacts').order('nom'),
     e?sb.from('obligations').select('domaine,libelle').eq('erp_id',e).eq('statut','applicable').order('domaine'):Promise.resolve({data:[]})
   ]);
   const domaines=[...new Set((oblRes.data||[]).map(o=>o.domaine||o.libelle).filter(Boolean))];
@@ -3905,6 +3905,9 @@ async function formInter(erpId,it){
   if(bdcList.length) prestOpts+=`<optgroup label="Bureaux de contrôle">${bdcList.map(opt).join('')}</optgroup>`;
   if(presList.length) prestOpts+=`<optgroup label="Prestataires">${presList.map(opt).join('')}</optgroup>`;
   const {html:domSelHtml}=buildDomSel(domaines,it.domaine||'');
+  const prestLookup={}; (prest||[]).forEach(p=>{prestLookup[p.id]=p;});
+  window._interPrestLookup=prestLookup;
+  window._interErpList=state.erps;
   openModal(`<div class="modal-head"><h2>${it.id?'Intervention '+esc(it.code_int):'Nouvelle intervention'}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
   <div class="modal-body">
     <div class="fld"><label>ERP <span class="req">*</span></label><select id="f_erp"${it.id?' disabled':' onchange="interErpChange()"'}><option value="">— choisir —</option>${erpOpts}</select></div>
@@ -3916,7 +3919,7 @@ async function formInter(erpId,it){
       <div class="fld"><label>Date prévue</label><input id="f_date" type="date" value="${esc(it.date_prevue)}"></div></div>
     ${it.id?`<div class="fld"><label>Statut</label><select id="f_statut">${Object.keys(ITST).map(s=>`<option value="${s}"${it.statut===s?' selected':''}>${ITST[s][1]}</option>`).join('')}</select></div>`:''}
   </div>
-  <div class="modal-foot">${it.id?'<button class="btn danger" id="del" style="margin-right:auto">Supprimer</button>':''}<button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">${it.id?'Enregistrer':'Créer'}</button></div>`);
+  <div class="modal-foot">${it.id?'<button class="btn danger" id="del" style="margin-right:auto">Supprimer</button>':''}<button class="btn" id="btn_email_inter" style="gap:6px">📧 Demande par email</button><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">${it.id?'Enregistrer':'Créer'}</button></div>`);
   if(erpId){const s=$('#f_erp'); if(s)s.value=erpId;}
   $('#save').onclick=async()=>{
     const erp_id=$('#f_erp').value; if(!erp_id){toast('Sélectionne un ERP','err');return;}
@@ -3936,6 +3939,65 @@ async function formInter(erpId,it){
   };
   const del=$('#del'); if(del)del.onclick=async()=>{ if(!confirm('Supprimer cette intervention ?'))return;
     await sb.from('interventions').delete().eq('id',it.id); closeModal(); toast('Supprimée','ok'); renderRoute(); };
+
+  // Bouton demande par email au prestataire
+  const btnEmail=$('#btn_email_inter');
+  if(btnEmail) btnEmail.onclick=async()=>{
+    const prestId=$('#f_prest').value;
+    if(!prestId){toast('Sélectionne un prestataire d\'abord','err');return;}
+    const p=(window._interPrestLookup||{})[prestId];
+    if(!p){toast('Prestataire introuvable','err');return;}
+    // Récupère l'email : email_rapports en priorité, sinon contacts JSON
+    let emailTo=p.email_rapports||'';
+    if(!emailTo && p.contacts){
+      try{
+        const cts=typeof p.contacts==='string'?JSON.parse(p.contacts):p.contacts;
+        const c=(cts||[]).find(x=>x.email)||null;
+        if(c) emailTo=c.email||'';
+      }catch(e){}
+    }
+    if(!emailTo){toast('Ce prestataire n\'a pas d\'adresse email renseignée','err');return;}
+    // Récupère les infos du formulaire
+    const erpId2=$('#f_erp').value;
+    const erpNom=(window._interErpList||[]).find(x=>x.id===erpId2)?.nom||erpId2;
+    const typeInter=$('#f_type').value;
+    const domSel2=$('#f_dom_sel')?.value;
+    const domaineInter=domSel2==='__autre__'?($('#f_dom')?.value.trim()||''):domSel2;
+    const datePrevue=$('#f_date').value;
+    const commentaire=$('#f_obj').value||'';
+    const typeLabel={preventive:'Préventive',corrective:'Corrective',travaux:'Travaux',visite:'Visite',commission_securite:'Commission de sécurité'}[typeInter]||typeInter;
+    const dateStr=datePrevue?new Date(datePrevue).toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}):'À définir';
+    const html=`<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">
+      <div style="background:#1e3a5f;padding:20px 24px;border-radius:8px 8px 0 0">
+        <h2 style="color:#fff;margin:0;font-size:18px">Demande d'intervention</h2>
+        <p style="color:#93c5fd;margin:4px 0 0;font-size:13px">PREVA Conseils — Suivi réglementaire ERP</p>
+      </div>
+      <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:24px">
+        <p style="margin:0 0 16px;color:#1e293b">Bonjour,</p>
+        <p style="margin:0 0 20px;color:#1e293b">Nous vous contactons pour vous soumettre une demande d'intervention :</p>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+          <tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;width:40%;color:#475569">ERP</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(erpNom)}</td></tr>
+          <tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Type</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(typeLabel)}</td></tr>
+          ${domaineInter?`<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Domaine / spécialité</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(domaineInter)}</td></tr>`:''}
+          <tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Date souhaitée</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(dateStr)}</td></tr>
+          ${commentaire?`<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569;vertical-align:top">Commentaire</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b;white-space:pre-line">${esc(commentaire)}</td></tr>`:''}
+        </table>
+        <p style="margin:0 0 8px;color:#1e293b">Merci de nous confirmer votre disponibilité et vos conditions d'intervention.</p>
+        <p style="margin:0;color:#64748b;font-size:13px">Cordialement,<br><b>PREVA Conseils</b></p>
+      </div>
+    </div>`;
+    const subject=`Demande d'intervention — ${erpNom}${domaineInter?' — '+domaineInter:''}`;
+    btnEmail.disabled=true; btnEmail.textContent='Envoi…';
+    try{
+      const {error}=await sb.functions.invoke('send-client-email',{body:{to:emailTo,subject,html}});
+      if(error) throw error;
+      toast('Demande envoyée à '+emailTo,'ok');
+      btnEmail.textContent='✓ Envoyé';
+    }catch(err){
+      toast('Erreur envoi : '+err.message,'err');
+      btnEmail.disabled=false; btnEmail.textContent='📧 Demande par email';
+    }
+  };
 }
 window.formInter=formInter;
 
