@@ -3405,7 +3405,7 @@ async function viewErp(c,id){
         <button class="btn" onclick='formErp(${JSON.stringify(e).replace(/'/g,"&#39;")})'>Modifier</button>
         <button class="btn danger" onclick="deleteErp('${id}')">🗑 Supprimer</button></div></div>
       <div class="tabs">
-        ${[['apercu','Aperçu'],['equip','Équipements'],['oblig','Vérifications'],['inter','Interventions'],['reserves','Réserves'],['rapports','Rapports']].map(t=>`<button class="${tab===t[0]?'active':''}" onclick="navigate('/erps/${id}?t=${t[0]}')">${t[1]}</button>`).join('')}
+        ${[['apercu','Aperçu'],['oblig','Vérification'],['inter','Interventions'],['reserves','Réserves'],['rapports','Rapports']].map(t=>`<button class="${tab===t[0]?'active':''}" onclick="navigate('/erps/${id}?t=${t[0]}')">${t[1]}</button>`).join('')}
       </div><div id="erptab"></div>`;
     renderErpTab(tab,data);
   }catch(err){ if(location.hash===myHash) c.innerHTML=errBlock(err); }
@@ -3422,28 +3422,25 @@ function renderErpTab(tab,d){
       <div class="it"><div class="k">Locaux à sommeil</div><div class="v">${e.locaux_sommeil?'Oui':'Non'}</div></div>
       <div class="it"><div class="k">EAS</div><div class="v">${e.eas?'Oui':'Non'}</div></div>
       <div class="it"><div class="k">Activité</div><div class="v">${esc(e.activite)||'—'}</div></div>
-      <div class="it"><div class="k">Équipements</div><div class="v">${d.eq.length}</div></div>
       <div class="it"><div class="k">Vérifications</div><div class="v">${d.ob.length}</div></div>
       <div class="it"><div class="k">Réserves ouvertes</div><div class="v">${d.re.filter(r=>!['cloturee','levee','rejetee'].includes(r.statut)).length}</div></div>
     </div>`;
   }
-  else if(tab==='equip'){
-    w.innerHTML=`<div style="display:flex;margin-bottom:14px"><button class="btn primary" style="margin-left:auto" onclick="formEquip('${e.id}')">${I.plus} Ajouter un équipement</button></div>
-    ${d.eq.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Équipement</th><th>Quantité</th><th>Périodicité</th><th>Acteur</th><th>Document</th><th></th></tr></thead><tbody>
-      ${d.eq.map(x=>`<tr><td><b>${esc(x.type)}</b></td>
-        <td>${esc(x.quantite)||'—'}</td><td>${esc(x.periodicite)||'—'}</td><td>${esc(x.acteur_suivi)||'—'}</td>
-        <td>${x.document_path?`<button class="btn sm" onclick="dlDoc('${esc(x.document_path)}','${esc((x.document_nom||'document').replace(/'/g,'&#39;'))}')">${I.dl||'↓'} Voir</button>`:'<span style="color:var(--muted-2)">—</span>'}</td>
-        <td style="text-align:right;white-space:nowrap"><button class="btn sm" onclick='formEquip("${e.id}", ${JSON.stringify(x).replace(/'/g,"&#39;").replace(/</g,"\\u003c")})'>Modifier</button>
-          <button class="btn sm danger" onclick="deleteEquip('${x.id}')">🗑</button></td></tr>`).join('')}</tbody></table></div>`
-      :emptyBlock(I.erp,'Aucun équipement','Recensez extincteurs, SSI, BAES, désenfumage…',`<button class="btn primary" onclick="formEquip('${e.id}')">${I.plus} Ajouter</button>`)}`;
-  }
   else if(tab==='oblig'){
     w.innerHTML=`<div style="display:flex;margin-bottom:14px"><button class="btn primary" style="margin-left:auto" onclick="formOblig('${e.id}')">${I.plus} Nouvelle vérification</button></div>
-    ${d.ob.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Domaine</th><th>Vérification</th><th>Périodicité</th><th>Échéance</th><th>Criticité</th><th>Statut</th></tr></thead><tbody>
-      ${d.ob.map(o=>{const late=o.prochaine_echeance&&o.prochaine_echeance<todayISO();return `<tr><td>${esc(o.domaine)||'—'}</td><td><b>${esc(o.libelle)}</b></td>
-        <td>${esc(o.periodicite)||'—'}</td><td style="${late?'color:var(--critique);font-weight:600':''}">${fmtDate(o.prochaine_echeance)}</td>
-        <td>${critPill(o.criticite)}</td><td>${statusPill(o.statut,OBST)}</td></tr>`}).join('')}</tbody></table></div>`
-      :emptyBlock(I.reserve,'Aucune vérification','Transformez un équipement en vérification suivie avec échéance.',`<button class="btn primary" onclick="formOblig('${e.id}')">${I.plus} Créer</button>`)}`;
+    ${d.ob.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Équipement</th><th>Acteur</th><th>Périodicité</th><th>Échéance</th><th>Criticité</th><th>Statut</th><th></th></tr></thead><tbody>
+      ${d.ob.map(o=>{const late=o.prochaine_echeance&&o.prochaine_echeance<todayISO();return `<tr>
+        <td><b>${esc(o.domaine||o.libelle)}</b>${o.libelle&&o.libelle!==o.domaine?`<div style="font-size:11.5px;color:var(--muted)">${esc(o.libelle)}</div>`:''}</td>
+        <td>${esc(o.acteur)||'—'}</td>
+        <td>${esc(o.periodicite)||'—'}</td>
+        <td style="${late?'color:var(--critique);font-weight:600':''}">${fmtDate(o.prochaine_echeance)||'—'}</td>
+        <td>${critPill(o.criticite)}</td>
+        <td>${statusPill(o.statut,OBST)}</td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="btn sm" onclick='formObligEdit(${JSON.stringify(o).replace(/'/g,"&#39;").replace(/</g,"\\u003c")})'>Modifier</button>
+          <button class="btn sm danger" onclick="deleteOblig('${o.id}')">🗑</button>
+        </td></tr>`}).join('')}</tbody></table></div>`
+      :emptyBlock(I.reserve,'Aucune vérification','Ajoutez vos équipements et leur fréquence de vérification.',`<button class="btn primary" onclick="formOblig('${e.id}')">${I.plus} Ajouter</button>`)}`;
   }
   else if(tab==='inter'){
     w.innerHTML=`<div style="display:flex;margin-bottom:14px"><button class="btn primary" style="margin-left:auto" onclick="formInter('${e.id}')">${I.plus} Programmer</button></div>
@@ -3628,6 +3625,67 @@ window.obligPickEquip=function(){
   const per=$('#f_per'); if(per && eq.periodicite) per.value=eq.periodicite;
   const act=$('#f_act'); if(act && eq.acteur_suivi){ const o=[...act.options].find(x=>x.value===eq.acteur_suivi); if(o){ act.value=eq.acteur_suivi; obligActeurChange(); } }
 };
+
+async function deleteOblig(id){
+  if(!confirm('Supprimer cette vérification ?')) return;
+  try{ const {error}=await sb.from('obligations').delete().eq('id',id); if(error) throw error; toast('Vérification supprimée','ok'); renderRoute(); }
+  catch(e){ toast(e.message||'Suppression impossible','err'); }
+}
+window.deleteOblig=deleteOblig;
+
+function formObligEdit(o){
+  // Ouvre le modal de modification pour une obligation existante
+  openModal(`<div class="modal-head"><h2>Modifier la vérification</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+  <div class="modal-body">
+    <div class="fld"><label>Équipement / Domaine <span class="req">*</span></label>
+      <input id="f_dom" value="${esc(o.domaine||o.libelle||'')}" placeholder="SSI, Extincteur…"></div>
+    <div class="fld"><label>Libellé</label><input id="f_lib" value="${esc(o.libelle||'')}" placeholder="Vérification annuelle SSI"></div>
+    <div class="row2">
+      <div class="fld"><label>Acteur</label>
+        <select id="f_act">
+          <option value="">—</option>
+          ${['Exploitant','Mainteneur','Bureau de contrôle'].map(a=>`<option value="${a}"${o.acteur===a?' selected':''}>${a}</option>`).join('')}
+        </select>
+      </div>
+      <div class="fld"><label>Périodicité</label><input id="f_per" value="${esc(o.periodicite||'')}" placeholder="annuelle"></div>
+    </div>
+    <div class="row2">
+      <div class="fld"><label>Dernière vérification</label><input id="f_dv" type="date" value="${esc(o.derniere_verif||'')}"></div>
+      <div class="fld"><label>Prochaine échéance</label><input id="f_pe" type="date" value="${esc(o.prochaine_echeance||'')}"></div>
+    </div>
+    <div class="row2">
+      <div class="fld"><label>Criticité</label>
+        <select id="f_crit">
+          ${['moyen','majeur','critique','faible','info'].map(c=>`<option value="${c}"${o.criticite===c?' selected':''}>${c.charAt(0).toUpperCase()+c.slice(1)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="fld"><label>Statut</label>
+        <select id="f_stat">
+          ${['applicable','a_jour','en_retard','non_applicable','suspendue'].map(s=>`<option value="${s}"${o.statut===s?' selected':''}>${s.replace(/_/g,' ')}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="fld"><label>Preuve attendue</label><input id="f_preuve" value="${esc(o.preuve_attendue||'')}" placeholder="Rapport de vérification"></div>
+  </div>
+  <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">Enregistrer</button></div>`);
+  $('#save').onclick=async()=>{
+    const dom=$('#f_dom').value.trim(); if(!dom){toast('Le domaine est requis','err');return;}
+    const lib=$('#f_lib').value.trim()||dom;
+    const pe=$('#f_pe').value;
+    const st=$('#f_stat').value||(pe&&pe<todayISO()?'en_retard':'applicable');
+    try{
+      const {error}=await sb.from('obligations').update({
+        domaine:dom,libelle:lib,periodicite:$('#f_per').value||null,
+        acteur:$('#f_act').value||null,criticite:$('#f_crit').value,statut:st,
+        derniere_verif:$('#f_dv').value||null,prochaine_echeance:pe||null,
+        preuve_attendue:$('#f_preuve').value||null
+      }).eq('id',o.id);
+      if(error) throw error;
+      closeModal(); toast('Vérification mise à jour ✓','ok'); renderRoute();
+    }catch(e){ toast(e.message,'err'); }
+  };
+}
+window.formObligEdit=formObligEdit;
 
 /* ---------- QR ---------- */
 /* Génère un QR dans un canvas off-screen et retourne le dataURL */
