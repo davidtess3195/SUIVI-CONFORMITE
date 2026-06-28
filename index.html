@@ -6583,7 +6583,11 @@ async function viewPlanMaintenance(c){
         <select id="pm_type_sel_${idx}" onchange="pmTypeChange(this,'${idx}')" style="width:100%">
           <option value="">— choisir —</option>${typeOpts}
         </select>
-        <input id="pm_type_custom_${idx}" type="text" placeholder="Saisir le type…" style="display:none;margin-top:5px;width:100%">
+        <div id="pm_type_custom_wrap_${idx}" style="display:none;margin-top:5px">
+          <input id="pm_type_custom_${idx}" type="text" placeholder="Nom de l'équipement…" style="width:100%;flex:1"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();pmConfirmType('${idx}');}">
+          <button type="button" class="btn sm" style="white-space:nowrap;margin-top:4px;width:100%" onclick="pmConfirmType('${idx}')">✓ Confirmer</button>
+        </div>
       </td>
       <td><input id="pm_loc_${idx}" type="text" placeholder="Bâtiment A…" style="width:100%"></td>
       <td>
@@ -6598,15 +6602,54 @@ async function viewPlanMaintenance(c){
         <select id="pm_peri_sel_${idx}" onchange="pmPeriChange(this,'${idx}')" style="width:100%">
           <option value="">—</option>${periOpts}
         </select>
-        <input id="pm_peri_custom_${idx}" type="text" placeholder="Ex: tous les 3 ans" style="display:none;margin-top:5px;width:100%">
+        <div id="pm_peri_custom_wrap_${idx}" style="display:none;margin-top:5px">
+          <input id="pm_peri_custom_${idx}" type="text" placeholder="Ex: tous les 3 ans" style="width:100%"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();pmConfirmPeri('${idx}');}">
+          <button type="button" class="btn sm" style="width:100%;margin-top:4px" onclick="pmConfirmPeri('${idx}')">✓ Confirmer</button>
+        </div>
       </td>
       <td style="text-align:center"><input type="checkbox" id="pm_att_${idx}" style="width:18px;height:18px;cursor:pointer"></td>
       <td><button class="btn sm danger" onclick="document.getElementById('pm_row_${idx}').remove()" title="Supprimer">🗑</button></td>`;
     document.getElementById('pm_tbody').appendChild(tr);
   };
 
-  window.pmTypeChange=function(sel,idx){document.getElementById('pm_type_custom_'+idx).style.display=sel.value==='__autre__'?'block':'none';};
-  window.pmPeriChange=function(sel,idx){document.getElementById('pm_peri_custom_'+idx).style.display=sel.value==='__autre__'?'block':'none';};
+  window.pmTypeChange=function(sel,idx){
+    const wrap=document.getElementById('pm_type_custom_wrap_'+idx);
+    if(wrap) wrap.style.display=sel.value==='__autre__'?'block':'none';
+  };
+  window.pmPeriChange=function(sel,idx){
+    const wrap=document.getElementById('pm_peri_custom_wrap_'+idx);
+    if(wrap) wrap.style.display=sel.value==='__autre__'?'block':'none';
+  };
+  // Confirmer le type custom → l'ajoute dans le select et sélectionne
+  window.pmConfirmType=function(idx){
+    const input=document.getElementById('pm_type_custom_'+idx);
+    const sel=document.getElementById('pm_type_sel_'+idx);
+    const val=(input?.value||'').trim();
+    if(!val){input.focus();return;}
+    // Ajouter l'option si absente
+    if(![...sel.options].some(o=>o.value===val)){
+      const opt=document.createElement('option');
+      opt.value=val; opt.textContent=val;
+      sel.insertBefore(opt,sel.querySelector('option[value="__autre__"]'));
+    }
+    sel.value=val;
+    document.getElementById('pm_type_custom_wrap_'+idx).style.display='none';
+  };
+  // Confirmer la périodicité custom
+  window.pmConfirmPeri=function(idx){
+    const input=document.getElementById('pm_peri_custom_'+idx);
+    const sel=document.getElementById('pm_peri_sel_'+idx);
+    const val=(input?.value||'').trim();
+    if(!val){input.focus();return;}
+    if(![...sel.options].some(o=>o.value===val)){
+      const opt=document.createElement('option');
+      opt.value=val; opt.textContent=val;
+      sel.insertBefore(opt,sel.querySelector('option[value="__autre__"]'));
+    }
+    sel.value=val;
+    document.getElementById('pm_peri_custom_wrap_'+idx).style.display='none';
+  };
   window.pmClearRows=function(){
     if(!confirm('Vider toutes les lignes du plan ?')) return;
     const tbody=document.getElementById('pm_tbody');
