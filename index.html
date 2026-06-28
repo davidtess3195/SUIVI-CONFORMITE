@@ -7641,6 +7641,7 @@ function viewVerifications(content){
     document.head.appendChild(s);
   }
   let vtab='repondre',vd={repondre:[],sans_reponse:[],a_programmer:[],programmee:[]},vcfg={},verp={},vpr={};
+  let vfiltClient='',vfiltErp='';
   content.innerHTML=`
     <div class="page-head"><div class="t"><h1>🔧 Vérifications &amp; Relances</h1><p style="color:var(--muted);font-size:13.5px;margin-top:3px">Demandes prestataires · Confirmations · Relances automatiques</p></div><div class="actions"><button class="btn" onclick="verifRefresh()">↻ Actualiser</button></div></div>
     <div id="valert" class="valert" style="display:none"><span style="font-size:18px">⚠️</span><span id="valerttxt"></span></div>
@@ -7661,7 +7662,7 @@ function viewVerifications(content){
   function vdl(d){if(!d)return null;return Math.round((new Date(d)-new Date())/86400000);}
   function ptom(p){const s=(p||'').toLowerCase();if(/hebdo/.test(s))return 0.25;if(/mensuel|1 mois/.test(s))return 1;if(/trimestr|3 mois/.test(s))return 3;if(/semestr|6 mois/.test(s))return 6;if(/annuel|1 an/.test(s))return 12;if(/2 ans/.test(s))return 24;if(/3 ans/.test(s))return 36;return null;}
   async function vload(){
-    const[e,p]=await Promise.all([vapi('erps?select=id,nom'),vapi('prestataires?select=id,nom,email_rapports')]);
+    const[e,p]=await Promise.all([vapi('erps?select=id,nom,client_id'),vapi('prestataires?select=id,nom,email_rapports')]);
     (e||[]).forEach(x=>verp[x.id]=x);(p||[]).forEach(x=>vpr[x.id]=x);
     const[r1,r2,r3,r4,c]=await Promise.all([
       vapi('interventions?select=*&reponse_a_traiter=eq.true&statut=eq.demandee&order=reponse_recue_at.desc'),
@@ -7684,7 +7685,7 @@ function viewVerifications(content){
   function vrender(){
     const el=document.getElementById('vcontent');if(!el)return;
     if(vtab==='reglages'){el.innerHTML=vrsettings();return;}
-    if(vtab==='obligations'){el.innerHTML=vrobligations();return;}
+    if(vtab==='obligations'){el.innerHTML=vrobligations();vRenderObligContent();return;}
     const items=vd[vtab]||[];
     if(!items.length){el.innerHTML='<div class="vempty">✓ Aucun élément</div>';return;}
     el.innerHTML=items.map(i=>vrcard(i,vtab)).join('');
@@ -7739,9 +7740,84 @@ function viewVerifications(content){
     </div>`;
   }
 
+  window.vFiltClientChange=function(){
+    vfiltClient=document.getElementById('vfilt_client')?.value||'';
+    vfiltErp='';
+    // Rebuild ERP selector
+    const erpSel=document.getElementById('vfilt_erp');
+    if(!erpSel) return;
+    const erps=Object.values(verp).filter(e=>!vfiltClient||e.client_id===vfiltClient).sort((a,b)=>(a.nom||'').localeCompare(b.nom||''));
+    erpSel.innerHTML='<option value="">— Tous les ERP —</option>'+erps.map(e=>`<option value="${e.id}">${esc(e.nom)}</option>`).join('');
+    vRenderObligContent();
+  };
+  window.vFiltErpChange=function(){
+    vfiltErp=document.getElementById('vfilt_erp')?.value||'';
+    vRenderObligContent();
+  };
+  function vRenderObligContent(){
+    const box=document.getElementById('vobl_list'); if(!box) return;
+    const obls=vd.obligations||[];
+    const filtered=obls.filter(o=>{
+      const erp=verp[o.erp_id]||{};
+      if(vfiltErp && o.erp_id!==vfiltErp) return false;
+      if(vfiltClient && erp.client_id!==vfiltClient) return false;
+      return true;
+    });
+    if(!filtered.length){box.innerHTML='<div class="vempty">Aucune vérification pour cette sélection</div>';return;}
+    box.innerHTML=filtered.map(o=>{
+      const erp=verp[o.erp_id]||{};const pr=o.prestataires||{};
+      const today=new Date();
+      const dl=o.prochaine_echeance?Math.round((new Date(o.prochaine_echeance)-today)/86400000):null;
+      const dc=dl===null?'':dl<0?'red':dl<=30?'orange':dl<=90?'blue':'green';
+      const dlabel=dl===null?'':dl<0?Math.abs(dl)+'j dépassé':dl===0?"Aujourd'hui":'J-'+dl;
+      const isCommission=(o.domaine||'').toLowerCase().includes('commission');
+      const periodiciteSelector=isCommission?`
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
+          <span style="font-size:12px;color:#0369a1;font-weight:600">⏱ Périodicité :</span>
+          <select onchange="verifUpdatePeriodicite('${o.id}',this.value)" style="border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px;font-size:13px;background:#fff;color:#1e293b">
+            <option value="triennale" ${(o.periodicite||'')==='triennale'?'selected':''}>3 ans</option>
+            <option value="quinquennale" ${(o.periodicite||'')==='quinquennale'?'selected':''}>5 ans</option>
+          </select>
+          <span style="font-size:11px;color:#64748b">(selon catégorie ERP)</span>
+        </div>`:'';
+      const today_iso=new Date().toISOString().slice(0,10);
+      const default_date=o.prochaine_echeance||today_iso;
+      const programmerForm=`
+        <div id="pf-${o.id}" style="display:none;margin-top:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px">
+          <div style="font-size:12px;font-weight:600;color:#166534;margin-bottom:8px">📅 Programmer l'intervention</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="date" id="pd-${o.id}" value="${default_date}" style="border:1px solid #cbd5e1;border-radius:6px;padding:6px 10px;font-size:14px;color:#1e293b">
+            <button class="vbtn g" onclick="verifProgrammerObligation('${o.id}','${o.erp_id}','${esc(o.libelle||o.domaine||'')}','${o.prestataire_id||''}','${(o.prestataires&&o.prestataires.email_rapports)||''}')">✅ Confirmer</button>
+            <button class="vbtn s" onclick="document.getElementById('pf-${o.id}').style.display='none'">✕ Annuler</button>
+          </div>
+        </div>`;
+      return `<div class="vcard" id="vc-obl-${o.id}">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+          <div>
+            <div class="vcardtitle">${esc(o.libelle||o.domaine||'—')}</div>
+            <div class="vcardsub">${esc(erp.nom||'—')}${pr.nom?' · '+esc(pr.nom):''}</div>
+          </div>
+          <button class="vbtn b" onclick="document.getElementById('pf-${o.id}').style.display=document.getElementById('pf-${o.id}').style.display==='none'?'block':'none'" style="flex-shrink:0">📅 Programmer</button>
+        </div>
+        <div class="vcardmeta">
+          ${dlabel?`<span class="vpill ${dc}">${dlabel}</span>`:''}
+          ${o.prochaine_echeance?`<span class="vpill">📅 ${vfd(o.prochaine_echeance)}</span>`:''}
+          ${!isCommission&&o.periodicite?`<span class="vpill">${esc(o.periodicite)}</span>`:''}
+          ${o.criticite?`<span class="vpill ${o.criticite==='critique'?'red':o.criticite==='majeur'?'orange':'blue'}">${esc(o.criticite)}</span>`:''}
+          ${o.derniere_verif?`<span class="vpill green">✓ Dernière vérif ${vfd(o.derniere_verif)}</span>`:'<span class="vpill">Jamais vérifiée</span>'}
+        </div>
+        ${periodiciteSelector}
+        ${programmerForm}
+      </div>`;
+    }).join('');
+  }
   function vrobligations(){
     const obls=vd.obligations||[];
-    if(!obls.length)return'<div class="vempty">Aucune obligation applicable pour cet ERP</div>';
+    const clients=(state?.clients||[]).slice().sort((a,b)=>(a.raison_sociale||'').localeCompare(b.raison_sociale||''));
+    const clientOpts=clients.map(c=>`<option value="${c.id}">${esc(c.raison_sociale)}</option>`).join('');
+    const erpsForClient=Object.values(verp).filter(e=>!vfiltClient||e.client_id===vfiltClient).sort((a,b)=>(a.nom||'').localeCompare(b.nom||''));
+    const erpOpts=erpsForClient.map(e=>`<option value="${e.id}"${vfiltErp===e.id?' selected':''}>${esc(e.nom)}</option>`).join('');
+    if(!obls.length)return'<div class="vempty">Aucune vérification applicable</div>';
     const today=new Date();
     return obls.map(o=>{
       const erp=o.erps||{};const pr=o.prestataires||{};
@@ -7785,12 +7861,6 @@ function viewVerifications(content){
           ${o.criticite?`<span class="vpill ${o.criticite==='critique'?'red':o.criticite==='majeur'?'orange':'blue'}">${esc(o.criticite)}</span>`:''}
           ${o.derniere_verif?`<span class="vpill green">✓ Dernière vérif ${vfd(o.derniere_verif)}</span>`:'<span class="vpill">Jamais vérifiée</span>'}
         </div>
-        ${periodiciteSelector}
-        ${programmerForm}
-      </div>`;
-    }).join('');
-  }
-
   window.verifUpdatePeriodicite=async function(oblId,val){
     const tok=await vtok();
     await fetch(SUPA_URL+'/rest/v1/obligations?id=eq.'+oblId,{
