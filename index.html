@@ -3483,16 +3483,26 @@ function renderErpTab(tab,d){
 const OBST={proposee:['','Proposée','inf'],applicable:['','Applicable','int'],non_applicable:['','Non applicable','inf'],conseillee:['','Conseillée','moy'],a_jour:['','À jour','ok'],en_retard:['','En retard','crit'],suspendue:['','Suspendue','inf']
 };
 
-function formEquip(erpId, eq){
+async function formEquip(erpId, eq){
   eq = eq || {};
   const editing = !!eq.id;
   const baseTypes=['Extincteurs','RIA','SSI / centrale incendie','BAES / éclairage de sécurité','Désenfumage naturel','Désenfumage mécanique','Clapets coupe-feu','Sprinklers','Portes coupe-feu','Thermographie électrique','Ascenseur','Appareils de cuisson','Parking'];
-  const types = (eq.type && !baseTypes.includes(eq.type)) ? [eq.type, ...baseTypes] : baseTypes;
+  // Charger les types personnalisés existants en base (tous ERPs)
+  const {data:existingEquips}=await sb.from('equipements').select('type');
+  const customTypes=[...new Set((existingEquips||[]).map(e=>e.type).filter(t=>t&&!baseTypes.includes(t)))].sort();
+  const allTypes=[...baseTypes,...customTypes];
+  let types=(eq.type&&!allTypes.includes(eq.type))?[eq.type,...allTypes]:allTypes;
   const pers=['','mensuelle','trimestrielle','semestrielle','annuelle','3 ans','5 ans'];
   const acteurs=['','Mainteneur','Bureau de contrôle','Exploitant','Consultant'];
   openModal(`<div class="modal-head"><h2>${editing?'Modifier':'Ajouter'} un équipement</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
   <div class="modal-body">
-    <div class="fld"><label>Équipement <span class="req">*</span></label><select id="f_type">${types.map(t=>`<option${t===eq.type?' selected':''}>${esc(t)}</option>`).join('')}</select></div>
+    <div class="fld"><label>Équipement <span class="req">*</span></label>
+      <select id="f_type" onchange="(function(){const v=document.getElementById('f_type').value;const wrap=document.getElementById('f_autre_wrap');if(wrap)wrap.style.display=v==='__autre__'?'block':'none';})()">
+        ${types.map(t=>`<option value="${esc(t)}"${t===eq.type?' selected':''}>${esc(t)}</option>`).join('')}
+        <option value="__autre__">— Autre (saisie libre) —</option>
+      </select>
+      <div id="f_autre_wrap" style="display:none;margin-top:8px"><input id="f_type_custom" placeholder="Nom de l'équipement…" style="width:100%;border:1px solid var(--line);border-radius:6px;padding:7px 10px;font-size:14px;color:var(--ink);box-sizing:border-box"></div>
+    </div>
     <div class="row2"><div class="fld"><label>Quantité / type</label><input id="f_qte" value="${esc(eq.quantite)}"></div>
       <div class="fld"><label>Localisation</label><input id="f_loc" value="${esc(eq.localisation)}"></div></div>
     <div class="row2"><div class="fld"><label>Périodicité</label><select id="f_per">${pers.map(p=>`<option value="${p}"${p===(eq.periodicite||'')?' selected':''}>${p||'—'}</option>`).join('')}</select></div>
@@ -3518,7 +3528,8 @@ function formEquip(erpId, eq){
   }
   $('#save').onclick=async()=>{
     const btn=$('#save'); btn.disabled=true;
-    const payload={erp_id:erpId,type:$('#f_type').value,quantite:$('#f_qte').value||null,
+    const selType=$('#f_type').value;const customType=($('#f_type_custom')?.value||'').trim();const finalType=selType==='__autre__'?customType:selType;if(!finalType){toast('Saisir un type d\'équipement','err');btn.disabled=false;return;}
+    const payload={erp_id:erpId,type:finalType,quantite:$('#f_qte').value||null,
       localisation:$('#f_loc').value||null,periodicite:$('#f_per').value||null,acteur_suivi:$('#f_act').value||null,presence:true};
     try{
       if(equipDocFile){
