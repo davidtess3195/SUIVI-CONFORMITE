@@ -6532,7 +6532,10 @@ let _prestOnglet='prestataire';
 async function viewPlanMaintenance(c){
   const PM_BASE=['Appareils de cuisson','Ascenseur','BAES / éclairage de sécurité','Clapet coupe-feu','Désenfumage mécanique','Désenfumage naturel','Extincteur','Parking','Porte coupe-feu','RIA','Sprinklers','SSI / centrale incendie','Thermographie électrique'];
   const periList=['mensuelle','trimestrielle','semestrielle','annuelle','biannuelle','quinquennale'];
-  if(!window._pmItems) window._pmItems=[];
+  // Bibliothèque persistante en localStorage
+  const pmLibLoad=()=>{ try{ return JSON.parse(localStorage.getItem('pm_library')||'[]'); }catch(_){ return []; } };
+  const pmLibSave=()=>{ localStorage.setItem('pm_library',JSON.stringify(window._pmItems)); };
+  window._pmItems=pmLibLoad();
 
   const pmModels=()=>JSON.parse(localStorage.getItem('pm_models')||'[]');
   const pmSaveModel=(name,items)=>{const m=pmModels().filter(x=>x.name!==name);m.unshift({name,items});localStorage.setItem('pm_models',JSON.stringify(m.slice(0,20)));};
@@ -6547,6 +6550,7 @@ async function viewPlanMaintenance(c){
 
   // ── Rendu de la liste ──
   function pmRender(){
+    pmLibSave(); // toujours persisté
     const list=document.getElementById('pm_list');
     if(!list) return;
     if(!window._pmItems.length){
@@ -6569,7 +6573,7 @@ async function viewPlanMaintenance(c){
 
   c.innerHTML=`<div class="page-head"><div class="t">
     <h1>Plan de maintenance</h1>
-    <p style="color:var(--muted);margin-top:4px;font-size:13px">Ajoutez vos équipements, sélectionnez-les, puis enregistrez dans l'ERP.</p>
+    <p style="color:var(--muted);margin-top:4px;font-size:13px">Bibliothèque de vérifications — ajoutez, sélectionnez, puis enregistrez dans l'ERP de votre choix.</p>
   </div>
   <div class="actions">
     <select id="pm_load_sel" onchange="pmLoadModel()" style="min-width:160px">
@@ -6616,7 +6620,7 @@ async function viewPlanMaintenance(c){
   <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
     <button class="btn ghost" onclick="window._pmItems.forEach(i=>i.checked=true);pmRender()">Tout cocher</button>
     <button class="btn ghost" onclick="window._pmItems.forEach(i=>i.checked=false);pmRender()">Tout décocher</button>
-    <button class="btn ghost" onclick="if(confirm('Vider la liste ?')){window._pmItems=[];pmRender()}" style="margin-left:auto">🗑 Vider</button>
+    <button class="btn ghost" onclick="if(confirm('Vider la bibliothèque ?')){window._pmItems=[];pmRender()}" style="margin-left:auto">🗑 Vider</button>
   </div>
   <div id="pm_list" style="border:1px solid var(--line);border-radius:10px;overflow:hidden;min-height:60px"></div>
 
@@ -6725,7 +6729,11 @@ async function viewPlanMaintenance(c){
       if(oErr) throw oErr;
       const erpNom=$('#pm_erp').options[$('#pm_erp').selectedIndex]?.text||'';
       toast(selected.length+' vérification(s) enregistrée(s) dans '+erpNom+' ✓','ok');
-      document.getElementById('pm_apply_info').textContent='✓ '+selected.length+' créée(s) le '+new Date().toLocaleDateString('fr-FR');
+      document.getElementById('pm_apply_info').textContent='✓ '+selected.length+' enregistrée(s) dans '+erpNom+' — '+new Date().toLocaleDateString('fr-FR');
+      // Décocher les items appliqués (ils restent dans la bibliothèque)
+      const appliedTypes=new Set(selected.map(i=>i.type+'|'+i.acteur+'|'+i.periodicite));
+      window._pmItems.forEach(i=>{ if(appliedTypes.has(i.type+'|'+i.acteur+'|'+i.periodicite)) i.checked=false; });
+      pmRender();
       btn.textContent='✅ Enregistré';
       setTimeout(()=>{btn.disabled=false;btn.textContent='✅ Enregistrer dans cet ERP';},3000);
     }catch(e){toast(e.message||'Erreur','err');btn.disabled=false;btn.textContent='✅ Enregistrer dans cet ERP';}
