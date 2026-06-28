@@ -3975,57 +3975,112 @@ async function formInter(erpId,it){
     const commentaire=$('#f_obj').value||'';
     const typeLabel={preventive:'Préventive',corrective:'Corrective',travaux:'Travaux',visite:'Visite',commission_securite:'Commission de sécurité'}[typeInter]||typeInter;
     const dateStr=datePrevue?new Date(datePrevue).toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}):'À définir';
-    // Affiche le sélecteur d'email dans un panneau overlay
+    // ── Overlay 2 étapes ──────────────────────────────────────────
     let selOverlay=document.getElementById('email_sel_overlay');
     if(selOverlay) selOverlay.remove();
-    // Si aucun email connu, pré-cocher "autre"
     const hasEmails=emails.length>0;
-    const radioItems=emails.map((e,i)=>`
-      <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:2px solid ${i===0&&hasEmails?'#2563eb':'#e2e8f0'};border-radius:8px;cursor:pointer;margin-bottom:8px;background:${i===0&&hasEmails?'#eff6ff':'#f8fafc'};transition:.15s" onclick="this.style.borderColor='#2563eb';this.style.background='#eff6ff';[...document.querySelectorAll('[data-erow]')].forEach(r=>{if(r!==this){r.style.borderColor='#e2e8f0';r.style.background='#f8fafc';}});" data-erow>
-        <input type="radio" name="email_sel" value="${esc(e.email)}" ${i===0?'checked':''} style="margin-top:3px;accent-color:#2563eb;flex-shrink:0">
-        <div>
-          <div style="font-weight:600;font-size:13px;color:#1e293b">${esc(e.label)}</div>
-          <div style="font-size:12px;color:#2563eb;margin-top:2px">${esc(e.email)}</div>
-        </div>
-      </label>`).join('');
-    const autreChecked=!hasEmails?'checked':'';
-    const customRow=`
-      <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:2px solid ${!hasEmails?'#2563eb':'#e2e8f0'};border-radius:8px;cursor:pointer;margin-bottom:8px;background:${!hasEmails?'#eff6ff':'#f8fafc'};transition:.15s" onclick="this.style.borderColor='#2563eb';this.style.background='#eff6ff';[...document.querySelectorAll('[data-erow]')].forEach(r=>{r.style.borderColor='#e2e8f0';r.style.background='#f8fafc';});" data-erow>
-        <input type="radio" name="email_sel" value="__autre__" ${autreChecked} style="margin-top:3px;accent-color:#2563eb;flex-shrink:0">
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:600;font-size:13px;color:#1e293b">Autre adresse</div>
-          <input id="email_sel_custom" type="email" placeholder="saisir une adresse…"
-            onfocus="document.querySelector('[name=email_sel][value=__autre__]').checked=true;document.querySelectorAll('[data-erow]').forEach(r=>{r.style.borderColor='#e2e8f0';r.style.background='#f8fafc';});this.closest('[data-erow]').style.borderColor='#2563eb';this.closest('[data-erow]').style.background='#eff6ff';"
-            style="margin-top:6px;width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:7px 10px;font-size:13px;box-sizing:border-box;color:#1e293b">
-        </div>
+    const mkRow=(e,i,total)=>{
+      const first=i===0&&hasEmails;
+      return `<label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:2px solid ${first?'#2563eb':'#e2e8f0'};border-radius:8px;cursor:pointer;margin-bottom:8px;background:${first?'#eff6ff':'#f8fafc'}" onclick="[...document.querySelectorAll('[data-erow]')].forEach(r=>{r.style.borderColor='#e2e8f0';r.style.background='#f8fafc';});this.style.borderColor='#2563eb';this.style.background='#eff6ff';" data-erow>
+        <input type="radio" name="email_sel" value="${esc(e.email)}" ${first?'checked':''} style="margin-top:3px;accent-color:#2563eb;flex-shrink:0">
+        <div><div style="font-weight:600;font-size:13px;color:#1e293b">${esc(e.label)}</div>
+        <div style="font-size:12px;color:#2563eb;margin-top:2px">${esc(e.email)}</div></div>
       </label>`;
+    };
+    const radioItems=emails.map((e,i)=>mkRow(e,i,emails.length)).join('');
+    const autreFirst=!hasEmails;
+    const customRow=`<label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:2px solid ${autreFirst?'#2563eb':'#e2e8f0'};border-radius:8px;cursor:pointer;margin-bottom:8px;background:${autreFirst?'#eff6ff':'#f8fafc'}" onclick="[...document.querySelectorAll('[data-erow]')].forEach(r=>{r.style.borderColor='#e2e8f0';r.style.background='#f8fafc';});this.style.borderColor='#2563eb';this.style.background='#eff6ff';" data-erow>
+      <input type="radio" name="email_sel" value="__autre__" ${autreFirst?'checked':''} style="margin-top:3px;accent-color:#2563eb;flex-shrink:0">
+      <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px;color:#1e293b">Autre adresse</div>
+      <input id="email_sel_custom" type="email" placeholder="saisir une adresse…"
+        onfocus="[...document.querySelectorAll('[data-erow]')].forEach(r=>{r.style.borderColor='#e2e8f0';r.style.background='#f8fafc';});this.closest('[data-erow]').style.borderColor='#2563eb';this.closest('[data-erow]').style.background='#eff6ff';document.querySelector('[name=email_sel][value=__autre__]').checked=true;"
+        style="margin-top:6px;width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:7px 10px;font-size:13px;box-sizing:border-box;color:#1e293b"></div>
+    </label>`;
+    // ── Étape 2 : aperçu + commentaire ──
+    const previewRows=(com)=>`
+      <tr><td style="padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:12px;font-weight:600;color:#475569;width:38%">ERP</td><td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;color:#1e293b">${esc(erpNom)}</td></tr>
+      ${erpAdresse?`<tr><td style="padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:12px;font-weight:600;color:#475569">Adresse</td><td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;color:#1e293b">${esc(erpAdresse)}</td></tr>`:''}
+      <tr><td style="padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:12px;font-weight:600;color:#475569">Type</td><td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;color:#1e293b">${esc(typeLabel)}</td></tr>
+      ${domaineInter?`<tr><td style="padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:12px;font-weight:600;color:#475569">Domaine</td><td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;color:#1e293b">${esc(domaineInter)}</td></tr>`:''}
+      <tr><td style="padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:12px;font-weight:600;color:#475569">Date</td><td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;color:#1e293b">${esc(dateStr)}</td></tr>
+      ${com?`<tr><td style="padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:12px;font-weight:600;color:#475569;vertical-align:top">Commentaire</td><td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;color:#1e293b;white-space:pre-line">${esc(com)}</td></tr>`:''}`;
     selOverlay=document.createElement('div');
     selOverlay.id='email_sel_overlay';
     selOverlay.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)';
-    selOverlay.innerHTML=`<div style="background:#fff;border-radius:14px;width:100%;max-width:440px;box-shadow:0 24px 80px rgba(0,0,0,.3);overflow:hidden">
-      <div style="padding:18px 20px 14px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between">
+    selOverlay.innerHTML=`<div style="background:#fff;border-radius:14px;width:100%;max-width:460px;box-shadow:0 24px 80px rgba(0,0,0,.3);overflow:hidden">
+      <!-- En-tête commun -->
+      <div style="padding:16px 20px 12px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between">
         <div>
-          <h3 style="margin:0;font-size:16px;color:#1e293b">Envoyer une demande</h3>
-          <p style="margin:4px 0 0;font-size:12px;color:#64748b">Prestataire : <b>${esc(p.nom)}</b></p>
+          <h3 id="esel_title" style="margin:0;font-size:15px;color:#1e293b">Choisir le destinataire</h3>
+          <p style="margin:3px 0 0;font-size:12px;color:#64748b">Prestataire : <b>${esc(p.nom)}</b></p>
         </div>
         <button onclick="document.getElementById('email_sel_overlay').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#94a3b8;line-height:1;padding:0 4px">×</button>
       </div>
-      <div style="padding:16px 20px;max-height:60vh;overflow-y:auto">
-        ${!hasEmails?'<p style="margin:0 0 12px;font-size:12px;color:#f59e0b;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 10px">⚠️ Aucun email enregistré pour ce prestataire. Saisissez une adresse manuellement.</p>':''}
-        ${radioItems}
-        ${customRow}
+      <!-- Étape 1 : choix email -->
+      <div id="esel_step1">
+        <div style="padding:14px 20px;max-height:55vh;overflow-y:auto">
+          ${!hasEmails?'<p style="margin:0 0 10px;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 10px">⚠️ Aucun email enregistré pour ce prestataire. Saisissez une adresse manuellement.</p>':''}
+          ${radioItems}${customRow}
+        </div>
+        <div style="padding:12px 20px;border-top:1px solid #e2e8f0;display:flex;gap:8px;justify-content:flex-end;background:#f8fafc">
+          <button onclick="document.getElementById('email_sel_overlay').remove()" style="padding:7px 16px;border:1px solid #e2e8f0;border-radius:7px;background:#fff;cursor:pointer;font-size:13px;color:#475569">Annuler</button>
+          <button id="esel_next" style="padding:7px 20px;border:none;border-radius:7px;background:#2563eb;color:#fff;cursor:pointer;font-size:13px;font-weight:600">Suivant →</button>
+        </div>
       </div>
-      <div style="padding:12px 20px;border-top:1px solid #e2e8f0;display:flex;gap:8px;justify-content:flex-end;background:#f8fafc">
-        <button onclick="document.getElementById('email_sel_overlay').remove()" style="padding:8px 18px;border:1px solid #e2e8f0;border-radius:7px;background:#fff;cursor:pointer;font-size:13px;color:#475569">Annuler</button>
-        <button id="email_sel_send" style="padding:8px 20px;border:none;border-radius:7px;background:#2563eb;color:#fff;cursor:pointer;font-size:13px;font-weight:600">📧 Envoyer</button>
+      <!-- Étape 2 : aperçu + commentaire -->
+      <div id="esel_step2" style="display:none">
+        <div style="padding:14px 20px;max-height:65vh;overflow-y:auto">
+          <p id="esel_to_label" style="margin:0 0 14px;font-size:13px;color:#1e293b">Envoi à : <b style="color:#2563eb"></b></p>
+          <!-- Aperçu email -->
+          <div style="border-radius:8px;overflow:hidden;margin-bottom:14px;border:1px solid #e2e8f0">
+            <div style="background:#1e3a5f;padding:12px 16px">
+              <p style="color:#fff;margin:0;font-size:13px;font-weight:600">Demande d'intervention</p>
+              <p style="color:#93c5fd;margin:2px 0 0;font-size:11px">PREVA Conseils — Suivi réglementaire ERP</p>
+            </div>
+            <div style="padding:12px 16px;background:#fff">
+              <p style="margin:0 0 10px;font-size:12px;color:#1e293b">Bonjour,<br>Nous vous contactons pour vous soumettre une demande d'intervention :</p>
+              <table id="esel_preview_table" style="width:100%;border-collapse:collapse;margin-bottom:10px">${previewRows(commentaire)}</table>
+              <p style="margin:0;font-size:11px;color:#475569">Merci de nous confirmer votre disponibilité.<br><b>PREVA Conseils</b></p>
+            </div>
+          </div>
+          <!-- Commentaire modifiable -->
+          <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px">Commentaire <span style="font-weight:400;color:#94a3b8">(optionnel — modifiable)</span></label>
+          <textarea id="esel_comment" rows="3" placeholder="Ajouter un commentaire…" onkeydown="event.stopPropagation()"
+            style="width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;color:#1e293b">${esc(commentaire)}</textarea>
+        </div>
+        <div style="padding:12px 20px;border-top:1px solid #e2e8f0;display:flex;gap:8px;justify-content:space-between;background:#f8fafc">
+          <button id="esel_back" style="padding:7px 16px;border:1px solid #e2e8f0;border-radius:7px;background:#fff;cursor:pointer;font-size:13px;color:#475569">← Retour</button>
+          <button id="esel_send_final" style="padding:7px 20px;border:none;border-radius:7px;background:#2563eb;color:#fff;cursor:pointer;font-size:13px;font-weight:600">📧 Envoyer</button>
+        </div>
       </div>
     </div>`;
     document.body.appendChild(selOverlay);
-    if(!hasEmails) setTimeout(()=>document.getElementById('email_sel_custom')?.focus(),100);
-    document.getElementById('email_sel_send').onclick=async()=>{
+    if(autreFirst) setTimeout(()=>document.getElementById('email_sel_custom')?.focus(),100);
+    // Suivant : valide l'email et passe à l'étape 2
+    document.getElementById('esel_next').onclick=()=>{
       const chosen=document.querySelector('[name=email_sel]:checked')?.value||'';
       const emailTo=chosen==='__autre__'?(document.getElementById('email_sel_custom')?.value.trim()||''):chosen;
       if(!emailTo){toast('Renseigne une adresse email','err');return;}
+      document.getElementById('esel_step1').style.display='none';
+      document.getElementById('esel_step2').style.display='block';
+      document.getElementById('esel_title').textContent='Aperçu et commentaire';
+      document.getElementById('esel_to_label').querySelector('b').textContent=emailTo;
+      // Mise à jour live du commentaire dans l'aperçu
+      const ta=document.getElementById('esel_comment');
+      const tbl=document.getElementById('esel_preview_table');
+      ta.oninput=()=>{ if(tbl) tbl.innerHTML=previewRows(ta.value); };
+    };
+    // Retour
+    document.getElementById('esel_back').onclick=()=>{
+      document.getElementById('esel_step2').style.display='none';
+      document.getElementById('esel_step1').style.display='block';
+      document.getElementById('esel_title').textContent='Choisir le destinataire';
+    };
+    // Envoi final
+    document.getElementById('esel_send_final').onclick=async()=>{
+      const chosen=document.querySelector('[name=email_sel]:checked')?.value||'';
+      const emailTo=chosen==='__autre__'?(document.getElementById('email_sel_custom')?.value.trim()||''):chosen;
+      const finalComment=document.getElementById('esel_comment')?.value||'';
       selOverlay.remove();
       const html=`<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">
         <div style="background:#1e3a5f;padding:20px 24px;border-radius:8px 8px 0 0">
@@ -4041,7 +4096,7 @@ async function formInter(erpId,it){
             <tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Type</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(typeLabel)}</td></tr>
             ${domaineInter?`<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Domaine / spécialité</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(domaineInter)}</td></tr>`:''}
             <tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Date souhaitée</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(dateStr)}</td></tr>
-            ${commentaire?`<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569;vertical-align:top">Commentaire</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b;white-space:pre-line">${esc(commentaire)}</td></tr>`:''}
+            ${finalComment?`<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569;vertical-align:top">Commentaire</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b;white-space:pre-line">${esc(finalComment)}</td></tr>`:''}
           </table>
           <p style="margin:0 0 8px;color:#1e293b">Merci de nous confirmer votre disponibilité et vos conditions d'intervention.</p>
           <p style="margin:0;color:#64748b;font-size:13px">Cordialement,<br><b>PREVA Conseils</b></p>
