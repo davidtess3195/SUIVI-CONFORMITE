@@ -6816,7 +6816,20 @@ async function viewPlanMaintenance(c){
           await sb.from('equipements').update({periodicite:typeFirst[type].periodicite}).eq('id',existMap[type].id);
         }
       }
-      const {error:oErr}=await sb.from('obligations').insert(selected.map(i=>({
+      // Charger les obligations existantes pour supprimer les doublons (même domaine + acteur)
+      const {data:existOb}=await sb.from('obligations').select('domaine,acteur').eq('erp_id',erpId);
+      const existObSet=new Set((existOb||[]).map(o=>(o.domaine||'')+'|'+(o.acteur||'')));
+      const toInsert=selected.filter(i=>!existObSet.has((i.type||'')+'|'+(i.acteur||'')));
+      const skipped=selected.length-toInsert.length;
+      if(!toInsert.length){
+        const erpNom=$('#pm_erp').options[$('#pm_erp').selectedIndex]?.text||'';
+        toast('Aucune nouvelle vérification — tout existe déjà dans '+erpNom,'ok');
+        document.getElementById('pm_apply_info').textContent='Déjà à jour dans '+erpNom;
+        const appliedTypes=new Set(selected.map(i=>i.type+'|'+i.acteur+'|'+i.periodicite));
+        window._pmItems.forEach(i=>{ if(appliedTypes.has(i.type+'|'+i.acteur+'|'+i.periodicite)) i.checked=false; });
+        pmRender(); btn.disabled=false; btn.textContent='✅ Enregistrer dans cet ERP'; return;
+      }
+      const {error:oErr}=await sb.from('obligations').insert(toInsert.map(i=>({
         erp_id:erpId,libelle:i.type+(i.acteur?' — '+i.acteur:''),domaine:i.type,
         periodicite:i.periodicite||null,acteur:i.acteur||null,
         preuve_attendue:i.attestation?'Attestation / rapport de vérification':null,
@@ -6824,8 +6837,9 @@ async function viewPlanMaintenance(c){
       })));
       if(oErr) throw oErr;
       const erpNom=$('#pm_erp').options[$('#pm_erp').selectedIndex]?.text||'';
-      toast(selected.length+' vérification(s) enregistrée(s) dans '+erpNom+' ✓','ok');
-      document.getElementById('pm_apply_info').textContent='✓ '+selected.length+' enregistrée(s) dans '+erpNom+' — '+new Date().toLocaleDateString('fr-FR');
+      const msg=toInsert.length+' créée(s)'+(skipped?' · '+skipped+' doublon(s) ignoré(s)':'');
+      toast(msg+' dans '+erpNom+' ✓','ok');
+      document.getElementById('pm_apply_info').textContent='✓ '+msg+' — '+new Date().toLocaleDateString('fr-FR');
       // Décocher les items appliqués (ils restent dans la bibliothèque)
       const appliedTypes=new Set(selected.map(i=>i.type+'|'+i.acteur+'|'+i.periodicite));
       window._pmItems.forEach(i=>{ if(appliedTypes.has(i.type+'|'+i.acteur+'|'+i.periodicite)) i.checked=false; });
