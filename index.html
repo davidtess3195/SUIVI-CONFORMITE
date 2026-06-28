@@ -6472,107 +6472,106 @@ let _prestOnglet='prestataire';
    PLAN DE MAINTENANCE
 ===================================================================== */
 async function viewPlanMaintenance(c){
-  const baseTypes=['Appareils de cuisson','Ascenseur','BAES / éclairage de sécurité','Clapet coupe-feu','Désenfumage mécanique','Désenfumage naturel','Extincteur','Parking','Porte coupe-feu','RIA','Sprinklers','SSI / centrale incendie','Thermographie électrique'];
+  const PM_BASE=['Appareils de cuisson','Ascenseur','BAES / éclairage de sécurité','Clapet coupe-feu','Désenfumage mécanique','Désenfumage naturel','Extincteur','Parking','Porte coupe-feu','RIA','Sprinklers','SSI / centrale incendie','Thermographie électrique'];
+  const baseTypes=PM_BASE;
   const periList=['mensuelle','trimestrielle','semestrielle','annuelle','biannuelle','quinquennale'];
+
+  // Charger les modèles sauvegardés
+  const pmModels=()=>JSON.parse(localStorage.getItem('pm_models')||'[]');
+  const pmSaveModel=(name,items)=>{
+    const models=pmModels().filter(m=>m.name!==name);
+    models.unshift({name,items,saved:new Date().toISOString()});
+    localStorage.setItem('pm_models',JSON.stringify(models.slice(0,20)));
+  };
+
+  const clientOpts=(state.clients||[]).slice().sort((a,b)=>(a.raison_sociale||'').localeCompare(b.raison_sociale||'')).map(cl=>`<option value="${cl.id}">${esc(cl.raison_sociale)}</option>`).join('');
 
   c.innerHTML=`<div class="page-head"><div class="t">
     <h1>Plan de maintenance</h1>
-    <p style="color:var(--muted);margin-top:4px;font-size:13px">Programmez tous les équipements et vérifications d'un ERP en une seule fois.</p>
-  </div></div>
-  <div class="card" style="padding:18px 20px;margin-bottom:18px">
-    <div class="row2">
-      <div class="fld"><label>Client</label>
-        <select id="pm_client" onchange="pmSelectClient()" style="width:100%">
-          <option value="">— Choisir un client —</option>
-          ${(state.clients||[]).slice().sort((a,b)=>(a.raison_sociale||'').localeCompare(b.raison_sociale||'')).map(cl=>`<option value="${cl.id}">${esc(cl.raison_sociale)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="fld"><label>ERP</label>
-        <select id="pm_erp" onchange="pmErpChange()" style="width:100%">
-          <option value="">— Choisir d'abord un client —</option>
-        </select>
-      </div>
-    </div>
+    <p style="color:var(--muted);margin-top:4px;font-size:13px">Composez votre plan, puis appliquez-le à l'ERP de votre choix.</p>
   </div>
+  <div class="actions">
+    <select id="pm_load_sel" onchange="pmLoadModel()" style="min-width:180px">
+      <option value="">📂 Charger un modèle…</option>
+      ${pmModels().map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('')}
+    </select>
+    <button class="btn" onclick="pmSaveAsModel()">💾 Sauvegarder comme modèle</button>
+  </div></div>
+
   <div class="tbl-wrap" style="overflow-x:auto;margin-bottom:0">
     <table class="tbl" style="min-width:800px">
       <thead><tr>
-        <th style="min-width:200px">Équipement</th>
+        <th style="min-width:210px">Équipement</th>
         <th style="min-width:130px">Localisation</th>
         <th style="min-width:160px">Acteur</th>
         <th style="min-width:170px">Périodicité</th>
         <th style="text-align:center;min-width:110px">Attestation</th>
         <th style="width:44px"></th>
       </tr></thead>
-      <tbody id="pm_tbody"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Choisissez un client et un ERP pour commencer</td></tr></tbody>
+      <tbody id="pm_tbody">
+        <tr id="pm_placeholder"><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">
+          Cliquez sur "+ Ajouter une ligne" pour commencer votre plan
+        </td></tr>
+      </tbody>
     </table>
   </div>
-  <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+  <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center">
     <button class="btn" onclick="pmAddRow()">${I.plus} Ajouter une ligne</button>
-    <button class="btn primary" id="pm_save_btn" onclick="pmSave()" style="margin-left:auto">💾 Valider le plan</button>
+    <button class="btn ghost" onclick="pmClearRows()" style="margin-left:4px">🗑 Vider le plan</button>
+  </div>
+
+  <div style="margin-top:28px;padding-top:20px;border-top:2px solid var(--line)">
+    <div style="font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px">Appliquer ce plan à un ERP</div>
+    <div class="row2" style="max-width:660px">
+      <div class="fld"><label>Client</label>
+        <select id="pm_client" onchange="pmSelectClient()" style="width:100%">
+          <option value="">— Choisir un client —</option>${clientOpts}
+        </select>
+      </div>
+      <div class="fld"><label>ERP</label>
+        <select id="pm_erp" style="width:100%">
+          <option value="">— Choisir d'abord un client —</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn primary" id="pm_apply_btn" onclick="pmApply()">✅ Créer les vérifications pour cet ERP</button>
+      <span id="pm_apply_info" style="font-size:12px;color:var(--muted)"></span>
+    </div>
+    <div id="pm_erp_preview" style="margin-top:16px"></div>
   </div>`;
 
-  window.pmSelectClient = async function(){
-    const clientId=$('#pm_client').value;
-    const erpSel=$('#pm_erp');
-    if(!clientId){
-      erpSel.innerHTML='<option value="">— Choisir d\'abord un client —</option>';
-      document.getElementById('pm_tbody').innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">Choisissez un client et un ERP pour commencer</td></tr>';
-      return;
+  // ── Helpers lecture lignes ──
+  window.pmReadRows = function(){
+    const rows=[...document.querySelectorAll('#pm_tbody tr[id^="pm_row_"]')];
+    const items=[];
+    for(const tr of rows){
+      const idx=tr.id.replace('pm_row_','');
+      const typeSel=document.getElementById('pm_type_sel_'+idx);
+      const rawType=typeSel?typeSel.value:'';
+      const customType=(document.getElementById('pm_type_custom_'+idx)?.value||'').trim();
+      const type=rawType==='__autre__'?customType:rawType;
+      if(!type) continue;
+      const acteur=document.getElementById('pm_acteur_'+idx)?.value||'';
+      const periSel=document.getElementById('pm_peri_sel_'+idx);
+      const rawPeri=periSel?periSel.value:'';
+      const customPeri=(document.getElementById('pm_peri_custom_'+idx)?.value||'').trim();
+      const periodicite=rawPeri==='__autre__'?customPeri:rawPeri;
+      const localisation=(document.getElementById('pm_loc_'+idx)?.value||'').trim();
+      const attestation=document.getElementById('pm_att_'+idx)?.checked||false;
+      items.push({type,acteur,periodicite,localisation,attestation});
     }
-    erpSel.innerHTML='<option value="">Chargement…</option>';
-    const {data:erps}=await sb.from('erps').select('id,nom,code_erp').eq('client_id',clientId).order('nom');
-    erpSel.innerHTML='<option value="">— Choisir un ERP —</option>'+(erps||[]).map(e=>`<option value="${e.id}">${esc(e.nom)} (${esc(e.code_erp)})</option>`).join('');
+    return items;
   };
 
-  window.pmErpChange = async function(){
-    const erpId=$('#pm_erp').value;
-    if(!erpId){ document.getElementById('pm_tbody').innerHTML=''; return; }
-    await pmLoadErp(erpId);
-  };
-
-  window.pmLoadErp = async function(erpId){
-    const tbody=document.getElementById('pm_tbody');
-    tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:16px">Chargement…</td></tr>';
-    const {data:obls}=await sb.from('obligations').select('id,libelle,domaine,acteur,periodicite,preuve_attendue').eq('erp_id',erpId).order('domaine').order('acteur');
-    tbody.innerHTML='';
-    if(obls && obls.length){
-      for(const o of obls){
-        const tr=document.createElement('tr');
-        tr.setAttribute('data-obl-id',o.id);
-        tr.style.cssText='background:var(--line-2,#eef2f7)';
-        const attYes=!!(o.preuve_attendue);
-        tr.innerHTML=`
-          <td><b style="font-size:13px">${esc(o.domaine||o.libelle)}</b></td>
-          <td style="color:var(--muted);font-size:12px">—</td>
-          <td>${o.acteur?`<span style="background:var(--primary-light,#eff6ff);color:var(--primary);font-size:11px;padding:2px 7px;border-radius:5px;font-weight:600">${esc(o.acteur)}</span>`:'<span style="color:var(--muted)">—</span>'}</td>
-          <td>${o.periodicite?`<span style="font-weight:600;font-size:12px">${esc(o.periodicite)}</span>`:'<span style="color:var(--muted)">—</span>'}</td>
-          <td style="text-align:center">${attYes?'<span style="color:var(--ok,#16a34a);font-size:16px">✓</span>':'<span style="color:var(--muted)">—</span>'}</td>
-          <td><button class="btn sm danger" onclick="pmDeleteObl('${o.id}',this)">🗑</button></td>`;
-        tbody.appendChild(tr);
-      }
-    }
-  };
-
-  window.pmDeleteObl = async function(oblId,btn){
-    if(!confirm('Supprimer cette vérification ?')) return;
-    btn.disabled=true;
-    const {error}=await sb.from('obligations').delete().eq('id',oblId);
-    if(error){toast(error.message,'err');btn.disabled=false;return;}
-    btn.closest('tr').remove();
-    toast('Vérification supprimée','ok');
-  };
-
+  // ── Ajouter une ligne ──
   window.pmAddRow = async function(){
-    const tbody=document.getElementById('pm_tbody');
-    // Remove placeholder if present
-    const ph=tbody.querySelector('td[colspan]');if(ph) ph.closest('tr').remove();
-    // Charger les types custom depuis la BD (tous ERP confondus)
+    document.getElementById('pm_placeholder')?.remove();
     let allTypes=[...baseTypes];
     try{
-      const {data:existingEquips}=await sb.from('equipements').select('type');
-      const customTypes=[...new Set((existingEquips||[]).map(e=>e.type).filter(t=>t&&!baseTypes.includes(t)))].sort();
-      allTypes=[...baseTypes,...customTypes];
+      const {data:eq}=await sb.from('equipements').select('type');
+      const custom=[...new Set((eq||[]).map(e=>e.type).filter(t=>t&&!baseTypes.includes(t)))].sort();
+      allTypes=[...baseTypes,...custom];
     }catch(_){}
     const typeOpts=allTypes.map(t=>`<option value="${t}">${esc(t)}</option>`).join('')+'<option value="__autre__">— Autre (saisie libre) —</option>';
     const periOpts=periList.map(p=>`<option value="${p}">${p.charAt(0).toUpperCase()+p.slice(1)}</option>`).join('')+'<option value="__autre__">Autre…</option>';
@@ -6586,7 +6585,7 @@ async function viewPlanMaintenance(c){
         </select>
         <input id="pm_type_custom_${idx}" type="text" placeholder="Saisir le type…" style="display:none;margin-top:5px;width:100%">
       </td>
-      <td><input id="pm_loc_${idx}" type="text" placeholder="Ex: Bâtiment A" style="width:100%"></td>
+      <td><input id="pm_loc_${idx}" type="text" placeholder="Bâtiment A…" style="width:100%"></td>
       <td>
         <select id="pm_acteur_${idx}" style="width:100%">
           <option value="">—</option>
@@ -6603,95 +6602,125 @@ async function viewPlanMaintenance(c){
       </td>
       <td style="text-align:center"><input type="checkbox" id="pm_att_${idx}" style="width:18px;height:18px;cursor:pointer"></td>
       <td><button class="btn sm danger" onclick="document.getElementById('pm_row_${idx}').remove()" title="Supprimer">🗑</button></td>`;
-    tbody.appendChild(tr);
+    document.getElementById('pm_tbody').appendChild(tr);
   };
 
-  window.pmTypeChange=function(sel,idx){
-    const ci=document.getElementById('pm_type_custom_'+idx);
-    if(ci) ci.style.display=sel.value==='__autre__'?'block':'none';
-  };
-  window.pmPeriChange=function(sel,idx){
-    const ci=document.getElementById('pm_peri_custom_'+idx);
-    if(ci) ci.style.display=sel.value==='__autre__'?'block':'none';
+  window.pmTypeChange=function(sel,idx){document.getElementById('pm_type_custom_'+idx).style.display=sel.value==='__autre__'?'block':'none';};
+  window.pmPeriChange=function(sel,idx){document.getElementById('pm_peri_custom_'+idx).style.display=sel.value==='__autre__'?'block':'none';};
+  window.pmClearRows=function(){
+    if(!confirm('Vider toutes les lignes du plan ?')) return;
+    const tbody=document.getElementById('pm_tbody');
+    tbody.innerHTML='<tr id="pm_placeholder"><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Cliquez sur "+ Ajouter une ligne" pour commencer votre plan</td></tr>';
   };
 
-  window.pmSave=async function(){
-    const erpId=$('#pm_erp').value;
-    if(!erpId){toast('Choisissez un ERP avant de valider','err');return;}
-    // Uniquement les nouvelles lignes (id^=pm_row_)
-    const newRows=[...document.querySelectorAll('#pm_tbody tr[id^="pm_row_"]')];
-    if(!newRows.length){toast('Aucune nouvelle ligne à enregistrer','err');return;}
-    const items=[];
-    for(const tr of newRows){
-      const idx=tr.id.replace('pm_row_','');
-      // Type — via ID explicite
-      const typeSel=document.getElementById('pm_type_sel_'+idx);
-      const rawType=typeSel?typeSel.value:'';
-      const customType=(document.getElementById('pm_type_custom_'+idx)?.value||'').trim();
-      const type=rawType==='__autre__'?customType:rawType;
-      if(!type){toast('Sélectionnez ou saisissez un type d\'équipement pour chaque ligne','err');return;}
-      // Acteur
-      const acteur=(document.getElementById('pm_acteur_'+idx)?.value||'');
-      // Périodicité — via ID explicite
-      const periSel=document.getElementById('pm_peri_sel_'+idx);
-      const rawPeri=periSel?periSel.value:'';
-      const customPeri=(document.getElementById('pm_peri_custom_'+idx)?.value||'').trim();
-      const periodicite=rawPeri==='__autre__'?customPeri:rawPeri;
-      const localisation=(document.getElementById('pm_loc_'+idx)?.value||'').trim();
-      const attestation=document.getElementById('pm_att_'+idx)?.checked||false;
-      items.push({type,acteur,periodicite,localisation,attestation});
+  // ── Sauvegarder / Charger modèles ──
+  window.pmSaveAsModel=function(){
+    const items=pmReadRows();
+    if(!items.length){toast('Ajoutez des lignes avant de sauvegarder','err');return;}
+    const name=prompt('Nom de ce modèle :','Plan type');
+    if(!name||!name.trim()) return;
+    pmSaveModel(name.trim(),items);
+    // Rafraîchir le select
+    const sel=document.getElementById('pm_load_sel');
+    if(sel){
+      sel.innerHTML='<option value="">📂 Charger un modèle…</option>'+pmModels().map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('');
     }
-    const btn=document.getElementById('pm_save_btn');
-    btn.disabled=true;btn.textContent='Enregistrement…';
+    toast('Modèle "'+name.trim()+'" sauvegardé ✓','ok');
+  };
+  window.pmLoadModel=function(){
+    const name=document.getElementById('pm_load_sel').value;
+    if(!name) return;
+    const model=pmModels().find(m=>m.name===name);
+    if(!model) return;
+    if(!confirm('Charger le modèle "'+name+'" ? Les lignes actuelles seront remplacées.')) return;
+    const tbody=document.getElementById('pm_tbody');
+    tbody.innerHTML='';
+    model.items.forEach(item=>{
+      const idx='r'+Date.now()+Math.random().toString(36).slice(2,6);
+      const periOpts=periList.map(p=>`<option value="${p}"${item.periodicite===p?' selected':''}>${p.charAt(0).toUpperCase()+p.slice(1)}</option>`).join('')+'<option value="__autre__">Autre…</option>';
+      const tr=document.createElement('tr');
+      tr.id='pm_row_'+idx;
+      const isCustomType=item.type&&![...baseTypes].includes(item.type);
+      const allOpts=[...baseTypes,...(isCustomType?[item.type]:[])].map(t=>`<option value="${t}"${t===item.type?' selected':''}>${esc(t)}</option>`).join('')+'<option value="__autre__">— Autre (saisie libre) —</option>';
+      tr.innerHTML=`
+        <td>
+          <select id="pm_type_sel_${idx}" onchange="pmTypeChange(this,'${idx}')" style="width:100%">
+            <option value="">— choisir —</option>${allOpts}
+          </select>
+          <input id="pm_type_custom_${idx}" type="text" value="${esc(isCustomType?item.type:'')}" placeholder="Saisir le type…" style="display:${isCustomType?'block':'none'};margin-top:5px;width:100%">
+        </td>
+        <td><input id="pm_loc_${idx}" type="text" value="${esc(item.localisation||'')}" placeholder="Bâtiment A…" style="width:100%"></td>
+        <td>
+          <select id="pm_acteur_${idx}" style="width:100%">
+            <option value="">—</option>
+            ${['Exploitant','Mainteneur','Bureau de contrôle'].map(a=>`<option value="${a}"${item.acteur===a?' selected':''}>${a}</option>`).join('')}
+          </select>
+        </td>
+        <td>
+          <select id="pm_peri_sel_${idx}" onchange="pmPeriChange(this,'${idx}')" style="width:100%">
+            <option value="">—</option>${periOpts}
+          </select>
+          <input id="pm_peri_custom_${idx}" type="text" value="${esc((!periList.includes(item.periodicite)&&item.periodicite)?item.periodicite:'')}" placeholder="Ex: tous les 3 ans" style="display:${(!periList.includes(item.periodicite)&&item.periodicite)?'block':'none'};margin-top:5px;width:100%">
+        </td>
+        <td style="text-align:center"><input type="checkbox" id="pm_att_${idx}" ${item.attestation?'checked':''} style="width:18px;height:18px;cursor:pointer"></td>
+        <td><button class="btn sm danger" onclick="document.getElementById('pm_row_${idx}').remove()">🗑</button></td>`;
+      tbody.appendChild(tr);
+    });
+    toast('Modèle "'+name+'" chargé — '+model.items.length+' ligne(s)','ok');
+  };
+
+  // ── Sélection client / ERP ──
+  window.pmSelectClient=async function(){
+    const clientId=$('#pm_client').value;
+    const erpSel=$('#pm_erp');
+    if(!clientId){erpSel.innerHTML='<option value="">— Choisir d\'abord un client —</option>';document.getElementById('pm_erp_preview').innerHTML='';return;}
+    erpSel.innerHTML='<option value="">Chargement…</option>';
+    const {data:erps}=await sb.from('erps').select('id,nom,code_erp').eq('client_id',clientId).order('nom');
+    erpSel.innerHTML='<option value="">— Choisir un ERP —</option>'+(erps||[]).map(e=>`<option value="${e.id}">${esc(e.nom)} (${esc(e.code_erp)})</option>`).join('');
+  };
+
+  // ── Appliquer le plan à l'ERP ──
+  window.pmApply=async function(){
+    const erpId=$('#pm_erp').value;
+    if(!erpId){toast('Choisissez un ERP','err');return;}
+    const items=pmReadRows();
+    if(!items.length){toast('Ajoutez au moins une ligne au plan','err');return;}
+    // Vérifier lignes incomplètes
+    for(const i of items){ if(!i.type){toast('Complétez tous les types d\'équipement','err');return;} }
+    const btn=document.getElementById('pm_apply_btn');
+    btn.disabled=true;btn.textContent='Application en cours…';
     try{
-      // Équipements — créer les types absents avec periodicite + localisation
       const uniqueTypes=[...new Set(items.map(i=>i.type))];
-      const typeFirstItem={};
-      items.forEach(i=>{ if(!typeFirstItem[i.type]) typeFirstItem[i.type]=i; });
+      const typeFirst={};items.forEach(i=>{if(!typeFirst[i.type])typeFirst[i.type]=i;});
       const {data:existEq}=await sb.from('equipements').select('id,type,periodicite').eq('erp_id',erpId);
       const existMap=Object.fromEntries((existEq||[]).map(e=>[e.type,e]));
       const newEqTypes=uniqueTypes.filter(t=>!existMap[t]);
       if(newEqTypes.length){
         const {data:ins,error:eErr}=await sb.from('equipements').insert(
-          newEqTypes.map(t=>({
-            erp_id:erpId,
-            type:t,
-            periodicite:typeFirstItem[t].periodicite||null,
-            localisation:typeFirstItem[t].localisation||null,
-            acteur_suivi:typeFirstItem[t].acteur||null,
-          }))
+          newEqTypes.map(t=>({erp_id:erpId,type:t,periodicite:typeFirst[t].periodicite||null,localisation:typeFirst[t].localisation||null,acteur_suivi:typeFirst[t].acteur||null}))
         ).select('id,type');
         if(eErr) throw eErr;
-        (ins||[]).forEach(e=>{ existMap[e.type]={id:e.id,type:e.type}; });
+        (ins||[]).forEach(e=>{existMap[e.type]={id:e.id,type:e.type};});
       }
-      // Mettre à jour periodicite des équipements existants si elle était vide
+      // Mettre à jour periodicite des équipements existants si vide
       for(const type of uniqueTypes){
-        if(existMap[type] && !existMap[type].periodicite && typeFirstItem[type].periodicite){
-          await sb.from('equipements').update({
-            periodicite:typeFirstItem[type].periodicite,
-            localisation:typeFirstItem[type].localisation||null,
-          }).eq('id',existMap[type].id);
+        if(existMap[type]&&!existMap[type].periodicite&&typeFirst[type].periodicite){
+          await sb.from('equipements').update({periodicite:typeFirst[type].periodicite,localisation:typeFirst[type].localisation||null}).eq('id',existMap[type].id);
         }
       }
-      // Obligations — une par nouvelle ligne
-      const oblPayloads=items.map(i=>({
-        erp_id:erpId,
-        libelle:i.type+(i.acteur?' — '+i.acteur:''),
-        domaine:i.type,
-        periodicite:i.periodicite||null,
-        acteur:i.acteur||null,
+      const {error:oErr}=await sb.from('obligations').insert(items.map(i=>({
+        erp_id:erpId,libelle:i.type+(i.acteur?' — '+i.acteur:''),domaine:i.type,
+        periodicite:i.periodicite||null,acteur:i.acteur||null,
         preuve_attendue:i.attestation?'Attestation / rapport de vérification':null,
-        statut:'applicable',
-        criticite:'moyen',
-      }));
-      const {error:oErr}=await sb.from('obligations').insert(oblPayloads);
+        statut:'applicable',criticite:'moyen',
+      })));
       if(oErr) throw oErr;
-      toast(items.length+' vérification(s) enregistrée(s) ✓','ok');
-      btn.textContent='✅ Enregistré';
-      // Recharger les lignes existantes
-      await pmLoadErp(erpId);
-      setTimeout(()=>{btn.disabled=false;btn.textContent='💾 Valider le plan';},2500);
-    }catch(e){toast(e.message||'Erreur lors de l\'enregistrement','err');btn.disabled=false;btn.textContent='💾 Valider le plan';}
+      const erpNom=document.getElementById('pm_erp').options[document.getElementById('pm_erp').selectedIndex]?.text||'';
+      toast(items.length+' vérification(s) créée(s) pour '+erpNom+' ✓','ok');
+      document.getElementById('pm_apply_info').textContent=items.length+' vérifications créées le '+new Date().toLocaleDateString('fr-FR');
+      btn.textContent='✅ Appliqué';
+      setTimeout(()=>{btn.disabled=false;btn.textContent='✅ Créer les vérifications pour cet ERP';},3000);
+    }catch(e){toast(e.message||'Erreur','err');btn.disabled=false;btn.textContent='✅ Créer les vérifications pour cet ERP';}
   };
 }
 window.viewPlanMaintenance=viewPlanMaintenance;
