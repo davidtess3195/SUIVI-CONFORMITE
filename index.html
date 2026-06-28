@@ -2249,7 +2249,7 @@ async function viewDashboard(c){
     // ── Vérifications urgentes ──
     const verifUrgents = [
       ...aRepondre.map(i=>({level:'majeur',tag:'📩 Réponse reçue',label:i.objet||i.domaine||'—',id:i.id})),
-      ...sansRep.map(i=>({level:'critique',tag:'🔴 Sans réponse',label:i.objet||i.domaine||'—',id:i.id})),
+      ...sansRep.map(i=>({level:'critique',tag:'Sans réponse',label:i.objet||i.domaine||'—',id:i.id})),
     ].slice(0,8);
     if(window._dashVerifOpen===undefined) window._dashVerifOpen=true;
     const verifSection = verifUrgents.length ? `<div class="card" style="overflow:hidden;margin-top:16px"><div class="card-pad" style="padding:0">
@@ -7249,12 +7249,12 @@ function viewVerifications(content){
     <div class="page-head"><div class="t"><h1>🔧 Vérifications &amp; Relances</h1><p style="color:var(--muted);font-size:13.5px;margin-top:3px">Demandes prestataires · Confirmations · Relances automatiques</p></div><div class="actions"><button class="btn" onclick="verifRefresh()">↻ Actualiser</button></div></div>
     <div id="valert" class="valert" style="display:none"><span style="font-size:18px">⚠️</span><span id="valerttxt"></span></div>
     <div class="verif-tabs">
-      <button class="verif-tab active" data-tab="repondre" onclick="verifSetTab('repondre')">📩 À répondre <span class="vbadge" id="bvr">0</span></button>
-      <button class="verif-tab" data-tab="sans_reponse" onclick="verifSetTab('sans_reponse')">🔴 Sans réponse <span class="vbadge" id="bvs">0</span></button>
-      <button class="verif-tab" data-tab="a_programmer" onclick="verifSetTab('a_programmer')">📅 À programmer <span class="vbadge" id="bvap">0</span></button>
-      <button class="verif-tab" data-tab="programmee" onclick="verifSetTab('programmee')">✅ Programmées <span class="vbadge" id="bvp">0</span></button>
-      <button class="verif-tab" data-tab="obligations" onclick="verifSetTab('obligations')">📋 Obligations <span class="vbadge" id="bvobl">0</span></button>
-      <button class="verif-tab" data-tab="reglages" onclick="verifSetTab('reglages')">⚙️ Réglages</button>
+      <button class="verif-tab active" data-tab="repondre" onclick="verifSetTab('repondre')">À répondre <span class="vbadge" id="bvr">0</span></button>
+      <button class="verif-tab" data-tab="sans_reponse" onclick="verifSetTab('sans_reponse')">Sans réponse <span class="vbadge" id="bvs">0</span></button>
+      <button class="verif-tab" data-tab="a_programmer" onclick="verifSetTab('a_programmer')">À programmer <span class="vbadge" id="bvap">0</span></button>
+      <button class="verif-tab" data-tab="programmee" onclick="verifSetTab('programmee')">Programmées <span class="vbadge" id="bvp">0</span></button>
+      <button class="verif-tab" data-tab="obligations" onclick="verifSetTab('obligations')">Obligations <span class="vbadge" id="bvobl">0</span></button>
+      <button class="verif-tab" data-tab="reglages" onclick="verifSetTab('reglages')">Réglages</button>
     </div>
     <div id="vcontent"><div style="text-align:center;padding:32px;color:#94a3b8">Chargement…</div></div>`;
   async function vtok(){const {data}=await sb.auth.getSession();return data?.session?.access_token||ANON_KEY;}
