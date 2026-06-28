@@ -7653,6 +7653,17 @@ function viewVerifications(content){
       <button class="verif-tab" data-tab="obligations" onclick="verifSetTab('obligations')">Obligations <span class="vbadge" id="bvobl">0</span></button>
       <button class="verif-tab" data-tab="reglages" onclick="verifSetTab('reglages')">Réglages</button>
     </div>
+    <div id="vglobal_filters" style="display:none;margin-bottom:10px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <select id="vfilt_client" onchange="vFiltClientChange()" style="border:1px solid #cbd5e1;border-radius:6px;padding:6px 10px;font-size:13px;color:#1e293b">
+          <option value="">— Tous les clients —</option>
+        </select>
+        <select id="vfilt_erp" onchange="vFiltErpChange()" style="border:1px solid #cbd5e1;border-radius:6px;padding:6px 10px;font-size:13px;color:#1e293b">
+          <option value="">— Tous les ERP —</option>
+        </select>
+        <span id="vfilt_info" style="font-size:12px;color:#64748b"></span>
+      </div>
+    </div>
     <div id="vcontent"><div style="text-align:center;padding:32px;color:#94a3b8">Chargement…</div></div>`;
   async function vtok(){const {data}=await sb.auth.getSession();return data?.session?.access_token||ANON_KEY;}
   async function vapi(p){const tok=await vtok();return fetch(SUPA_URL+'/rest/v1/'+p,{headers:{apikey:ANON_KEY,'Authorization':'Bearer '+tok}}).then(r=>r.json());}
@@ -7681,13 +7692,21 @@ function viewVerifications(content){
     const mnb=document.getElementById('mob-badge-verif');if(mnb){mnb.textContent=tot;mnb.style.display=tot?'grid':'none';}
     const al=document.getElementById('valert'),alt=document.getElementById('valerttxt');
     if(al&&alt){if(tot>0){al.style.display='flex';alt.textContent=tot+' action(s) : '+(vd.repondre.length?vd.repondre.length+' réponse(s) prestataire':'')+((vd.repondre.length&&vd.sans_reponse.length)?' · ':'')+( vd.sans_reponse.length?vd.sans_reponse.length+' sans réponse':'');}else al.style.display='none';}
+    // Peuple la barre de filtres globale
+    const clients=(state?.clients||[]).slice().sort((a,b)=>(a.raison_sociale||'').localeCompare(b.raison_sociale||''));
+    const clientSel=document.getElementById('vfilt_client');
+    if(clientSel) clientSel.innerHTML='<option value="">— Tous les clients —</option>'+clients.map(c=>`<option value="${c.id}">${esc(c.raison_sociale)}</option>`).join('');
+    const gfilt=document.getElementById('vglobal_filters');
+    if(gfilt) gfilt.style.display='block';
   }
   function vrender(){
     const el=document.getElementById('vcontent');if(!el)return;
     if(vtab==='reglages'){el.innerHTML=vrsettings();return;}
     if(vtab==='obligations'){el.innerHTML=vrobligations();vRenderObligContent();return;}
-    const items=vd[vtab]||[];
-    if(!items.length){el.innerHTML='<div class="vempty">✓ Aucun élément</div>';return;}
+    let items=vd[vtab]||[];
+    if(vfiltErp) items=items.filter(i=>i.erp_id===vfiltErp);
+    else if(vfiltClient) items=items.filter(i=>(verp[i.erp_id]||{}).client_id===vfiltClient);
+    if(!items.length){el.innerHTML='<div class="vempty">✓ Aucun élément pour cette sélection</div>';return;}
     el.innerHTML=items.map(i=>vrcard(i,vtab)).join('');
   }
   function vrcard(i,tab){
@@ -7743,16 +7762,16 @@ function viewVerifications(content){
   window.vFiltClientChange=function(){
     vfiltClient=document.getElementById('vfilt_client')?.value||'';
     vfiltErp='';
-    // Rebuild ERP selector
     const erpSel=document.getElementById('vfilt_erp');
-    if(!erpSel) return;
-    const erps=Object.values(verp).filter(e=>!vfiltClient||e.client_id===vfiltClient).sort((a,b)=>(a.nom||'').localeCompare(b.nom||''));
-    erpSel.innerHTML='<option value="">— Tous les ERP —</option>'+erps.map(e=>`<option value="${e.id}">${esc(e.nom)}</option>`).join('');
-    vRenderObligContent();
+    if(erpSel){
+      const erps=Object.values(verp).filter(e=>!vfiltClient||e.client_id===vfiltClient).sort((a,b)=>(a.nom||'').localeCompare(b.nom||''));
+      erpSel.innerHTML='<option value="">— Tous les ERP —</option>'+erps.map(e=>`<option value="${e.id}">${esc(e.nom)}</option>`).join('');
+    }
+    vrender();
   };
   window.vFiltErpChange=function(){
     vfiltErp=document.getElementById('vfilt_erp')?.value||'';
-    vRenderObligContent();
+    vrender();
   };
   function vRenderObligContent(){
     const box=document.getElementById('vobl_list'); if(!box) return;
@@ -7763,8 +7782,6 @@ function viewVerifications(content){
       if(vfiltClient && erp.client_id!==vfiltClient) return false;
       return true;
     });
-    const cnt=document.getElementById('vobl_count');
-    if(cnt) cnt.textContent=filtered.length+' vérification(s)';
     if(!filtered.length){box.innerHTML='<div class="vempty">Aucune vérification pour cette sélection</div>';return;}
     box.innerHTML=filtered.map(o=>{
       const erp=verp[o.erp_id]||{};const pr=o.prestataires||{};
@@ -7814,21 +7831,7 @@ function viewVerifications(content){
     }).join('');
   }
   function vrobligations(){
-    const obls=vd.obligations||[];
-    const clients=(state?.clients||[]).slice().sort((a,b)=>(a.raison_sociale||'').localeCompare(b.raison_sociale||''));
-    const clientOpts=clients.map(c=>`<option value="${c.id}">${esc(c.raison_sociale)}</option>`).join('');
-    const erpsForClient=Object.values(verp).filter(e=>!vfiltClient||e.client_id===vfiltClient).sort((a,b)=>(a.nom||'').localeCompare(b.nom||''));
-    const erpOpts=erpsForClient.map(e=>`<option value="${e.id}"${vfiltErp===e.id?' selected':''}>${esc(e.nom)}</option>`).join('');
-    return `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
-      <select id="vfilt_client" onchange="vFiltClientChange()" style="border:1px solid #cbd5e1;border-radius:6px;padding:6px 10px;font-size:13px;color:#1e293b">
-        <option value="">— Tous les clients —</option>${clientOpts}
-      </select>
-      <select id="vfilt_erp" onchange="vFiltErpChange()" style="border:1px solid #cbd5e1;border-radius:6px;padding:6px 10px;font-size:13px;color:#1e293b">
-        <option value="">— Tous les ERP —</option>${erpOpts}
-      </select>
-      <span id="vobl_count" style="font-size:13px;color:#64748b">${obls.length} vérification(s)</span>
-    </div>
-    <div id="vobl_list"></div>`;
+    return `<div id="vobl_list"></div>`;
   }
 
   window.verifUpdatePeriodicite=async function(oblId,val){
