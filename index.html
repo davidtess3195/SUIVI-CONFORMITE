@@ -3491,7 +3491,7 @@ async function formEquip(erpId, eq){
   const customTypes=[...new Set((existingEquips||[]).map(e=>e.type).filter(t=>t&&!baseTypes.includes(t)))].sort();
   const allTypes=[...baseTypes,...customTypes];
   let types=(eq.type&&!allTypes.includes(eq.type))?[eq.type,...allTypes]:allTypes;
-  const pers=['','mensuelle','trimestrielle','semestrielle','annuelle','3 ans','5 ans'];
+  const pers=['','journalière','hebdomadaire','mensuelle','bimestrielle','trimestrielle','semestrielle','annuelle','biannuelle','triennale','quinquennale','décennale'];
   const acteurs=['','Mainteneur','Bureau de contrôle','Exploitant','Consultant'];
   openModal(`<div class="modal-head"><h2>${editing?'Modifier':'Ajouter'} un équipement</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
   <div class="modal-body">
@@ -6531,7 +6531,7 @@ let _prestOnglet='prestataire';
 ===================================================================== */
 async function viewPlanMaintenance(c){
   const PM_BASE=['Appareils de cuisson','Ascenseur','BAES / éclairage de sécurité','Clapet coupe-feu','Désenfumage mécanique','Désenfumage naturel','Extincteur','Parking','Porte coupe-feu','RIA','Sprinklers','SSI / centrale incendie','Thermographie électrique'];
-  const periList=['mensuelle','trimestrielle','semestrielle','annuelle','biannuelle','quinquennale'];
+  const periList=['journalière','hebdomadaire','mensuelle','bimestrielle','trimestrielle','semestrielle','annuelle','biannuelle','triennale','quinquennale','décennale'];
   // Bibliothèque persistante en localStorage
   const pmLibLoad=()=>{ try{ return JSON.parse(localStorage.getItem('pm_library')||'[]'); }catch(_){ return []; } };
   const pmLibSave=()=>{ localStorage.setItem('pm_library',JSON.stringify(window._pmItems)); };
