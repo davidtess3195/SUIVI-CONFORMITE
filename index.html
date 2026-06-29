@@ -3867,25 +3867,25 @@ function interTable(rows){
   const erpName=id=>state.erps.find(e=>e.id===id)?.nom||'';
   const typeColor={preventive:'#2563eb',corrective:'#dc2626',travaux:'#f59e0b',visite:'#16a34a',commission_securite:'#9333ea'};
   const typeLabel={preventive:'Préventive',corrective:'Corrective',travaux:'Travaux',visite:'Visite',commission_securite:'Commission de sécurité'};
-  return `<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:12px">
-    ${rows.map(i=>{ const dot=typeColor[i.type]||'#64748b';
+  return `<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:14px">
+    ${rows.map(i=>{ const dot=typeColor[i.type]||'#94a3b8';
       const data=JSON.stringify(i).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-      return `<div class="card" style="display:flex;flex-direction:column;padding:0;overflow:hidden;cursor:pointer" onclick="formInter(null,${data})">
-        <div style="padding:12px 14px;display:flex;flex-direction:column;gap:8px">
+      return `<div style="display:flex;flex-direction:column;border-radius:14px;border:1px solid var(--line);background:var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.05);cursor:pointer;overflow:hidden;transition:box-shadow .15s,transform .15s" onmouseenter="this.style.boxShadow='0 6px 20px rgba(0,0,0,.1)';this.style.transform='translateY(-1px)'" onmouseleave="this.style.boxShadow='0 1px 4px rgba(0,0,0,.05)';this.style.transform=''" onclick="formInter(null,${data})">
+        <div style="height:4px;background:${dot};width:100%"></div>
+        <div style="padding:15px 16px;display:flex;flex-direction:column;gap:10px;flex:1">
           <div style="display:flex;align-items:center;gap:8px">
-            <span style="width:9px;height:9px;border-radius:50%;background:${dot};flex:0 0 auto"></span>
-            <span style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.3px">${esc(typeLabel[i.type]||i.type||'—')}</span>
+            <span style="font-size:10.5px;font-weight:700;color:${dot};background:${dot}18;padding:3px 10px;border-radius:20px;letter-spacing:.04em;text-transform:uppercase">${esc(typeLabel[i.type]||i.type||'—')}</span>
             ${i.code_int?`<span class="mono" style="font-size:11px;color:var(--muted-2);margin-left:auto">${esc(i.code_int)}</span>`:''}
           </div>
-          <div style="font-size:14px;font-weight:700;color:var(--ink);overflow-wrap:anywhere;word-break:break-word">${esc(i.objet||i.domaine||'—')}</div>
-          <div style="display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted)">
-            ${erpName(i.erp_id)?`<div style="display:flex;gap:7px;min-width:0"><span style="flex:0 0 auto">🏢</span><span style="color:var(--ink);overflow-wrap:anywhere;word-break:break-word">${esc(erpName(i.erp_id))}</span></div>`:''}
-            <div style="display:flex;gap:7px"><span style="flex:0 0 auto">📅</span><span style="color:var(--ink)">${fmtDate(i.date_prevue)||'—'}</span></div>
+          <div style="font-size:14.5px;font-weight:700;color:var(--ink);line-height:1.35;overflow-wrap:anywhere;word-break:break-word">${esc(i.objet||i.domaine||'—')}</div>
+          <div style="display:flex;flex-direction:column;gap:3px">
+            ${erpName(i.erp_id)?`<div style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(erpName(i.erp_id))}</div>`:''}
+            <div style="font-size:12px;color:var(--muted)">${fmtDate(i.date_prevue)||'—'}</div>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px">
-            ${statusPill(i.statut,ITST)}
-            <button class="btn sm" style="margin-left:auto" title="Voir le tableau de bord du client" onclick="event.stopPropagation();gotoClientDashboard('${i.erp_id}','${esc(i.date_prevue||'')}')">Tableau de bord</button>
-          </div>
+        </div>
+        <div style="padding:10px 16px 13px;display:flex;align-items:center;gap:8px;border-top:1px solid var(--line-2)">
+          ${statusPill(i.statut,ITST)}
+          <button class="btn sm" style="margin-left:auto;font-size:12px" title="Tableau de bord" onclick="event.stopPropagation();gotoClientDashboard('${i.erp_id}','${esc(i.date_prevue||'')}')">Tableau de bord</button>
         </div>
       </div>`;
     }).join('')}
