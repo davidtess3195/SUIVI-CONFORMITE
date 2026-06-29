@@ -460,6 +460,27 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   table.tbl td:empty{display:none}
   table.tbl td .btn{flex:0 0 auto}
 }
+
+@media(max-width:480px){
+  .overlay{padding:6px}
+  .modal-head{padding:14px 14px 0}
+  .modal-body{padding:12px 14px 16px}
+  .modal-foot{padding:10px 14px;gap:8px}
+  .modal-head h2{font-size:15px}
+  .row2,.row3{grid-template-columns:1fr}
+  .urg-grid{grid-template-columns:1fr}
+  .content{padding:10px}
+  .topbar{padding:8px 10px;gap:7px}
+  h1{font-size:19px}
+  .btn{font-size:13px;padding:8px 12px}
+  .btn.sm{padding:5px 9px;font-size:12px}
+  .page-head .t h1{font-size:19px}
+  .kpis{grid-template-columns:1fr 1fr}
+  .modal-head .x{width:36px;height:36px}
+  .wiz-box{border-radius:14px}
+  .wiz-body{padding:14px 14px}
+  .wiz-foot{padding:12px 14px}
+}
 .ged-grid{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
 .ctr-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .ctr-card .ctr-head{display:flex;align-items:center;gap:9px;padding:14px 16px;border-bottom:1px solid var(--line-2)}
@@ -1347,7 +1368,7 @@ async function viewAdmin(c){
     <!-- KPIs -->
     <div class="kpis">${kpis.map(kpiCard).join('')}</div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:16px">
       <!-- Utilisateurs -->
       <div class="card card-pad">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
@@ -1388,7 +1409,7 @@ async function viewAdmin(c){
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
       <!-- Stats interventions -->
       <div class="card card-pad">
         <h2 style="font-size:16px;margin:0 0 14px">Interventions par statut</h2>
@@ -1789,7 +1810,7 @@ function getStepContent(){
         <h2 style="font-size:20px;margin-bottom:6px">Comment va travailler cet utilisateur ?</h2>
         <p style="color:var(--muted);font-size:14px;line-height:1.6">Choisissez le mode qui correspond à son utilisation. Cela définira ses accès et la façon dont l'application s'adapte à lui.</p>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:22px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:22px">
         <div class="mode-card${WIZ.data.mode==='accompagne'?' selected':''}" onclick="selectMode('accompagne')">
           <div class="ic" style="background:#eff4ff">🤝</div>
           <h3>Avec l'équipe</h3>
@@ -2580,8 +2601,8 @@ async function formClient(cl){
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <input class="c-email" value="${esc(d.email)}" placeholder="Email" style="flex:1;min-width:160px">
-        <input class="c-tel" value="${esc(d.telephone)}" placeholder="Téléphone" style="width:140px">
-        <input class="c-mobile" value="${esc(d.mobile)}" placeholder="Mobile" style="width:140px">
+        <input class="c-tel" value="${esc(d.telephone)}" placeholder="Téléphone" style="flex:1;min-width:120px">
+        <input class="c-mobile" value="${esc(d.mobile)}" placeholder="Mobile" style="flex:1;min-width:120px">
         <button class="btn sm danger c-del" type="button" title="Retirer ce contact">🗑</button>
       </div>`;
     row.querySelector('.c-del').onclick=()=>row.remove();
@@ -7267,7 +7288,7 @@ function formPrest(p){
     <!-- Catégorie -->
     <div class="fld" style="margin-bottom:18px">
       <label style="font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Catégorie <span class="req">*</span></label>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:8px">
         <label id="cat-bdc" style="border:2px solid ${cat==='bureau_de_controle'?'var(--primary)':'var(--line)'};background:${cat==='bureau_de_controle'?'#eff4ff':'var(--surface)'};border-radius:12px;padding:16px;cursor:pointer;transition:.15s;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center">
           <input type="radio" name="f_cat" value="bureau_de_controle"${cat==='bureau_de_controle'?' checked':''} style="position:absolute;opacity:0;pointer-events:none" onchange="switchPrestCat('bureau_de_controle')">
           <span style="font-size:36px;line-height:1;margin-bottom:4px">🔬</span>
@@ -7382,7 +7403,7 @@ function formPrest(p){
     <!-- Contrats -->
     <div style="margin-top:6px">
       <div style="font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Documents contractuels</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:14px">
 
         <!-- Contrat -->
         <div style="border:1.5px solid var(--line);border-radius:12px;padding:14px;transition:.15s" id="zone-contrat">
@@ -7923,7 +7944,7 @@ function viewVerifications(content){
   const EDGE=SUPA_URL+'/functions/v1';
   if(!document.getElementById('vstyle')){
     const s=document.createElement('style');s.id='vstyle';
-    s.textContent='.verif-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}.verif-tab{padding:7px 15px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:#f1f5f9;color:#475569;transition:.15s}.verif-tab:hover{background:#e2e8f0}.verif-tab.active[data-tab=repondre]{background:#f97316;color:#fff}.verif-tab.active[data-tab=sans_reponse]{background:#ef4444;color:#fff}.verif-tab.active[data-tab=a_programmer]{background:#6366f1;color:#fff}.verif-tab.active[data-tab=programmee]{background:#22c55e;color:#fff}.verif-tab.active[data-tab=reglages]{background:#64748b;color:#fff}.verif-tab.active[data-tab=obligations]{background:#0891b2;color:#fff}.vbadge{background:rgba(0,0,0,.18);border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px}.vcard{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)}.vcardtitle{font-weight:600;color:#1e293b;font-size:14px}.vcardsub{color:#64748b;font-size:12px;margin-top:2px}.vcardmeta{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.vpill{background:#f1f5f9;color:#475569;border-radius:12px;padding:2px 9px;font-size:11px;font-weight:500}.vpill.red{background:#fee2e2;color:#dc2626}.vpill.orange{background:#ffedd5;color:#ea580c}.vpill.green{background:#dcfce7;color:#16a34a}.vpill.blue{background:#dbeafe;color:#2563eb}.vreply{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-top:10px;font-size:12px;color:#475569;font-family:monospace;white-space:pre-wrap;max-height:80px;overflow-y:auto}.vactions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}.vbtn{padding:6px 14px;border-radius:6px;font-size:13px;font-weight:600;border:none;cursor:pointer;transition:opacity .15s}.vbtn:hover{opacity:.85}.vbtn.g{background:#22c55e;color:#fff}.vbtn.o{background:#f97316;color:#fff}.vbtn.r{background:#ef4444;color:#fff}.vbtn.b{background:#3b82f6;color:#fff}.vbtn.p{background:#8b5cf6;color:#fff}.vbtn.s{background:#94a3b8;color:#fff}.vempty{text-align:center;padding:32px;color:#94a3b8;font-size:14px}.valert{display:flex;align-items:center;gap:12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#991b1b}.vsettings{display:grid;grid-template-columns:1fr 1fr;gap:14px}.vsgrp{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px}.vsgrp label{display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px}.vsgrp input{width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:6px 8px;font-size:13px;color:#1e293b;box-sizing:border-box}.vtog{width:44px;height:24px;background:#e2e8f0;border-radius:12px;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;display:inline-block}.vtog.on{background:#22c55e}.vtog::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:transform .2s}.vtog.on::after{transform:translateX(20px)}.vdinput{border:1px solid #cbd5e1;border-radius:6px;padding:5px 8px;font-size:13px;color:#1e293b}';
+    s.textContent='.verif-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}.verif-tab{padding:7px 15px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:#f1f5f9;color:#475569;transition:.15s}.verif-tab:hover{background:#e2e8f0}.verif-tab.active[data-tab=repondre]{background:#f97316;color:#fff}.verif-tab.active[data-tab=sans_reponse]{background:#ef4444;color:#fff}.verif-tab.active[data-tab=a_programmer]{background:#6366f1;color:#fff}.verif-tab.active[data-tab=programmee]{background:#22c55e;color:#fff}.verif-tab.active[data-tab=reglages]{background:#64748b;color:#fff}.verif-tab.active[data-tab=obligations]{background:#0891b2;color:#fff}.vbadge{background:rgba(0,0,0,.18);border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px}.vcard{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)}.vcardtitle{font-weight:600;color:#1e293b;font-size:14px}.vcardsub{color:#64748b;font-size:12px;margin-top:2px}.vcardmeta{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.vpill{background:#f1f5f9;color:#475569;border-radius:12px;padding:2px 9px;font-size:11px;font-weight:500}.vpill.red{background:#fee2e2;color:#dc2626}.vpill.orange{background:#ffedd5;color:#ea580c}.vpill.green{background:#dcfce7;color:#16a34a}.vpill.blue{background:#dbeafe;color:#2563eb}.vreply{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-top:10px;font-size:12px;color:#475569;font-family:monospace;white-space:pre-wrap;max-height:80px;overflow-y:auto}.vactions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}.vbtn{padding:6px 14px;border-radius:6px;font-size:13px;font-weight:600;border:none;cursor:pointer;transition:opacity .15s}.vbtn:hover{opacity:.85}.vbtn.g{background:#22c55e;color:#fff}.vbtn.o{background:#f97316;color:#fff}.vbtn.r{background:#ef4444;color:#fff}.vbtn.b{background:#3b82f6;color:#fff}.vbtn.p{background:#8b5cf6;color:#fff}.vbtn.s{background:#94a3b8;color:#fff}.vempty{text-align:center;padding:32px;color:#94a3b8;font-size:14px}.valert{display:flex;align-items:center;gap:12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#991b1b}.vsettings{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:640px){.vsettings{grid-template-columns:1fr}}.vsgrp{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px}.vsgrp label{display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px}.vsgrp input{width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:6px 8px;font-size:13px;color:#1e293b;box-sizing:border-box}.vtog{width:44px;height:24px;background:#e2e8f0;border-radius:12px;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;display:inline-block}.vtog.on{background:#22c55e}.vtog::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:transform .2s}.vtog.on::after{transform:translateX(20px)}.vdinput{border:1px solid #cbd5e1;border-radius:6px;padding:5px 8px;font-size:13px;color:#1e293b}';
     document.head.appendChild(s);
   }
   let vtab='repondre',vd={repondre:[],sans_reponse:[],a_programmer:[],programmee:[]},vcfg={},verp={},vpr={};
