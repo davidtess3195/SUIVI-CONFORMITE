@@ -5210,7 +5210,7 @@ async function viewCompteRendu(c){
         <div class="fld"><label>Destinataire</label>
           <div id="cr_dest_box" style="border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--surface-2);font-size:13px;color:var(--muted)">Le client sélectionné ci-dessus sera le destinataire.</div></div>
         <div class="row2">
-          <div class="fld"><label>Civilité</label><select id="cr_civ" style="${ist}"><option value="">—</option><option>Monsieur</option><option>Madame</option><option>Madame, Monsieur</option></select></div>
+          <div class="fld"><label>Civilité</label><select id="cr_civ" style="${ist}" onchange="crUpdatePolitesse()"><option value="">—</option><option>Monsieur</option><option>Madame</option><option>Madame, Monsieur</option></select></div>
           <div class="fld"><label>À l'attention de (contact)</label><select id="cr_contact" style="${ist}" onchange="crContactChange()"><option value="">— (optionnel) —</option></select></div>
         </div>
         <input id="cr_attn_free" placeholder="Saisir un nom et prénom…" autocomplete="off" style="${ist};margin-top:8px;display:none">
@@ -5278,6 +5278,12 @@ window.crOnClient=async function(){
 window.crContactChange=function(){
   const cv=$('#cr_contact')?.value; const free=document.getElementById('cr_attn_free');
   if(free) free.style.display = (cv==='__autre__')?'block':'none';
+};
+window.crUpdatePolitesse=function(){
+  const civ=$('#cr_civ')?.value||'';
+  const pol=document.getElementById('cr_pol'); if(!pol) return;
+  const salut=civ==='Monsieur'?'Monsieur':civ==='Madame'?'Madame':'Madame, Monsieur';
+  pol.value=`Je vous prie d'agréer, ${salut}, l'expression de mes salutations distinguées.`;
 };
 window.crAddPhotos=async function(files){
   for(const f of files){
