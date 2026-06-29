@@ -3993,7 +3993,7 @@ async function formInter(erpId,it){
     const erpId2=$('#f_erp').value;
     const erpObj=(window._interErpList||[]).find(x=>x.id===erpId2)||{};
     const erpNom=erpObj.nom||erpId2;
-    const erpAdresse=erpObj.adresse||'';
+    const erpAdresse=[erpObj.adresse,erpObj.code_postal&&erpObj.ville?erpObj.code_postal+' '+erpObj.ville:erpObj.code_postal||erpObj.ville].filter(Boolean).join(', ');
     const typeInter=$('#f_type').value;
     const domSel2=$('#f_dom_sel')?.value;
     const domaineInter=domSel2==='__autre__'?($('#f_dom')?.value.trim()||''):domSel2;
