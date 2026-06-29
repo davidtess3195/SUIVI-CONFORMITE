@@ -8158,4 +8158,43 @@ function viewVerifications(content){
     toast('RDV confirmé — mail envoyé','ok');await verifRefresh();
   };
   window.verifReporter=async function(id){await vpatch('interventions',id,{reponse_a_traiter:false,statut:'a_reprogrammer'});toast('Reporté','ok');await verifRefresh();};
-  window.verifRelancerManuel=async function(i
+  window.verifRelancerManuel=async function(id,em){
+    if(!em){toast('Email manquant','err');return;}
+    if(!confirm('Relancer '+em+' ?'))return;
+    const i=vd.sans_reponse.find(x=>x.id===id)||{},e=verp[i.erp_id]||{};
+    await vedge('send-client-email',{to:[em],subject:'Relance '+(e.nom||'?')+' [VERIF-'+(i.ref_token||'?')+'] ?',html:'<p>Bonjour,</p><p>Nous vous contactons pour la vérification de '+(i.objet||i.domaine||'?')+'. Merci de la confirmer car votre disponibilité.</p><p>Cordialement,<br><strong>PREVA Conseils</strong></p>'});
+    await vpatch('interventions',id,{nb_relances:(i.nb_relances||0)+1});
+    toast('Relance envoyée','ok');await verifRefresh();
+  };
+  window.verifProgrammerTel=async function(id){
+    const d=prompt('Date (JJ/MM/AAAA) :');if(!d)return;
+    const p=d.split('/');const iso=p.length===3?p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0'):null;
+    if(!iso){toast('Format invalide','err');return;}
+    await vpatch('interventions',id,{statut:'programmee',date_prevue:iso,reponse_a_traiter:false,commentaire:'Programmé par téléphone'});
+    toast('Programmé','ok');await verifRefresh();
+  };
+  window.verifRealise=async function(id,oblId){
+    if(!confirm('Marquer comme réalisée ?'))return;
+    await vpatch('interventions',id,{statut:'realisee'});
+    if(oblId){const obl=await vapi('obligations?select=periodicite&id=eq.'+oblId).then(a=>a[0]);
+      if(obl?.periodicite){const m=ptom(obl.periodicite);if(m){const nd=new Date();nd.setMonth(nd.getMonth()+m);const ni=nd.toISOString().slice(0,10);
+        const tok2=await vtok();await fetch(SUPA_URL+'/rest/v1/obligations?id=eq.'+oblId,{method:'PATCH',headers:{apikey:ANON_KEY,'Authorization':'Bearer '+tok2,'Content-Type':'application/json'},body:JSON.stringify({derniere_verif:new Date().toISOString().slice(0,10),prochaine_echeance:ni})});
+      }}
+    }
+    toast('Réalisée ✓','ok');await verifRefresh();
+  };
+  window.verifNonRealise=async function(id){
+    const r=prompt('Raison :')||'Non précisée';
+    await vpatch('interventions',id,{statut:'a_reprogrammer',motif_annulation:r,reponse_a_traiter:false});
+    toast('Non réalisé','ok');await verifRefresh();
+  };
+  verifRefresh();
+}
+
+/* =====================================================================
+   START
+===================================================================== */
+boot();
+</script>
+</body>
+</html>
