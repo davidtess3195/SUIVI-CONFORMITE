@@ -4023,12 +4023,13 @@ async function formInter(erpId,it){
         style="margin-top:6px;width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:7px 10px;font-size:13px;box-sizing:border-box;color:#1e293b"></div>
     </label>`;
     // ── Étape 2 : aperçu + commentaire ──
-    const previewRows=(com)=>`
+    const previewRows=(com, contactStr='')=>`
       <tr><td style="padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:12px;font-weight:600;color:#475569;width:38%">ERP</td><td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;color:#1e293b">${esc(erpNom)}</td></tr>
       ${erpAdresse?`<tr><td style="padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:12px;font-weight:600;color:#475569">Adresse</td><td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;color:#1e293b">${esc(erpAdresse)}</td></tr>`:''}
       <tr><td style="padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:12px;font-weight:600;color:#475569">Type</td><td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;color:#1e293b">${esc(typeLabel)}</td></tr>
       ${domaineInter?`<tr><td style="padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:12px;font-weight:600;color:#475569">Domaine</td><td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;color:#1e293b">${esc(domaineInter)}</td></tr>`:''}
       <tr><td style="padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:12px;font-weight:600;color:#475569">Date</td><td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;color:#1e293b">${esc(dateStr)}</td></tr>
+      ${contactStr?`<tr><td style="padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:12px;font-weight:600;color:#475569">Contact sur place</td><td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;color:#1e293b">${esc(contactStr)}</td></tr>`:''}
       ${com?`<tr><td style="padding:7px 10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:12px;font-weight:600;color:#475569;vertical-align:top">Commentaire</td><td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;color:#1e293b;white-space:pre-line">${esc(com)}</td></tr>`:''}`;
     selOverlay=document.createElement('div');
     selOverlay.id='email_sel_overlay';
@@ -4068,6 +4069,13 @@ async function formInter(erpId,it){
               <p style="margin:0;font-size:11px;color:#475569">Merci de nous confirmer votre disponibilité.<br><b>PREVA Conseils</b></p>
             </div>
           </div>
+          <!-- Contact sur place -->
+          <div style="margin-bottom:14px">
+            <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px">Contact sur place <span style="font-weight:400;color:#94a3b8">(optionnel)</span></label>
+            <select id="esel_contact" style="width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:7px 10px;font-size:13px;color:#1e293b;background:#fff">
+              <option value="">— aucun —</option>
+            </select>
+          </div>
           <!-- Commentaire modifiable -->
           <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px">Commentaire <span style="font-weight:400;color:#94a3b8">(optionnel — modifiable)</span></label>
           <textarea id="esel_comment" rows="3" placeholder="Ajouter un commentaire…" onkeydown="event.stopPropagation()"
@@ -4090,6 +4098,32 @@ async function formInter(erpId,it){
       document.getElementById('esel_step2').style.display='block';
       document.getElementById('esel_title').textContent='Aperçu et commentaire';
       document.getElementById('esel_to_label').querySelector('b').textContent=emailTo;
+      // Fetch client contacts for this ERP
+      const erpObj2=(window._interErpList||[]).find(x=>x.id===erpId2)||{};
+      if(erpObj2.client_id){
+        sb.from('client_contacts').select('*').eq('client_id',erpObj2.client_id).order('nom').then(({data:cts})=>{
+          const sel=document.getElementById('esel_contact');
+          if(sel && cts && cts.length>0){
+            cts.forEach(c=>{
+              const nom=[c.prenom,c.nom].filter(Boolean).join(' ')||(c.fonction||'Contact');
+              const tel=c.telephone||c.mobile||'';
+              const opt=document.createElement('option');
+              opt.value=c.id;
+              opt.dataset.nom=nom;
+              opt.dataset.tel=tel;
+              opt.textContent=nom+(tel?' — '+tel:'');
+              sel.appendChild(opt);
+            });
+            sel.onchange=()=>{
+              const o=sel.options[sel.selectedIndex];
+              const contactStr=sel.value?o.textContent:'';
+              const ta=document.getElementById('esel_comment');
+              const tbl=document.getElementById('esel_preview_table');
+              if(tbl) tbl.innerHTML=previewRows(ta?ta.value:'', contactStr);
+            };
+          }
+        });
+      }
     };
     // Retour
     document.getElementById('esel_back').onclick=()=>{
@@ -4102,6 +4136,12 @@ async function formInter(erpId,it){
       const chosen=document.querySelector('[name=email_sel]:checked')?.value||'';
       const emailTo=chosen==='__autre__'?(document.getElementById('email_sel_custom')?.value.trim()||''):chosen;
       const finalComment=document.getElementById('esel_comment')?.value||'';
+      const eselContactSel=document.getElementById('esel_contact');
+      let contactSurPlace='';
+      if(eselContactSel && eselContactSel.value){
+        const selOpt=eselContactSel.options[eselContactSel.selectedIndex];
+        contactSurPlace=selOpt.textContent||'';
+      }
       selOverlay.remove();
       const html=`<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">
         <div style="background:#1e3a5f;padding:20px 24px;border-radius:8px 8px 0 0">
@@ -4113,6 +4153,7 @@ async function formInter(erpId,it){
           <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
             <tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;width:40%;color:#475569">ERP</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(erpNom)}</td></tr>
             ${erpAdresse?`<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Adresse</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(erpAdresse)}</td></tr>`:''}
+            ${contactSurPlace?`<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Contact sur place</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(contactSurPlace)}</td></tr>`:''}
             <tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Type</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(typeLabel)}</td></tr>
             ${domaineInter?`<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Domaine / spécialité</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(domaineInter)}</td></tr>`:''}
             <tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Date souhaitée</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(dateStr)}</td></tr>
@@ -8117,43 +8158,4 @@ function viewVerifications(content){
     toast('RDV confirmé — mail envoyé','ok');await verifRefresh();
   };
   window.verifReporter=async function(id){await vpatch('interventions',id,{reponse_a_traiter:false,statut:'a_reprogrammer'});toast('Reporté','ok');await verifRefresh();};
-  window.verifRelancerManuel=async function(id,em){
-    if(!em){toast('Email manquant','err');return;}
-    if(!confirm('Relancer '+em+' ?'))return;
-    const i=vd.sans_reponse.find(x=>x.id===id)||{},e=verp[i.erp_id]||{};
-    await vedge('send-client-email',{to:[em],subject:'Relance — '+(e.nom||'')+' [VERIF-'+(i.ref_token||'')+']',html:'<p>Bonjour,</p><p>Nous attendons toujours une date pour <strong>'+(i.objet||'')+'</strong>. Merci de nous répondre rapidement.</p><p>Cordialement,<br>PREVA CONSEILS</p>',replyTo:'rapports@conformite-securite.fr'});
-    await vpatch('interventions',id,{nb_relances:(i.nb_relances||0)+1});
-    toast('Relance envoyée','ok');await verifRefresh();
-  };
-  window.verifProgrammerTel=async function(id){
-    const d=prompt('Date (JJ/MM/AAAA) :');if(!d)return;
-    const p=d.split('/');const iso=p.length===3?p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0'):null;
-    if(!iso){toast('Format invalide','err');return;}
-    await vpatch('interventions',id,{statut:'programmee',date_prevue:iso,reponse_a_traiter:false,commentaire:'Programmé par téléphone'});
-    toast('Programmé','ok');await verifRefresh();
-  };
-  window.verifRealise=async function(id,oblId){
-    if(!confirm('Marquer comme réalisée ?'))return;
-    await vpatch('interventions',id,{statut:'realisee'});
-    if(oblId){const obl=await vapi('obligations?select=periodicite&id=eq.'+oblId).then(a=>a[0]);
-      if(obl?.periodicite){const m=ptom(obl.periodicite);if(m){const nd=new Date();nd.setMonth(nd.getMonth()+m);const ni=nd.toISOString().slice(0,10);
-        const tok2=await vtok();await fetch(SUPA_URL+'/rest/v1/obligations?id=eq.'+oblId,{method:'PATCH',headers:{apikey:ANON_KEY,'Authorization':'Bearer '+tok2,'Content-Type':'application/json'},body:JSON.stringify({derniere_verif:new Date().toISOString().slice(0,10),prochaine_echeance:ni})});
-      }}
-    }
-    toast('Réalisée ✓','ok');await verifRefresh();
-  };
-  window.verifNonRealise=async function(id){
-    const r=prompt('Raison :')||'Non précisée';
-    await vpatch('interventions',id,{statut:'a_reprogrammer',motif_annulation:r,reponse_a_traiter:false});
-    toast('Non réalisé','ok');await verifRefresh();
-  };
-  verifRefresh();
-}
-
-/* =====================================================================
-   START
-===================================================================== */
-boot();
-</script>
-</body>
-</html>
+  window.verifRelancerManuel=async function(i
