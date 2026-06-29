@@ -5221,7 +5221,7 @@ async function viewCompteRendu(c){
         <div class="fld"><textarea id="cr_obs" rows="12" placeholder="Décrivez le constat, les travaux réalisés, les anomalies, les recommandations…" style="${ist};min-height:240px;resize:vertical;font-family:inherit;font-size:14px;line-height:1.55"></textarea>
           <div style="font-size:11.5px;color:var(--muted-2);margin-top:4px">Laissez vide pour un texte d'introduction automatique.</div></div>
         <div class="fld"><label>Formule de politesse <span style="color:var(--muted-2);font-weight:400;font-size:11px">(en fin de courrier)</span></label>
-          <input id="cr_pol" style="${ist}" value="Je vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées."></div>
+          <input id="cr_pol" style="${ist}" placeholder="Sélectionnez une civilité ci-dessus…"></div>
       </div></div>
 
       <div class="card"><div class="card-pad">
@@ -5250,7 +5250,7 @@ async function viewCompteRendu(c){
         <button class="btn primary" id="cr_go" onclick="crGenerate()">📄 Générer le compte rendu (PDF)</button>
       </div>
     </div>`;
-  renderReportAttList(); renderReportDestChips(); crRenderPhotos();
+  renderReportAttList(); renderReportDestChips(); crRenderPhotos(); crUpdatePolitesse();
 }
 window.viewCompteRendu=viewCompteRendu;
 
@@ -5282,6 +5282,7 @@ window.crContactChange=function(){
 window.crUpdatePolitesse=function(){
   const civ=$('#cr_civ')?.value||'';
   const pol=document.getElementById('cr_pol'); if(!pol) return;
+  if(!civ){pol.value='';return;}
   const salut=civ==='Monsieur'?'Monsieur':civ==='Madame'?'Madame':'Madame, Monsieur';
   pol.value=`Je vous prie d'agréer, ${salut}, l'expression de mes salutations distinguées.`;
 };
