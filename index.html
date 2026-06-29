@@ -708,7 +708,7 @@ async function afterLogin(){
 async function loadScope(){
   const { data:cl } = await sb.from('clients').select('id,code_client,raison_sociale,statut').order('raison_sociale');
   state.clients = cl||[];
-  const { data:er } = await sb.from('erps').select('id,code_erp,nom,client_id,statut,qr_token,adresse').order('nom');
+  const { data:er } = await sb.from('erps').select('id,code_erp,nom,client_id,statut,qr_token,adresse,ville,code_postal').order('nom');
   state.erps = er||[];
 }
 
@@ -2645,7 +2645,10 @@ window.editContact=async function(ct, clientId){
       if(ct.id){ const {error}=await sb.from('client_contacts').update(upd).eq('id',ct.id); if(error) throw error; }
       else { upd.client_id=clientId; const {error}=await sb.from('client_contacts').insert(upd); if(error) throw error; }
       _modalDirty=false; closeModal(); toast('Contact mis à jour ✓','ok');
-      const cont=document.getElementById('content'); if(cont) viewClient(cont, clientId);
+      const cont=document.getElementById('content');
+      const h=location.hash||'';
+      if(h.includes('/erps/')){ const erpId=(h.split('/erps/')[1]||'').split('?')[0]; if(cont&&erpId) viewErp(cont,erpId); }
+      else if(cont) viewClient(cont, clientId);
     }catch(e){ toast(e.message||"Erreur d'enregistrement",'err'); btn.disabled=false; btn.textContent='Enregistrer'; }
   };
 };
@@ -3324,6 +3327,8 @@ function formErp(er,clientId){
       <div class="fld"><label>Préfixe</label><select id="f_prefix" onchange="erpAutoName()"><option value="ERP">ERP</option><option value="ER-T">ER-T</option></select></div>
       <div class="fld"><label>Nom de l'ERP <span class="req">*</span> <span style="color:var(--muted-2);font-weight:400;font-size:11px">(auto, modifiable)</span></label><input id="f_nom" value="${esc(e.nom)}"></div></div>
     <div class="fld"><label>Adresse</label><input id="f_adr" value="${esc(e.adresse)}"></div>
+    <div class="row2"><div class="fld"><label>Code postal</label><input id="f_cp_erp" value="${esc(e.code_postal)}"></div>
+      <div class="fld"><label>Ville</label><input id="f_ville_erp" value="${esc(e.ville)}"></div></div>
     <div class="row3"><div class="fld"><label>Type</label><input id="f_type" placeholder="M, L, N…" value="${esc(e.type_erp)}"></div>
       <div class="fld"><label>Catégorie</label><select id="f_cat">
         <option value="">—</option>
@@ -3342,7 +3347,9 @@ function formErp(er,clientId){
   $('#save').onclick=async()=>{
     const client_id=$('#f_client').value, nom=$('#f_nom').value.trim();
     if(!client_id){toast('Sélectionne un client','err');return;} if(!nom){toast('Le nom est requis','err');return;}
-    const payload={client_id,nom,adresse:$('#f_adr').value.trim()||null,type_erp:$('#f_type').value.trim()||null,
+    const payload={client_id,nom,adresse:$('#f_adr').value.trim()||null,
+      code_postal:$('#f_cp_erp').value.trim()||null,ville:$('#f_ville_erp').value.trim()||null,
+      type_erp:$('#f_type').value.trim()||null,
       categorie:$('#f_cat').value||null,niveaux:$('#f_niv').value.trim()||null,
       effectif_public:$('#f_efp').value?parseInt($('#f_efp').value):null,
       effectif_salarie:$('#f_efs').value?parseInt($('#f_efs').value):null,
@@ -3392,16 +3399,17 @@ async function viewErp(c,id){
     if(location.hash!==myHash) return;                 // changé de fiche entre-temps
     if(!e){ c.innerHTML=emptyBlock(I.erp,'ERP introuvable','Cet ERP n\'a pas pu être chargé.',`<button class="btn" onclick="navigate('/erps')">← Retour aux ERP</button>`); return; }
     const cl=state.clients.find(x=>x.id===e.client_id);
-    const [eq,ob,it,re,rap] = await Promise.all([
+    const [eq,ob,it,re,rap,cc] = await Promise.all([
       sb.from('equipements').select('*').eq('erp_id',id),
       sb.from('obligations').select('*').eq('erp_id',id).order('prochaine_echeance'),
       sb.from('interventions').select('*').eq('erp_id',id).order('date_prevue',{ascending:false}),
       sb.from('reserves').select('*').eq('erp_id',id).order('created_at',{ascending:false}),
       sb.from('rapports').select('*').eq('erp_id',id).order('date_reception',{ascending:false}),
+      sb.from('client_contacts').select('*').eq('client_id',e.client_id).order('nom'),
     ]);
     if(location.hash!==myHash) return;                 // une autre fiche a été demandée pendant le chargement
     const tab = (location.hash.split('?t=')[1])||'apercu';
-    const data={e,cl,eq:eq.data||[],ob:ob.data||[],it:it.data||[],re:re.data||[],rap:rap.data||[]};
+    const data={e,cl,eq:eq.data||[],ob:ob.data||[],it:it.data||[],re:re.data||[],rap:rap.data||[],cc:cc.data||[]};
     c.innerHTML=`<div class="page-head"><div class="t">
       <div style="font-size:12.5px;color:var(--muted);margin-bottom:6px"><span class="lnk" onclick="navigate('/erps')">ERP</span> / ${esc(e.code_erp)}</div>
       <div class="dh"><div class="ic">${I.erp}</div><div><h1>${esc(e.nom)}</h1>
@@ -3418,8 +3426,9 @@ async function viewErp(c,id){
 function renderErpTab(tab,d){
   const w=$('#erptab'); const e=d.e;
   if(tab==='apercu'){
+    const adresseFull=[e.adresse,e.code_postal&&e.ville?e.code_postal+' '+e.ville:e.code_postal||e.ville].filter(Boolean).join(', ')||'—';
     w.innerHTML=`<div class="info-grid">
-      <div class="it"><div class="k">Adresse</div><div class="v">${esc(e.adresse)||'—'}</div></div>
+      <div class="it"><div class="k">Adresse</div><div class="v">${esc(adresseFull)}</div></div>
       <div class="it"><div class="k">Type / catégorie</div><div class="v">${esc(e.type_erp)||'—'} ${e.categorie?'· '+esc(e.categorie):''}</div></div>
       <div class="it"><div class="k">Niveaux</div><div class="v">${esc(e.niveaux)||'—'}</div></div>
       <div class="it"><div class="k">Effectif public</div><div class="v">${e.effectif_public??'—'}</div></div>
@@ -3429,6 +3438,23 @@ function renderErpTab(tab,d){
       <div class="it"><div class="k">Activité</div><div class="v">${esc(e.activite)||'—'}</div></div>
       <div class="it"><div class="k">Vérifications</div><div class="v">${d.ob.length}</div></div>
       <div class="it"><div class="k">Réserves ouvertes</div><div class="v">${d.re.filter(r=>!['cloturee','levee','rejetee'].includes(r.statut)).length}</div></div>
+    </div>
+    <div class="card" style="margin-top:18px;padding:0;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line,#e2e8f0)">
+        <h3 style="margin:0;font-size:14px;font-weight:600">Contacts du client</h3>
+        <button class="btn sm primary" onclick="editContact({},${JSON.stringify(e.client_id)})">+ Ajouter</button>
+      </div>
+      ${d.cc.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Nom</th><th>Rôle</th><th>Email</th><th>Tél / Mobile</th><th></th></tr></thead><tbody>
+        ${d.cc.map(ct=>{const nom=[ct.prenom,ct.nom].filter(Boolean).join(' ')||'—'; const rc=(typeof ROLE_CLIENT!=='undefined'&&ROLE_CLIENT)||{}; return `<tr>
+          <td><b>${esc(nom)}</b></td>
+          <td>${esc(rc[ct.role_suivi]||ct.role_suivi||'—')}</td>
+          <td>${ct.email?`<a href="mailto:${esc(ct.email)}" style="color:var(--primary)">${esc(ct.email)}</a>`:'—'}</td>
+          <td>${[ct.telephone,ct.mobile].filter(Boolean).join(' / ')||'—'}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn sm" onclick='editContact(${JSON.stringify(ct).replace(/'/g,"&#39;")},${JSON.stringify(e.client_id)})'>Modifier</button>
+          </td></tr>`;}).join('')}
+        </tbody></table></div>`
+      :`<div style="padding:20px 16px;color:var(--muted);font-size:13px">Aucun contact — cliquez sur Ajouter.</div>`}
     </div>`;
   }
   else if(tab==='oblig'){
