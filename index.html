@@ -2625,8 +2625,10 @@ window.editContact=async function(ct, clientId){
   const roleOpts=Object.entries(_RC).map(([k,v])=>`<option value="${k}"${roleSel===k?' selected':''}>${esc(v)}</option>`).join('');
   openModal(`<div class="modal-head"><h2>${ct.id?'Modifier le contact':'Nouveau contact'}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
     <div class="modal-body">
-      <div class="row2"><div class="fld"><label>Prénom</label><input id="ec_prenom" value="${esc(ct.prenom||'')}"></div>
-        <div class="fld"><label>Nom</label><input id="ec_nom" value="${esc(ct.nom||'')}"></div></div>
+      <div class="row2"><div class="fld"><label>Civilité</label>
+        <select id="ec_civ"><option value="">—</option><option value="Monsieur"${ct.civilite==='Monsieur'?' selected':''}>Monsieur</option><option value="Madame"${ct.civilite==='Madame'?' selected':''}>Madame</option></select></div>
+        <div class="fld"><label>Prénom</label><input id="ec_prenom" value="${esc(ct.prenom||'')}"></div></div>
+      <div class="fld"><label>Nom</label><input id="ec_nom" value="${esc(ct.nom||'')}"></div>
       <div class="fld"><label>Rôle de suivi</label>
         <select id="ec_role" onchange="document.getElementById('ec_role_autre').style.display=this.value==='autre'?'block':'none'"><option value="">— aucun —</option>${roleOpts}</select>
         <input id="ec_role_autre" placeholder="Préciser le rôle…" autocomplete="off" value="${esc(isCustomRole?ct.role_suivi:'')}" style="margin-top:8px;display:${roleSel==='autre'?'block':'none'}"></div>
@@ -2640,7 +2642,7 @@ window.editContact=async function(ct, clientId){
     const btn=document.getElementById('ec_save'); btn.disabled=true; btn.textContent='Enregistrement…';
     let _role=$('#ec_role').value;
     if(_role==='autre'){ const cust=($('#ec_role_autre')?.value||'').trim(); _role=cust||'autre'; }
-    const upd={ prenom:$('#ec_prenom').value.trim()||null, nom:$('#ec_nom').value.trim()||null, role_suivi:_role||null, email:$('#ec_email').value.trim()||null, telephone:$('#ec_tel').value.trim()||null, mobile:$('#ec_mob').value.trim()||null };
+    const upd={ civilite:$('#ec_civ').value||null, prenom:$('#ec_prenom').value.trim()||null, nom:$('#ec_nom').value.trim()||null, role_suivi:_role||null, email:$('#ec_email').value.trim()||null, telephone:$('#ec_tel').value.trim()||null, mobile:$('#ec_mob').value.trim()||null };
     try{
       if(ct.id){ const {error}=await sb.from('client_contacts').update(upd).eq('id',ct.id); if(error) throw error; }
       else { upd.client_id=clientId; const {error}=await sb.from('client_contacts').insert(upd); if(error) throw error; }
