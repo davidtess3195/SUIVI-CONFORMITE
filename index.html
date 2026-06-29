@@ -5268,7 +5268,7 @@ window.crOnClient=async function(){
     csel.innerHTML=`<option value="">— (optionnel) —</option>`;
     if(cid){
       try{ const {data}=await sb.from('client_contacts').select('*').eq('client_id',cid);
-        (data||[]).forEach(ct=>{ const nm=[ct.prenom,ct.nom].filter(Boolean).join(' '); if(!nm) return; const label=nm+(ct.fonction?` — ${ct.fonction}`:''); csel.innerHTML+=`<option value="${esc(nm)}">${esc(label)}</option>`; });
+        (data||[]).forEach(ct=>{ const nm=[ct.prenom,ct.nom].filter(Boolean).join(' '); if(!nm) return; const label=nm+(ct.fonction?` — ${ct.fonction}`:'')+(ct.email?` <${ct.email}>`:''); csel.innerHTML+=`<option value="${esc(nm)}" data-email="${esc(ct.email||'')}">${esc(label)}</option>`; });
       }catch(e){}
     }
     csel.innerHTML+=`<option value="__autre__">Autre (saisir)…</option>`;
@@ -5393,6 +5393,9 @@ window.crGenerate=async function(){
   const civ=$('#cr_civ')?.value||'';
   const cv=$('#cr_contact')?.value||'';
   let cname=''; if(cv==='__autre__') cname=$('#cr_attn_free')?.value.trim()||''; else cname=cv;
+  // Email du contact sélectionné (pour présélection dans le modal d'envoi)
+  const cselEl=document.getElementById('cr_contact');
+  const selectedContactEmail=(cv&&cv!=='__autre__'&&cselEl)?((cselEl.options[cselEl.selectedIndex]?.dataset?.email)||''):'';
   const destNom=[civ,cname].filter(Boolean).join(' ');
   const salut = civ==='Monsieur'?'Monsieur':(civ==='Madame'?'Madame':'Madame, Monsieur');
   const addr=[client.adresse_siege, [client.code_postal,client.ville].filter(Boolean).join(' ')].filter(Boolean);
@@ -5414,7 +5417,7 @@ window.crGenerate=async function(){
       redacteur:$('#cr_red')?.value.trim()||'',
       obs:$('#cr_obs')?.value.trim()||'',
       politesse:$('#cr_pol')?.value.trim()||'',
-      photos, requirePhoto:false, attachments:_reportAttachments.slice(), recipients, clientId:cid, erpId:erpId||null, videos
+      photos, requirePhoto:false, attachments:_reportAttachments.slice(), recipients, selectedContactEmail, clientId:cid, erpId:erpId||null, videos
     });
     toast('Compte rendu généré','ok');
   }catch(e){ toast(e.message||'Erreur de génération','err'); }
@@ -5697,8 +5700,9 @@ async function generateReportPDF(f){
   window._crArchive={clientId:f.clientId||null, erpId:f.erpId||null, fname:fname+'.pdf', titre:f.titre||'Compte rendu'};
   window._crMailSubject=(f.titre||'Compte rendu')+(f.objet?(' — '+f.objet):'');
   const recips=f.recipients||[];
+  const selEmail=(f.selectedContactEmail||'').toLowerCase();
   const recipHtml = recips.length
-    ? recips.map(r=>`<label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px 10px;cursor:pointer"><input type="checkbox" class="cr-mail-cb" value="${esc(r.email)}" checked style="width:auto;margin:0;accent-color:var(--primary)"> ${esc(r.label||r.email)} <span style="color:var(--muted)">&lt;${esc(r.email)}&gt;</span></label>`).join(' ')
+    ? recips.map(r=>{ const isChecked=!selEmail||r.email.toLowerCase()===selEmail; return `<label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px 10px;cursor:pointer"><input type="checkbox" class="cr-mail-cb" value="${esc(r.email)}"${isChecked?' checked':''} style="width:auto;margin:0;accent-color:var(--primary)"> ${esc(r.label||r.email)} <span style="color:var(--muted)">&lt;${esc(r.email)}&gt;</span></label>`; }).join(' ')
     : '<span style="color:var(--muted);font-size:12px">Aucun email enregistré pour ce client — ajoutez-en ci-dessous.</span>';
   const archiveRow = f.clientId
     ? `<label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12.5px;cursor:pointer"><input type="checkbox" id="cr_mail_archive" checked style="width:auto;margin:0;accent-color:var(--primary)"> 📁 Archiver une copie dans les documents du client (traçabilité)</label>`
