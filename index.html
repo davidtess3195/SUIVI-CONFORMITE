@@ -520,16 +520,18 @@ function saveCfg(k){ SUPABASE_ANON_KEY=k.trim(); try{localStorage.setItem("preva
 function getQrBaseUrl(){
   try{ return localStorage.getItem("preva_qr_url")||''; }catch(e){ return ''; }
 }
-function saveQrBaseUrl(u){ try{localStorage.setItem("preva_qr_url",u);}catch(e){} }
+function saveQrBaseUrl(u){ try{ if(u&&u.startsWith('http://')) u=u.replace('http://','https://'); localStorage.setItem("preva_qr_url",u); }catch(e){} }
 function buildQrUrl(token){
   const base = getQrBaseUrl();
   if(base){
-    // Racine du site, en retirant slash final, /index.html et un éventuel #...
-    const root = base.replace(/\/+$/,'').replace(/\/index\.html$/i,'').replace(/\/#.*$/,'').replace(/#.*$/,'').replace(/\/+$/,'');
+    let root = base.replace(/\/+$/,'').replace(/\/index\.html$/i,'').replace(/\/#.*$/,'').replace(/#.*$/,'').replace(/\/+$/,'');
+    if(root.startsWith('http://')) root=root.replace('http://','https://');
     return root + '/#/qr/' + token;
   }
-  // Fallback local : garder le chemin actuel
-  return location.origin + location.pathname.replace(/index\.html$/i,'') + '#/qr/' + token;
+  // Fallback : utiliser l'origine actuelle (GitHub Pages = toujours https)
+  let origin = location.origin;
+  if(origin.startsWith('http://')) origin=origin.replace('http://','https://');
+  return origin + location.pathname.replace(/index\.html$/i,'') + '#/qr/' + token;
 }
 function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
@@ -1268,8 +1270,11 @@ async function viewParametres(c){
 
   // Sauvegarder URL QR
   window.saveQrPubUrlParam=function(){
-    const u=document.getElementById('cfg_qr_url').value.trim();
+    let u=document.getElementById('cfg_qr_url').value.trim();
+    if(u&&u.startsWith('http://')) u=u.replace('http://','https://');
+    if(u&&!u.startsWith('https://')){ toast('L\'URL doit commencer par https://','err'); return; }
     saveQrBaseUrl(u);
+    if(u) document.getElementById('cfg_qr_url').value=u;
     toast(u?'URL publique QR enregistrée ✓':'URL effacée','ok');
   };
   $('#psave').onclick=async()=>{ try{ await sb.from('profiles').update({nom:$('#p_nom').value.trim()}).eq('id',state.user.id);
@@ -3850,7 +3855,10 @@ function showQR(token,nom,code){
 }
 window.showQR=showQR;
 function saveQrPubUrl(){
-  const u=document.getElementById('qr_pub_url').value.trim();
+  let u=document.getElementById('qr_pub_url').value.trim();
+  if(u&&u.startsWith('http://')) u=u.replace('http://','https://');
+  if(u&&!u.startsWith('https://')){ toast('L\'URL doit commencer par https://','err'); return; }
+  if(u) document.getElementById('qr_pub_url').value=u;
   saveQrBaseUrl(u);
   if(u){ toast('URL publique enregistree - regeneere le QR','ok'); closeModal(); }
   else  toast('URL effacee','ok');
