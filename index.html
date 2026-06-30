@@ -3949,7 +3949,7 @@ window.interErpChange=async function(){
 async function formInter(erpId,it){
   it=it||{}; const e=erpId||it.erp_id||(state.currentErp!=='all'?state.currentErp:'');
   const [{data:prest},oblRes]=await Promise.all([
-    sb.from('prestataires').select('id,nom,categorie,email_rapports,telephone,contacts,client_id,client_ids').order('nom'),
+    sb.from('prestataires').select('id,nom,categorie,email_rapports,telephone,contacts,client_id,client_ids,affaires').order('nom'),
     e?sb.from('obligations').select('domaine,libelle').eq('erp_id',e).eq('statut','applicable').order('domaine'):Promise.resolve({data:[]})
   ]);
   const domaines=[...new Set((oblRes.data||[]).map(o=>o.domaine||o.libelle).filter(Boolean))];
@@ -4229,7 +4229,7 @@ async function viewReserves(c){
     <div class="actions"><button class="btn primary" onclick="formReserve()">${I.plus} Nouvelle levée de réserve</button></div></div>${loadingBlock()}`;
   try{
     let q=sb.from('reserves').select('*'); q=erpFilter(q);
-    const [resR,prestR,docR,intR,ccR]=await Promise.all([ q, sb.from('prestataires').select('id,nom,categorie,email_rapports,telephone,contacts,client_id,client_ids'), sb.from('reserve_documents').select('*'), sb.from('reserve_intervenants').select('*').order('created_at'), sb.from('client_contacts').select('*') ]);
+    const [resR,prestR,docR,intR,ccR]=await Promise.all([ q, sb.from('prestataires').select('id,nom,categorie,email_rapports,telephone,contacts,client_id,client_ids,affaires'), sb.from('reserve_documents').select('*'), sb.from('reserve_intervenants').select('*').order('created_at'), sb.from('client_contacts').select('*') ]);
     const ccByClient={}; (ccR.data||[]).forEach(ct=>{ (ccByClient[ct.client_id]=ccByClient[ct.client_id]||[]).push(ct); });
     const clientMainContact=cid=>{
       const list=ccByClient[cid]||[];
@@ -4450,7 +4450,7 @@ window.toggleReserveItem=toggleReserveItem;
 async function formReserve(erpId,r){
   r=r||{}; const e=erpId||r.erp_id||(state.currentErp!=='all'?state.currentErp:'');
   const erpOpts=state.erps.map(x=>`<option value="${x.id}"${e===x.id?' selected':''}>${esc(x.nom)}</option>`).join('');
-  const {data:prest}=await sb.from('prestataires').select('id,nom,categorie,email_rapports,telephone,contacts,client_id,client_ids').order('nom');
+  const {data:prest}=await sb.from('prestataires').select('id,nom,categorie,email_rapports,telephone,contacts,client_id,client_ids,affaires').order('nom');
   const prestById={}; (prest||[]).forEach(p=>prestById[p.id]=p);
   // Extrait email + téléphone d'un prestataire : colonnes directes, sinon contacts JSON (charge d'affaire prioritaire)
   const prestCoords=(p)=>{ let email=p.email_rapports||null, tel=p.telephone||null;
@@ -7275,6 +7275,24 @@ function renderPrestTable(rows, categorie){
     </tbody></table></div>`;
 }
 
+function _affaireErpOpts(selectedId){
+  return state.erps.map(e=>'<option value="'+e.id+'"'+(e.id===selectedId?' selected':'')+'>'+esc(e.nom)+'</option>').join('');
+}
+function _affaireRowHtml(erp_id,numero){
+  const st='flex:0 0 auto;background:none;border:none;cursor:pointer;color:var(--muted-2);font-size:18px;line-height:1;padding:4px';
+  const si='flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px;color:var(--ink);background:var(--surface)';
+  const ni='width:180px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px;color:var(--ink)';
+  return '<div class="f-aff-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+    +'<select class="aff-erp" style="'+si+'"><option value="">— Sélectionner un ERP —</option>'+_affaireErpOpts(erp_id)+'</select>'
+    +'<input class="aff-num" value="'+esc(numero||'')+'" placeholder="N° affaire" style="'+ni+'">'
+    +'<button type="button" onclick="this.closest(\'.f-aff-row\').remove()" style="'+st+'">×</button>'
+    +'</div>';
+}
+function _buildAffaireRows(affaires){
+  const list=Array.isArray(affaires)?affaires:[];
+  if(!list.length) return _affaireRowHtml('','');
+  return list.map(a=>_affaireRowHtml(a.erp_id,a.numero)).join('');
+}
 function formPrest(p){
   // Si appelé avec une string (depuis un onglet), c'est la catégorie pour un nouveau
   if(typeof p === 'string'){ p = {categorie: p}; }
@@ -7484,6 +7502,15 @@ function formPrest(p){
       </div>
     </div>
 
+    <!-- Numéros d'affaire par ERP -->
+    <div class="fld">
+      <label style="font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Numéros d'affaire par ERP</label>
+      <div id="f_affaires_list" style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+        ${_buildAffaireRows(p.affaires)}
+      </div>
+      <button type="button" onclick="addAffaireRow()" class="btn sm" style="margin-top:8px">+ Ajouter un ERP</button>
+    </div>
+
     <div class="fld"><label>Commentaire / note interne</label>
       <textarea id="f_com" placeholder="Remarques, reference, contact prefere..." style="min-height:90px;resize:vertical">${esc(p.commentaire||'')}</textarea></div>
   </div>
@@ -7526,6 +7553,7 @@ function formPrest(p){
       client_ids: [...document.querySelectorAll('input[name="f_pclient_cb"]:checked')].map(cb=>cb.value),
       client_id: document.querySelector('input[name="f_pclient_cb"]:checked')?.value || null,
       type: types.join(', ')||null,
+      affaires:[...document.querySelectorAll('#f_affaires_list .f-aff-row')].map(r=>({erp_id:r.querySelector('.aff-erp').value||null,numero:r.querySelector('.aff-num').value.trim()||null})).filter(a=>a.erp_id||a.numero),
       commentaire:$('#f_com').value||null,
       contacts: Object.keys(contacts).length ? contacts : null,
       has_contrat: document.querySelector('input[name="rb_contrat"]:checked')?.value==='oui'||false,
@@ -7553,6 +7581,15 @@ function formPrest(p){
   };
 }
 window.formPrest=formPrest;
+function addAffaireRow(){
+  const list=document.getElementById('f_affaires_list'); if(!list) return;
+  const div=document.createElement('div');
+  div.className='f-aff-row';
+  div.style.cssText='display:flex;gap:8px;align-items:center';
+  div.innerHTML=`<select class="aff-erp" style="flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px;color:var(--ink);background:var(--surface)"><option value="">— Sélectionner un ERP —</option>${state.erps.map(e=>`<option value="${e.id}">${esc(e.nom)}</option>`).join('')}</select><input class="aff-num" placeholder="N° affaire" style="width:180px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px;color:var(--ink)"><button type="button" onclick="this.closest('.f-aff-row').remove()" style="flex:0 0 auto;background:none;border:none;cursor:pointer;color:var(--muted-2);font-size:18px;line-height:1;padding:4px">×</button>`;
+  list.appendChild(div);
+}
+window.addAffaireRow=addAffaireRow;
 
 function addAutreInterlocuteur(){
   const zone=document.getElementById('autres-interlocuteurs-list'); if(!zone) return;
