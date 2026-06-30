@@ -3427,17 +3427,18 @@ async function viewErp(c,id){
     if(location.hash!==myHash) return;                 // changé de fiche entre-temps
     if(!e){ c.innerHTML=emptyBlock(I.erp,'ERP introuvable','Cet ERP n\'a pas pu être chargé.',`<button class="btn" onclick="navigate('/erps')">← Retour aux ERP</button>`); return; }
     const cl=state.clients.find(x=>x.id===e.client_id);
-    const [eq,ob,it,re,rap,cc] = await Promise.all([
+    const [eq,ob,it,re,rap,cc,un] = await Promise.all([
       sb.from('equipements').select('*').eq('erp_id',id),
       sb.from('obligations').select('*').eq('erp_id',id).order('prochaine_echeance'),
       sb.from('interventions').select('*').eq('erp_id',id).order('date_prevue',{ascending:false}),
       sb.from('reserves').select('*').eq('erp_id',id).order('created_at',{ascending:false}),
       sb.from('rapports').select('*').eq('erp_id',id).order('date_reception',{ascending:false}),
       sb.from('client_contacts').select('*').eq('client_id',e.client_id).order('nom'),
+      sb.from('equipement_unites').select('*').eq('erp_id',id).order('created_at'),
     ]);
     if(location.hash!==myHash) return;                 // une autre fiche a été demandée pendant le chargement
     const tab = (location.hash.split('?t=')[1])||'apercu';
-    const data={e,cl,eq:eq.data||[],ob:ob.data||[],it:it.data||[],re:re.data||[],rap:rap.data||[],cc:cc.data||[]};
+    const data={e,cl,eq:eq.data||[],ob:ob.data||[],it:it.data||[],re:re.data||[],rap:rap.data||[],cc:cc.data||[],un:un.data||[]};
     c.innerHTML=`<div class="page-head"><div class="t">
       <div style="font-size:12.5px;color:var(--muted);margin-bottom:6px"><span class="lnk" onclick="navigate('/erps')">ERP</span> / ${esc(e.code_erp)}</div>
       <div class="dh"><div class="ic">${I.erp}</div><div><h1>${esc(e.nom)}</h1>
@@ -3446,13 +3447,35 @@ async function viewErp(c,id){
         <button class="btn" onclick='formErp(${JSON.stringify(e).replace(/'/g,"&#39;")})'>Modifier</button>
         <button class="btn danger" onclick="deleteErp('${id}')">🗑 Supprimer</button></div></div>
       <div class="tabs">
-        ${[['apercu','Aperçu'],['oblig','Vérification'],['inter','Interventions'],['reserves','Réserves'],['rapports','Rapports']].map(t=>`<button class="${tab===t[0]?'active':''}" onclick="navigate('/erps/${id}?t=${t[0]}')">${t[1]}</button>`).join('')}
+        ${[['apercu','Aperçu'],['oblig','Vérification'],['equip','Équipements'],['inter','Interventions'],['reserves','Réserves'],['rapports','Rapports']].map(t=>`<button class="${tab===t[0]?'active':''}" onclick="navigate('/erps/${id}?t=${t[0]}')">${t[1]}</button>`).join('')}
       </div><div id="erptab"></div>`;
     renderErpTab(tab,data);
   }catch(err){ if(location.hash===myHash) c.innerHTML=errBlock(err); }
 }
 function renderErpTab(tab,d){
   const w=$('#erptab'); const e=d.e;
+  if(tab==='equip'){
+    const prests=(window.state&&state.prestataires)||[];
+    const eqList=d.eq||[];
+    if(!eqList.length){
+      w.innerHTML='<div style="margin-top:24px">'+emptyBlock('🔧','Aucun équipement','Appliquez un plan de maintenance à cet ERP pour créer les équipements.')+'</div>';
+      return;
+    }
+    w.innerHTML='<div style="margin-top:16px;display:flex;flex-direction:column;gap:16px" id="equip_tab_wrap">'+eqList.map(eq=>{
+      const units=(d.un||[]).filter(u=>u.equipement_id===eq.id);
+      return '<div class="card" style="padding:0;overflow:hidden">'
+        +'<div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)">'
+        +'<div style="flex:1"><b style="font-size:14px">'+esc(eq.type)+'</b>'
+        +(eq.periodicite?'<span style="font-size:11px;color:var(--muted);margin-left:8px">'+esc(eq.periodicite)+'</span>':'')+'</div>'
+        +'<button class="btn sm primary" onclick="equipAddUnit(&quot;'+eq.id+'&quot;,&quot;'+e.id+'&quot;)">+ Ajouter une unité</button>'
+        +'</div>'
+        +'<div id="equip_units_'+eq.id+'" style="display:flex;flex-direction:column">'
+        +(units.length?units.map(u=>equipUnitHtml(u)).join(''):
+          '<div style="padding:12px 16px;color:var(--muted);font-size:13px">Aucune unité — cliquez "+ Ajouter une unité"</div>')
+        +'</div></div>';
+    }).join('')+'</div>';
+    return;
+  }
   if(tab==='apercu'){
     const adresseFull=[e.adresse,e.code_postal&&e.ville?e.code_postal+' '+e.ville:e.code_postal||e.ville].filter(Boolean).join(', ')||'—';
     w.innerHTML=`<div class="info-grid">
@@ -7163,6 +7186,123 @@ async function viewPlanMaintenance(c){
     }catch(e){toast(e.message||'Erreur','err');btn.disabled=false;btn.textContent='✅ Enregistrer dans cet ERP';}
   };
 }
+/* ── Équipements / Unités physiques ── */
+function equipUnitHtml(u){
+  const refs=Array.isArray(u.refs)?u.refs:[];
+  const refsHtml=refs.length
+    ? refs.map(r=>'<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 0;border-bottom:1px solid var(--line-2)">'
+        +'<span style="flex:1;font-weight:600;color:var(--ink)">'+esc(r.numero||'—')+'</span>'
+        +'<span style="color:var(--muted);flex:1">'+esc(r.prestataire||'')+'</span>'
+        +(r.date?'<span style="color:var(--muted-2);font-size:11px">'+esc(r.date)+'</span>':'')
+        +'</div>').join('')
+    : '<div style="color:var(--muted-2);font-size:12px">Aucune référence</div>';
+  return '<div style="padding:12px 16px;border-bottom:1px solid var(--line-2);display:flex;gap:12px;align-items:flex-start">'
+    +'<div style="flex:1">'
+    +'<div style="font-weight:600;font-size:13.5px;color:var(--ink)">'+esc(u.designation)+'</div>'
+    +(u.localisation?'<div style="font-size:12px;color:var(--muted);margin-top:2px">'+esc(u.localisation)+'</div>':'')
+    +'<div style="margin-top:8px;padding:8px 10px;background:var(--surface-2);border-radius:8px;border:1px solid var(--line)">'+refsHtml+'</div>'
+    +'</div>'
+    +'<button class="btn sm" onclick="equipEditUnit(&quot;'+u.id+'&quot;,&quot;'+u.equipement_id+'&quot;,&quot;'+u.erp_id+'&quot;)">✏️ Modifier</button>'
+    +'</div>';
+}
+
+window.equipAddUnit=function(equipId, erpId){
+  openModal('<div class="modal-head"><h2>Nouvelle unité</h2><button class="x" onclick="closeModal()">'+I.x+'</button></div>'
+    +'<div class="modal-body">'
+    +'<div class="fld"><label>Désignation <span class="req">*</span></label><input id="eu_des" placeholder="Ex: Portail nord, Portail parking…"></div>'
+    +'<div class="fld"><label>Localisation</label><input id="eu_loc" placeholder="Bâtiment A, Hall entrée…"></div>'
+    +'<div class="fld"><label style="font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Références prestataires</label>'
+    +'<div id="eu_refs_list" style="display:flex;flex-direction:column;gap:6px;margin-top:8px">'+_euRefRow('','','')+'</div>'
+    +'<button type="button" class="btn sm" style="margin-top:8px" onclick="equipAddRef()">+ Ajouter une référence</button>'
+    +'</div></div>'
+    +'<div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="eu_save">Enregistrer</button></div>');
+  document.getElementById('eu_save').onclick=async()=>{
+    const des=document.getElementById('eu_des').value.trim();
+    if(!des){toast('La désignation est requise','err');return;}
+    const loc=document.getElementById('eu_loc').value.trim()||null;
+    const refs=[...document.querySelectorAll('.eu-ref-row')].map(r=>({
+      prestataire:r.querySelector('.eu-ref-prest').value.trim()||null,
+      numero:r.querySelector('.eu-ref-num').value.trim()||null,
+      date:r.querySelector('.eu-ref-date').value||null,
+    })).filter(r=>r.prestataire||r.numero);
+    const btn=document.getElementById('eu_save'); btn.disabled=true; btn.textContent='Enregistrement…';
+    try{
+      const {data,error}=await sb.from('equipement_unites').insert({equipement_id:equipId,erp_id:erpId,designation:des,localisation:loc,refs}).select().single();
+      if(error) throw error;
+      _modalDirty=false; closeModal(); toast('Unité ajoutée ✓','ok');
+      const zone=document.getElementById('equip_units_'+equipId);
+      if(zone){
+        const empty=zone.querySelector('div[style*="Aucune unité"]');
+        if(empty) empty.remove();
+        zone.insertAdjacentHTML('beforeend',equipUnitHtml(data));
+      }
+    }catch(e){toast(e.message,'err');btn.disabled=false;btn.textContent='Enregistrer';}
+  };
+};
+
+window.equipEditUnit=async function(unitId, equipId, erpId){
+  const {data:u}=await sb.from('equipement_unites').select('*').eq('id',unitId).single();
+  if(!u){toast('Unité introuvable','err');return;}
+  const refs=Array.isArray(u.refs)?u.refs:[];
+  openModal('<div class="modal-head"><h2>Modifier une unité</h2><button class="x" onclick="closeModal()">'+I.x+'</button></div>'
+    +'<div class="modal-body">'
+    +'<div class="fld"><label>Désignation <span class="req">*</span></label><input id="eu_des" value="'+esc(u.designation||'')+'"></div>'
+    +'<div class="fld"><label>Localisation</label><input id="eu_loc" value="'+esc(u.localisation||'')+'" placeholder="Bâtiment A, Hall entrée…"></div>'
+    +'<div class="fld"><label style="font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Références prestataires</label>'
+    +'<div id="eu_refs_list" style="display:flex;flex-direction:column;gap:6px;margin-top:8px">'
+    +(refs.length?refs.map(r=>_euRefRow(r.prestataire||'',r.numero||'',r.date||'')).join(''):_euRefRow('','',''))
+    +'</div><button type="button" class="btn sm" style="margin-top:8px" onclick="equipAddRef()">+ Ajouter une référence</button>'
+    +'</div></div>'
+    +'<div class="modal-foot">'
+    +'<button class="btn danger" style="margin-right:auto" onclick="equipDelUnit(&quot;'+unitId+'&quot;,&quot;'+equipId+'&quot;)">Supprimer</button>'
+    +'<button class="btn ghost" onclick="closeModal()">Annuler</button>'
+    +'<button class="btn primary" id="eu_save">Enregistrer</button></div>');
+  document.getElementById('eu_save').onclick=async()=>{
+    const des=document.getElementById('eu_des').value.trim();
+    if(!des){toast('La désignation est requise','err');return;}
+    const loc=document.getElementById('eu_loc').value.trim()||null;
+    const refs=[...document.querySelectorAll('.eu-ref-row')].map(r=>({
+      prestataire:r.querySelector('.eu-ref-prest').value.trim()||null,
+      numero:r.querySelector('.eu-ref-num').value.trim()||null,
+      date:r.querySelector('.eu-ref-date').value||null,
+    })).filter(r=>r.prestataire||r.numero);
+    const btn=document.getElementById('eu_save'); btn.disabled=true; btn.textContent='Enregistrement…';
+    try{
+      const {data,error}=await sb.from('equipement_unites').update({designation:des,localisation:loc,refs}).eq('id',unitId).select().single();
+      if(error) throw error;
+      _modalDirty=false; closeModal(); toast('Modifié ✓','ok');
+      const zone=document.getElementById('equip_units_'+equipId);
+      if(zone){
+        const old=zone.querySelector('[data-unit-id="'+unitId+'"]');
+        const html=equipUnitHtml(data);
+        if(old) old.outerHTML=html; else zone.innerHTML=zone.innerHTML+html;
+      }
+    }catch(e){toast(e.message,'err');btn.disabled=false;btn.textContent='Enregistrer';}
+  };
+};
+
+window.equipDelUnit=async function(unitId,equipId){
+  if(!confirm('Supprimer cette unité ?')) return;
+  const {error}=await sb.from('equipement_unites').delete().eq('id',unitId);
+  if(error){toast(error.message,'err');return;}
+  closeModal(); toast('Supprimé','ok');
+  const zone=document.getElementById('equip_units_'+equipId);
+  if(zone){ const el=zone.querySelector('[data-unit-id="'+unitId+'"]'); if(el) el.remove(); if(!zone.children.length) zone.innerHTML='<div style="padding:12px 16px;color:var(--muted);font-size:13px">Aucune unité</div>'; }
+};
+
+function _euRefRow(prest,num,date){
+  return '<div class="eu-ref-row" style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">'
+    +'<input class="eu-ref-prest" value="'+esc(prest)+'" placeholder="Prestataire" style="flex:1;min-width:120px;padding:7px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px">'
+    +'<input class="eu-ref-num" value="'+esc(num)+'" placeholder="N° référence" style="flex:1;min-width:120px;padding:7px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px">'
+    +'<input class="eu-ref-date" type="date" value="'+esc(date)+'" style="padding:7px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px">'
+    +'<button type="button" onclick="this.closest(&quot;.eu-ref-row&quot;).remove()" style="background:none;border:none;cursor:pointer;color:var(--muted-2);font-size:18px;line-height:1;padding:4px">×</button>'
+    +'</div>';
+}
+window.equipAddRef=function(){
+  const list=document.getElementById('eu_refs_list'); if(!list) return;
+  list.insertAdjacentHTML('beforeend',_euRefRow('','',''));
+};
+
 window.viewPlanMaintenance=viewPlanMaintenance;
 
 async function viewPrestataires(c, defaultCat){
