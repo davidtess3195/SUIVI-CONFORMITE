@@ -8255,6 +8255,8 @@ function qrArrivee(token,info){
       if(error) throw error;
       try{localStorage.setItem('preva_pointage_'+token, data);}catch(e){}
       try{localStorage.setItem('preva_qrinfo', JSON.stringify({nom:v('q_nom'),prenom:v('q_prenom'),tel:v('q_tel'),soc:v('q_soc')}));}catch(e){}
+      // Notification email (fire & forget)
+      try{sb.functions.invoke('notif-pointage',{body:{pointage_id:data,type:'arrivee'}}).catch(()=>{});}catch(_){}
       qrConfirm(token,'Arrivée enregistrée','Bonne intervention ! Revenez scanner ce QR pour déclarer votre départ.',data,info);
     }catch(e){ toast(e.message,'err'); go.disabled=false; go.textContent='Valider mon arrivée'; }
   };
@@ -8295,6 +8297,8 @@ function qrDepart(token){
       });
       if(error) throw error;
       try{localStorage.removeItem('preva_pointage_'+token);}catch(e){}
+      // Notification email (fire & forget)
+      try{sb.functions.invoke('notif-pointage',{body:{pointage_id:pid,type:'depart'}}).catch(()=>{});}catch(_){}
       qrConfirm(token,'Départ enregistré','Merci, votre départ a bien été enregistré.');
     }catch(e){ toast(e.message,'err'); go.disabled=false; go.textContent='Valider mon départ'; }
   };
