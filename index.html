@@ -6202,6 +6202,7 @@ window.renderPointage=function(period){
           <div class="pdur">${enc?'<span style="color:var(--muted);font-weight:600;font-size:12.5px">en cours</span>':fmtDuree(ph)}</div>
           <div class="ptime">${fmtTime(p.heure_arrivee)} → ${enc?'…':fmtTime(p.heure_depart)}</div>
           <span class="pill ${p.mode_saisie==='qr'?'int':'inf'}" style="margin-top:1px">${p.mode_saisie==='qr'?'QR':'Manuel'}</span>
+          ${enc?`<button class="btn sm" style="margin-top:4px;font-size:11.5px;color:#dc2626;border-color:#fca5a5" onclick="event.stopPropagation();ptgSetFin('${p.id}','${p.heure_arrivee}')">Clôturer</button>`:''}
         </div>
         ${hasDet?`<span class="ptg-chev" id="chev-${p.id}">▶</span>`:''}
       </div>`;
@@ -6220,6 +6221,49 @@ window.togglePtg=function(id){
   const open=det.style.display!=='none';
   det.style.display=open?'none':'';
   const ch=document.getElementById('chev-'+id); if(ch) ch.style.transform=open?'rotate(0deg)':'rotate(90deg)';
+};
+
+window.ptgSetFin=function(pid, heure_arrivee){
+  // Propose current time as default
+  const now=new Date();
+  const todayVal=now.toISOString().slice(0,10);
+  const timeVal=now.toTimeString().slice(0,5);
+  // Parse arrival to show as info
+  const arr=heure_arrivee?new Date(heure_arrivee):null;
+  const arrTxt=arr?arr.toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+  openModal(
+    '<div class="modal-head"><h2>Clôturer le passage</h2><button class="x" onclick="closeModal()">'+I.x+'</button></div>'
+    +'<div class="modal-body">'
+    +(arrTxt?'<div style="padding:10px 12px;background:var(--surface-2);border-radius:10px;font-size:13px;color:var(--muted);margin-bottom:16px">Arrivée : <b style="color:var(--ink)">'+arrTxt+'</b></div>':'')
+    +'<div class="row2">'
+    +'<div class="fld"><label>Date de fin <span class="req">*</span></label><input type="date" id="ptg_fin_date" value="'+todayVal+'"></div>'
+    +'<div class="fld"><label>Heure de fin <span class="req">*</span></label><input type="time" id="ptg_fin_time" value="'+timeVal+'"></div>'
+    +'</div>'
+    +'</div>'
+    +'<div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="ptg_fin_save">Enregistrer</button></div>'
+  );
+  document.getElementById('ptg_fin_save').onclick=async()=>{
+    const d=document.getElementById('ptg_fin_date').value;
+    const t=document.getElementById('ptg_fin_time').value;
+    if(!d||!t){toast('Date et heure requises','err');return;}
+    const heure_depart=d+'T'+t+':00';
+    // Validate: depart must be after arrivee
+    if(arr && new Date(heure_depart)<=arr){toast('Heure de fin avant arrivée','err');return;}
+    const btn=document.getElementById('ptg_fin_save');
+    btn.disabled=true; btn.textContent='Enregistrement…';
+    try{
+      const {error}=await sb.from('pointages').update({heure_depart}).eq('id',pid);
+      if(error) throw error;
+      // Update in-memory rows
+      const row=window._ptgRows&&window._ptgRows.find(r=>r.id===pid);
+      if(row) row.heure_depart=heure_depart;
+      _modalDirty=false; closeModal();
+      toast('Passage clôturé ✓','ok');
+      // Re-render current period
+      const activePer=document.querySelector('#ptg-seg .active')?.getAttribute('data-pper')||'mois';
+      renderPointage(activePer);
+    }catch(e){toast(e.message||'Erreur','err');btn.disabled=false;btn.textContent='Enregistrer';}
+  };
 };
 
 /* =====================================================================
