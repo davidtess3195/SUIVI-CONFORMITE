@@ -3381,10 +3381,47 @@ function formErp(er,clientId){
     <div class="fld"><label>Activité</label><input id="f_act" value="${esc(e.activite)}"></div>
     <div class="checkrow"><input type="checkbox" id="f_som"${e.locaux_sommeil?' checked':''}><label style="margin:0">Locaux à sommeil</label></div>
     <div class="checkrow"><input type="checkbox" id="f_eas"${e.eas?' checked':''}><label style="margin:0">EAS (Espace d'Attente Sécurisé)</label></div>
+    <div class="fld" style="margin-top:12px;padding-top:14px;border-top:1px solid var(--line)">
+      <label style="display:flex;align-items:center;gap:6px">Contact de notification <span style="font-size:11px;font-weight:400;color:var(--muted)">(reçoit les alertes arrivée / départ)</span></label>
+      <select id="f_notif_contact" style="margin-top:6px"><option value="">— Aucun —</option></select>
+      <div id="f_notif_email_preview" style="font-size:12px;color:var(--muted);margin-top:5px"></div>
+    </div>
   </div>
   <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">${er?'Enregistrer':'Créer l\'ERP'}</button></div>`);
   if(clientId){ const s=$('#f_client'); if(s) s.value=clientId; }
   if(!er) erpAutoName();
+  // Load notification contacts for selected client
+  async function loadNotifContacts(cid, selectedId){
+    const sel=document.getElementById('f_notif_contact'); if(!sel) return;
+    sel.innerHTML='<option value="">— Aucun —</option>';
+    document.getElementById('f_notif_email_preview').textContent='';
+    if(!cid) return;
+    const {data:cts}=await sb.from('client_contacts').select('id,civilite,prenom,nom,email').eq('client_id',cid).order('nom');
+    (cts||[]).forEach(ct=>{
+      const label=[ct.civilite,ct.prenom,ct.nom].filter(Boolean).join(' ')+(ct.email?' — '+ct.email:'');
+      const opt=document.createElement('option'); opt.value=ct.id; opt.textContent=label;
+      if(ct.id===selectedId) opt.selected=true;
+      sel.appendChild(opt);
+    });
+    updateNotifPreview();
+  }
+  function updateNotifPreview(){
+    const sel=document.getElementById('f_notif_contact');
+    const prev=document.getElementById('f_notif_email_preview');
+    if(!sel||!prev) return;
+    const opt=sel.options[sel.selectedIndex];
+    if(sel.value&&opt){
+      const emailMatch=opt.textContent.match(/— (.+@.+)$/);
+      prev.textContent=emailMatch?'📧 '+emailMatch[1]:'Aucun email renseigné pour ce contact';
+      prev.style.color=emailMatch?'var(--primary)':'var(--muted-2)';
+    } else { prev.textContent=''; }
+  }
+  document.getElementById('f_notif_contact')?.addEventListener('change', updateNotifPreview);
+  // Reload contacts when client changes
+  const clientSel=document.getElementById('f_client');
+  if(clientSel) clientSel.addEventListener('change',()=>loadNotifContacts(clientSel.value,null));
+  const initCid=(clientId||e.client_id||'');
+  if(initCid) loadNotifContacts(initCid, e.notif_contact_id||null);
   $('#save').onclick=async()=>{
     const client_id=$('#f_client').value, nom=$('#f_nom').value.trim();
     if(!client_id){toast('Sélectionne un client','err');return;} if(!nom){toast('Le nom est requis','err');return;}
@@ -3395,7 +3432,8 @@ function formErp(er,clientId){
       effectif_public:$('#f_efp').value?parseInt($('#f_efp').value):null,
       effectif_salarie:$('#f_efs').value?parseInt($('#f_efs').value):null,
       activite:$('#f_act').value.trim()||null,
-      locaux_sommeil:$('#f_som').checked, eas:$('#f_eas').checked};
+      locaux_sommeil:$('#f_som').checked, eas:$('#f_eas').checked,
+      notif_contact_id:$('#f_notif_contact')?.value||null};
     try{ if(er){ delete payload.client_id; await sb.from('erps').update(payload).eq('id',er.id);}else{await sb.from('erps').insert(payload);}
       await loadScope(); fillScopeSelectors(); _modalDirty=false; closeModal(); toast(er?'ERP modifié':'ERP créé — QR généré','ok');
       navigate('/erps'+(er?'/'+er.id:''));
