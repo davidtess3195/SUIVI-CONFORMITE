@@ -2086,7 +2086,7 @@ function renderApp(){
       <div class="brand"><div><div class="name">PREVA CONSEILS</div></div></div>
       <nav class="nav" id="nav">${NAV.map(g=>`
         <div class="grp">${g[0]}</div>
-        ${g[1].map(([p,l,ic])=>`<a href="#${p}" data-base="${p}">${ic}<span>${l}</span>${p==='/photos'?'<span class="badge" id="badge-photos" style="display:none">0</span>':''}${p==='/rapports'?'<span class="badge" id="badge-rapports" style="display:none">0</span>':p==='/verifications'?'<span class="badge" id="badge-verif" style="display:none">0</span>':''}</a>`).join('')}
+        ${g[1].map(([p,l,ic])=>`<a href="#${p}" data-base="${p}">${ic}<span>${l}</span>${p==='/photos'?'<span class="badge" id="badge-photos" style="display:none">0</span>':''}${p==='/rapports'?'<span class="badge" id="badge-rapports" style="display:none">0</span>':p==='/verifications'?'<span class="badge" id="badge-verif" style="display:none">0</span>':p==='/pointage'?'<span class="badge" id="badge-pointage" style="display:none">0</span>':''}</a>`).join('')}
       `).join('')}</nav>
       <div class="side-foot">
         <div class="user-chip" onclick="navigate('/parametres')">
@@ -6198,7 +6198,7 @@ async function viewPointage(c){
   }catch(e){ c.innerHTML=errBlock(e); }
 }
 
-window.renderPointage=function(period){
+window.renderPointage=function(period){  window._ptgActivePer=period;
   const rows=window._ptgRows||[];
   const erpName=id=>state.erps.find(e=>e.id===id)?.nom||'—';
   const persH=p=>{ if(!p.heure_depart) return null; const d=(new Date(p.heure_depart)-new Date(p.heure_arrivee))/3.6e6; return d>0? d*(p.nb_intervenants||1) : 0; };
@@ -6255,7 +6255,7 @@ window.renderPointage=function(period){
           <div class="pdur">${enc?'<span style="color:var(--muted);font-weight:600;font-size:12.5px">en cours</span>':fmtDuree(ph)}</div>
           <div class="ptime">${fmtTime(p.heure_arrivee)} → ${enc?'…':fmtTime(p.heure_depart)}</div>
           <span class="pill ${p.mode_saisie==='qr'?'int':'inf'}" style="margin-top:1px">${p.mode_saisie==='qr'?'QR':'Manuel'}</span>
-          ${enc?`<button class="btn sm" style="margin-top:4px;font-size:11.5px;color:#dc2626;border-color:#fca5a5" onclick="event.stopPropagation();ptgSetFin('${p.id}','${p.heure_arrivee}')">Clôturer</button>`:''}
+          ${enc?`<button class="btn sm" style="margin-top:4px;font-size:11.5px;color:#dc2626;border-color:#fca5a5" onclick="event.stopPropagation();ptgSetFin('${p.id}','${p.heure_arrivee}')">Clôturer</button>`:p.vu?`<span style="font-size:11px;color:#16a34a;font-weight:600;margin-top:4px;display:flex;align-items:center;gap:3px">✓ Traité</span>`:`<button class="btn sm" style="margin-top:4px;font-size:11.5px;color:#16a34a;border-color:#86efac" onclick="event.stopPropagation();ptgMarkVu('${p.id}')">Vu ✓</button>`}
         </div>
         ${hasDet?`<span class="ptg-chev" id="chev-${p.id}">▶</span>`:''}
       </div>`;
@@ -6268,6 +6268,10 @@ window.renderPointage=function(period){
     return `<div class="ptg-day"><div class="ptg-dayhead2"><span class="dt">${dayLabel(ds[0].heure_arrivee||ds[0].created_at)}</span><span class="ds">${ds.length} passage${ds.length>1?'s':''} · ${fmtDuree(dH)}</span></div><div class="ptg-list">${cards}</div></div>`;
   }).join('');
   body.innerHTML=kpi+groupsHtml;
+  // Mise à jour badge menu pointage
+  const nonVu=(window._ptgRows||[]).filter(p=>p.heure_depart&&!p.vu).length;
+  const bptg=document.getElementById('badge-pointage');
+  if(bptg){bptg.textContent=nonVu;bptg.style.display=nonVu?'grid':'none';}
 };
 window.togglePtg=function(id){
   const det=document.getElementById('det-'+id); if(!det) return;
@@ -6276,6 +6280,16 @@ window.togglePtg=function(id){
   const ch=document.getElementById('chev-'+id); if(ch) ch.style.transform=open?'rotate(0deg)':'rotate(90deg)';
 };
 
+window.ptgMarkVu=async function(pid){
+  const {error}=await sb.from('pointages').update({vu:true}).eq('id',pid);
+  if(error){toast('Erreur','err');return;}
+  const row=(window._ptgRows||[]).find(p=>p.id===pid);
+  if(row) row.vu=true;
+  const nonVu=(window._ptgRows||[]).filter(p=>p.heure_depart&&!p.vu).length;
+  const bptg=document.getElementById('badge-pointage');
+  if(bptg){bptg.textContent=nonVu;bptg.style.display=nonVu?'grid':'none';}
+  renderPointage(window._ptgActivePer||'mois');
+};
 window.ptgSwitchView=function(v){
   const j=document.getElementById('ptg-journal-wrap');
   const r=document.getElementById('ptg-recap-wrap');
