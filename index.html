@@ -706,6 +706,172 @@ function traitementPill(t,date){
 ===================================================================== */
 const state = { user:null, profile:null, clients:[], erps:[], currentClient:'all', currentErp:'all', counts:{} };
 
+/* =====================================================================
+   DEMO MODE — données fictives + proxy Supabase
+   ===================================================================== */
+const DEMO_DATA = {
+  clients:[
+    {id:'demo-cl-1',code_client:'DEM001',raison_sociale:'Résidence Les Pins',statut:'actif',created_at:'2025-01-15T10:00:00Z'},
+    {id:'demo-cl-2',code_client:'DEM002',raison_sociale:'Clinique du Parc',statut:'actif',created_at:'2025-02-20T10:00:00Z'},
+    {id:'demo-cl-3',code_client:'DEM003',raison_sociale:'École Voltaire',statut:'actif',created_at:'2025-03-10T10:00:00Z'},
+  ],
+  erps:[
+    {id:'demo-erp-1',code_erp:'ERP001',nom:'Bâtiment A — Résidence Les Pins',client_id:'demo-cl-1',statut:'actif',adresse:'12 allée des Pins',ville:'Lyon',code_postal:'69003',categorie:'J',classement:'3',qr_token:'DEMO001',created_at:'2025-01-15T10:00:00Z'},
+    {id:'demo-erp-2',code_erp:'ERP002',nom:'Bâtiment B — Résidence Les Pins',client_id:'demo-cl-1',statut:'actif',adresse:'14 allée des Pins',ville:'Lyon',code_postal:'69003',categorie:'J',classement:'4',qr_token:'DEMO002',created_at:'2025-01-15T10:00:00Z'},
+    {id:'demo-erp-3',code_erp:'ERP003',nom:'Pavillon Principal — Clinique du Parc',client_id:'demo-cl-2',statut:'actif',adresse:'5 avenue du Parc',ville:'Paris',code_postal:'75016',categorie:'U',classement:'2',qr_token:'DEMO003',created_at:'2025-02-20T10:00:00Z'},
+    {id:'demo-erp-4',code_erp:'ERP004',nom:'Bloc Opératoire — Clinique du Parc',client_id:'demo-cl-2',statut:'actif',adresse:'5 avenue du Parc',ville:'Paris',code_postal:'75016',categorie:'U',classement:'1',qr_token:'DEMO004',created_at:'2025-02-20T10:00:00Z'},
+    {id:'demo-erp-5',code_erp:'ERP005',nom:'Bâtiment Principal — École Voltaire',client_id:'demo-cl-3',statut:'actif',adresse:'22 rue Voltaire',ville:'Bordeaux',code_postal:'33000',categorie:'R',classement:'3',qr_token:'DEMO005',created_at:'2025-03-10T10:00:00Z'},
+    {id:'demo-erp-6',code_erp:'ERP006',nom:'Gymnase — École Voltaire',client_id:'demo-cl-3',statut:'actif',adresse:'24 rue Voltaire',ville:'Bordeaux',code_postal:'33000',categorie:'R',classement:'4',qr_token:'DEMO006',created_at:'2025-03-10T10:00:00Z'},
+  ],
+  interventions:[
+    {id:'demo-int-1',erp_id:'demo-erp-1',client_id:'demo-cl-1',type:'Vérification incendie annuelle',statut:'planifie',date_prevue:'2026-07-15',date_realisation:null,prestataire_id:'demo-pr-1',created_at:'2026-06-01T10:00:00Z'},
+    {id:'demo-int-2',erp_id:'demo-erp-2',client_id:'demo-cl-1',type:'Vérification électrique',statut:'en_cours',date_prevue:'2026-07-01',date_realisation:null,prestataire_id:'demo-pr-1',created_at:'2026-05-20T10:00:00Z'},
+    {id:'demo-int-3',erp_id:'demo-erp-3',client_id:'demo-cl-2',type:'Contrôle extincteurs',statut:'realise',date_prevue:'2026-06-10',date_realisation:'2026-06-10',prestataire_id:'demo-pr-1',created_at:'2026-05-01T10:00:00Z'},
+    {id:'demo-int-4',erp_id:'demo-erp-4',client_id:'demo-cl-2',type:'Vérification SSI',statut:'planifie',date_prevue:'2026-08-01',date_realisation:null,prestataire_id:'demo-pr-2',created_at:'2026-06-15T10:00:00Z'},
+    {id:'demo-int-5',erp_id:'demo-erp-5',client_id:'demo-cl-3',type:'Visite commission sécurité',statut:'en_retard',date_prevue:'2026-05-01',date_realisation:null,prestataire_id:'demo-pr-3',created_at:'2026-04-01T10:00:00Z'},
+    {id:'demo-int-6',erp_id:'demo-erp-6',client_id:'demo-cl-3',type:'Vérification gaz',statut:'realise',date_prevue:'2026-06-20',date_realisation:'2026-06-20',prestataire_id:'demo-pr-2',created_at:'2026-06-01T10:00:00Z'},
+    {id:'demo-int-7',erp_id:'demo-erp-1',client_id:'demo-cl-1',type:'Levée de réserve incendie',statut:'programme',date_prevue:'2026-07-20',date_realisation:null,prestataire_id:'demo-pr-1',created_at:'2026-06-20T10:00:00Z'},
+  ],
+  reserves:[
+    {id:'demo-res-1',erp_id:'demo-erp-1',client_id:'demo-cl-1',intitule:"Extincteur manquant au 2ème étage couloir nord",criticite:'critique',statut:'ouverte',date_ouverture:'2026-05-10',created_at:'2026-05-10T10:00:00Z'},
+    {id:'demo-res-2',erp_id:'demo-erp-2',client_id:'demo-cl-1',intitule:'Sortie de secours partiellement obstruée côté parking',criticite:'critique',statut:'ouverte',date_ouverture:'2026-05-15',created_at:'2026-05-15T10:00:00Z'},
+    {id:'demo-res-3',erp_id:'demo-erp-3',client_id:'demo-cl-2',intitule:'Balisage de sécurité incomplet au RDC',criticite:'majeure',statut:'en_cours',date_ouverture:'2026-04-20',created_at:'2026-04-20T10:00:00Z'},
+    {id:'demo-res-4',erp_id:'demo-erp-5',client_id:'demo-cl-3',intitule:'Porte coupe-feu CF60 défectueuse — palier 3',criticite:'critique',statut:'ouverte',date_ouverture:'2026-06-01',created_at:'2026-06-01T10:00:00Z'},
+    {id:'demo-res-5',erp_id:'demo-erp-6',client_id:'demo-cl-3',intitule:'Éclairage de sécurité hors service — vestiaires',criticite:'majeure',statut:'levee',date_ouverture:'2026-03-01',date_levee:'2026-06-20',created_at:'2026-03-01T10:00:00Z'},
+    {id:'demo-res-6',erp_id:'demo-erp-4',client_id:'demo-cl-2',intitule:'Détecteur incendie en défaut — salle 14',criticite:'majeure',statut:'ouverte',date_ouverture:'2026-06-15',created_at:'2026-06-15T10:00:00Z'},
+  ],
+  photos_urgentes:[
+    {id:'demo-ph-1',erp_id:'demo-erp-1',client_id:'demo-cl-1',description:'Sortie de secours bloquée par cartons de livraison',niveau_urgence:'urgent',statut:'en_attente',url_photo:null,created_at:'2026-06-28T14:30:00Z'},
+    {id:'demo-ph-2',erp_id:'demo-erp-4',client_id:'demo-cl-2',description:'Extincteur périmé — date dépassée de 3 mois',niveau_urgence:'tres_urgent',statut:'traite',url_photo:null,created_at:'2026-06-15T09:00:00Z'},
+    {id:'demo-ph-3',erp_id:'demo-erp-5',client_id:'demo-cl-3',description:'Tableau électrique ouvert sans protection — accès libre',niveau_urgence:'urgent',statut:'en_attente',url_photo:null,created_at:'2026-06-30T11:20:00Z'},
+  ],
+  pointages:[
+    {id:'demo-pt-1',erp_id:'demo-erp-1',client_id:'demo-cl-1',heure_arrivee:'2026-06-28T08:00:00Z',heure_depart:'2026-06-28T12:00:00Z',nb_intervenants:2,mode_saisie:'qr',vu:true,created_at:'2026-06-28T08:00:00Z'},
+    {id:'demo-pt-2',erp_id:'demo-erp-3',client_id:'demo-cl-2',heure_arrivee:'2026-06-25T09:00:00Z',heure_depart:'2026-06-25T17:00:00Z',nb_intervenants:1,mode_saisie:'qr',vu:true,created_at:'2026-06-25T09:00:00Z'},
+    {id:'demo-pt-3',erp_id:'demo-erp-5',client_id:'demo-cl-3',heure_arrivee:'2026-06-30T10:00:00Z',heure_depart:null,nb_intervenants:3,mode_saisie:'qr',vu:false,created_at:'2026-06-30T10:00:00Z'},
+    {id:'demo-pt-4',erp_id:'demo-erp-2',client_id:'demo-cl-1',heure_arrivee:'2026-06-20T08:30:00Z',heure_depart:'2026-06-20T16:30:00Z',nb_intervenants:2,mode_saisie:'manuel',vu:true,created_at:'2026-06-20T08:30:00Z'},
+    {id:'demo-pt-5',erp_id:'demo-erp-6',client_id:'demo-cl-3',heure_arrivee:'2026-06-18T14:00:00Z',heure_depart:'2026-06-18T18:00:00Z',nb_intervenants:1,mode_saisie:'qr',vu:true,created_at:'2026-06-18T14:00:00Z'},
+    {id:'demo-pt-6',erp_id:'demo-erp-4',client_id:'demo-cl-2',heure_arrivee:'2026-06-10T08:00:00Z',heure_depart:'2026-06-10T11:30:00Z',nb_intervenants:2,mode_saisie:'qr',vu:true,created_at:'2026-06-10T08:00:00Z'},
+    {id:'demo-pt-7',erp_id:'demo-erp-1',client_id:'demo-cl-1',heure_arrivee:'2026-06-05T09:00:00Z',heure_depart:'2026-06-05T17:00:00Z',nb_intervenants:1,mode_saisie:'qr',vu:true,created_at:'2026-06-05T09:00:00Z'},
+  ],
+  rapports:[
+    {id:'demo-rap-1',erp_id:'demo-erp-1',client_id:'demo-cl-1',type:'rapport_visite',statut:'nouveau',objet:'Rapport vérification incendie annuelle',expediteur:'contact@securifeu.fr',fichier_nom:'rapport_incendie_batA.pdf',created_at:'2026-06-10T10:00:00Z'},
+    {id:'demo-rap-2',erp_id:'demo-erp-3',client_id:'demo-cl-2',type:'rapport_visite',statut:'traite',objet:'Contrôle extincteurs — Clinique du Parc',expediteur:'info@alarmtec.fr',fichier_nom:'ctrl_extincteurs_clinique.pdf',created_at:'2026-06-12T10:00:00Z'},
+    {id:'demo-rap-3',erp_id:'demo-erp-5',client_id:'demo-cl-3',type:'pv_commission',statut:'nouveau',objet:'PV commission sécurité — École Voltaire',expediteur:'prefecture@gironde.gouv.fr',fichier_nom:'pv_commission_ecole.pdf',created_at:'2026-06-25T10:00:00Z'},
+    {id:'demo-rap-4',erp_id:'demo-erp-6',client_id:'demo-cl-3',type:'attestation',statut:'traite',objet:'Attestation vérification gaz — Gymnase',expediteur:'info@alarmtec.fr',fichier_nom:'attest_gaz_gymnase.pdf',created_at:'2026-06-22T10:00:00Z'},
+  ],
+  documents:[
+    {id:'demo-doc-1',erp_id:'demo-erp-1',client_id:'demo-cl-1',type:'plan',nom:"Plan d'évacuation — Bâtiment A",created_at:'2026-01-10T10:00:00Z'},
+    {id:'demo-doc-2',erp_id:'demo-erp-3',client_id:'demo-cl-2',type:'registre_securite',nom:'Registre de sécurité — Clinique du Parc',created_at:'2026-02-15T10:00:00Z'},
+    {id:'demo-doc-3',erp_id:'demo-erp-5',client_id:'demo-cl-3',type:'plan',nom:"Plan d'évacuation — Bâtiment Principal",created_at:'2026-03-20T10:00:00Z'},
+    {id:'demo-doc-4',erp_id:'demo-erp-4',client_id:'demo-cl-2',type:'attestation',nom:'Attestation SSI — Bloc Opératoire',created_at:'2026-04-05T10:00:00Z'},
+  ],
+  contrats:[
+    {id:'demo-ct-1',erp_id:'demo-erp-1',client_id:'demo-cl-1',nom:'Contrat maintenance extincteurs 2026',prestataire_id:'demo-pr-1',fichier_path:null,created_at:'2026-01-01T10:00:00Z'},
+    {id:'demo-ct-2',erp_id:'demo-erp-3',client_id:'demo-cl-2',nom:'Contrat vérification SSI 2026',prestataire_id:'demo-pr-2',fichier_path:null,created_at:'2026-01-15T10:00:00Z'},
+    {id:'demo-ct-3',erp_id:'demo-erp-5',client_id:'demo-cl-3',nom:'Contrat désenfumage annuel',prestataire_id:'demo-pr-1',fichier_path:null,created_at:'2026-02-01T10:00:00Z'},
+  ],
+  prestataires:[
+    {id:'demo-pr-1',nom:'SECURIFEU SERVICES',categorie:'prestataire',email_rapports:'contact@securifeu.fr',telephone:'04 72 12 34 56',ville:'Lyon',created_at:'2025-06-01T10:00:00Z'},
+    {id:'demo-pr-2',nom:'ALARMTEC CONTRÔLE',categorie:'prestataire',email_rapports:'info@alarmtec.fr',telephone:'01 44 56 78 90',ville:'Paris',created_at:'2025-07-01T10:00:00Z'},
+    {id:'demo-pr-3',nom:'BUREAU VERITAS SÉCURITÉ',categorie:'bureau_de_controle',email_rapports:'bv@bureauveritas.com',telephone:'01 55 24 70 00',ville:'Paris',created_at:'2025-06-15T10:00:00Z'},
+  ],
+  client_contacts:[
+    {id:'demo-cc-1',client_id:'demo-cl-1',prenom:'Marie',nom:'Dupont',email:'m.dupont@respins.fr',telephone:'04 72 11 22 33',role_suivi:'syndic',created_at:'2026-01-15T10:00:00Z'},
+    {id:'demo-cc-2',client_id:'demo-cl-2',prenom:'Jean',nom:'Leclerc',email:'j.leclerc@cliniqueduparc.fr',telephone:'01 44 00 11 22',role_suivi:'directeur',created_at:'2026-02-20T10:00:00Z'},
+    {id:'demo-cc-3',client_id:'demo-cl-3',prenom:'Sophie',nom:'Martin',email:'s.martin@ecole-voltaire.fr',telephone:'05 56 33 44 55',role_suivi:'directeur',created_at:'2026-03-10T10:00:00Z'},
+  ],
+  audit_log:[
+    {id:'demo-al-1',action:'rapport_recu',entite:'rapports',user_label:'Système',created_at:'2026-06-30T15:00:00Z'},
+    {id:'demo-al-2',action:'reserve_created',entite:'reserves',user_label:'demo.prospect@client.fr',created_at:'2026-06-28T14:30:00Z'},
+    {id:'demo-al-3',action:'intervention_created',entite:'interventions',user_label:'demo.prospect@client.fr',created_at:'2026-06-25T10:00:00Z'},
+    {id:'demo-al-4',action:'pointage_arrivee',entite:'pointages',user_label:'Système',created_at:'2026-06-25T09:00:00Z'},
+    {id:'demo-al-5',action:'photo_urgente',entite:'photos_urgentes',user_label:'Système',created_at:'2026-06-15T09:00:00Z'},
+  ],
+  profiles:[
+    {id:'demo-user-1',email:'demo@preva.fr',nom:'Compte Démonstration',role:'admin',statut:'actif',is_demo:true,created_at:'2026-01-01T10:00:00Z'},
+  ],
+  verifications:[
+    {id:'demo-vr-1',erp_id:'demo-erp-1',client_id:'demo-cl-1',type:'Vérification annuelle incendie',statut:'en_retard',date_echeance:'2026-05-01',periodicite:'annuelle',created_at:'2025-05-01T10:00:00Z'},
+    {id:'demo-vr-2',erp_id:'demo-erp-3',client_id:'demo-cl-2',type:'Contrôle extincteurs',statut:'ok',date_echeance:'2026-09-10',periodicite:'annuelle',created_at:'2025-09-10T10:00:00Z'},
+    {id:'demo-vr-3',erp_id:'demo-erp-5',client_id:'demo-cl-3',type:'Vérification SSI',statut:'en_retard',date_echeance:'2026-04-01',periodicite:'annuelle',created_at:'2025-04-01T10:00:00Z'},
+    {id:'demo-vr-4',erp_id:'demo-erp-4',client_id:'demo-cl-2',type:'Désenfumage',statut:'ok',date_echeance:'2026-11-01',periodicite:'annuelle',created_at:'2025-11-01T10:00:00Z'},
+  ],
+  intervenants:[
+    {id:'demo-iv-1',nom:'GHVB GHJK',telephone:'06 12 34 56 78',prestataire_id:'demo-pr-1',qr_token:'DEMO-INT-001'},
+    {id:'demo-iv-2',nom:'Martin Rousseau',telephone:'06 98 76 54 32',prestataire_id:'demo-pr-2',qr_token:'DEMO-INT-002'},
+    {id:'demo-iv-3',nom:'Claire Fontaine',telephone:'06 55 44 33 22',prestataire_id:'demo-pr-1',qr_token:'DEMO-INT-003'},
+  ],
+  conversations:[],
+  plan_maintenance:[],
+  erp_contacts:[],
+  notifications:[],
+  notif_contacts:[],
+};
+
+/* Proxy Supabase pour le mode démo */
+function _demoQuery(rows){
+  let _rows=Array.isArray(rows)?[...rows]:(rows?[rows]:[]);
+  const q={
+    select:()=>q,
+    eq:(f,v)=>{_rows=_rows.filter(r=>String(r[f])===String(v));return q;},
+    neq:(f,v)=>{_rows=_rows.filter(r=>String(r[f])!==String(v));return q;},
+    in:(f,vals)=>{_rows=_rows.filter(r=>(vals||[]).includes(r[f]));return q;},
+    not:(f,op,v)=>q,
+    order:(f,opts)=>{const d=(opts?.ascending===false)?-1:1;_rows=[..._rows].sort((a,b)=>{const av=a[f]??'',bv=b[f]??'';return av<bv?-d:av>bv?d:0;});return q;},
+    limit:(n)=>{_rows=_rows.slice(0,n);return q;},
+    range:()=>q, gte:()=>q, lte:()=>q, gt:()=>q, lt:()=>q,
+    ilike:(f,v)=>{const pat=v.replace(/%/g,'').toLowerCase();_rows=_rows.filter(r=>String(r[f]||'').toLowerCase().includes(pat));return q;},
+    is:(f,v)=>{_rows=_rows.filter(r=>r[f]===v);return q;},
+    contains:()=>q, textSearch:()=>q, filter:()=>q,
+    insert:()=>_demoBlocked(), update:()=>_demoBlocked(), delete:()=>_demoBlocked(), upsert:()=>_demoBlocked(),
+    single:()=>Promise.resolve({data:_rows[0]||null,error:null}),
+    maybeSingle:()=>Promise.resolve({data:_rows[0]||null,error:null}),
+    then:(res,_rej)=>{ res({data:_rows,error:null}); },
+  };
+  return q;
+}
+function _demoBlocked(){
+  if(!window._demoToastTs||Date.now()-window._demoToastTs>1500){
+    window._demoToastTs=Date.now();
+    toast('Mode démonstration — modifications non disponibles','info');
+  }
+  const bq={data:null,error:null};
+  const b={eq:()=>b,neq:()=>b,select:()=>b,in:()=>b,update:()=>b,delete:()=>b,
+    single:()=>Promise.resolve(bq),then:(res)=>res(bq)};
+  return b;
+}
+function _setupDemoProxy(){
+  const _origFrom=sb.from.bind(sb);
+  sb.from=function(table){
+    if(!state.demo) return _origFrom(table);
+    // Lecture seule du profil courant (pour auth)
+    if(table==='profiles'){
+      const dq=_demoQuery(DEMO_DATA.profiles);
+      dq.insert=()=>_demoBlocked(); dq.update=()=>_demoBlocked();
+      return dq;
+    }
+    // Correspondances de noms de tables
+    const key=table.replace(/-/g,'_');
+    const tableData=DEMO_DATA[key]||DEMO_DATA[table]||[];
+    return _demoQuery(tableData);
+  };
+  // Bloquer le storage en mode démo
+  if(sb.storage){
+    const _origStorage=sb.storage.from.bind(sb.storage);
+    sb.storage.from=function(bucket){
+      if(!state.demo) return _origStorage(bucket);
+      return {
+        createSignedUrl:()=>Promise.resolve({data:null,error:{message:'Mode démonstration — fichiers non disponibles'}}),
+        upload:()=>_demoBlocked(),
+        remove:()=>_demoBlocked(),
+        getPublicUrl:()=>({data:{publicUrl:''}}),
+      };
+    };
+  }
+}
+
+
 async function boot(){
   try{ console.log('%cQUICKPROTECT build: LOGIN-FIX-2026-06-17','color:#2563eb;font-weight:700'); }catch(e){}
   // Routes publiques sans login
@@ -740,6 +906,13 @@ async function afterLogin(){
   try{
     const { data:prof } = await sb.from('profiles').select('*').eq('id',state.user.id).single();
     state.profile = prof || {nom:state.user.email,role:'consultant',email:state.user.email};
+    // DEMO MODE — activer si is_demo=true sur le profil
+    if(state.profile?.is_demo){
+      state.demo=true;
+      state.profile.role='admin'; // Accès complet en lecture
+      state.profile.nom=state.profile.nom||'Compte Démonstration';
+      _setupDemoProxy();
+    }
     await loadScope();
     if(!location.hash || location.hash==='#/login') location.hash='#/';
     renderApp();
@@ -1329,7 +1502,7 @@ async function viewParametres(c){
 ===================================================================== */
 async function viewAdmin(c){
   // Vérification du rôle admin
-  if(state.profile?.role !== 'admin'){
+  if(state.profile?.role !== 'admin' && !state.demo){
     c.innerHTML=`<div class="card card-pad" style="max-width:480px;margin:40px auto;text-align:center">
       <div style="font-size:48px;margin-bottom:16px">🔒</div>
       <h2 style="font-size:20px;margin-bottom:8px">Accès réservé</h2>
@@ -1397,6 +1570,7 @@ async function viewAdmin(c){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
           <h2 style="font-size:16px;margin:0">Utilisateurs (${users?.length||0})</h2>
           <button class="btn sm primary" onclick="openUserWizard()">✨ Programmer un utilisateur</button>
+          <button class="btn sm" onclick="formCreateDemo()" style="background:#f59e0b;color:#fff;border:none">🎭 Créer accès démo</button>
         </div>
         <div style="display:flex;flex-direction:column;gap:8px">
           ${(users||[]).map((u)=>`<div style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:9px;background:var(--surface-2)">
@@ -1408,6 +1582,7 @@ async function viewAdmin(c){
               <div style="font-size:11.5px;color:var(--muted)">${esc(u.email)}</div>
             </div>
             <div style="display:flex;gap:6px;align-items:center">
+              ${u.is_demo?`<span class="pill moy" style="background:#fef3c7;color:#92400e">🎭 Démo</span>`:''}
               ${statusPill(u.role,{admin:['','Admin','crit'],consultant:['','Consultant','int'],exploitant:['','Exploitant','ok'],prestataire:['','Prestataire','moy'],lecture:['','Lecture','inf']})}
               ${statusPill(u.statut,{actif:['','Actif','ok'],suspendu:['','Suspendu','moy'],desactive:['','Désactivé','inf']})}
               <button class="btn sm" onclick="formEditUser('${u.id}','${esc(u.nom||'')}','${u.role}','${u.statut}')">✏️</button>
@@ -1748,6 +1923,68 @@ function formEditUser(id,nom,role,statut){
 }
 window.formEditUser=formEditUser;
 
+/* =====================================================================
+   DEMO ACCOUNT CREATION
+   ===================================================================== */
+function formCreateDemo(){
+  openModal(`
+    <div class="modal-head"><h3>🎭 Créer un accès démonstration</h3></div>
+    <div class="modal-body" style="padding:20px">
+      <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px 14px;font-size:13px;color:#92400e;margin-bottom:18px;line-height:1.5">
+        Ce compte aura accès à une version démo de l'application avec des données fictives réalistes.<br>
+        <b>Aucune donnée réelle ne sera visible ou modifiable.</b>
+      </div>
+      <div class="fld"><label>Email du compte démo</label>
+        <input id="demo_email" type="email" placeholder="prospect@client.fr" autocomplete="off">
+      </div>
+      <div class="fld"><label>Mot de passe</label>
+        <input id="demo_pass" type="password" placeholder="Minimum 8 caractères" autocomplete="new-password">
+      </div>
+      <div class="fld"><label>Nom affiché (optionnel)</label>
+        <input id="demo_nom" placeholder="Ex: Prospect Dupont" autocomplete="off">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" onclick="doCreateDemo()" style="background:#f59e0b;border-color:#f59e0b">🎭 Créer le compte démo</button>
+    </div>
+  `);
+}
+window.formCreateDemo=formCreateDemo;
+
+async function doCreateDemo(){
+  const email=(document.getElementById('demo_email')?.value||'').trim();
+  const pass=document.getElementById('demo_pass')?.value||'';
+  const nom=(document.getElementById('demo_nom')?.value||'').trim()||'Compte Démonstration';
+  if(!email||pass.length<8){ toast('Email et mot de passe (8 car. min) requis','err'); return; }
+  const btn=document.querySelector('.modal .btn.primary');
+  if(btn){ btn.disabled=true; btn.textContent='Création…'; }
+  try{
+    const {data:authData,error:authErr}=await sb.auth.signUp({
+      email, password:pass,
+      options:{data:{nom,role:'demo'},emailRedirectTo:location.origin}
+    });
+    if(authErr) throw authErr;
+    const userId=authData.user?.id;
+    if(!userId) throw new Error('Identifiant utilisateur manquant après inscription');
+    // Créer le profil avec is_demo=true
+    const {error:profErr}=await sb.from('profiles').upsert({
+      id:userId, email, nom, role:'demo', statut:'actif', is_demo:true
+    });
+    if(profErr) throw profErr;
+    closeModal();
+    toast(`Compte démo créé pour ${email}`,'ok');
+    // Log audit
+    await sb.from('audit_log').insert({user_id:state.user.id,user_label:state.profile?.nom||email,action:'demo_account_created',entite:'profiles',entite_id:userId,details:{email,nom}});
+    viewAdmin(document.getElementById('content'));
+  }catch(e){
+    toast(e.message,'err');
+    if(btn){ btn.disabled=false; btn.textContent='🎭 Créer le compte démo'; }
+  }
+}
+window.doCreateDemo=doCreateDemo;
+
+
 
 /* =====================================================================
    WIZARD ONBOARDING UTILISATEUR (5 étapes)
@@ -2087,7 +2324,10 @@ const NAV = [
 function renderApp(){
   const initials=(state.profile?.nom||'?').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase();
   $('#root').innerHTML=`<div id="app">
-    <aside class="sidebar" id="sidebar">
+    ${state.demo?`<div id="demo-banner" style="position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,#f59e0b,#d97706);color:#fff;text-align:center;font-size:13px;font-weight:600;padding:7px 16px;letter-spacing:.02em;box-shadow:0 2px 8px rgba(0,0,0,.15)">
+      🎭 MODE DÉMONSTRATION — Données fictives · Lecture seule · <span style="font-weight:400;opacity:.9">Votre version complète sera configurée sur mesure</span>
+    </div>`:''}
+    <aside class="sidebar" id="sidebar" style="${state.demo?'top:38px;height:calc(100vh - 38px)':''}">
       <div class="brand"><div><div class="name">PREVA CONSEILS</div></div></div>
       <nav class="nav" id="nav">${NAV.map(g=>`
         <div class="grp">${g[0]}</div>
@@ -2101,7 +2341,7 @@ function renderApp(){
         <div style="font-size:9.5px;color:var(--muted);text-align:center;margin-top:8px;letter-spacing:.02em;opacity:.7">v. VERIF-RELANCES-2026-06-27</div>
       </div>
     </aside>
-    <div class="main">
+    <div class="main" style="${state.demo?'padding-top:38px':''}">
       <header class="topbar">
         <button class="burger" onclick="toggleSidebar()">${I.menu}</button>
         <div class="scope">
