@@ -1957,25 +1957,23 @@ async function doCreateDemo(){
   const pass=document.getElementById('demo_pass')?.value||'';
   const nom=(document.getElementById('demo_nom')?.value||'').trim()||'Compte Démonstration';
   if(!email||pass.length<8){ toast('Email et mot de passe (8 car. min) requis','err'); return; }
-  const btn=document.querySelector('.modal .btn.primary');
+  const btn=document.querySelector('#overlay .modal .btn.primary, .modal .btn.primary');
   if(btn){ btn.disabled=true; btn.textContent='Création…'; }
   try{
-    const {data:authData,error:authErr}=await sb.auth.signUp({
-      email, password:pass,
-      options:{data:{nom,role:'demo'},emailRedirectTo:location.origin}
+    // Utiliser l'Edge Function avec service role (bypass confirmation email)
+    const {data:{session}}=await sb.auth.getSession();
+    const token=session?.access_token;
+    const res=await fetch(`https://twjvloctrjqcokuuxghc.supabase.co/functions/v1/create-demo-user`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({email,password:pass,nom})
     });
-    if(authErr) throw authErr;
-    const userId=authData.user?.id;
-    if(!userId) throw new Error('Identifiant utilisateur manquant après inscription');
-    // Créer le profil avec is_demo=true
-    const {error:profErr}=await sb.from('profiles').upsert({
-      id:userId, email, nom, role:'demo', statut:'actif', is_demo:true
-    });
-    if(profErr) throw profErr;
+    const result=await res.json();
+    if(!res.ok||result.error) throw new Error(result.error||'Erreur serveur');
+    _modalDirty=false;
     closeModal();
     toast(`Compte démo créé pour ${email}`,'ok');
-    // Log audit
-    await sb.from('audit_log').insert({user_id:state.user.id,user_label:state.profile?.nom||email,action:'demo_account_created',entite:'profiles',entite_id:userId,details:{email,nom}});
+    await sb.from('audit_log').insert({user_id:state.user.id,user_label:state.profile?.nom||email,action:'demo_account_created',entite:'profiles',entite_id:result.userId,details:{email,nom}});
     viewAdmin(document.getElementById('content'));
   }catch(e){
     toast(e.message,'err');
