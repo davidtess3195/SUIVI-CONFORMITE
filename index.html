@@ -6177,7 +6177,7 @@ window.renderPointage=function(period){
   let cumH=0,cumI=0,enCours=0; const erpSet=new Set();
   list.forEach(p=>{ const ph=persH(p); if(ph!=null) cumH+=ph; cumI+=(p.nb_intervenants||1); if(p.erp_id) erpSet.add(p.erp_id); if(!p.heure_depart) enCours++; });
   const kpi=`<div class="ptg-summary">
-    <div class="big"><div class="lbl">Durée cumulée · ${labelP}</div><div class="val">${fmtDuree(cumH,true)}</div></div>
+    <div class="big"><div class="lbl">Durée cumulée · ${labelP}${period==='tout'?'<span style="font-size:10px;opacity:.7;margin-left:7px;font-weight:400"> (1 journée = 7h de présence)</span>':''}</div><div class="val">${fmtDuree(cumH,true)}</div></div>
     <div class="mini">
       <div><b>${list.length}</b>passage${list.length>1?'s':''}${enCours?` · ${enCours} en cours`:''}</div>
       <div><b>${cumI}</b>intervenant${cumI>1?'s':''}</div>
