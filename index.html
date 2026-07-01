@@ -6147,13 +6147,20 @@ async function viewPointage(c){
       }
     }catch(_){}
     c.innerHTML=`<div class="page-head"><div class="t"><h1>Pointage & journal</h1><p>Présences des intervenants sur le terrain.</p></div></div>
-      <div class="seg" id="ptg-seg" style="max-width:440px">
-        <button data-pper="jour" onclick="renderPointage('jour')">Aujourd'hui</button>
-        <button data-pper="semaine" onclick="renderPointage('semaine')">Semaine</button>
-        <button data-pper="mois" onclick="renderPointage('mois')">Mois</button>
-        <button data-pper="tout" onclick="renderPointage('tout')">Tout</button>
+      <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:2px solid var(--line);padding-bottom:0">
+        <button id="ptg-view-journal" onclick="ptgSwitchView('journal')" style="padding:9px 18px;font-size:13.5px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2.5px solid var(--primary);color:var(--primary);margin-bottom:-2px">Journal</button>
+        <button id="ptg-view-recap" onclick="ptgSwitchView('recap')" style="padding:9px 18px;font-size:13.5px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2.5px solid transparent;color:var(--muted)">Récapitulatif</button>
       </div>
-      <div id="ptg-body"></div>`;
+      <div id="ptg-journal-wrap">
+        <div class="seg" id="ptg-seg" style="max-width:440px">
+          <button data-pper="jour" onclick="renderPointage('jour')">Aujourd'hui</button>
+          <button data-pper="semaine" onclick="renderPointage('semaine')">Semaine</button>
+          <button data-pper="mois" onclick="renderPointage('mois')">Mois</button>
+          <button data-pper="tout" onclick="renderPointage('tout')">Tout</button>
+        </div>
+        <div id="ptg-body"></div>
+      </div>
+      <div id="ptg-recap-wrap" style="display:none"></div>`;
     renderPointage('mois');
   }catch(e){ c.innerHTML=errBlock(e); }
 }
@@ -6234,6 +6241,92 @@ window.togglePtg=function(id){
   const open=det.style.display!=='none';
   det.style.display=open?'none':'';
   const ch=document.getElementById('chev-'+id); if(ch) ch.style.transform=open?'rotate(0deg)':'rotate(90deg)';
+};
+
+window.ptgSwitchView=function(v){
+  const j=document.getElementById('ptg-journal-wrap');
+  const r=document.getElementById('ptg-recap-wrap');
+  const bj=document.getElementById('ptg-view-journal');
+  const br=document.getElementById('ptg-view-recap');
+  if(!j||!r) return;
+  if(v==='journal'){
+    j.style.display=''; r.style.display='none';
+    bj.style.borderBottomColor='var(--primary)'; bj.style.color='var(--primary)';
+    br.style.borderBottomColor='transparent'; br.style.color='var(--muted)';
+  } else {
+    j.style.display='none'; r.style.display='';
+    br.style.borderBottomColor='var(--primary)'; br.style.color='var(--primary)';
+    bj.style.borderBottomColor='transparent'; bj.style.color='var(--muted)';
+    renderPtgRecap();
+  }
+};
+
+window._ptgAccToggle=function(el){
+  const body=el.nextElementSibling;
+  const open=body.style.display!=='none';
+  body.style.display=open?'none':'';
+  const chev=el.querySelector('.rchev,.cchev');
+  if(chev) chev.style.transform=open?'rotate(0deg)':'rotate(90deg)';
+};
+window.renderPtgRecap=function(){
+  const wrap=document.getElementById('ptg-recap-wrap'); if(!wrap) return;
+  const rows=window._ptgRows||[];
+  const erpById={}; (state.erps||[]).forEach(e=>erpById[e.id]=e);
+  const clientById={}; (state.clients||[]).forEach(cl=>clientById[cl.id]=cl);
+  const fmtTime=d=>new Date(d).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  const fmtDateFr=d=>new Date(d).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const persH=p=>{ if(!p.heure_depart) return null; const d=(new Date(p.heure_depart)-new Date(p.heure_arrivee))/3.6e6; return d>0?d*(p.nb_intervenants||1):0; };
+  if(!rows.length){ wrap.innerHTML=emptyBlock(I.qr,'Aucun pointage','Aucune donnée à récapituler.'); return; }
+  const byClient={};
+  rows.forEach(p=>{
+    const erp=erpById[p.erp_id];
+    const cl=erp?clientById[erp.client_id]:null;
+    const cid=cl?cl.id:'__aucun__';
+    const cnom=cl?cl.raison_sociale:'Client non identifié';
+    if(!byClient[cid]) byClient[cid]={nom:cnom,societes:{}};
+    const soc=(p.societe||'').trim()||'Société non renseignée';
+    if(!byClient[cid].societes[soc]) byClient[cid].societes[soc]=[];
+    byClient[cid].societes[soc].push(p);
+  });
+  const TH='style="padding:7px 12px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;text-align:left"';
+  let html='<div style="display:flex;flex-direction:column;gap:14px;margin-top:4px">';
+  Object.entries(byClient).sort((a,b)=>a[1].nom.localeCompare(b[1].nom)).forEach(([cid,cdata])=>{
+    let totalH=0,totalP=0;
+    Object.values(cdata.societes).forEach(ps=>ps.forEach(p=>{const h=persH(p);if(h!=null)totalH+=h;totalP++;}));
+    let socHtml='';
+    Object.entries(cdata.societes).sort((a,b)=>a[0].localeCompare(b[0])).forEach(([soc,passages])=>{
+      let socH=0;
+      passages.forEach(p=>{const h=persH(p);if(h!=null)socH+=h;});
+      const lignes=passages.slice().sort((a,b)=>new Date(b.heure_arrivee)-new Date(a.heure_arrivee)).map(p=>{
+        const h=persH(p); const enc=!p.heure_depart; const erp=erpById[p.erp_id];
+        return '<tr style="border-bottom:1px solid var(--line-2)">'
+          +'<td style="padding:8px 12px;font-size:12.5px;color:var(--muted)">'+fmtDateFr(p.heure_arrivee||p.created_at)+'</td>'
+          +'<td style="padding:8px 12px;font-size:12.5px">'+fmtTime(p.heure_arrivee)+' → '+(enc?'<i style="color:var(--muted)">en cours</i>':fmtTime(p.heure_depart))+'</td>'
+          +'<td style="padding:8px 12px;font-size:12.5px;font-weight:600">'+fmtDuree(h)+'</td>'
+          +'<td style="padding:8px 12px;font-size:12px;color:var(--muted)">'+esc(erp?erp.nom:'—')+'</td>'
+          +'<td style="padding:8px 12px;font-size:12px;color:var(--muted)">'+(p.nb_intervenants>1?'x'+p.nb_intervenants+' interv.':'')+'</td>'
+          +'</tr>';
+      }).join('');
+      socHtml+='<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:8px">'
+        +'<div style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;background:var(--surface-2);user-select:none" onclick="_ptgAccToggle(this)">'
+        +'<span style="flex:1;font-size:13px;font-weight:600;color:var(--ink)">'+esc(soc)+'</span>'
+        +'<span style="font-size:12px;color:var(--muted);margin-right:8px">'+passages.length+' passage'+(passages.length>1?'s':'')+' · '+fmtDuree(socH)+'</span>'
+        +'<span class="rchev" style="color:var(--muted-2);font-size:13px;transition:transform .2s;transform:rotate(90deg)">▶</span>'
+        +'</div>'
+        +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+        +'<thead><tr style="background:var(--surface)"><th '+TH+'>Date</th><th '+TH+'>Horaires</th><th '+TH+'>Durée</th><th '+TH+'>ERP</th><th '+TH+'>Équipe</th></tr></thead>'
+        +'<tbody>'+lignes+'</tbody></table></div></div>';
+    });
+    html+='<div style="border:1.5px solid var(--line);border-radius:14px;overflow:hidden">'
+      +'<div style="display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;background:var(--primary);color:#fff;user-select:none" onclick="_ptgAccToggle(this)">'
+      +'<div style="flex:1"><div style="font-size:14.5px;font-weight:700">'+esc(cdata.nom)+'</div>'
+      +'<div style="font-size:12px;opacity:.85;margin-top:2px">'+totalP+' passage'+(totalP>1?'s':'')+' · '+fmtDuree(totalH,true)+'</div></div>'
+      +'<span class="cchev" style="font-size:16px;opacity:.8;transition:transform .2s;transform:rotate(90deg)">▶</span>'
+      +'</div>'
+      +'<div style="padding:12px">'+socHtml+'</div></div>';
+  });
+  html+='</div>';
+  wrap.innerHTML=html;
 };
 
 window.ptgSetFin=function(pid, heure_arrivee){
