@@ -6303,6 +6303,8 @@ window.renderPtgRecap=function(){
           +'<td style="padding:8px 12px;font-size:12.5px;color:var(--muted)">'+fmtDateFr(p.heure_arrivee||p.created_at)+'</td>'
           +'<td style="padding:8px 12px;font-size:12.5px">'+fmtTime(p.heure_arrivee)+' → '+(enc?'<i style="color:var(--muted)">en cours</i>':fmtTime(p.heure_depart))+'</td>'
           +'<td style="padding:8px 12px;font-size:12.5px;font-weight:600">'+fmtDuree(h)+'</td>'
+          +'<td style="padding:8px 12px;font-size:12.5px;font-weight:600;color:var(--ink)">'+esc((p.societe||'').trim()||'—')+'</td>'
+          +'<td style="padding:8px 12px;font-size:12px;color:var(--muted)">'+esc((p.mission||'').trim()||'—')+'</td>'
           +'<td style="padding:8px 12px;font-size:12px;color:var(--muted)">'+esc(erp?erp.nom:'—')+'</td>'
           +'<td style="padding:8px 12px;font-size:12px;color:var(--muted)">'+(p.nb_intervenants>1?'x'+p.nb_intervenants+' interv.':'')+'</td>'
           +'</tr>';
@@ -6314,7 +6316,7 @@ window.renderPtgRecap=function(){
         +'<span class="rchev" style="color:var(--muted-2);font-size:13px;transition:transform .2s;transform:rotate(90deg)">▶</span>'
         +'</div>'
         +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
-        +'<thead><tr style="background:var(--surface)"><th '+TH+'>Date</th><th '+TH+'>Horaires</th><th '+TH+'>Durée</th><th '+TH+'>ERP</th><th '+TH+'>Équipe</th></tr></thead>'
+        +'<thead><tr style="background:var(--surface)"><th '+TH+'>Date</th><th '+TH+'>Horaires</th><th '+TH+'>Durée</th><th '+TH+'>Société</th><th '+TH+'>Mission</th><th '+TH+'>ERP</th><th '+TH+'>Équipe</th></tr></thead>'
         +'<tbody>'+lignes+'</tbody></table></div></div>';
     });
     html+='<div style="border:1.5px solid var(--line);border-radius:14px;overflow:hidden">'
