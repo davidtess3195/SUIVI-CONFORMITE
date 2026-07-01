@@ -6658,7 +6658,7 @@ async function viewContrats(c){
         ${ct.nom?infoRow('📄 Document', esc(ct.nom)):''}
       </div>
       <div style="display:flex;gap:7px;padding:10px 15px;border-top:1px solid var(--line)">
-        ${ct.fichier_path?`<button class="btn sm" onclick="previewDoc('${ct.fichier_path}','${esc(ct.nom||'contrat')}')">👁️ Visualiser</button>`:''}
+        ${ct.fichier_path?`<button class="btn sm" onclick="previewContrat('${ct.id}')">👁️ Visualiser</button>`:''}
         <button class="btn sm" onclick="contratForm((window._contratsCache||[]).find(x=>x.id==='${ct.id}'))">Modifier</button>
         <button class="btn sm danger" style="margin-left:auto" onclick="delContrat('${ct.id}')">Supprimer</button>
       </div>
@@ -6670,6 +6670,11 @@ async function viewContrats(c){
   }catch(e){ c.innerHTML=errBlock(e); }
 }
 window.viewContrats=viewContrats;
+window.previewContrat=function(id){
+  const ct=(window._contratsCache||[]).find(c=>c.id===id);
+  if(!ct||!ct.fichier_path){toast('Document introuvable','err');return;}
+  previewDoc(ct.fichier_path, ct.nom||ct.fichier_path.split('/').pop());
+};
 
 window.contratHandleFiles=function(files){ if(files&&files[0]) contratForm(null, files[0]); };
 window.contratDrop=function(e){ e.preventDefault(); const z=document.getElementById('ctr_drop'); if(z){z.style.borderColor='var(--line)';z.style.background='transparent';} const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) contratForm(null, f); };
@@ -6696,7 +6701,7 @@ function contratForm(ct, file){
       <div class="fld"><label>Bureau de contrôle</label><select id="ct_bureau"><option value="">— (optionnel) —</option>${bdcOpts}</select></div>
     </div>
     <div class="fld"><label>Document <span style="color:var(--muted-2);font-weight:400;font-size:11px">(PDF/image, compressé automatiquement)</span></label>
-      ${ct.fichier_path?`<div style="font-size:12.5px;color:var(--muted);margin-bottom:6px">Document actuel : ${esc(ct.nom||'fichier')} <button type="button" class="btn sm" onclick="previewDoc('${ct.fichier_path}','${esc(ct.nom||'contrat')}')">Voir</button></div>`:''}
+      ${ct.fichier_path?`<div style="font-size:12.5px;color:var(--muted);margin-bottom:6px">Document actuel : ${esc(ct.nom||'fichier')} <button type="button" class="btn sm" onclick="previewContrat('${ct.id}')">Voir</button></div>`:''}
       <input id="ct_filein" type="file" accept="application/pdf,image/*" style="display:none" onchange="contratSetFile(this.files[0])">
       <button type="button" class="btn sm" onclick="document.getElementById('ct_filein').click()">${(ct.fichier_path||file)?'Changer le fichier':'Choisir un fichier'}</button>
       <span id="ct_filename" style="font-size:12px;color:var(--muted);margin-left:8px">${file?esc(file.name):''}</span>
