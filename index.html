@@ -258,6 +258,9 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .pcard .pright{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:0 0 auto;text-align:right}
 .pcard .pdur{font-weight:700;font-size:14px;font-family:var(--fd);color:var(--ink)}
 .pcard .ptime{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.ptg-vu-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:none;border:1.5px solid #d1d5db;color:#9ca3af;font-size:13px;font-weight:700;cursor:pointer;transition:border-color .15s,color .15s,background .15s;flex-shrink:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.ptg-vu-btn:hover,.ptg-vu-btn:active{border-color:#16a34a;color:#16a34a;background:#f0fdf4}
+.ptg-vu-ok{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:#dcfce7;color:#16a34a;font-size:13px;font-weight:700;flex-shrink:0}
 .ptg-chev{display:inline-block;width:12px;font-size:10px;color:var(--muted);transition:transform .18s;transform:rotate(0deg);flex:0 0 auto;margin-left:2px}
 .pdet{background:var(--surface-2);border:1px solid var(--line);border-radius:14px;margin-top:7px;padding:15px 16px;display:flex;flex-direction:column;gap:14px}
 .pdet-row{display:flex;gap:20px;flex-wrap:wrap}
@@ -276,6 +279,8 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   .ptg-summary .big .val{font-size:26px}
   .pcard .psub{white-space:normal}
   .pcard .pright .ptime{display:none}
+  .pcard .pdur{font-size:13px}
+  .pcard{gap:10px;padding:10px 12px}
   #ptg-seg{max-width:100%}
   #ptg-seg button{padding:9px 4px;font-size:11.5px;white-space:nowrap}
 }
@@ -6259,8 +6264,8 @@ window.renderPointage=function(period){  window._ptgActivePer=period;
             ${enc
               ?`<button onclick="event.stopPropagation();ptgSetFin('${p.id}','${p.heure_arrivee}')" style="font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:6px;border:1px solid #fca5a5;background:none;color:#dc2626;cursor:pointer;white-space:nowrap">Clôturer</button>`
               :p.vu
-                ?`<span title="Traité" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#dcfce7;color:#16a34a;font-size:13px;font-weight:700;flex-shrink:0">✓</span>`
-                :`<button onclick="event.stopPropagation();ptgMarkVu('${p.id}')" title="Marquer comme traité" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:none;border:1.5px solid #d1d5db;color:#9ca3af;font-size:12px;font-weight:700;cursor:pointer;transition:.15s;flex-shrink:0" onmouseover="this.style.borderColor='#16a34a';this.style.color='#16a34a';this.style.background='#f0fdf4'" onmouseout="this.style.borderColor='#d1d5db';this.style.color='#9ca3af';this.style.background='none'">✓</button>`
+                ?`<span class="ptg-vu-ok" title="Traité">✓</span>`
+                :`<button class="ptg-vu-btn" onclick="event.stopPropagation();ptgMarkVu('${p.id}')" title="Marquer comme traité">✓</button>`
             }
           </div>
         </div>
