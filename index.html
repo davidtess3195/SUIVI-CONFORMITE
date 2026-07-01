@@ -6254,8 +6254,15 @@ window.renderPointage=function(period){  window._ptgActivePer=period;
         <div class="pright">
           <div class="pdur">${enc?'<span style="color:var(--muted);font-weight:600;font-size:12.5px">en cours</span>':fmtDuree(ph)}</div>
           <div class="ptime">${fmtTime(p.heure_arrivee)} → ${enc?'…':fmtTime(p.heure_depart)}</div>
-          <span class="pill ${p.mode_saisie==='qr'?'int':'inf'}" style="margin-top:1px">${p.mode_saisie==='qr'?'QR':'Manuel'}</span>
-          ${enc?`<button class="btn sm" style="margin-top:4px;font-size:11.5px;color:#dc2626;border-color:#fca5a5" onclick="event.stopPropagation();ptgSetFin('${p.id}','${p.heure_arrivee}')">Clôturer</button>`:p.vu?`<span style="font-size:11px;color:#16a34a;font-weight:600;margin-top:4px;display:flex;align-items:center;gap:3px">✓ Traité</span>`:`<button class="btn sm" style="margin-top:4px;font-size:11.5px;color:#16a34a;border-color:#86efac" onclick="event.stopPropagation();ptgMarkVu('${p.id}')">Vu ✓</button>`}
+          <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+            <span class="pill ${p.mode_saisie==='qr'?'int':'inf'}">${p.mode_saisie==='qr'?'QR':'Manuel'}</span>
+            ${enc
+              ?`<button onclick="event.stopPropagation();ptgSetFin('${p.id}','${p.heure_arrivee}')" style="font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:6px;border:1px solid #fca5a5;background:none;color:#dc2626;cursor:pointer;white-space:nowrap">Clôturer</button>`
+              :p.vu
+                ?`<span title="Traité" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#dcfce7;color:#16a34a;font-size:13px;font-weight:700;flex-shrink:0">✓</span>`
+                :`<button onclick="event.stopPropagation();ptgMarkVu('${p.id}')" title="Marquer comme traité" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:none;border:1.5px solid #d1d5db;color:#9ca3af;font-size:12px;font-weight:700;cursor:pointer;transition:.15s;flex-shrink:0" onmouseover="this.style.borderColor='#16a34a';this.style.color='#16a34a';this.style.background='#f0fdf4'" onmouseout="this.style.borderColor='#d1d5db';this.style.color='#9ca3af';this.style.background='none'">✓</button>`
+            }
+          </div>
         </div>
         ${hasDet?`<span class="ptg-chev" id="chev-${p.id}">▶</span>`:''}
       </div>`;
