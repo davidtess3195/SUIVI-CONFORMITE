@@ -937,6 +937,8 @@ function renderRoute(){
   const hash = location.hash.replace(/^#/,'')||'/';
   // Route publique QR
   if(hash.startsWith('/qr/')){ renderQrPublic(hash.split('/')[2]); return; }
+  // Route publique confirmation CS
+  if(hash.startsWith('/cs-confirm')){ renderCsConfirm(); return; }
   // Route admin dédiée
   if(hash==='/admin-login'){ renderAdminAuth(); return; }
   if(!state.user){ renderAuth('login'); return; }
@@ -7582,7 +7584,14 @@ async function viewPreparationCS(c){
   const savedDate = localStorage.getItem('cs_commission_date_'+erpId)||'';
   const savedTime = localStorage.getItem('cs_commission_time_'+erpId)||'';
 
-  /* ── Rendu ── */
+  /* ── Chargement des confirmations ── */
+  let confirmedIds=new Set();
+  if(savedDate){
+    const {data:confData}=await sb.from('cs_confirmations').select('prestataire_id').eq('erp_id',erpId).eq('date_cs',savedDate);
+    (confData||[]).forEach(r=>confirmedIds.add(r.prestataire_id));
+  }
+
+  /* ── Rendu ──
   let html='';
 
   // Bandeau principal
@@ -7635,8 +7644,12 @@ async function viewPreparationCS(c){
       for(const p of prests){
         const emails=getEmails(p);
         const pid=p.id;
-        html+=`<div class="card" style="padding:12px 14px;border-color:${cat.color}30">
-          <div style="font-size:13.5px;font-weight:700;margin-bottom:8px;color:var(--ink)">${esc(p.nom)}</div>
+        const isConfirmed=confirmedIds.has(pid);
+        html+=`<div class="card" style="padding:12px 14px;border-color:${isConfirmed ? '#16a34a' : cat.color+'30'};${isConfirmed ? 'background:#f0fdf4;' : ''">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-size:13.5px;font-weight:700;color:var(--ink)">${esc(p.nom)}</div>
+            <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;${isConfirmed ? 'background:#dcfce7;color:#16a34a' : 'background:#fef9c3;color:#92400e'}">${isConfirmed ? '✅ Confirmé' : '⏳ En attente'}</span>
+          </div>
           <div style="display:flex;flex-direction:column;gap:4px">`;
         if(!emails.length){
           html+=`<div style="font-size:12px;color:var(--muted)">Aucun email configuré</div>`;
@@ -7749,6 +7762,10 @@ async function csEnvoyerAssistance(catKey,catLabel,erpId){
         +'</div>'
         +'<div style="padding:24px;background:#fff;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 10px 10px">'
         +'<p style="margin:0 0 16px 0;font-size:14px;color:#1e293b;line-height:1.7">'+_sm+'</p>'
+        +'<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0">'
+        +'<div style="text-align:center;margin:28px 0">'
+        +'<a href="https://conformite-securite.fr/#/cs-confirm?p='+pid+'&amp;erp='+erpId+'&amp;date='+encodeURIComponent(dateVal)+'&amp;nom='+encodeURIComponent(pdata.nom)+'&amp;erp_nom='+encodeURIComponent(cleanNom)+'" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:16px 32px;border-radius:10px;font-weight:700;font-size:15px;letter-spacing:.01em">&#x2705;&nbsp;&nbsp;Je confirme ma présence et l'envoi d'un devis</a>'
+        +'</div>'
         +'<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0">'
         +'<p style="font-size:12px;color:#64748b;margin:0">'+esc(cleanNom)+'<br>'+esc(sig)+'</p>'
         +'</div></div>';
@@ -8871,6 +8888,91 @@ function qrPhotoUI(token){
   };
 }
 window.qrPhotoPick=function(){ const f=document.getElementById('p_file'); const l=document.getElementById('p_filelist'); if(!f||!l) return; const n=(f.files||[]).length; l.textContent = n? (n>1?`${n} photos sélectionnées`:'1 photo sélectionnée') : ''; };
+
+async function renderCsConfirm(){
+  if(!sb){ loadCfg(); if(!initSb()){ $('#root').innerHTML='<div style="font-family:sans-serif;max-width:500px;margin:80px auto;padding:32px;text-align:center"><p style="color:#ef4444">Configuration Supabase manquante.</p></div>'; return; } }
+  const params=new URLSearchParams(location.hash.split('?')[1]||'');
+  const prestId=params.get('p');
+  const erpId=params.get('erp');
+  const dateCs=params.get('date');
+  const prestNom=decodeURIComponent(params.get('nom')||'');
+  const erpNom=decodeURIComponent(params.get('erp_nom')||'');
+
+  const root=$('#root');
+
+  // Style de base
+  root.innerHTML=`<div style="font-family:sans-serif;min-height:100vh;background:#f1f5f9;display:flex;align-items:center;justify-content:center;padding:24px">
+    <div style="background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.1);max-width:480px;width:100%;overflow:hidden">
+      <div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;padding:28px 32px">
+        <div style="font-size:13px;opacity:.8;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Commission de sécurité</div>
+        <div style="font-size:20px;font-weight:800">${esc(erpNom)||'Confirmation de présence'}</div>
+        ${dateCs ? '<div style="font-size:14px;opacity:.85;margin-top:6px">📅 '+esc(dateCs)+'</div>' : ''}
+      </div>
+      <div style="padding:32px" id="cs_confirm_body">
+        <div style="text-align:center;color:#64748b;font-size:14px">Chargement…</div>
+      </div>
+    </div>
+  </div>`;
+
+  if(!prestId||!erpId||!dateCs){
+    document.getElementById('cs_confirm_body').innerHTML='<p style="color:#ef4444;text-align:center">Lien invalide ou incomplet.</p>';
+    return;
+  }
+
+  // Vérifier si déjà confirmé
+  const {data:existing}=await sb.from('cs_confirmations').select('id,confirmed_at').eq('erp_id',erpId).eq('prestataire_id',prestId).eq('date_cs',dateCs).maybeSingle();
+
+  if(existing){
+    document.getElementById('cs_confirm_body').innerHTML=`
+      <div style="text-align:center">
+        <div style="font-size:48px;margin-bottom:16px">✅</div>
+        <div style="font-size:18px;font-weight:700;color:#16a34a;margin-bottom:8px">Présence déjà confirmée</div>
+        <p style="color:#64748b;font-size:14px;margin:0">${esc(prestNom)} a déjà confirmé sa présence pour cette commission.</p>
+      </div>`;
+    return;
+  }
+
+  // Afficher le bouton de confirmation
+  document.getElementById('cs_confirm_body').innerHTML=`
+    <div style="text-align:center">
+      <div style="font-size:42px;margin-bottom:20px">📋</div>
+      <p style="font-size:15px;color:#1e293b;font-weight:600;margin:0 0 8px 0">${esc(prestNom)||'Prestataire'}</p>
+      <p style="font-size:14px;color:#64748b;margin:0 0 28px 0">
+        Vous confirmez votre présence à la commission de sécurité du <strong>${esc(dateCs)}</strong> et l'envoi d'un devis.
+      </p>
+      <button id="cs_confirm_btn" onclick="doCsConfirm()" style="background:#16a34a;color:#fff;border:none;padding:16px 36px;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;width:100%">
+        ✅ Confirmer ma présence et l'envoi d'un devis
+      </button>
+    </div>`;
+
+  window.doCsConfirm=async function(){
+    const btn=document.getElementById('cs_confirm_btn');
+    btn.disabled=true; btn.textContent='Enregistrement…';
+    const {error}=await sb.from('cs_confirmations').insert({
+      erp_id:erpId,
+      prestataire_id:prestId,
+      date_cs:dateCs,
+      prestataire_nom:prestNom,
+      erp_nom:erpNom
+    });
+    if(error){
+      btn.disabled=false; btn.textContent='✅ Confirmer ma présence et l'envoi d'un devis';
+      document.getElementById('cs_confirm_body').insertAdjacentHTML('beforeend','<p style="color:#ef4444;text-align:center;margin-top:12px;font-size:13px">Erreur : '+esc(error.message)+'</p>');
+      return;
+    }
+    document.getElementById('cs_confirm_body').innerHTML=`
+      <div style="text-align:center">
+        <div style="font-size:52px;margin-bottom:16px">✅</div>
+        <div style="font-size:19px;font-weight:800;color:#16a34a;margin-bottom:10px">Présence confirmée !</div>
+        <p style="color:#475569;font-size:14px;line-height:1.6;margin:0">
+          Merci <strong>${esc(prestNom)}</strong>, votre présence à la commission de sécurité du <strong>${esc(dateCs)}</strong> chez <strong>${esc(erpNom)}</strong> est bien enregistrée.<br><br>
+          Merci de nous transmettre votre devis dès que possible.
+        </p>
+      </div>`;
+  };
+}
+window.renderCsConfirm=renderCsConfirm;
+
 async function renderQrPublic(token){
   if(!sb){ loadCfg(); if(!initSb()){ $('#root').innerHTML='<div class="loading"><div class="spin"></div></div>'; return; } }
   $('#root').innerHTML=`<div class="qrpub"><div class="sheet">
