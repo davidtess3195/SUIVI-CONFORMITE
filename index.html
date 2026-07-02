@@ -7525,7 +7525,7 @@ async function viewPreparationCS(c){
     // 1. Via client_id direct ou client_ids array
     const {data:byCl} = await sb.from('prestataires')
       .select('id,nom,type,categorie,email_rapports,contacts,affaires,client_id,client_ids')
-      .or('client_id.eq.'+clientId+',client_ids.cs.["'+clientId+'"]');
+      .or('client_id.eq.'+clientId+',client_ids.cs.{'+clientId+'}');
     // 2. Via affaires liées à l'ERP
     const {data:allP} = await sb.from('prestataires')
       .select('id,nom,type,categorie,email_rapports,contacts,affaires,client_id,client_ids')
