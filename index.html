@@ -8625,7 +8625,7 @@ async function renderQrPublic(token){
   if(head) head.innerHTML=`<p style="color:#9fb0c6;font-size:13.5px;margin:0 0 4px;font-weight:600">${esc(info.client_nom)}</p>
     <h1 style="font-size:20px;color:#fff;margin:0">${esc(info.erp_nom)}</h1>`;
   qrLoadDocs(token);
-  qrArrivee(token,info);
+  qrConsigne(token,info);
 }
 window.renderQrPublic=renderQrPublic;
 
@@ -8650,6 +8650,50 @@ async function qrLoadDocs(token){
   }catch(e){ /* silencieux */ }
 }
 window.qrLoadDocs=qrLoadDocs;
+
+function qrConsigne(token,info){
+  // Si déjà pointé à l'arrivée → aller directement au départ
+  let pidExist=null; try{pidExist=localStorage.getItem('preva_pointage_'+token);}catch(e){}
+  if(pidExist){ qrDepart(token); return; }
+  const body=$('#qrbody'); if(!body) return;
+  const nomErp=(info&&info.erp_nom||'').replace(/^ERP-\d+[-\s]*/,'').trim();
+  body.innerHTML=
+    '<div class="card card-pad" style="margin-bottom:14px;border:2px solid #f59e0b;background:#fffbeb">'
+    +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">'
+    +'<span style="font-size:28px">⚠️</span>'
+    +'<div><div style="font-size:14px;font-weight:800;color:#92400e;letter-spacing:.02em;text-transform:uppercase">Consigne obligatoire</div>'
+    +'<div style="font-size:12px;color:#b45309;margin-top:2px">Enregistrement des accès</div></div></div>'
+    +'<p style="font-size:13.5px;color:#1e293b;line-height:1.7;margin-bottom:14px">'
+    +'Tout intervenant pénétrant dans <b>'+esc(nomErp)+'</b> est tenu d’enregistrer ses entrées et sorties via ce QR code.</p>'
+    +'<div style="background:#fff;border:1px solid #fcd34d;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13.5px;line-height:1.8;color:#1e293b">'
+    +'<div style="margin-bottom:6px"><b style="color:#d97706">▶ À votre ARRIVÉE</b> : Scannez le QR code et renseignez vos nom, société et objet de l’intervention</div>'
+    +'<div><b style="color:#d97706">▶ À votre DÉPART</b> : Scannez à nouveau pour clôturer votre passage</div>'
+    +'</div>'
+    +'<p style="font-size:12.5px;color:#92400e;margin-bottom:18px">Cette procédure est <b>obligatoire</b> pour tout prestataire intervenant dans nos établissements.</p>'
+    +'<div style="display:flex;flex-direction:column;gap:10px">'
+    +'<button id="qr_accept" class="btn primary" style="width:100%;justify-content:center;padding:14px;font-size:15px;border-radius:12px;background:#16a34a;border-color:#16a34a">'
+    +'✅ J’ai lu et j’accepte les consignes</button>'
+    +'<button id="qr_refuse" class="btn ghost" style="width:100%;justify-content:center;padding:12px;font-size:14px;border-radius:12px;color:#dc2626;border-color:#dc2626">'
+    +'❌ Je refuse</button>'
+    +'</div></div>';
+
+  document.getElementById('qr_accept').onclick=()=>{ qrArrivee(token,info); };
+
+  document.getElementById('qr_refuse').onclick=()=>{
+    body.innerHTML=
+      '<div class="card card-pad" style="text-align:center;padding:40px 24px">'
+      +'<div style="font-size:48px;margin-bottom:16px">🚫</div>'
+      +'<h3 style="font-size:17px;margin-bottom:10px;color:#dc2626">Accès refusé</h3>'
+      +'<p style="font-size:14px;color:var(--muted);line-height:1.7;margin-bottom:24px">'
+      +'Vous avez refusé les consignes d’accès.<br>'
+      +'L’enregistrement est obligatoire pour intervenir dans cet établissement.<br>'
+      +'Veuillez contacter le responsable de l’établissement.</p>'
+      +'<button class="btn ghost" style="font-size:13px" onclick="qrConsigne(\''+token+'\',window._qrInfo)">← Retour aux consignes</button>'
+      +'</div>';
+    window._qrInfo=info;
+  };
+}
+window.qrConsigne=qrConsigne;
 
 function qrArrivee(token,info){
   let pidExist=null; try{pidExist=localStorage.getItem('preva_pointage_'+token);}catch(e){}
