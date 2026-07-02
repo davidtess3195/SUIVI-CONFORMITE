@@ -7736,7 +7736,7 @@ async function csEnvoyerAssistance(catKey,catLabel,erpId){
     +Object.values(byPrest).map(p=>'<span style="background:#dbeafe;color:#1e40af;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600">'
       +esc(p.nom)+' ('+p.emails.length+' email'+(p.emails.length>1?'s':'')+')</span>').join('')
     +'</div></div>'
-    +'<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:10px">'+'<span style="font-size:18px">✅</span>'+'<div style="font-size:12.5px;color:#166534;line-height:1.5">L\'email contiendra un <strong>bouton de confirmation</strong> — le prestataire pourra confirmer sa présence et l\'envoi d\'un devis en un clic, sans avoir besoin d\'un compte.</div>'+'</div>'+'<div><label style="font-size:12px;font-weight:700;color:var(--muted);display:block;margin-bottom:6px">MESSAGE</label>'
+    +'<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:10px">'+'<span style="font-size:18px">✅</span>'+'<div style="font-size:12.5px;color:#166534;line-height:1.5">L\'email contiendra un <strong>bouton de confirmation</strong> — le prestataire pourra confirmer sa présence et l&#39;envoi d&#39;un devis en un clic, sans avoir besoin d\'un compte.</div>'+'</div>'+'<div><label style="font-size:12px;font-weight:700;color:var(--muted);display:block;margin-bottom:6px">MESSAGE</label>'
     +'<textarea id="cs_msg" rows="10" style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);font-size:13.5px;line-height:1.6;resize:vertical">'+esc(defaultMsg)+'</textarea></div>'
     +'</div>'
     +'<div class="modal-foot">'
@@ -7764,7 +7764,7 @@ async function csEnvoyerAssistance(catKey,catLabel,erpId){
         +'<p style="margin:0 0 16px 0;font-size:14px;color:#1e293b;line-height:1.7">'+_sm+'</p>'
         +'<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0">'
         +'<div style="text-align:center;margin:28px 0">'
-        +'<a href="https://conformite-securite.fr/#/cs-confirm?p='+pid+'&amp;erp='+erpId+'&amp;date='+encodeURIComponent(dateVal)+'&amp;nom='+encodeURIComponent(pdata.nom)+'&amp;erp_nom='+encodeURIComponent(cleanNom)+'" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:16px 32px;border-radius:10px;font-weight:700;font-size:15px;letter-spacing:.01em">&#x2705;&nbsp;&nbsp;Je confirme ma présence et l'envoi d'un devis</a>'
+        +'<a href="https://conformite-securite.fr/#/cs-confirm?p='+pid+'&amp;erp='+erpId+'&amp;date='+encodeURIComponent(dateVal)+'&amp;nom='+encodeURIComponent(pdata.nom)+'&amp;erp_nom='+encodeURIComponent(cleanNom)+'" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:16px 32px;border-radius:10px;font-weight:700;font-size:15px;letter-spacing:.01em">&#x2705;&nbsp;&nbsp;Je confirme ma présence et l&#39;envoi d&#39;un devis</a>'
         +'</div>'
         +'<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0">'
         +'<p style="font-size:12px;color:#64748b;margin:0">'+esc(cleanNom)+'<br>'+esc(sig)+'</p>'
@@ -8941,7 +8941,7 @@ async function renderCsConfirm(){
         Vous confirmez votre présence à la commission de sécurité du <strong>${esc(dateCs)}</strong> et l'envoi d'un devis.
       </p>
       <button id="cs_confirm_btn" onclick="doCsConfirm()" style="background:#16a34a;color:#fff;border:none;padding:16px 36px;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;width:100%">
-        ✅ Confirmer ma présence et l'envoi d'un devis
+        ✅ Confirmer ma présence et l&#39;envoi d&#39;un devis
       </button>
     </div>`;
 
@@ -8956,7 +8956,7 @@ async function renderCsConfirm(){
       erp_nom:erpNom
     });
     if(error){
-      btn.disabled=false; btn.textContent='✅ Confirmer ma présence et l'envoi d'un devis';
+      btn.disabled=false; btn.textContent='✅ Confirmer ma présence et l&#39;envoi d&#39;un devis';
       document.getElementById('cs_confirm_body').insertAdjacentHTML('beforeend','<p style="color:#ef4444;text-align:center;margin-top:12px;font-size:13px">Erreur : '+esc(error.message)+'</p>');
       return;
     }
