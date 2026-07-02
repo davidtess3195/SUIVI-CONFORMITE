@@ -578,6 +578,7 @@ const I = {
   conv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
   verif:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
   plan:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>',
+  cs:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 12 2 2 4-4"/></svg>',
 };
 
 /* =====================================================================
@@ -958,6 +959,7 @@ function renderRoute(){
   if(base==='/compte-rendu') return viewCompteRendu(content);
   if(base==='/conversations') return viewConversations(content);
   if(base==='/plan-maintenance') return viewPlanMaintenance(content);
+  if(base==='/preparation-cs') return viewPreparationCS(content);
   if(base==='/prestataires') return viewPrestataires(content);
   if(base==='/parametres') return viewParametres(content);
   if(base==='/verifications') return viewVerifications(content);
@@ -2316,6 +2318,7 @@ const NAV = [
   ['Pilotage', [['/','Tableau de bord',I.dash],['/verifications','Vérifications & Relances',I.verif],['/interventions','Interventions',I.inter],['/reserves','Levées des réserves',I.reserve],['/photos','Photos et vidéos',I.photo],['/conversations','Conversations',I.conv],['/compte-rendu','Compte rendu',I.doc]]],
   ['Référentiel', [['/clients','Clients',I.clients],['/erps','ERP',I.erp],['/plan-maintenance','Plan de maintenance',I.plan],['/prestataires','Prestataires',I.prest]]],
   ['Documents & terrain', [['/documents','Documents (GED)',I.doc],['/rapports','Rapports reçus',I.doc],['/contrats','Contrats de maintenance',I.doc],['/pointage','Pointage & journal',I.qr]]],
+  ['Préparation CS', [['/preparation-cs','Préparation CS',I.cs]]],
   ['Administration', [['/admin','Tableau de bord admin',I.settings],['/parametres','Paramètres & email',I.settings]]],
 ];
 
@@ -7499,7 +7502,275 @@ let _prestOnglet='prestataire';
 /* =====================================================================
    PLAN DE MAINTENANCE
 ===================================================================== */
-async function viewPlanMaintenance(c){
+async 
+/* =====================================================================
+   PREPARATION CS — Commission de Sécurité
+===================================================================== */
+async function viewPreparationCS(c){
+  // Récupérer l'ERP courant
+  const erpId = state.currentErp;
+  const erp   = (state.erps||[]).find(e=>e.id===erpId);
+  const client= erp ? (state.clients||[]).find(cl=>cl.id===erp.client_id) : null;
+  const cleanErpNom = erp ? (erp.nom||'').replace(/^ERP-\d+[-\s]*/,'').trim() : '';
+
+  c.innerHTML = '<div class="page-head"><div class="t"><h1>\u{1F6E1}️ Préparation Commission de Sécurité</h1><p>Planifier et envoyer les demandes d’assistance technique aux prestataires.</p></div></div>' + loadingBlock();
+
+  /* ── Chargement des prestataires liés à l’ERP ── */
+  if(!erpId){ c.innerHTML+='<div class="card card-pad" style="color:var(--muted);text-align:center;padding:32px">Sélectionnez un ERP dans le filtre en haut.</div>'; return; }
+
+  const [intR,ctR] = await Promise.all([
+    sb.from('interventions').select('prestataire_id').eq('erp_id',erpId).not('prestataire_id','is',null),
+    sb.from('contrats').select('prestataire_id').eq('erp_id',erpId).not('prestataire_id','is',null)
+  ]);
+  const prestIds=[...new Set([...(intR.data||[]).map(r=>r.prestataire_id),...(ctR.data||[]).map(r=>r.prestataire_id)])].filter(Boolean);
+
+  let allPrests=[];
+  if(prestIds.length){
+    const {data}=await sb.from('prestataires').select('id,nom,categorie,email_rapports,contacts').in('id',prestIds);
+    allPrests=data||[];
+  }
+
+  /* ── Définition des catégories CS ── */
+  const CS_CATS=[
+    {key:'ssi',   label:'SSI',                  emoji:'🔥', color:'#dc2626', bg:'#fff1f2',
+     keywords:['ssi','incendie','baes','extincteur','ria','porte coupe','désenfumage','sprinkler']},
+    {key:'elec',  label:'Électricien',           emoji:'⚡',     color:'#d97706', bg:'#fffbeb',
+     keywords:['électri','thermographie']},
+    {key:'chauf', label:'Chauffagiste',          emoji:'🔥‍', color:'#ea580c', bg:'#fff7ed',
+     keywords:['chaudière','chaudiere','gaz','climatisation','ventilation','evaporateur','sous-station']},
+    {key:'maint', label:'Agent de maintenance',  emoji:'🔧', color:'#2563eb', bg:'#eff6ff',
+     keywords:['maintenance','ascenseur','portail','coulissante','garage','barrière']},
+    {key:'autre', label:'Autre',                 emoji:'💼', color:'#64748b', bg:'#f8fafc',
+     keywords:[]}
+  ];
+
+  function matchCat(p){
+    const types=((p.type||'')+'').toLowerCase();
+    const nom=(p.nom||'').toLowerCase();
+    for(const cat of CS_CATS.slice(0,-1)){
+      if(cat.keywords.some(k=>types.includes(k)||nom.includes(k))) return cat.key;
+    }
+    return 'autre';
+  }
+
+  function getEmails(p){
+    const list=[];
+    if(p.email_rapports) list.push({email:p.email_rapports,label:'Email rapports'});
+    const c2=p.contacts||{};
+    for(const [role,val] of Object.entries(c2)){
+      if(role==='autres') continue;
+      if(val&&val.email) list.push({email:val.email,label:role.replace(/_/g,' ')+(val.nom?' — '+val.nom:'')});
+    }
+    if(Array.isArray(c2.autres)){
+      for(const a of c2.autres){ if(a&&a.email) list.push({email:a.email,label:(a.intitule||'autre')+(a.nom?' — '+a.nom:'')}); }
+    }
+    return list;
+  }
+
+  // Regrouper par catégorie
+  const bycat={};
+  CS_CATS.forEach(cat=>bycat[cat.key]=[]);
+  for(const p of allPrests) bycat[matchCat(p)].push(p);
+
+  /* ── Lecture des valeurs persistées ── */
+  const savedDate = localStorage.getItem('cs_commission_date_'+erpId)||'';
+  const savedTime = localStorage.getItem('cs_commission_time_'+erpId)||'';
+
+  /* ── Rendu ── */
+  let html='';
+
+  // Bandeau principal
+  html+=`<div class="card card-pad" style="background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);color:#fff;border:none;margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <span style="font-size:28px">📅</span>
+      <div>
+        <div style="font-size:16px;font-weight:800;letter-spacing:.02em">PASSAGE DE LA COMMISSION DE SÉCURITÉ</div>
+        <div style="font-size:13px;opacity:.8;margin-top:2px">${esc(cleanErpNom||'ERP non sélectionné')}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div>
+        <label style="font-size:11px;font-weight:700;opacity:.8;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Date de la commission</label>
+        <input type="date" id="cs_date" value="${esc(savedDate)}" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:#fff;font-size:14px;font-weight:600" oninput="localStorage.setItem('cs_commission_date_${erpId}',this.value)">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;opacity:.8;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Heure de la commission</label>
+        <input type="time" id="cs_time" value="${esc(savedTime)}" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:#fff;font-size:14px;font-weight:600" oninput="localStorage.setItem('cs_commission_time_${erpId}',this.value)">
+      </div>
+    </div>
+  </div>`;
+
+  // Accordéon "Assistance technique"
+  html+=`<div class="card" style="overflow:hidden;margin-bottom:20px">
+    <button onclick="toggleAcc('acc_assist')" style="width:100%;display:flex;align-items:center;gap:10px;padding:16px 20px;background:none;border:none;cursor:pointer;text-align:left;border-bottom:1px solid var(--line)" id="acc_assist_btn">
+      <span style="font-size:20px">🔧</span>
+      <span style="font-size:15px;font-weight:700;flex:1">Assistance technique</span>
+      <span style="font-size:12px;color:var(--muted)">${allPrests.length} prestataire${allPrests.length!==1?'s':''} liés</span>
+      <span id="acc_assist_chev" style="font-size:18px;transition:.2s">▼</span>
+    </button>
+    <div id="acc_assist" style="display:block">`;
+
+  // Sous-sections par catégorie
+  for(const cat of CS_CATS){
+    const prests=bycat[cat.key]||[];
+    html+=`<div style="border-bottom:1px solid var(--line)">
+      <button onclick="toggleAcc('acc_cat_${cat.key}')" style="width:100%;display:flex;align-items:center;gap:10px;padding:14px 20px 14px 32px;background:none;border:none;cursor:pointer;text-align:left">
+        <span style="font-size:18px">${cat.emoji}</span>
+        <span style="font-size:14px;font-weight:600;color:${cat.color};flex:1">${esc(cat.label)}</span>
+        <span style="font-size:11px;background:${cat.bg};color:${cat.color};border:1px solid ${cat.color}30;border-radius:20px;padding:2px 10px;font-weight:700">${prests.length}</span>
+        <span id="acc_cat_${cat.key}_chev" style="font-size:14px;color:var(--muted);margin-left:6px">▼</span>
+      </button>
+      <div id="acc_cat_${cat.key}" style="padding:0 20px 16px 32px">`;
+
+    if(!prests.length){
+      html+=`<div style="font-size:13px;color:var(--muted);padding:12px 0">Aucun prestataire de cette spécialité lié à cet ERP.</div>`;
+    } else {
+      html+=`<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">`;
+      for(const p of prests){
+        const emails=getEmails(p);
+        const pid=p.id;
+        html+=`<div class="card" style="padding:12px 14px;border-color:${cat.color}30">
+          <div style="font-size:13.5px;font-weight:700;margin-bottom:8px;color:var(--ink)">${esc(p.nom)}</div>
+          <div style="display:flex;flex-direction:column;gap:4px">`;
+        if(!emails.length){
+          html+=`<div style="font-size:12px;color:var(--muted)">Aucun email configuré</div>`;
+        }
+        for(const em of emails){
+          const cbid='cs_em_'+cat.key+'_'+pid+'_'+btoa(em.email).replace(/=/g,'');
+          html+=`<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px">
+            <input type="checkbox" id="${cbid}" value="${esc(em.email)}" data-prest="${pid}" data-pnom="${esc(p.nom)}" data-cat="${cat.key}" checked style="accent-color:${cat.color}">
+            <span style="color:var(--muted)">${esc(em.label)}</span>
+            <span style="color:var(--ink);font-weight:600">${esc(em.email)}</span>
+          </label>`;
+        }
+        html+=`</div></div>`;
+      }
+      html+=`</div>
+      <button class="btn primary sm" style="background:${cat.color};border-color:${cat.color}" onclick="csEnvoyerAssistance('${cat.key}','${esc(cat.label)}','${erpId}')">
+        📧 Envoyer demande d’assistance — ${esc(cat.label)}
+      </button>`;
+    }
+    html+=`</div></div>`;
+  }
+
+  // Bouton global
+  html+=`<div style="padding:16px 20px;background:var(--surface-2);display:flex;justify-content:flex-end">
+    <button class="btn primary" onclick="csEnvoyerAssistance('all','Toutes spécialités','${erpId}')">
+      📤 Envoyer à tous les prestataires liés
+    </button>
+  </div>`;
+
+  html+=`</div></div>`;
+
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>🛡️ Préparation Commission de Sécurité</h1><p>Planifier et envoyer les demandes d’assistance technique aux prestataires.</p></div></div>`+html;
+}
+window.viewPreparationCS=viewPreparationCS;
+
+/* ── Accordéon helper ── */
+function toggleAcc(id){
+  const el=document.getElementById(id); if(!el) return;
+  const chev=document.getElementById(id+'_chev');
+  const open=el.style.display!=='none';
+  el.style.display=open?'none':'block';
+  if(chev) chev.style.transform=open?'rotate(-90deg)':'rotate(0)';
+}
+window.toggleAcc=toggleAcc;
+
+/* ── Envoi demande d'assistance CS ── */
+async function csEnvoyerAssistance(catKey,catLabel,erpId){
+  const erp=(state.erps||[]).find(e=>e.id===erpId);
+  const cleanNom=erp ? (erp.nom||'').replace(/^ERP-\d+[-\s]*/,'').trim() : '';
+  const dateVal=document.getElementById('cs_date')?.value||'';
+  const timeVal=document.getElementById('cs_time')?.value||'';
+
+  if(!dateVal){toast('Veuillez indiquer la date de la commission','err');return;}
+
+  // Formater date
+  const dParts=dateVal.split('-');
+  const dateStr=dParts.length===3 ? dParts[2]+'/'+dParts[1]+'/'+dParts[0] : dateVal;
+  const timeStr=timeVal||'';
+  const dtLabel=dateStr+(timeStr?' à '+timeStr:'');
+
+  // Collecter les emails cochés (filtre par catégorie)
+  const allCbs=[...document.querySelectorAll('input[type=checkbox][data-prest]')];
+  const filtered=catKey==='all' ? allCbs : allCbs.filter(cb=>cb.dataset.cat===catKey);
+  const checked=filtered.filter(cb=>cb.checked);
+  if(!checked.length){toast('Aucun email sélectionné','info');return;}
+
+  // Grouper par prestataire
+  const byPrest={};
+  for(const cb of checked){
+    const pid=cb.dataset.prest, pnom=cb.dataset.pnom;
+    if(!byPrest[pid]) byPrest[pid]={nom:pnom,emails:[]};
+    byPrest[pid].emails.push(cb.value);
+  }
+
+  // Message par défaut
+  const defaultMsg='Bonjour,\n\nNous vous contactons dans le cadre de la préparation de la Commission de Sécurité qui aura lieu le '+dtLabel+'.\n\nAfin d\'assurer la conformité de nos installations, nous souhaitons faire appel à vos services pour une vérification complète de vos équipements avant cette date.\n\nMerci de bien vouloir nous confirmer votre disponibilité et de nous transmettre les devis correspondants dans les meilleurs délais.\n\nCordialement,\n'+cleanNom;
+
+  openModal('<div class="modal-head"><h2>📧 Demande d\'assistance — '+esc(catLabel)+'</h2><button class="x" onclick="closeModal()">'+I.x+'</button></div>'
+    +'<div class="modal-body" style="display:flex;flex-direction:column;gap:16px">'
+    +'<div class="card card-pad" style="background:#eff6ff;border-color:#2563eb30">'
+    +'<div style="font-size:12px;font-weight:700;color:#2563eb;margin-bottom:8px;text-transform:uppercase">Commission le '+esc(dtLabel)+' — '+esc(cleanNom)+'</div>'
+    +'<div style="font-size:12.5px;color:var(--muted)">Destinataires sélectionnés :</div>'
+    +'<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px">'
+    +Object.values(byPrest).map(p=>'<span style="background:#dbeafe;color:#1e40af;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600">'
+      +esc(p.nom)+' ('+p.emails.length+' email'+(p.emails.length>1?'s':'')+')</span>').join('')
+    +'</div></div>'
+    +'<div><label style="font-size:12px;font-weight:700;color:var(--muted);display:block;margin-bottom:6px">MESSAGE</label>'
+    +'<textarea id="cs_msg" rows="10" style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);font-size:13.5px;line-height:1.6;resize:vertical">'+esc(defaultMsg)+'</textarea></div>'
+    +'</div>'
+    +'<div class="modal-foot">'
+    +'<button class="btn ghost" onclick="closeModal()">Annuler</button>'
+    +'<button class="btn primary" id="cs_send_btn">📤 Envoyer à '+Object.keys(byPrest).length+' prestataire'+(Object.keys(byPrest).length>1?'s':'')+'</button>'
+    +'</div>');
+
+  document.getElementById('cs_send_btn').onclick=async()=>{
+    const msg=document.getElementById('cs_msg')?.value||'';
+    if(!msg.trim()){toast('Message vide','err');return;}
+    const btn=document.getElementById('cs_send_btn');
+    btn.disabled=true; btn.textContent='⏳ Envoi...';
+
+    let ok=0,fail=0;
+    const sig=state.profile?.nom||'';
+
+    for(const [pid,pdata] of Object.entries(byPrest)){
+      const _sm=msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+      const htmlBody='<div style="font-family:sans-serif;max-width:600px;margin:0 auto">'
+        +'<div style="background:#1e3a5f;color:#fff;padding:20px 24px;border-radius:10px 10px 0 0">'
+        +'<div style="font-size:18px;font-weight:800">🛡️ Demande d\'assistance technique</div>'
+        +'<div style="font-size:13px;opacity:.8;margin-top:4px">Commission de Sécurité — '+esc(dtLabel)+'</div>'
+        +'</div>'
+        +'<div style="padding:24px;background:#fff;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 10px 10px">'
+        +'<p style="margin:0 0 16px 0;font-size:14px;color:#1e293b;line-height:1.7">'+_sm+'</p>'
+        +'<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0">'
+        +'<p style="font-size:12px;color:#64748b;margin:0">'+esc(cleanNom)+'<br>'+esc(sig)+'</p>'
+        +'</div></div>';
+
+      for(const email of pdata.emails){
+        const r=await sb.functions.invoke('send-client-email',{body:{
+          to:email,
+          subject:'Demande d\'assistance technique — Commission de Sécurité du '+dateStr+' — '+cleanNom,
+          html:htmlBody
+        }});
+        if(r.error) fail++; else ok++;
+      }
+    }
+
+    // Log audit
+    const user_id=state.user?.id;
+    const user_label=state.profile?.nom||state.user?.email||'';
+    const destinataires=Object.entries(byPrest).flatMap(([pid,pdata])=>pdata.emails.map(e=>({email:e,prestataire:pdata.nom,prestataire_id:pid})));
+    await sb.from('audit_log').insert({user_id,user_label,action:'cs_assistance',entite:'erp',entite_id:erpId,erp_id:erpId,details:{destinataires,categorie:catLabel,commission_date:dtLabel,erp_nom:cleanNom}}).catch(()=>{});
+
+    closeModal();
+    if(ok>0) toast(ok+' email'+(ok>1?'s':'')+'  envoyé'+(ok>1?'s':''),'ok');
+    if(fail>0) toast(fail+' échec'+(fail>1?'s':''),'err');
+  };
+}
+window.csEnvoyerAssistance=csEnvoyerAssistance;
+
+function viewPlanMaintenance(c){
   const PM_BASE=['Appareils de cuisson','Ascenseur','BAES / éclairage de sécurité','Clapet coupe-feu','Désenfumage mécanique','Désenfumage naturel','Extincteur','Parking','Porte coupe-feu','RIA','Sprinklers','SSI / centrale incendie','Thermographie électrique'];
   const periList=['journalière','hebdomadaire','mensuelle','bimestrielle','trimestrielle','semestrielle','annuelle','biannuelle','triennale','quadriennale','quinquennale','décennale'];
   // Bibliothèque persistante en localStorage
