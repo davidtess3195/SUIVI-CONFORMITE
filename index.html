@@ -874,7 +874,7 @@ function _setupDemoProxy(){
 
 
 async function boot(){
-  try{ console.log('%cQUICKPROTECT build: CS-CONFIRM-2026-07-02','color:#2563eb;font-weight:700'); }catch(e){}
+  try{ console.log('%cQUICKPROTECT build: CS-CONFIRM-FIX-2026-07-02','color:#2563eb;font-weight:700'); }catch(e){}
   // Routes publiques sans login
   const hashNow = location.hash.replace(/^#/,'')||'/';
   if(hashNow==='/admin-login'){ loadCfg(); initSb(); renderAdminAuth(); return; }
@@ -7591,7 +7591,7 @@ async function viewPreparationCS(c){
     (confData||[]).forEach(r=>confirmedIds.add(r.prestataire_id));
   }
 
-  /* ── Rendu ──
+  /* ── Rendu ── */
   let html='';
 
   // Bandeau principal
@@ -7645,7 +7645,7 @@ async function viewPreparationCS(c){
         const emails=getEmails(p);
         const pid=p.id;
         const isConfirmed=confirmedIds.has(pid);
-        html+=`<div class="card" style="padding:12px 14px;border-color:${isConfirmed ? '#16a34a' : cat.color+'30'};${isConfirmed ? 'background:#f0fdf4;' : ''">
+        html+=`<div class="card" style="padding:12px 14px;border-color:${isConfirmed ? '#16a34a' : cat.color+'30'};${isConfirmed ? 'background:#f0fdf4;' : ''}">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
             <div style="font-size:13.5px;font-weight:700;color:var(--ink)">${esc(p.nom)}</div>
             <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;${isConfirmed ? 'background:#dcfce7;color:#16a34a' : 'background:#fef9c3;color:#92400e'}">${isConfirmed ? '✅ Confirmé' : '⏳ En attente'}</span>
