@@ -4252,7 +4252,8 @@ async function sendQrConsigne(token,nom,code){
     : '<option value="">Aucun contact enregistr\u00e9</option>';
 
   const firstSig=contacts.length ? ((contacts[0].prenom||'')+' '+(contacts[0].nom||'')).trim() : '';
-  const defaultMsg='Bonjour,\n\nDans le cadre de notre suivi r\u00e9glementaire, nous vous rappelons que toute intervention sur nos \u00e9tablissements n\u00e9cessite de scanner le QR code affich\u00e9 \u00e0 l\u2019entr\u00e9e :\n\n\u25b6 \u00c0 votre ARRIV\u00c9E : scannez le QR code et renseignez vos nom, soci\u00e9t\u00e9 et objet de l\u2019intervention\n\u25b6 \u00c0 votre D\u00c9PART : scannez \u00e0 nouveau pour cl\u00f4turer votre passage\n\n\u00c9tablissement concern\u00e9 : '+nom+' ('+code+')\n\nCette proc\u00e9dure est obligatoire pour tous nos prestataires.\n\nMerci de votre coop\u00e9ration.\n\nCordialement,\n'+nom+'\n'+firstSig;
+  const cleanNom=nom.replace(/^ERP-\d+[-\s]*/,'').trim();
+  const defaultMsg='Bonjour,\n\nDans le cadre de notre suivi r\u00e9glementaire, nous vous rappelons que toute intervention sur nos \u00e9tablissements n\u00e9cessite de scanner le QR code affich\u00e9 \u00e0 l\u2019entr\u00e9e :\n\n\u25b6 \u00c0 votre ARRIV\u00c9E : scannez le QR code et renseignez vos nom, soci\u00e9t\u00e9 et objet de l\u2019intervention\n\u25b6 \u00c0 votre D\u00c9PART : scannez \u00e0 nouveau pour cl\u00f4turer votre passage\n\n\u00c9tablissement concern\u00e9 : '+nom+' ('+code+')\n\nCette proc\u00e9dure est obligatoire pour tous nos prestataires.\n\nMerci de votre coop\u00e9ration.\n\nCordialement,\n'+cleanNom+'\n'+firstSig;
 
   openModal('<div class="modal-head"><h2>\ud83d\udce7 Consigne QR Code</h2><button class="x" onclick="closeModal()">'+I.x+'</button></div>'
     +'<div class="modal-body" style="gap:14px">'
