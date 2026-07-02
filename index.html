@@ -4111,6 +4111,7 @@ function showQR(token,nom,code){
   <div class="modal-foot" style="flex-wrap:wrap;gap:8px">
     <button class="btn" onclick="navigator.clipboard.writeText('${url}').then(()=>toast('Lien copié','ok'))">Copier le lien</button>
     <button class="btn" id="dlqr">${I.dl} Télécharger PNG</button>
+    <button class="btn" id="sendqr" style="gap:6px">📧 Envoyer consigne</button>
     <button class="btn primary" id="printqr" style="gap:7px">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
       Imprimer
@@ -4121,6 +4122,9 @@ function showQR(token,nom,code){
     // QR dans le modal (taille affichage)
     const el=$('#qrcanvas'); el.innerHTML='';
     new QRCode(el,{text:url,width:200,height:200,colorDark:'#0e1b2e',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.H});
+
+    // Envoi consigne QR Code aux prestataires
+    $('#sendqr').onclick=()=>sendQrConsigne(token,nom,code);
 
     // Téléchargement PNG haute résolution
     $('#dlqr').onclick=async()=>{
@@ -4166,6 +4170,90 @@ function showQR(token,nom,code){
   },60);
 }
 window.showQR=showQR;
+
+/* ---------- Envoi consigne QR aux prestataires ---------- */
+async function sendQrConsigne(token,nom,code){
+  const erp=(state.erps||[]).find(e=>e.qr_token===token);
+  if(!erp){toast('ERP introuvable','err');return;}
+  const erpId=erp.id;
+  const url=buildQrUrl(token);
+
+  // Récupérer les prestataires distincts liés à cet ERP
+  const [intR,ctR]=await Promise.all([
+    sb.from('interventions').select('prestataire_id').eq('erp_id',erpId).not('prestataire_id','is',null),
+    sb.from('contrats').select('prestataire_id').eq('erp_id',erpId).not('prestataire_id','is',null)
+  ]);
+  const prestIds=[...new Set([
+    ...(intR.data||[]).map(r=>r.prestataire_id),
+    ...(ctR.data||[]).map(r=>r.prestataire_id)
+  ])].filter(Boolean);
+
+  if(!prestIds.length){toast('Aucun prestataire lié à cet ERP','info');return;}
+
+  const {data:prests}=await sb.from('prestataires').select('id,nom,email_rapports').in('id',prestIds);
+  const withEmail=(prests||[]).filter(p=>p.email_rapports);
+  const withoutEmail=(prests||[]).filter(p=>!p.email_rapports);
+
+  if(!withEmail.length){toast('Aucun prestataire avec email configuré pour cet ERP','info');return;}
+
+  const listHtml=withEmail.map(p=>`<div style="padding:5px 0;border-bottom:1px solid var(--line);font-size:13px"><b>${esc(p.nom)}</b> <span style="color:var(--muted)">${esc(p.email_rapports)}</span></div>`).join('');
+  const warnHtml=withoutEmail.length?`<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:9px 12px;font-size:12.5px;color:#92400e;margin-top:10px">⚠️ ${withoutEmail.length} prestataire(s) sans email ignoré(s) : ${withoutEmail.map(p=>esc(p.nom)).join(', ')}</div>`:'';
+
+  const defaultMsg=`Bonjour,
+
+Dans le cadre de notre suivi réglementaire, nous vous rappelons que toute intervention sur nos établissements nécessite de scanner le QR code affiché à l'entrée de chaque établissement :
+
+▶ À votre ARRIVÉE : scannez le QR code et renseignez vos nom, société et objet de l'intervention
+▶ À votre DÉPART : scannez à nouveau pour clôturer votre passage
+
+Établissement concerné : ${nom} (${code})
+
+Cette procédure est obligatoire pour tous nos prestataires.
+
+Merci de votre coopération.
+
+Cordialement,
+PREVA CONSEILS`;
+
+  openModal(`<div class="modal-head"><h2>📧 Consigne QR Code</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+  <div class="modal-body">
+    <p style="font-size:13.5px;color:var(--muted);margin-bottom:10px">Destinataires liés à <b>${esc(nom)}</b> :</p>
+    <div style="margin-bottom:10px">${listHtml}</div>
+    ${warnHtml}
+    <div class="fld" style="margin-top:14px"><label>Message</label>
+      <textarea id="qr_msg" rows="10" style="resize:vertical;font-size:13px;font-family:inherit"></textarea>
+    </div>
+  </div>
+  <div class="modal-foot">
+    <button class="btn ghost" onclick="closeModal()">Annuler</button>
+    <button class="btn primary" id="qr_send_btn">📧 Envoyer à ${withEmail.length} prestataire(s)</button>
+  </div>`);
+
+  document.getElementById('qr_msg').value=defaultMsg;
+
+  document.getElementById('qr_send_btn').onclick=async()=>{
+    const msg=(document.getElementById('qr_msg').value||'').trim();
+    if(!msg){toast('Message vide','err');return;}
+    const btn=document.getElementById('qr_send_btn');
+    btn.disabled=true; btn.textContent='Envoi en cours…';
+    const _sm=msg.replace(/&/g,'&amp;').replace(/\x3c/g,'&lt;').replace(/\x3e/g,'&gt;').replace(/\n/g,'<br>');
+    const htmlBody='<div style="font-family:Arial,sans-serif;color:#1e293b;line-height:1.8;font-size:14px">'+_sm+'</div><hr style="margin:20px 0;border:none;border-top:1px solid #e2e8f0"><div style="font-size:12px;color:#64748b">QR Code : <a href="'+url+'" style="color:#0ea5e9">'+url+'</a></div>';
+        let ok=0,fail=[];
+    for(const p of withEmail){
+      try{
+        const {data,error}=await sb.functions.invoke('send-client-email',{body:{to:p.email_rapports,subject:'Consigne QR Code — '+nom,html:htmlBody}});
+        if(error||data?.error) throw new Error(error?.message||data?.error||'Erreur');
+        ok++;
+      }catch(e){ fail.push(p.nom); console.error('QR mail',p.nom,e); }
+    }
+    _modalDirty=false; closeModal();
+    if(ok&&!fail.length) toast(`Consigne envoyée à ${ok} prestataire(s) ✓`,'ok');
+    else if(ok) toast(`${ok} envoyé(s) · Échec : ${fail.join(', ')}`,'warn');
+    else toast('Échec de l\'envoi — vérifiez la config email','err');
+  };
+}
+window.sendQrConsigne=sendQrConsigne;
+
 function saveQrPubUrl(){
   let u=document.getElementById('qr_pub_url').value.trim();
   if(u&&u.startsWith('http://')) u=u.replace('http://','https://');
