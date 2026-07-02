@@ -4178,22 +4178,23 @@ async function sendQrConsigne(token,nom,code){
   const erpId=erp.id;
   const url=buildQrUrl(token);
 
-  // Chargement parallèle : prestataires liés + historique envois
-  const [intR,ctR,histR]=await Promise.all([
+  // Chargement parallèle : prestataires + historique + contacts du client
+  const [intR,ctR,histR,ccR]=await Promise.all([
     sb.from('interventions').select('prestataire_id').eq('erp_id',erpId).not('prestataire_id','is',null),
     sb.from('contrats').select('prestataire_id').eq('erp_id',erpId).not('prestataire_id','is',null),
-    sb.from('audit_log').select('created_at,details,user_label').eq('erp_id',erpId).eq('action','qr_consigne').order('created_at',{ascending:false}).limit(50)
+    sb.from('audit_log').select('created_at,details,user_label').eq('erp_id',erpId).eq('action','qr_consigne').order('created_at',{ascending:false}).limit(50),
+    erp.client_id ? sb.from('client_contacts').select('id,nom,prenom,fonction').eq('client_id',erp.client_id).order('nom') : Promise.resolve({data:[]})
   ]);
 
   const prestIds=[...new Set([
     ...(intR.data||[]).map(r=>r.prestataire_id),
     ...(ctR.data||[]).map(r=>r.prestataire_id)
   ])].filter(Boolean);
-  if(!prestIds.length){toast('Aucun prestataire lié à cet ERP','info');return;}
+  if(!prestIds.length){toast('Aucun prestataire li\u00e9 \u00e0 cet ERP','info');return;}
 
   const {data:prests}=await sb.from('prestataires').select('id,nom,email_rapports,contacts').in('id',prestIds);
 
-  // Historique par email (dernier envoi)
+  // Historique par email
   const histByEmail={};
   for(const h of (histR.data||[])){
     for(const d of (h.details&&h.details.destinataires||[])){
@@ -4201,7 +4202,10 @@ async function sendQrConsigne(token,nom,code){
     }
   }
 
-  // Extraire tous les emails d'un prestataire
+  // Contacts du client pour la signature
+  const contacts=ccR.data||[];
+
+  // Emails par prestataire
   function getEmails(p){
     const list=[];
     if(p.email_rapports) list.push({email:p.email_rapports,label:'Email rapports',checked:true});
@@ -4225,7 +4229,7 @@ async function sendQrConsigne(token,nom,code){
   }
 
   const prestData=(prests||[]).map(p=>({...p,emails:getEmails(p)}));
-  if(prestData.every(p=>!p.emails.length)){toast('Aucun email configuré pour les prestataires de cet ERP','info');return;}
+  if(prestData.every(p=>!p.emails.length)){toast('Aucun email configur\u00e9 pour les prestataires de cet ERP','info');return;}
 
   let idx=0;
   const recipHtml=prestData.map(p=>{
@@ -4242,30 +4246,33 @@ async function sendQrConsigne(token,nom,code){
     return '<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div style="font-size:13px;font-weight:700;margin-bottom:2px">'+esc(p.nom)+'</div>'+boxes+'</div>';
   }).join('');
 
-  const signataire=state.profile&&state.profile.nom||'';
-  const defaultMsg='Bonjour,\n\nDans le cadre de notre suivi r\u00e9glementaire, nous vous rappelons que toute intervention sur nos \u00e9tablissements n\u00e9cessite de scanner le QR code affich\u00e9 \u00e0 l\u2019entr\u00e9e :\n\n\u25b6 \u00c0 votre ARRIV\u00c9E : scannez le QR code et renseignez vos nom, soci\u00e9t\u00e9 et objet de l\u2019intervention\n\u25b6 \u00c0 votre D\u00c9PART : scannez \u00e0 nouveau pour cl\u00f4turer votre passage\n\n\u00c9tablissement concern\u00e9 : '+nom+' ('+code+')\n\nCette proc\u00e9dure est obligatoire pour tous nos prestataires.\n\nMerci de votre coop\u00e9ration.\n\nCordialement,\n'+nom+'\n'+signataire;
+  // Dropdown contacts pour la signature
+  const contactOpts=contacts.length
+    ? contacts.map(c=>'<option value="'+esc((c.prenom||'')+' '+(c.nom||'')).trim()+'">'+esc((c.prenom||'')+' '+(c.nom||'')+(c.fonction?' \u2014 '+c.fonction:'')).trim()+'</option>').join('')
+    : '<option value="">Aucun contact enregistr\u00e9</option>';
+
+  const firstSig=contacts.length ? ((contacts[0].prenom||'')+' '+(contacts[0].nom||'')).trim() : '';
+  const defaultMsg='Bonjour,\n\nDans le cadre de notre suivi r\u00e9glementaire, nous vous rappelons que toute intervention sur nos \u00e9tablissements n\u00e9cessite de scanner le QR code affich\u00e9 \u00e0 l\u2019entr\u00e9e :\n\n\u25b6 \u00c0 votre ARRIV\u00c9E : scannez le QR code et renseignez vos nom, soci\u00e9t\u00e9 et objet de l\u2019intervention\n\u25b6 \u00c0 votre D\u00c9PART : scannez \u00e0 nouveau pour cl\u00f4turer votre passage\n\n\u00c9tablissement concern\u00e9 : '+nom+' ('+code+')\n\nCette proc\u00e9dure est obligatoire pour tous nos prestataires.\n\nMerci de votre coop\u00e9ration.\n\nCordialement,\n'+nom+'\n'+firstSig;
 
   openModal('<div class="modal-head"><h2>\ud83d\udce7 Consigne QR Code</h2><button class="x" onclick="closeModal()">'+I.x+'</button></div>'
     +'<div class="modal-body" style="gap:14px">'
     +'<div><div style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Destinataires \u2014 '+esc(nom)+'</div>'
     +'<div id="qr_dest_list" style="border:1px solid var(--line);border-radius:9px;padding:4px 12px;max-height:200px;overflow-y:auto">'+recipHtml+'</div></div>'
-    +'<div class="fld"><label>Signataire</label>'
-    +'<input id="qr_signataire" type="text" value="'+esc(signataire)+'" placeholder="Pr\u00e9nom Nom" style="font-size:13px"></div>'
+    +'<div class="fld"><label>Signataire (contact de l\u2019ERP)</label>'
+    +'<select id="qr_signataire" style="font-size:13px">'+contactOpts+'</select></div>'
     +'<div class="fld"><label>Message</label>'
     +'<textarea id="qr_msg" rows="10" style="resize:vertical;font-size:13px;font-family:inherit;line-height:1.6"></textarea></div>'
     +'</div>'
     +'<div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="qr_send_btn">\ud83d\udce7 Envoyer</button></div>');
 
-  // Remplir le message initial
   document.getElementById('qr_msg').value=defaultMsg;
 
-  // Quand le signataire change, mettre à jour la dernière ligne de la signature
-  document.getElementById('qr_signataire').addEventListener('input',function(){
+  // Mise à jour signature quand on change le contact
+  document.getElementById('qr_signataire').addEventListener('change',function(){
     const ta=document.getElementById('qr_msg'); if(!ta) return;
     const lines=ta.value.split('\n');
-    // La signature est les 2 dernières lignes non vides
-    const sigIdx=lines.findLastIndex(l=>l===nom);
-    if(sigIdx>=0) lines[sigIdx+1]=this.value;
+    const nomIdx=lines.lastIndexOf(nom);
+    if(nomIdx>=0) lines[nomIdx+1]=this.value;
     else lines[lines.length-1]=this.value;
     ta.value=lines.join('\n');
   });
@@ -4298,7 +4305,6 @@ async function sendQrConsigne(token,nom,code){
         ok++;
       }catch(e){fail.push(to);console.error('QR mail',to,e);}
     }
-    // Enregistrer dans audit_log
     if(ok>0){
       const destList=recipients.filter(to=>!fail.includes(to)).map(to=>{
         const prest=prestData.find(p=>p.emails.some(e=>e.email===to));
@@ -4307,14 +4313,14 @@ async function sendQrConsigne(token,nom,code){
       try{
         await sb.from('audit_log').insert({
           user_id:state.user&&state.user.id,
-          user_label:sig||state.profile&&state.profile.nom||'',
+          user_label:sig,
           action:'qr_consigne',
           entite:'erp',
           entite_id:erpId,
           erp_id:erpId,
           details:{destinataires:destList,signataire:sig,erp_nom:nom}
         });
-      }catch(e){console.error('audit_log qr_consigne',e);}
+      }catch(e){console.error('audit_log',e);}
     }
     _modalDirty=false; closeModal();
     if(ok&&!fail.length) toast('Consigne envoy\u00e9e \u00e0 '+ok+' adresse'+(ok>1?'s':'')+' \u2713','ok');
