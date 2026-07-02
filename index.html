@@ -4178,7 +4178,7 @@ async function sendQrConsigne(token,nom,code){
   const erpId=erp.id;
   const url=buildQrUrl(token);
 
-  // Récupérer les prestataires distincts liés à cet ERP
+  // Prestataires liés via interventions + contrats
   const [intR,ctR]=await Promise.all([
     sb.from('interventions').select('prestataire_id').eq('erp_id',erpId).not('prestataire_id','is',null),
     sb.from('contrats').select('prestataire_id').eq('erp_id',erpId).not('prestataire_id','is',null)
@@ -4187,69 +4187,99 @@ async function sendQrConsigne(token,nom,code){
     ...(intR.data||[]).map(r=>r.prestataire_id),
     ...(ctR.data||[]).map(r=>r.prestataire_id)
   ])].filter(Boolean);
-
   if(!prestIds.length){toast('Aucun prestataire lié à cet ERP','info');return;}
 
-  const {data:prests}=await sb.from('prestataires').select('id,nom,email_rapports').in('id',prestIds);
-  const withEmail=(prests||[]).filter(p=>p.email_rapports);
-  const withoutEmail=(prests||[]).filter(p=>!p.email_rapports);
+  const {data:prests}=await sb.from('prestataires').select('id,nom,email_rapports,contacts').in('id',prestIds);
 
-  if(!withEmail.length){toast('Aucun prestataire avec email configuré pour cet ERP','info');return;}
+  // Extraire tous les emails d'un prestataire (email_rapports + contacts JSON)
+  function getEmails(p){
+    const list=[];
+    if(p.email_rapports) list.push({email:p.email_rapports,label:'Email rapports',checked:true});
+    const c=p.contacts||{};
+    for(const [role,val] of Object.entries(c)){
+      if(role==='autres') continue;
+      if(val&&val.email){
+        const lb=role.replace(/_/g,' ')+(val.nom?' — '+val.nom:'');
+        list.push({email:val.email,label:lb,checked:list.length===0});
+      }
+    }
+    if(Array.isArray(c.autres)){
+      for(const a of c.autres){
+        if(a&&a.email){
+          const lb=(a.intitule||'autre')+(a.nom?' — '+a.nom:'');
+          list.push({email:a.email,label:lb,checked:list.length===0});
+        }
+      }
+    }
+    return list;
+  }
 
-  const listHtml=withEmail.map(p=>`<div style="padding:5px 0;border-bottom:1px solid var(--line);font-size:13px"><b>${esc(p.nom)}</b> <span style="color:var(--muted)">${esc(p.email_rapports)}</span></div>`).join('');
-  const warnHtml=withoutEmail.length?`<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:9px 12px;font-size:12.5px;color:#92400e;margin-top:10px">⚠️ ${withoutEmail.length} prestataire(s) sans email ignoré(s) : ${withoutEmail.map(p=>esc(p.nom)).join(', ')}</div>`:'';
+  const prestData=(prests||[]).map(p=>({...p,emails:getEmails(p)}));
+  if(prestData.every(p=>!p.emails.length)){toast('Aucun email configuré pour les prestataires de cet ERP','info');return;}
 
-  const defaultMsg=`Bonjour,
+  let idx=0;
+  const recipHtml=prestData.map(p=>{
+    if(!p.emails.length) return '<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div style="font-size:13px;font-weight:600">'+esc(p.nom)+'</div><div style="font-size:12px;color:var(--muted)">⚠️ Aucun email configuré</div></div>';
+    const boxes=p.emails.map(e=>{
+      const id='qr_d'+(idx++);
+      return '<label style="display:flex;align-items:center;gap:8px;padding:5px 0;cursor:pointer">'
+        +'<input type="checkbox" id="'+id+'" value="'+esc(e.email)+'"'+(e.checked?' checked':'')
+        +' style="width:15px;height:15px;flex-shrink:0;cursor:pointer">'
+        +'<span style="font-size:13px"><span style="font-size:11.5px;color:var(--muted)">'+esc(e.label)+'</span><br><b>'+esc(e.email)+'</b></span>'
+        +'</label>';
+    }).join('');
+    return '<div style="padding:8px 0;border-bottom:1px solid var(--line)">'
+      +'<div style="font-size:13px;font-weight:700;margin-bottom:2px">'+esc(p.nom)+'</div>'
+      +boxes+'</div>';
+  }).join('');
 
-Dans le cadre de notre suivi réglementaire, nous vous rappelons que toute intervention sur nos établissements nécessite de scanner le QR code affiché à l'entrée de chaque établissement :
+  const defaultMsg='Bonjour,\n\nDans le cadre de notre suivi réglementaire, nous vous rappelons que toute intervention sur nos établissements nécessite de scanner le QR code affiché à l’entrée :\n\n▶ À votre ARRIVÉE : scannez le QR code et renseignez vos nom, société et objet de l’intervention\n▶ À votre DÉPART : scannez à nouveau pour clôturer votre passage\n\nÉtablissement concerné : '+nom+' ('+code+')\n\nCette procédure est obligatoire pour tous nos prestataires.\n\nMerci de votre coopération.\n\nCordialement,\nPREVA CONSEILS';
 
-▶ À votre ARRIVÉE : scannez le QR code et renseignez vos nom, société et objet de l'intervention
-▶ À votre DÉPART : scannez à nouveau pour clôturer votre passage
-
-Établissement concerné : ${nom} (${code})
-
-Cette procédure est obligatoire pour tous nos prestataires.
-
-Merci de votre coopération.
-
-Cordialement,
-PREVA CONSEILS`;
-
-  openModal(`<div class="modal-head"><h2>📧 Consigne QR Code</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
-  <div class="modal-body">
-    <p style="font-size:13.5px;color:var(--muted);margin-bottom:10px">Destinataires liés à <b>${esc(nom)}</b> :</p>
-    <div style="margin-bottom:10px">${listHtml}</div>
-    ${warnHtml}
-    <div class="fld" style="margin-top:14px"><label>Message</label>
-      <textarea id="qr_msg" rows="10" style="resize:vertical;font-size:13px;font-family:inherit"></textarea>
-    </div>
-  </div>
-  <div class="modal-foot">
-    <button class="btn ghost" onclick="closeModal()">Annuler</button>
-    <button class="btn primary" id="qr_send_btn">📧 Envoyer à ${withEmail.length} prestataire(s)</button>
-  </div>`);
+  openModal('<div class="modal-head"><h2>📧 Consigne QR Code</h2><button class="x" onclick="closeModal()">'+I.x+'</button></div>'
+    +'<div class="modal-body" style="gap:14px">'
+    +'<div><div style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Destinataires — '+esc(nom)+'</div>'
+    +'<div id="qr_dest_list" style="border:1px solid var(--line);border-radius:9px;padding:4px 12px;max-height:220px;overflow-y:auto">'+recipHtml+'</div></div>'
+    +'<div class="fld"><label>Message</label>'
+    +'<textarea id="qr_msg" rows="11" style="resize:vertical;font-size:13px;font-family:inherit;line-height:1.6"></textarea></div>'
+    +'</div>'
+    +'<div class="modal-foot">'
+    +'<button class="btn ghost" onclick="closeModal()">Annuler</button>'
+    +'<button class="btn primary" id="qr_send_btn">📧 Envoyer</button>'
+    +'</div>');
 
   document.getElementById('qr_msg').value=defaultMsg;
+
+  function updateSendBtn(){
+    const n=document.querySelectorAll('#qr_dest_list input:checked').length;
+    const b=document.getElementById('qr_send_btn');
+    if(b) b.textContent=n?'📧 Envoyer à '+n+' adresse'+(n>1?'s':''):'📧 Envoyer';
+  }
+  document.querySelectorAll('#qr_dest_list input').forEach(cb=>cb.addEventListener('change',updateSendBtn));
+  updateSendBtn();
 
   document.getElementById('qr_send_btn').onclick=async()=>{
     const msg=(document.getElementById('qr_msg').value||'').trim();
     if(!msg){toast('Message vide','err');return;}
+    const recipients=[...document.querySelectorAll('#qr_dest_list input:checked')].map(cb=>cb.value).filter(Boolean);
+    if(!recipients.length){toast('Sélectionnez au moins un destinataire','err');return;}
     const btn=document.getElementById('qr_send_btn');
     btn.disabled=true; btn.textContent='Envoi en cours…';
     const _sm=msg.replace(/&/g,'&amp;').replace(/\x3c/g,'&lt;').replace(/\x3e/g,'&gt;').replace(/\n/g,'<br>');
-    const htmlBody='<div style="font-family:Arial,sans-serif;color:#1e293b;line-height:1.8;font-size:14px">'+_sm+'</div><hr style="margin:20px 0;border:none;border-top:1px solid #e2e8f0"><div style="font-size:12px;color:#64748b">QR Code : <a href="'+url+'" style="color:#0ea5e9">'+url+'</a></div>';
-        let ok=0,fail=[];
-    for(const p of withEmail){
+    const htmlBody='<div style="font-family:Arial,sans-serif;color:#1e293b;line-height:1.8;font-size:14px">'+_sm+'</div>'
+      +'<hr style="margin:20px 0;border:none;border-top:1px solid #e2e8f0">'
+      +'<div style="font-size:12px;color:#64748b">QR Code : <a href="'+url+'" style="color:#0ea5e9">'+url+'</a></div>';
+    let ok=0,fail=[];
+    for(const to of recipients){
       try{
-        const {data,error}=await sb.functions.invoke('send-client-email',{body:{to:p.email_rapports,subject:'Consigne QR Code — '+nom,html:htmlBody}});
+        const {data,error}=await sb.functions.invoke('send-client-email',{body:{to,subject:'Consigne QR Code — '+nom,html:htmlBody}});
         if(error||data?.error) throw new Error(error?.message||data?.error||'Erreur');
         ok++;
-      }catch(e){ fail.push(p.nom); console.error('QR mail',p.nom,e); }
+      }catch(e){fail.push(to);console.error('QR mail',to,e);}
     }
     _modalDirty=false; closeModal();
-    if(ok&&!fail.length) toast(`Consigne envoyée à ${ok} prestataire(s) ✓`,'ok');
-    else if(ok) toast(`${ok} envoyé(s) · Échec : ${fail.join(', ')}`,'warn');
-    else toast('Échec de l\'envoi — vérifiez la config email','err');
+    if(ok&&!fail.length) toast('Consigne envoyée à '+ok+' adresse'+(ok>1?'s':'')+' ✓','ok');
+    else if(ok) toast(ok+' envoyé(s) · Échec : '+fail.join(', '),'warn');
+    else toast("Aucun email envoyé — vérifiez la config email",'err');
   };
 }
 window.sendQrConsigne=sendQrConsigne;
