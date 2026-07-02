@@ -4178,11 +4178,13 @@ async function sendQrConsigne(token,nom,code){
   const erpId=erp.id;
   const url=buildQrUrl(token);
 
-  // Prestataires liés via interventions + contrats
-  const [intR,ctR]=await Promise.all([
+  // Chargement parallèle : prestataires liés + historique envois
+  const [intR,ctR,histR]=await Promise.all([
     sb.from('interventions').select('prestataire_id').eq('erp_id',erpId).not('prestataire_id','is',null),
-    sb.from('contrats').select('prestataire_id').eq('erp_id',erpId).not('prestataire_id','is',null)
+    sb.from('contrats').select('prestataire_id').eq('erp_id',erpId).not('prestataire_id','is',null),
+    sb.from('audit_log').select('created_at,details,user_label').eq('erp_id',erpId).eq('action','qr_consigne').order('created_at',{ascending:false}).limit(50)
   ]);
+
   const prestIds=[...new Set([
     ...(intR.data||[]).map(r=>r.prestataire_id),
     ...(ctR.data||[]).map(r=>r.prestataire_id)
@@ -4191,7 +4193,15 @@ async function sendQrConsigne(token,nom,code){
 
   const {data:prests}=await sb.from('prestataires').select('id,nom,email_rapports,contacts').in('id',prestIds);
 
-  // Extraire tous les emails d'un prestataire (email_rapports + contacts JSON)
+  // Historique par email (dernier envoi)
+  const histByEmail={};
+  for(const h of (histR.data||[])){
+    for(const d of (h.details&&h.details.destinataires||[])){
+      if(d.email&&!histByEmail[d.email]) histByEmail[d.email]={date:h.created_at,by:h.user_label||''};
+    }
+  }
+
+  // Extraire tous les emails d'un prestataire
   function getEmails(p){
     const list=[];
     if(p.email_rapports) list.push({email:p.email_rapports,label:'Email rapports',checked:true});
@@ -4199,14 +4209,14 @@ async function sendQrConsigne(token,nom,code){
     for(const [role,val] of Object.entries(c)){
       if(role==='autres') continue;
       if(val&&val.email){
-        const lb=role.replace(/_/g,' ')+(val.nom?' — '+val.nom:'');
+        const lb=role.replace(/_/g,' ')+(val.nom?' \u2014 '+val.nom:'');
         list.push({email:val.email,label:lb,checked:list.length===0});
       }
     }
     if(Array.isArray(c.autres)){
       for(const a of c.autres){
         if(a&&a.email){
-          const lb=(a.intitule||'autre')+(a.nom?' — '+a.nom:'');
+          const lb=(a.intitule||'autre')+(a.nom?' \u2014 '+a.nom:'');
           list.push({email:a.email,label:lb,checked:list.length===0});
         }
       }
@@ -4219,40 +4229,51 @@ async function sendQrConsigne(token,nom,code){
 
   let idx=0;
   const recipHtml=prestData.map(p=>{
-    if(!p.emails.length) return '<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div style="font-size:13px;font-weight:600">'+esc(p.nom)+'</div><div style="font-size:12px;color:var(--muted)">⚠️ Aucun email configuré</div></div>';
+    if(!p.emails.length) return '<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div style="font-size:13px;font-weight:600">'+esc(p.nom)+'</div><div style="font-size:12px;color:var(--muted)">\u26a0\ufe0f Aucun email</div></div>';
     const boxes=p.emails.map(e=>{
       const id='qr_d'+(idx++);
-      return '<label style="display:flex;align-items:center;gap:8px;padding:5px 0;cursor:pointer">'
-        +'<input type="checkbox" id="'+id+'" value="'+esc(e.email)+'"'+(e.checked?' checked':'')
-        +' style="width:15px;height:15px;flex-shrink:0;cursor:pointer">'
-        +'<span style="font-size:13px"><span style="font-size:11.5px;color:var(--muted)">'+esc(e.label)+'</span><br><b>'+esc(e.email)+'</b></span>'
+      const hist=histByEmail[e.email];
+      const badge=hist?'<span style="font-size:11px;background:#dbeafe;color:#1d4ed8;border-radius:4px;padding:1px 6px;margin-left:6px;white-space:nowrap">\u2709\ufe0f '+new Date(hist.date).toLocaleDateString('fr-FR')+(hist.by?' \u00b7 '+hist.by:'')+'</span>':'';
+      return '<label style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;cursor:pointer">'
+        +'<input type="checkbox" id="'+id+'" value="'+esc(e.email)+'"'+(e.checked?' checked':'')+' style="width:15px;height:15px;flex-shrink:0;margin-top:3px;cursor:pointer">'
+        +'<span style="font-size:13px"><span style="font-size:11.5px;color:var(--muted)">'+esc(e.label)+'</span>'+badge+'<br><b>'+esc(e.email)+'</b></span>'
         +'</label>';
     }).join('');
-    return '<div style="padding:8px 0;border-bottom:1px solid var(--line)">'
-      +'<div style="font-size:13px;font-weight:700;margin-bottom:2px">'+esc(p.nom)+'</div>'
-      +boxes+'</div>';
+    return '<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div style="font-size:13px;font-weight:700;margin-bottom:2px">'+esc(p.nom)+'</div>'+boxes+'</div>';
   }).join('');
 
-  const defaultMsg='Bonjour,\n\nDans le cadre de notre suivi réglementaire, nous vous rappelons que toute intervention sur nos établissements nécessite de scanner le QR code affiché à l’entrée :\n\n▶ À votre ARRIVÉE : scannez le QR code et renseignez vos nom, société et objet de l’intervention\n▶ À votre DÉPART : scannez à nouveau pour clôturer votre passage\n\nÉtablissement concerné : '+nom+' ('+code+')\n\nCette procédure est obligatoire pour tous nos prestataires.\n\nMerci de votre coopération.\n\nCordialement,\nPREVA CONSEILS';
+  const signataire=state.profile&&state.profile.nom||'';
+  const defaultMsg='Bonjour,\n\nDans le cadre de notre suivi r\u00e9glementaire, nous vous rappelons que toute intervention sur nos \u00e9tablissements n\u00e9cessite de scanner le QR code affich\u00e9 \u00e0 l\u2019entr\u00e9e :\n\n\u25b6 \u00c0 votre ARRIV\u00c9E : scannez le QR code et renseignez vos nom, soci\u00e9t\u00e9 et objet de l\u2019intervention\n\u25b6 \u00c0 votre D\u00c9PART : scannez \u00e0 nouveau pour cl\u00f4turer votre passage\n\n\u00c9tablissement concern\u00e9 : '+nom+' ('+code+')\n\nCette proc\u00e9dure est obligatoire pour tous nos prestataires.\n\nMerci de votre coop\u00e9ration.\n\nCordialement,\n'+nom+'\n'+signataire;
 
-  openModal('<div class="modal-head"><h2>📧 Consigne QR Code</h2><button class="x" onclick="closeModal()">'+I.x+'</button></div>'
+  openModal('<div class="modal-head"><h2>\ud83d\udce7 Consigne QR Code</h2><button class="x" onclick="closeModal()">'+I.x+'</button></div>'
     +'<div class="modal-body" style="gap:14px">'
-    +'<div><div style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Destinataires — '+esc(nom)+'</div>'
-    +'<div id="qr_dest_list" style="border:1px solid var(--line);border-radius:9px;padding:4px 12px;max-height:220px;overflow-y:auto">'+recipHtml+'</div></div>'
+    +'<div><div style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Destinataires \u2014 '+esc(nom)+'</div>'
+    +'<div id="qr_dest_list" style="border:1px solid var(--line);border-radius:9px;padding:4px 12px;max-height:200px;overflow-y:auto">'+recipHtml+'</div></div>'
+    +'<div class="fld"><label>Signataire</label>'
+    +'<input id="qr_signataire" type="text" value="'+esc(signataire)+'" placeholder="Pr\u00e9nom Nom" style="font-size:13px"></div>'
     +'<div class="fld"><label>Message</label>'
-    +'<textarea id="qr_msg" rows="11" style="resize:vertical;font-size:13px;font-family:inherit;line-height:1.6"></textarea></div>'
+    +'<textarea id="qr_msg" rows="10" style="resize:vertical;font-size:13px;font-family:inherit;line-height:1.6"></textarea></div>'
     +'</div>'
-    +'<div class="modal-foot">'
-    +'<button class="btn ghost" onclick="closeModal()">Annuler</button>'
-    +'<button class="btn primary" id="qr_send_btn">📧 Envoyer</button>'
-    +'</div>');
+    +'<div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="qr_send_btn">\ud83d\udce7 Envoyer</button></div>');
 
+  // Remplir le message initial
   document.getElementById('qr_msg').value=defaultMsg;
+
+  // Quand le signataire change, mettre à jour la dernière ligne de la signature
+  document.getElementById('qr_signataire').addEventListener('input',function(){
+    const ta=document.getElementById('qr_msg'); if(!ta) return;
+    const lines=ta.value.split('\n');
+    // La signature est les 2 dernières lignes non vides
+    const sigIdx=lines.findLastIndex(l=>l===nom);
+    if(sigIdx>=0) lines[sigIdx+1]=this.value;
+    else lines[lines.length-1]=this.value;
+    ta.value=lines.join('\n');
+  });
 
   function updateSendBtn(){
     const n=document.querySelectorAll('#qr_dest_list input:checked').length;
     const b=document.getElementById('qr_send_btn');
-    if(b) b.textContent=n?'📧 Envoyer à '+n+' adresse'+(n>1?'s':''):'📧 Envoyer';
+    if(b) b.textContent=n?'\ud83d\udce7 Envoyer \u00e0 '+n+' adresse'+(n>1?'s':''):'\ud83d\udce7 Envoyer';
   }
   document.querySelectorAll('#qr_dest_list input').forEach(cb=>cb.addEventListener('change',updateSendBtn));
   updateSendBtn();
@@ -4260,10 +4281,11 @@ async function sendQrConsigne(token,nom,code){
   document.getElementById('qr_send_btn').onclick=async()=>{
     const msg=(document.getElementById('qr_msg').value||'').trim();
     if(!msg){toast('Message vide','err');return;}
+    const sig=(document.getElementById('qr_signataire').value||'').trim();
     const recipients=[...document.querySelectorAll('#qr_dest_list input:checked')].map(cb=>cb.value).filter(Boolean);
-    if(!recipients.length){toast('Sélectionnez au moins un destinataire','err');return;}
+    if(!recipients.length){toast('S\u00e9lectionnez au moins un destinataire','err');return;}
     const btn=document.getElementById('qr_send_btn');
-    btn.disabled=true; btn.textContent='Envoi en cours…';
+    btn.disabled=true; btn.textContent='Envoi en cours\u2026';
     const _sm=msg.replace(/&/g,'&amp;').replace(/\x3c/g,'&lt;').replace(/\x3e/g,'&gt;').replace(/\n/g,'<br>');
     const htmlBody='<div style="font-family:Arial,sans-serif;color:#1e293b;line-height:1.8;font-size:14px">'+_sm+'</div>'
       +'<hr style="margin:20px 0;border:none;border-top:1px solid #e2e8f0">'
@@ -4271,15 +4293,33 @@ async function sendQrConsigne(token,nom,code){
     let ok=0,fail=[];
     for(const to of recipients){
       try{
-        const {data,error}=await sb.functions.invoke('send-client-email',{body:{to,subject:'Consigne QR Code — '+nom,html:htmlBody}});
-        if(error||data?.error) throw new Error(error?.message||data?.error||'Erreur');
+        const {data,error}=await sb.functions.invoke('send-client-email',{body:{to,subject:'Consigne QR Code \u2014 '+nom,html:htmlBody}});
+        if(error||data&&data.error) throw new Error(error&&error.message||data&&data.error||'Erreur');
         ok++;
       }catch(e){fail.push(to);console.error('QR mail',to,e);}
     }
+    // Enregistrer dans audit_log
+    if(ok>0){
+      const destList=recipients.filter(to=>!fail.includes(to)).map(to=>{
+        const prest=prestData.find(p=>p.emails.some(e=>e.email===to));
+        return {email:to,prestataire:prest&&prest.nom||'',prestataire_id:prest&&prest.id||null};
+      });
+      try{
+        await sb.from('audit_log').insert({
+          user_id:state.user&&state.user.id,
+          user_label:sig||state.profile&&state.profile.nom||'',
+          action:'qr_consigne',
+          entite:'erp',
+          entite_id:erpId,
+          erp_id:erpId,
+          details:{destinataires:destList,signataire:sig,erp_nom:nom}
+        });
+      }catch(e){console.error('audit_log qr_consigne',e);}
+    }
     _modalDirty=false; closeModal();
-    if(ok&&!fail.length) toast('Consigne envoyée à '+ok+' adresse'+(ok>1?'s':'')+' ✓','ok');
-    else if(ok) toast(ok+' envoyé(s) · Échec : '+fail.join(', '),'warn');
-    else toast("Aucun email envoyé — vérifiez la config email",'err');
+    if(ok&&!fail.length) toast('Consigne envoy\u00e9e \u00e0 '+ok+' adresse'+(ok>1?'s':'')+' \u2713','ok');
+    else if(ok) toast(ok+' envoy\u00e9(s) \u00b7 \u00c9chec : '+fail.join(', '),'warn');
+    else toast('Aucun email envoy\u00e9 \u2014 v\u00e9rifiez la config email','err');
   };
 }
 window.sendQrConsigne=sendQrConsigne;
