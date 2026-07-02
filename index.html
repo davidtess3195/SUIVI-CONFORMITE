@@ -7770,7 +7770,7 @@ async function csEnvoyerAssistance(catKey,catLabel,erpId){
 }
 window.csEnvoyerAssistance=csEnvoyerAssistance;
 
-function viewPlanMaintenance(c){
+async function viewPlanMaintenance(c){
   const PM_BASE=['Appareils de cuisson','Ascenseur','BAES / éclairage de sécurité','Clapet coupe-feu','Désenfumage mécanique','Désenfumage naturel','Extincteur','Parking','Porte coupe-feu','RIA','Sprinklers','SSI / centrale incendie','Thermographie électrique'];
   const periList=['journalière','hebdomadaire','mensuelle','bimestrielle','trimestrielle','semestrielle','annuelle','biannuelle','triennale','quadriennale','quinquennale','décennale'];
   // Bibliothèque persistante en localStorage
