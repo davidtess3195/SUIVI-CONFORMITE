@@ -2318,7 +2318,7 @@ const NAV = [
   ['Pilotage', [['/','Tableau de bord',I.dash],['/verifications','Vérifications & Relances',I.verif],['/interventions','Interventions',I.inter],['/reserves','Levées des réserves',I.reserve],['/photos','Photos et vidéos',I.photo],['/conversations','Conversations',I.conv],['/compte-rendu','Compte rendu',I.doc]]],
   ['Référentiel', [['/clients','Clients',I.clients],['/erps','ERP',I.erp],['/plan-maintenance','Plan de maintenance',I.plan],['/prestataires','Prestataires',I.prest]]],
   ['Documents & terrain', [['/documents','Documents (GED)',I.doc],['/rapports','Rapports reçus',I.doc],['/contrats','Contrats de maintenance',I.doc],['/pointage','Pointage & journal',I.qr]]],
-  ['Préparation CS', [['/preparation-cs','Préparation CS',I.cs]]],
+  ['Commission de sécurité', [['/preparation-cs','Commission de sécurité',I.cs]]],
   ['Administration', [['/admin','Tableau de bord admin',I.settings],['/parametres','Paramètres & email',I.settings]]],
 ];
 
@@ -7513,7 +7513,7 @@ async function viewPreparationCS(c){
   const client= erp ? (state.clients||[]).find(cl=>cl.id===erp.client_id) : null;
   const cleanErpNom = erp ? (erp.nom||'').replace(/^ERP-\d+[-\s]*/,'').trim() : '';
 
-  c.innerHTML = '<div class="page-head"><div class="t"><h1>\u{1F6E1}️ Préparation Commission de Sécurité</h1><p>Planifier et envoyer les demandes d’assistance technique aux prestataires.</p></div></div>' + loadingBlock();
+  c.innerHTML = '<div class="page-head"><div class="t"><h1>\u{1F6E1}️ Commission de sécurité</h1><p>Planifier et envoyer les demandes d’assistance technique aux prestataires.</p></div></div>' + loadingBlock();
 
   /* ── Chargement des prestataires liés à l’ERP ── */
   if(!erpId){ c.innerHTML+='<div class="card card-pad" style="color:var(--muted);text-align:center;padding:32px">Sélectionnez un ERP dans le filtre en haut.</div>'; return; }
@@ -7662,7 +7662,7 @@ async function viewPreparationCS(c){
 
   html+=`</div></div>`;
 
-  c.innerHTML=`<div class="page-head"><div class="t"><h1>🛡️ Préparation Commission de Sécurité</h1><p>Planifier et envoyer les demandes d’assistance technique aux prestataires.</p></div></div>`+html;
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>🛡️ Commission de sécurité</h1><p>Planifier et envoyer les demandes d’assistance technique aux prestataires.</p></div></div>`+html;
 }
 window.viewPreparationCS=viewPreparationCS;
 
