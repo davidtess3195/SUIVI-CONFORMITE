@@ -7518,16 +7518,22 @@ async function viewPreparationCS(c){
   /* ── Chargement des prestataires liés à l’ERP ── */
   if(!erpId){ c.innerHTML+='<div class="card card-pad" style="color:var(--muted);text-align:center;padding:32px">Sélectionnez un ERP dans le filtre en haut.</div>'; return; }
 
-  const [intR,ctR] = await Promise.all([
-    sb.from('interventions').select('prestataire_id').eq('erp_id',erpId).not('prestataire_id','is',null),
-    sb.from('contrats').select('prestataire_id').eq('erp_id',erpId).not('prestataire_id','is',null)
-  ]);
-  const prestIds=[...new Set([...(intR.data||[]).map(r=>r.prestataire_id),...(ctR.data||[]).map(r=>r.prestataire_id)])].filter(Boolean);
-
+  // Chercher par client_id de l'ERP (prestataires rattachés au client)
+  const clientId = erp ? erp.client_id : null;
   let allPrests=[];
-  if(prestIds.length){
-    const {data}=await sb.from('prestataires').select('id,nom,categorie,email_rapports,contacts').in('id',prestIds);
-    allPrests=data||[];
+  if(clientId){
+    // 1. Via client_id direct ou client_ids array
+    const {data:byCl} = await sb.from('prestataires')
+      .select('id,nom,type,categorie,email_rapports,contacts,affaires,client_id,client_ids')
+      .or('client_id.eq.'+clientId+',client_ids.cs.["'+clientId+'"]');
+    // 2. Via affaires liées à l'ERP
+    const {data:allP} = await sb.from('prestataires')
+      .select('id,nom,type,categorie,email_rapports,contacts,affaires,client_id,client_ids')
+      .not('affaires','is',null);
+    const byAff = (allP||[]).filter(p=>Array.isArray(p.affaires)&&p.affaires.some(a=>a.erp_id===erpId));
+    // Fusionner sans doublon
+    const seen=new Set((byCl||[]).map(p=>p.id));
+    allPrests=[...(byCl||[]),...byAff.filter(p=>!seen.has(p.id))];
   }
 
   /* ── Définition des catégories CS ── */
