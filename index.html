@@ -7772,7 +7772,6 @@ async function csEnvoyerAssistance(catKey,catLabel,erpId){
 
     for(const [pid,pdata] of Object.entries(byPrest)){
       const _sm=msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
-      const confirmUrl='https://conformite-securite.fr/#/cs-confirm?p='+pid+'&erp='+erpId+'&date='+encodeURIComponent(dateVal)+'&nom='+encodeURIComponent(pdata.nom)+'&erp_nom='+encodeURIComponent(cleanNom);
       const htmlBody='<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">'
         +'<div style="background:#1e3a5f;padding:20px 24px;border-radius:8px 8px 0 0">'
         +'<h2 style="color:#fff;margin:0;font-size:18px">Demande d\'assistance technique</h2>'
@@ -7784,8 +7783,7 @@ async function csEnvoyerAssistance(catKey,catLabel,erpId){
         +'<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;width:40%;color:#475569">ERP</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">'+esc(cleanNom)+'</td></tr>'
         +'<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Date Commission</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">'+esc(dtLabel)+'</td></tr>'
         +'</table>'
-        +'<p style="margin:0 0 8px;color:#1e293b">Merci de confirmer votre présence et de nous adresser un devis en cliquant sur ce lien :</p>'
-        +'<p style="margin:0 0 20px;color:#1e293b"><a href="'+confirmUrl+'">Confirmer ma présence et envoyer un devis</a></p>'
+        +'<p style="margin:0 0 8px;color:#1e293b">Merci de nous confirmer votre disponibilité et vos conditions d\'intervention.</p>'
         +'<p style="margin:0;color:#64748b;font-size:13px">Cordialement,<br><b>'+esc(sig)+' — PREVA Conseils</b></p>'
         +'</div>'
         +'</div>';
