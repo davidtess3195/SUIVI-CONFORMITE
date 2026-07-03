@@ -7518,7 +7518,24 @@ async function viewPreparationCS(c){
   c.innerHTML = '<div class="page-head"><div class="t"><h1>Commission de sécurité</h1><p>Planifier et envoyer les demandes d’assistance technique aux prestataires.</p></div></div>' + loadingBlock();
 
   /* ── Chargement des prestataires liés à l’ERP ── */
-  if(!erpId){ c.innerHTML+='<div class="card card-pad" style="color:var(--muted);text-align:center;padding:32px">Sélectionnez un ERP dans le filtre en haut.</div>'; return; }
+  if(!erpId || erpId==='all'){
+    // Construire un sélecteur ERP directement dans la page
+    const erpOpts=(state.erps||[]).slice().sort((a,b)=>(a.nom||'').localeCompare(b.nom||'')).map(e=>`<option value="${e.id}">${esc(e.nom||e.id)}</option>`).join('');
+    c.innerHTML=`<div class="page-head"><div class="t"><h1>Commission de sécurité</h1><p>Planifier et envoyer les demandes d'assistance technique aux prestataires.</p></div></div>
+      <div class="card card-pad" style="text-align:center;padding:32px 24px">
+        <div style="font-size:40px;margin-bottom:12px">🏢</div>
+        <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px">Sélectionnez un ERP</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:20px">La Commission de Sécurité est liée à un ERP spécifique.</div>
+        <select id="cs_erp_picker" style="padding:10px 16px;border-radius:10px;border:1px solid var(--line);font-size:14px;font-weight:600;max-width:360px;width:100%">
+          <option value="">— Choisir un ERP —</option>
+          ${erpOpts}
+        </select>
+        <div style="margin-top:14px">
+          <button class="btn primary" onclick="(()=>{const v=document.getElementById('cs_erp_picker').value;if(!v){toast('Sélectionnez un ERP','err');return;}state.currentErp=v;const se=document.getElementById('selErp');if(se)se.value=v;viewPreparationCS(c);})()">Continuer →</button>
+        </div>
+      </div>`;
+    return;
+  }
 
   // Chercher par client_id de l'ERP (prestataires rattachés au client)
   const clientId = erp ? erp.client_id : null;
