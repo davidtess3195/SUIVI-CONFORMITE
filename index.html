@@ -874,7 +874,7 @@ function _setupDemoProxy(){
 
 
 async function boot(){
-  try{ console.log('%cQUICKPROTECT build: CS-CONFIRM+QR-RAPPORTS-2026-07-03','color:#2563eb;font-weight:700'); }catch(e){}
+  try{ console.log('%cQUICKPROTECT build: CS-FIXES-TOKEN-2026-07-03','color:#2563eb;font-weight:700'); }catch(e){}
   // Routes publiques sans login
   const hashNow = location.hash.replace(/^#/,'')||'/';
   if(hashNow==='/admin-login'){ loadCfg(); initSb(); renderAdminAuth(); return; }
@@ -7633,6 +7633,10 @@ async function viewPreparationCS(c){
     </div>
   </div>`;
 
+  html+=`<div style="display:flex;justify-content:flex-end;margin:-10px 0 20px">
+    <button class="btn ghost sm" onclick="csDeselectAll()">Désélectionner toutes les cases</button>
+  </div>`;
+
   // Accordéon "Assistance technique"
   html+=`<div class="card" style="overflow:hidden;margin-bottom:20px">
     <button onclick="toggleAcc('acc_assist')" style="width:100%;display:flex;align-items:center;gap:10px;padding:16px 20px;background:none;border:none;cursor:pointer;text-align:left;border-bottom:1px solid var(--line)" id="acc_assist_btn">
@@ -7702,6 +7706,12 @@ async function viewPreparationCS(c){
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Commission de sécurité</h1><p>Planifier et envoyer les demandes d’assistance technique aux prestataires.</p></div></div>`+html;
 }
 window.viewPreparationCS=viewPreparationCS;
+
+function csDeselectAll(){
+  document.querySelectorAll('input[type=checkbox][data-prest]').forEach(cb=>{ cb.checked=false; });
+  toast('Toutes les cases ont été désélectionnées','info');
+}
+window.csDeselectAll=csDeselectAll;
 
 /* ── Accordéon helper ── */
 function toggleAcc(id){
@@ -7773,11 +7783,18 @@ async function csEnvoyerAssistance(catKey,catLabel,erpId){
 
     for(const [pid,pdata] of Object.entries(byPrest)){
       const _sm=msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
-      const confirmUrl='https://conformite-securite.fr/#/cs-confirm?p='+encodeURIComponent(pid)
+      // Nouveau token à chaque envoi (même en cas de renvoi) : évite de renvoyer un lien identique déjà diffusé.
+      let confirmUrl='https://conformite-securite.fr/#/cs-confirm?p='+encodeURIComponent(pid)
         +'&erp='+encodeURIComponent(erpId)
         +'&date='+encodeURIComponent(dateVal)
         +'&nom='+encodeURIComponent(pdata.nom||'')
         +'&erp_nom='+encodeURIComponent(cleanNom);
+      try{
+        const {data:linkRow,error:linkErr}=await sb.from('cs_confirm_links').insert({
+          erp_id:erpId, prestataire_id:pid, date_cs:dateVal, prestataire_nom:pdata.nom||'', erp_nom:cleanNom
+        }).select('token').single();
+        if(!linkErr && linkRow?.token){ confirmUrl='https://conformite-securite.fr/#/cs-confirm?t='+linkRow.token; }
+      }catch(_){ /* fallback : URL avec paramètres lisibles ci-dessus */ }
       const htmlBody='<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">'
         +'<div style="background:#1e3a5f;padding:20px 24px;border-radius:8px 8px 0 0">'
         +'<h2 style="color:#fff;margin:0;font-size:18px">Demande d\'assistance technique</h2>'
@@ -7792,7 +7809,6 @@ async function csEnvoyerAssistance(catKey,catLabel,erpId){
         +'<div style="text-align:center;margin:0 0 20px">'
         +'<a href="'+confirmUrl+'" style="display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:8px;font-size:15px;font-weight:700">&#9989; Je confirme mon intervention</a>'
         +'</div>'
-        +'<p style="margin:0 0 20px;color:#94a3b8;font-size:12px">Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br><a href="'+confirmUrl+'" style="color:#2563eb;word-break:break-all">'+confirmUrl+'</a></p>'
         +'<p style="margin:0;color:#64748b;font-size:13px">Cordialement,<br><b>'+esc(sig)+' — PREVA Conseils</b></p>'
         +'</div>'
         +'</div>';
@@ -8264,8 +8280,9 @@ async function viewPrestataires(c, defaultCat){
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Annuaire des intervenants</h1><p>Bureaux de contrôle et prestataires.</p></div>
     <div class="actions">
       <div style="display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px">
-        <button class="btn sm" id="tab-prest" onclick="switchPrestOnglet('prestataire')" style="border:none;border-radius:8px">🔧 Prestataires</button>
-        <button class="btn sm" id="tab-bdc" onclick="switchPrestOnglet('bureau_de_controle')" style="border:none;border-radius:8px">🔬 Bureaux de contrôle</button>
+        <button class="btn sm" id="tab-prest" onclick="switchPrestOnglet('prestataire')" style="border:none;border-radius:8px">Prestataires</button>
+        <button class="btn sm" id="tab-bdc" onclick="switchPrestOnglet('bureau_de_controle')" style="border:none;border-radius:8px">Bureaux de contrôle</button>
+        <button class="btn sm" id="tab-acces" onclick="switchPrestOnglet('acces')" style="border:none;border-radius:8px">Accès rapports</button>
       </div>
       <button class="btn primary" onclick="formPrest(_prestOnglet)">${I.plus} Ajouter</button>
     </div></div>${loadingBlock()}`;
@@ -8275,8 +8292,9 @@ async function viewPrestataires(c, defaultCat){
     c.innerHTML=`<div class="page-head"><div class="t"><h1>Annuaire des intervenants</h1><p>Bureaux de contrôle et prestataires.</p></div>
       <div class="actions">
         <div style="display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px">
-          <button class="btn sm" id="tab-prest" onclick="switchPrestOnglet('prestataire')" style="border:none;border-radius:8px">🔧 Prestataires</button>
-          <button class="btn sm" id="tab-bdc" onclick="switchPrestOnglet('bureau_de_controle')" style="border:none;border-radius:8px">🔬 Bureaux de contrôle</button>
+          <button class="btn sm" id="tab-prest" onclick="switchPrestOnglet('prestataire')" style="border:none;border-radius:8px">Prestataires</button>
+          <button class="btn sm" id="tab-bdc" onclick="switchPrestOnglet('bureau_de_controle')" style="border:none;border-radius:8px">Bureaux de contrôle</button>
+          <button class="btn sm" id="tab-acces" onclick="switchPrestOnglet('acces')" style="border:none;border-radius:8px">Accès rapports</button>
         </div>
         <button class="btn primary" onclick="formPrest(_prestOnglet)">${I.plus} Ajouter</button>
       </div></div>
@@ -8288,6 +8306,7 @@ async function viewPrestataires(c, defaultCat){
 
 function switchPrestOnglet(cat){
   _prestOnglet=cat;
+  if(cat==='acces'){ highlightPrestTab(); renderQrAccesTable(); return; }
   renderPrestTable(window._prestCache||[], cat);
   highlightPrestTab();
 }
@@ -8296,9 +8315,199 @@ window.switchPrestOnglet=switchPrestOnglet;
 function highlightPrestTab(){
   const tp=document.getElementById('tab-prest');
   const tb=document.getElementById('tab-bdc');
+  const ta=document.getElementById('tab-acces');
   if(tp) tp.className='btn sm'+(_prestOnglet==='prestataire'?' primary':'');
   if(tb) tb.className='btn sm'+(_prestOnglet==='bureau_de_controle'?' primary':'');
+  if(ta) ta.className='btn sm'+(_prestOnglet==='acces'?' primary':'');
 }
+
+/* ---------- ACCÈS QR RAPPORTS (mots de passe prestataires) ---------- */
+async function _qrSha256(s){
+  const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function _qrGenPwd(){
+  const chars='ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // sans caractères ambigus
+  let a='',b='';
+  const rnd=new Uint8Array(8); crypto.getRandomValues(rnd);
+  for(let i=0;i<4;i++){ a+=chars[rnd[i]%chars.length]; b+=chars[rnd[i+4]%chars.length]; }
+  return a+'-'+b;
+}
+function _qrPrestEmail(p){ try{ return prestContactInfo(p).email||''; }catch(e){ return p.email_rapports||''; } }
+
+async function renderQrAccesTable(){
+  const target=document.getElementById('prest-list'); if(!target) return;
+  target.innerHTML=loadingBlock();
+  let acces=[];
+  try{ const {data,error}=await sb.from('qr_acces_prestataires').select('*').order('created_at',{ascending:false}); if(error)throw error; acces=data||[]; }
+  catch(e){ target.innerHTML=errBlock(e); return; }
+  const prests=window._prestCache||[];
+  const pById={}; prests.forEach(p=>pById[p.id]=p);
+  const cById={}; (state.clients||[]).forEach(c=>cById[c.id]=c);
+  const now=Date.now();
+  const statut=a=>!a.actif?['Révoqué','#6b7280','#f3f4f6']:(new Date(a.expires_at).getTime()<now?['Expiré','#b91c1c','#fef2f2']:['Actif','#166534','#f0fdf4']);
+  const head=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px"><div style="font-size:17px;font-weight:700;font-family:var(--fd)">Accès rapports (QR)</div>
+        <div style="font-size:13px;color:var(--muted)">Mots de passe prestataires — valables 1 an, liés à un client. Le prestataire scanne le QR de l'ERP puis saisit son mot de passe.</div></div>
+      <button class="btn primary" onclick="qrAccesGenModal()">${I.plus} Générer un accès</button>
+    </div>`;
+  if(!acces.length){ target.innerHTML=head+emptyBlock(I.prest,'Aucun accès généré','Générez un mot de passe pour donner à un prestataire la consultation des rapports d\'un client.',`<button class="btn primary" onclick="qrAccesGenModal()">${I.plus} Générer un accès</button>`); return; }
+  target.innerHTML=head+`<div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Prestataire</th><th>Client</th><th>Mot de passe</th><th>Expire le</th><th>Statut</th><th style="text-align:right">Actions</th></tr></thead>
+    <tbody>${acces.map(a=>{
+      const p=pById[a.prestataire_id], c=cById[a.client_id];
+      const [sl,sc,sbg]=statut(a);
+      const pwd=a.password_plain||'••••••••';
+      const pj=(a.password_plain||'').replace(/'/g,'');
+      return `<tr>
+      <td><b>${esc(p?p.nom:'—')}</b>${p&&_qrPrestEmail(p)?`<div style="font-size:11px;color:var(--muted)">${esc(_qrPrestEmail(p))}</div>`:''}</td>
+      <td style="font-size:13px">${esc(c?c.raison_sociale:'—')}</td>
+      <td><span style="font-family:monospace;font-weight:700;font-size:13.5px;background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:3px 8px">${esc(pwd)}</span>
+        ${a.password_plain?`<button class="btn sm" onclick="navigator.clipboard.writeText('${pj}').then(()=>toast('Mot de passe copié','ok'))" style="margin-left:4px">Copier</button>`:''}</td>
+      <td style="font-size:13px">${fmtDate(a.expires_at)}</td>
+      <td><span style="font-size:11.5px;font-weight:700;color:${sc};background:${sbg};border-radius:20px;padding:3px 10px">${sl}</span></td>
+      <td style="text-align:right;white-space:nowrap">
+        ${a.actif&&a.password_plain?`<button class="btn sm" title="Envoyer le mot de passe par email" onclick="qrAccesSendMail('${a.id}')">Envoyer</button>`:''}
+        <button class="btn sm" title="Nouveau mot de passe, +1 an" onclick="qrAccesRenew('${a.id}')">Renouveler</button>
+        ${a.actif?`<button class="btn sm" title="Révoquer cet accès" onclick="qrAccesRevoke('${a.id}')" style="color:#b91c1c">Révoquer</button>`:''}
+      </td></tr>`; }).join('')}
+    </tbody></table></div>`;
+  window._qrAccesCache=acces;
+}
+window.renderQrAccesTable=renderQrAccesTable;
+
+function qrAccesGenModal(){
+  const prests=(window._prestCache||[]).filter(p=>p.categorie!=='bureau_de_controle');
+  const opts=prests.map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('');
+  const clOpts=(state.clients||[]).map(c=>`<option value="${c.id}">${esc(c.raison_sociale)}</option>`).join('');
+  openModal(`<div class="modal-head"><h2>Générer un accès rapports</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body">
+      <label class="lb">Prestataire</label>
+      <select id="qa-prest" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:12px">${opts}</select>
+      <label class="lb">Client (l'accès est limité aux rapports de ce client)</label>
+      <select id="qa-client" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:12px">${clOpts}</select>
+      <p style="font-size:12.5px;color:var(--muted);margin:0">Un mot de passe valable <b>1 an</b> sera généré. Il restera visible dans ce tableau et pourra être envoyé par email au prestataire.</p>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" onclick="qrAccesCreate(this)">Générer</button></div>`);
+  // Présélectionner le client rattaché au prestataire
+  const syncClient=()=>{ const p=(window._prestCache||[]).find(x=>x.id===document.getElementById('qa-prest').value);
+    const cid=p?(Array.isArray(p.client_ids)&&p.client_ids.length?p.client_ids[0]:p.client_id):null;
+    if(cid){ const s=document.getElementById('qa-client'); if(s) s.value=cid; } };
+  const ps=document.getElementById('qa-prest'); if(ps){ ps.onchange=syncClient; syncClient(); }
+}
+window.qrAccesGenModal=qrAccesGenModal;
+
+async function qrAccesCreate(btn){
+  const pid=document.getElementById('qa-prest')?.value, cid=document.getElementById('qa-client')?.value;
+  if(!pid||!cid){ toast('Sélectionnez un prestataire et un client','err'); return; }
+  btn.disabled=true;
+  try{
+    const pwd=_qrGenPwd();
+    const hash=await _qrSha256(pwd);
+    const exp=new Date(); exp.setFullYear(exp.getFullYear()+1);
+    // Un seul mot de passe actif par prestataire : révoquer les anciens
+    await sb.from('qr_acces_prestataires').update({actif:false}).eq('prestataire_id',pid).eq('actif',true);
+    const {error}=await sb.from('qr_acces_prestataires').insert({prestataire_id:pid,client_id:cid,password_hash:hash,password_plain:pwd,expires_at:exp.toISOString(),actif:true});
+    if(error) throw error;
+    closeModal(); toast('Accès généré : '+pwd,'ok'); renderQrAccesTable();
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; }
+}
+window.qrAccesCreate=qrAccesCreate;
+
+async function qrAccesRenew(id){
+  try{
+    const pwd=_qrGenPwd();
+    const hash=await _qrSha256(pwd);
+    const exp=new Date(); exp.setFullYear(exp.getFullYear()+1);
+    const {error}=await sb.from('qr_acces_prestataires').update({password_hash:hash,password_plain:pwd,expires_at:exp.toISOString(),actif:true}).eq('id',id);
+    if(error) throw error;
+    toast('Nouveau mot de passe : '+pwd,'ok'); renderQrAccesTable();
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+}
+window.qrAccesRenew=qrAccesRenew;
+
+async function qrAccesRevoke(id){
+  if(!confirm('Révoquer cet accès ? Le prestataire ne pourra plus consulter les rapports.')) return;
+  try{ const {error}=await sb.from('qr_acces_prestataires').update({actif:false}).eq('id',id); if(error) throw error;
+    toast('Accès révoqué','ok'); renderQrAccesTable(); }
+  catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+}
+window.qrAccesRevoke=qrAccesRevoke;
+
+function _qrPrestEmails(p){
+  const out=[]; const seen=new Set();
+  const add=(email,label)=>{ if(!email) return; const e=String(email).trim().toLowerCase(); if(!e||!e.includes('@')||seen.has(e)) return; seen.add(e); out.push({email:e,label:label||''}); };
+  if(p.email_rapports) add(p.email_rapports,'Email rapports');
+  const ct=p.contacts||{};
+  const lbl={charge_affaire:'Chargé d\'affaires',planning:'Planning',sav:'SAV',technicien_1:'Technicien',technicien_2:'Technicien',technicien_3:'Technicien'};
+  Object.keys(lbl).forEach(k=>{ if(ct[k]) add(ct[k].email,(ct[k].nom||ct[k].intitule||lbl[k])); });
+  if(Array.isArray(ct.autres)) ct.autres.forEach(a=>{ if(a) add(a.email,(a.nom||a.intitule||'Contact')); });
+  return out;
+}
+
+function _qrAccesMailHtml(a,c){
+  return '<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">'
+    +'<div style="background:#1e3a5f;padding:20px 24px;border-radius:8px 8px 0 0"><h2 style="color:#fff;margin:0;font-size:18px">Accès aux rapports de vérification</h2></div>'
+    +'<div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:24px">'
+    +'<p style="margin:0 0 16px;color:#1e293b">Bonjour,</p>'
+    +'<p style="margin:0 0 16px;color:#1e293b">Vous disposez d\'un accès de consultation aux rapports de vérification des établissements de <b>'+esc(c?c.raison_sociale:'')+'</b>.</p>'
+    +'<p style="margin:0 0 8px;color:#1e293b"><b>Comment y accéder :</b></p>'
+    +'<ol style="margin:0 0 16px;padding-left:20px;color:#1e293b;font-size:14px"><li>Scannez le QR code affiché sur l\'établissement</li><li>Dans la rubrique «&nbsp;Espace prestataire — Rapports&nbsp;», saisissez votre mot de passe</li><li>Consultez les rapports par établissement et par année</li></ol>'
+    +'<div style="text-align:center;margin:0 0 12px"><span style="display:inline-block;font-family:monospace;font-size:20px;font-weight:700;letter-spacing:2px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:12px 24px;color:#1e3a5f">'+esc(a.password_plain||'')+'</span></div>'
+    +'<p style="margin:0 0 16px;color:#1e293b;font-size:14px;text-align:center"><b>Mot de passe valable 1 an, jusqu\'au '+fmtDate(a.expires_at)+'.</b></p>'
+    +'<p style="margin:0 0 16px;color:#64748b;font-size:13px">Cet accès est personnel et en consultation seule.</p>'
+    +'<p style="margin:0;color:#64748b;font-size:13px">Cordialement,<br><b>PREVA Conseils</b></p>'
+    +'</div></div>';
+}
+
+function qrAccesSendMail(id){
+  const a=(window._qrAccesCache||[]).find(x=>x.id===id); if(!a) return;
+  const p=(window._prestCache||[]).find(x=>x.id===a.prestataire_id);
+  const c=(state.clients||[]).find(x=>x.id===a.client_id);
+  const emails=p?_qrPrestEmails(p):[];
+  const boxes=emails.length?emails.map((e,i)=>`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer;margin-bottom:8px">
+      <input type="checkbox" class="qa-mail-chk" value="${esc(e.email)}" ${i===0?'checked':''} style="width:17px;height:17px;flex:0 0 auto">
+      <span style="min-width:0"><span style="display:block;font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis">${esc(e.email)}</span>
+      ${e.label?`<span style="display:block;font-size:11.5px;color:var(--muted)">${esc(e.label)}</span>`:''}</span>
+    </label>`).join('')
+    :`<p style="font-size:13px;color:var(--muted);margin:0 0 10px">Aucune adresse enregistrée pour ce prestataire — ajoutez-en une ci-dessous.</p>`;
+  const subj='Votre accès aux rapports de vérification — '+(c?c.raison_sociale:'PREVA Conseils');
+  openModal(`<div class="modal-head"><h2>Envoyer le mot de passe</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body">
+      <label class="lb">Destinataires — ${esc(p?p.nom:'')}</label>
+      ${boxes}
+      <label class="lb" style="margin-top:6px">Autre adresse (optionnel)</label>
+      <input type="email" id="qa-mail-extra" placeholder="email@exemple.fr" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:14px">
+      <label class="lb">Objet</label>
+      <input type="text" id="qa-mail-subj" value="${esc(subj)}" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:14px">
+      <label class="lb">Aperçu du mail — cliquez dans le texte pour le modifier</label>
+      <div id="qa-mail-body" contenteditable="true" spellcheck="true" style="border:1.5px dashed var(--line);border-radius:12px;padding:14px;background:#fafafa;outline:none;max-height:45vh;overflow:auto">${_qrAccesMailHtml(a,c)}</div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" onclick="qrAccesSendMailGo('${a.id}',this)">Envoyer</button></div>`,'lg');
+}
+window.qrAccesSendMail=qrAccesSendMail;
+
+async function qrAccesSendMailGo(id,btn){
+  const a=(window._qrAccesCache||[]).find(x=>x.id===id); if(!a) return;
+  const c=(state.clients||[]).find(x=>x.id===a.client_id);
+  const to=[...document.querySelectorAll('.qa-mail-chk:checked')].map(x=>x.value);
+  const extra=(document.getElementById('qa-mail-extra')?.value||'').trim();
+  if(extra&&extra.includes('@')) to.push(extra.toLowerCase());
+  const dedup=[...new Set(to)];
+  if(!dedup.length){ toast('Sélectionnez au moins un destinataire','err'); return; }
+  const subject=(document.getElementById('qa-mail-subj')?.value||'').trim()||('Votre accès aux rapports de vérification — '+(c?c.raison_sociale:'PREVA Conseils'));
+  const bodyEl=document.getElementById('qa-mail-body');
+  const html=bodyEl?bodyEl.innerHTML:_qrAccesMailHtml(a,c);
+  btn.disabled=true; btn.textContent='Envoi…';
+  try{
+    const {data,error}=await sb.functions.invoke('send-client-email',{body:{to:dedup,subject,html,replyTo:'rapports@conformite-securite.fr'}});
+    if(error||(data&&data.error)) throw new Error((data&&data.error)||error.message||'envoi impossible');
+    closeModal(); toast('Mot de passe envoyé à '+dedup.length+' destinataire'+(dedup.length>1?'s':''),'ok');
+  }catch(e){ toast('Erreur envoi : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Envoyer'; }
+}
+window.qrAccesSendMailGo=qrAccesSendMailGo;
 
 
 function prestContactInfo(p){
@@ -8919,11 +9128,18 @@ window.qrPhotoPick=function(){ const f=document.getElementById('p_file'); const 
 async function renderCsConfirm(){
   if(!sb){ loadCfg(); if(!initSb()){ $('#root').innerHTML='<div style="font-family:sans-serif;max-width:500px;margin:80px auto;padding:32px;text-align:center"><p style="color:#ef4444">Configuration Supabase manquante.</p></div>'; return; } }
   const params=new URLSearchParams(location.hash.split('?')[1]||'');
-  const prestId=params.get('p');
-  const erpId=params.get('erp');
-  const dateCs=params.get('date');
-  const prestNom=decodeURIComponent(params.get('nom')||'');
-  const erpNom=decodeURIComponent(params.get('erp_nom')||'');
+  let prestId=params.get('p');
+  let erpId=params.get('erp');
+  let dateCs=params.get('date');
+  let prestNom=decodeURIComponent(params.get('nom')||'');
+  let erpNom=decodeURIComponent(params.get('erp_nom')||'');
+  const tok=params.get('t');
+  if(tok){
+    try{
+      const {data:link}=await sb.from('cs_confirm_links').select('erp_id,prestataire_id,date_cs,prestataire_nom,erp_nom').eq('token',tok).maybeSingle();
+      if(link){ prestId=link.prestataire_id; erpId=link.erp_id; dateCs=link.date_cs; prestNom=link.prestataire_nom||''; erpNom=link.erp_nom||''; }
+    }catch(e){ /* fallback sur params éventuels */ }
+  }
   const dateAff=/^\d{4}-\d{2}-\d{2}$/.test(dateCs||'') ? new Date(dateCs+'T00:00:00').toLocaleDateString('fr-FR') : (dateCs||'');
 
   const root=$('#root');
@@ -8984,8 +9200,17 @@ async function renderCsConfirm(){
       erp_nom:erpNom
     });
     if(error){
+      if(error.code==='23505'){
+        document.getElementById('cs_confirm_body').innerHTML=`
+          <div style="text-align:center">
+            <div style="font-size:48px;margin-bottom:16px">✅</div>
+            <div style="font-size:18px;font-weight:700;color:#16a34a;margin-bottom:8px">Vous avez déjà confirmé votre présence</div>
+            <p style="color:#64748b;font-size:14px;margin:0">Aucune action supplémentaire n'est nécessaire.</p>
+          </div>`;
+        return;
+      }
       btn.disabled=false; btn.textContent='✅ Confirmer ma présence et l&#39;envoi d&#39;un devis';
-      document.getElementById('cs_confirm_body').insertAdjacentHTML('beforeend','<p style="color:#ef4444;text-align:center;margin-top:12px;font-size:13px">Erreur : '+esc(error.message)+'</p>');
+      document.getElementById('cs_confirm_body').insertAdjacentHTML('beforeend','<p style="color:#ef4444;text-align:center;margin-top:12px;font-size:13px">Une erreur est survenue, merci de réessayer dans un instant.</p>');
       return;
     }
     document.getElementById('cs_confirm_body').innerHTML=`
@@ -9038,11 +9263,11 @@ window.renderQrPublic=renderQrPublic;
 
 async function qrLoadDocs(token){
   const box=document.getElementById('qr-docs'); if(!box) return;
+  window.__qrTok=token;
   try{
     const { data, error } = await sb.functions.invoke('qr-erp-docs',{ body:{ token } });
     if(error) return;
     const docs=(data&&data.docs)||[];
-    const raps=(data&&data.rapports)||[];
     let html='';
     if(docs.length){
       const icon={'Consignes de sécurité':'🛟','Plan de prévention':'📋','Permis de feu':'🔥'};
@@ -9057,50 +9282,119 @@ async function qrLoadDocs(token){
       </div>
     </div>`;
     }
-    if(raps.length){
-      window.__qrTok=token;
-      const byYear={};
-      raps.forEach(r=>{ const y=String(r.date||'').slice(0,4)||'—'; (byYear[y]=byYear[y]||[]).push(r); });
-      const years=Object.keys(byYear).sort().reverse();
-      const fmtD=d=>{ try{ return new Date(d).toLocaleDateString('fr-FR'); }catch(e){ return String(d||'').slice(0,10); } };
-      html+=`<div class="card card-pad" style="margin:14px 0 0">
-      <div onclick="toggleAcc('qr_raps')" style="font-weight:700;font-size:13.5px;color:var(--ink);display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none">
-        <span>📚</span> Rapports — 3 dernières années
-        <span style="margin-left:auto;background:var(--primary);color:#fff;border-radius:20px;padding:1px 9px;font-size:11.5px">${raps.length}</span>
-        <span id="qr_raps_chev" style="transition:transform .15s;transform:rotate(-90deg)">▾</span>
-      </div>
-      <div id="qr_raps" style="display:none">
-        ${years.map(y=>`
-          <div style="font-size:11.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:12px 0 6px">${esc(y)}</div>
-          <div style="display:flex;flex-direction:column;gap:8px">
-          ${byYear[y].map(r=>`<button class="qr-rap-btn" data-b="${esc(r.bucket)}" data-p="${esc(r.path)}" data-n="${esc(r.nom||'rapport')}" style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:#fff;border:1px solid var(--line);border-radius:10px;text-align:left;cursor:pointer;width:100%;font:inherit;color:var(--ink)">
-            <span style="font-size:18px;flex:0 0 auto">📄</span>
-            <span style="min-width:0;flex:1"><span style="display:block;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.nom||'Rapport')}</span>
-            <span style="display:block;font-size:11.5px;color:var(--muted)">${esc(r.source||'Rapport')} — ${fmtD(r.date)}</span></span>
-            <span style="font-size:12px;color:var(--primary);font-weight:600;flex:0 0 auto">Voir →</span>
-          </button>`).join('')}
-          </div>`).join('')}
-        <div style="font-size:11px;color:var(--muted);margin-top:10px">Consultation seule — liens temporaires sécurisés.</div>
-      </div>
-    </div>`;
-    }
+    html+=`<div class="card card-pad" style="margin:14px 0 0" id="qr-prest-box"></div>`;
     box.innerHTML=html;
-    box.querySelectorAll('.qr-rap-btn').forEach(b=>{ b.onclick=()=>qrVoirRapport(b); });
+    // Session mémorisée sur cet appareil → connexion directe
+    let sess=null; try{ sess=JSON.parse(localStorage.getItem('qr_prest_sess')||'null'); }catch(e){}
+    if(sess && sess.session && sess.exp>Date.now()){ qrPrestShowRapports(sess); } else { qrPrestLoginForm(); }
   }catch(e){ /* silencieux */ }
 }
 window.qrLoadDocs=qrLoadDocs;
 
-async function qrVoirRapport(btn){
-  const old=btn.querySelector('span:last-child'); const oldTxt=old?old.textContent:'';
-  if(old) old.textContent='…';
-  try{
-    const { data, error } = await sb.functions.invoke('qr-erp-docs',{ body:{ token:window.__qrTok, sign:{ bucket:btn.dataset.b, path:btn.dataset.p } } });
-    if(error||!data||!data.url) throw new Error((data&&data.error)||'lien indisponible');
-    window.open(data.url,'_blank','noopener');
-  }catch(e){ toast('Impossible d\'ouvrir ce rapport','err'); }
-  if(old) old.textContent=oldTxt;
+function qrPrestLoginForm(msg){
+  const b=document.getElementById('qr-prest-box'); if(!b) return;
+  b.innerHTML=`<div style="font-weight:700;font-size:13.5px;display:flex;align-items:center;gap:7px;margin-bottom:6px"><span>🔐</span> Espace prestataire — Rapports</div>
+    <p style="font-size:12.5px;color:var(--muted);margin:0 0 10px">Consultez les rapports de vérification avec le mot de passe fourni par PREVA Conseils.</p>
+    ${msg?`<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:9px;padding:8px 11px;font-size:12.5px;margin-bottom:10px">${esc(msg)}</div>`:''}
+    <div style="display:flex;gap:8px">
+      <input type="password" id="qr-prest-pwd" placeholder="Mot de passe" autocomplete="off" style="flex:1;min-width:0;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-size:14px">
+      <button class="btn primary" id="qr-prest-go" style="flex:0 0 auto">Accéder</button>
+    </div>`;
+  const go=async()=>{
+    const pwd=(document.getElementById('qr-prest-pwd')||{}).value||'';
+    if(!pwd.trim()) return;
+    const btn=document.getElementById('qr-prest-go'); if(btn){btn.disabled=true;btn.textContent='…';}
+    try{
+      const { data, error } = await sb.functions.invoke('qr-erp-docs',{ body:{ token:window.__qrTok, auth:{ password:pwd } } });
+      if(error||!data||!data.session){ qrPrestLoginForm((data&&data.error)||'Mot de passe invalide ou expiré'); return; }
+      const sess={ session:data.session, prestataire:data.prestataire||'', exp:new Date(data.expires_at).getTime() };
+      try{ localStorage.setItem('qr_prest_sess',JSON.stringify(sess)); }catch(e){}
+      qrPrestShowRapports(sess);
+    }catch(e){ qrPrestLoginForm('Mot de passe invalide ou expiré'); }
+  };
+  const btn=document.getElementById('qr-prest-go'); if(btn) btn.onclick=go;
+  const inp=document.getElementById('qr-prest-pwd'); if(inp) inp.addEventListener('keydown',e=>{ if(e.key==='Enter') go(); });
 }
-window.qrVoirRapport=qrVoirRapport;
+
+async function qrPrestShowRapports(sess){
+  const b=document.getElementById('qr-prest-box'); if(!b) return;
+  b.innerHTML=`<div style="display:grid;place-items:center;padding:20px"><div class="spin"></div></div>`;
+  let data;
+  try{
+    const r=await sb.functions.invoke('qr-erp-docs',{ body:{ token:window.__qrTok, session:sess.session, list:true } });
+    if(r.error) throw r.error; data=r.data;
+  }catch(e){ data=null; }
+  if(!data||data.error){ try{ localStorage.removeItem('qr_prest_sess'); }catch(e){} qrPrestLoginForm(data&&data.error==='acces_refuse'?'Ce mot de passe ne donne pas accès à cet établissement.':'Session expirée, reconnectez-vous.'); return; }
+  window.__qrSess=sess.session;
+  const erps=data.erps||[], raps=data.rapports||[];
+  const fmtD=d=>{ try{ return new Date(d).toLocaleDateString('fr-FR'); }catch(e){ return String(d||'').slice(0,10); } };
+  const head=`<div style="display:flex;align-items:center;gap:7px;margin-bottom:4px">
+      <span>🔓</span><span style="font-weight:700;font-size:13.5px;flex:1">Rapports${sess.prestataire?' — '+esc(sess.prestataire):''}</span>
+      <button onclick="qrPrestLogout()" style="background:none;border:none;color:var(--muted);font-size:11.5px;cursor:pointer;text-decoration:underline">Déconnexion</button>
+    </div>
+    <p style="font-size:11.5px;color:var(--muted);margin:0 0 10px">Consultation seule — accès valable jusqu'au ${fmtD(sess.exp)}.</p>`;
+  if(!raps.length){ b.innerHTML=head+`<div style="font-size:13px;color:var(--muted);padding:8px 0">Aucun rapport disponible pour le moment.</div>`; return; }
+  const erpNom={}; erps.forEach(e=>erpNom[e.id]=e.nom);
+  const erpIds=[...new Set(raps.map(r=>r.erp_id))];
+  const sel=erpIds.length>1?`<select id="qr-prest-erp" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:13.5px;margin-bottom:10px">
+      ${erpIds.map(id=>`<option value="${esc(id)}">${esc(erpNom[id]||'ERP')} (${raps.filter(r=>r.erp_id===id).length})</option>`).join('')}
+    </select>`:'';
+  b.innerHTML=head+sel+`<div id="qr-prest-list"></div>`;
+  const renderList=eid=>{
+    const list=raps.filter(r=>r.erp_id===eid);
+    const byYear={}; list.forEach(r=>{ const y=String(r.date||'').slice(0,4)||'—'; (byYear[y]=byYear[y]||[]).push(r); });
+    const years=Object.keys(byYear).sort().reverse();
+    const box=document.getElementById('qr-prest-list'); if(!box) return;
+    box.innerHTML=years.map(y=>`
+      <div style="font-size:11.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:12px 0 6px">${esc(y)}</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+      ${byYear[y].map(r=>`<button class="qr-rap-btn" data-b="${esc(r.bucket)}" data-p="${esc(r.path)}" data-n="${esc(r.nom||'rapport')}" style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:#fff;border:1px solid var(--line);border-radius:10px;text-align:left;cursor:pointer;width:100%;font:inherit;color:var(--ink)">
+        <span style="font-size:18px;flex:0 0 auto">📄</span>
+        <span style="min-width:0;flex:1"><span style="display:block;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.nom||'Rapport')}</span>
+        <span style="display:block;font-size:11.5px;color:var(--muted)">${esc(r.source||'Rapport')} — ${fmtD(r.date)}</span></span>
+        <span style="font-size:12px;color:var(--primary);font-weight:600;flex:0 0 auto">Consulter →</span>
+      </button>`).join('')}
+      </div>`).join('');
+    box.querySelectorAll('.qr-rap-btn').forEach(x=>{ x.onclick=()=>qrPrestView(x); });
+  };
+  renderList(erpIds[0]);
+  const s=document.getElementById('qr-prest-erp'); if(s) s.onchange=()=>renderList(s.value);
+}
+
+function qrPrestLogout(){ try{ localStorage.removeItem('qr_prest_sess'); }catch(e){} qrPrestLoginForm(); }
+window.qrPrestLogout=qrPrestLogout;
+
+async function qrPrestView(btn){
+  const tag=btn.querySelector('span:last-child'); const old=tag?tag.textContent:'';
+  if(tag) tag.textContent='…';
+  try{
+    const { data, error } = await sb.functions.invoke('qr-erp-docs',{ body:{ token:window.__qrTok, session:window.__qrSess, view:{ bucket:btn.dataset.b, path:btn.dataset.p } } });
+    if(error||!data||!data.url) throw new Error((data&&data.error)||'indisponible');
+    qrViewerOpen(data.url, btn.dataset.n||'Rapport');
+  }catch(e){ toast('Impossible d\'ouvrir ce rapport','err'); }
+  if(tag) tag.textContent=old;
+}
+window.qrPrestView=qrPrestView;
+
+// Visionneuse plein écran — consultation seule (pas de lien de téléchargement)
+function qrViewerOpen(url,nom){
+  const isPdf=/\.pdf(\?|$)/i.test((url||'').split('#')[0]) || /\.pdf$/i.test(nom||'');
+  const src=isPdf?url+'#toolbar=0&navpanes=0&statusbar=0':url;
+  const ov=document.createElement('div');
+  ov.id='qr-viewer';
+  ov.style.cssText='position:fixed;inset:0;z-index:9999;background:#0f172a;display:flex;flex-direction:column';
+  ov.oncontextmenu=e=>{e.preventDefault();return false;};
+  ov.innerHTML=`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#1e293b;flex:0 0 auto">
+      <span style="color:#fff;font-size:13.5px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nom||'Rapport')}</span>
+      <span style="color:#94a3b8;font-size:11px;flex:0 0 auto">Consultation seule</span>
+      <button id="qr-viewer-x" style="flex:0 0 auto;background:#334155;border:none;color:#fff;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer">✕ Fermer</button>
+    </div>
+    <iframe src="${src}" style="flex:1;border:none;width:100%;background:#fff" sandbox="allow-same-origin allow-scripts"></iframe>`;
+  document.body.appendChild(ov);
+  document.getElementById('qr-viewer-x').onclick=()=>{ ov.remove(); };
+}
+window.qrViewerOpen=qrViewerOpen;
+
 
 function qrConsigne(token,info){
   // Si déjà pointé à l'arrivée → aller directement au départ
