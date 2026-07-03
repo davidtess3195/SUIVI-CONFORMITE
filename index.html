@@ -874,10 +874,11 @@ function _setupDemoProxy(){
 
 
 async function boot(){
-  try{ console.log('%cQUICKPROTECT build: CS-CONFIRM-FIX-2026-07-02','color:#2563eb;font-weight:700'); }catch(e){}
+  try{ console.log('%cQUICKPROTECT build: CS-CONFIRM+QR-RAPPORTS-2026-07-03','color:#2563eb;font-weight:700'); }catch(e){}
   // Routes publiques sans login
   const hashNow = location.hash.replace(/^#/,'')||'/';
   if(hashNow==='/admin-login'){ loadCfg(); initSb(); renderAdminAuth(); return; }
+  if(hashNow.startsWith('/cs-confirm')){ loadCfg(); initSb(); renderCsConfirm(); return; }
   const qtkBoot = (function(){
     if(hashNow.startsWith('/qr/')) return decodeURIComponent(hashNow.split('/')[2]||'');
     const m=location.pathname.match(/\/qr\/([^\/?#]+)/i);
@@ -7782,7 +7783,6 @@ async function csEnvoyerAssistance(catKey,catLabel,erpId){
         +'<h2 style="color:#fff;margin:0;font-size:18px">Demande d\'assistance technique</h2>'
         +'</div>'
         +'<div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:24px">'
-        +'<p style="margin:0 0 16px;color:#1e293b">Bonjour,</p>'
         +'<p style="margin:0 0 20px;color:#1e293b">'+_sm+'</p>'
         +'<table style="width:100%;border-collapse:collapse;margin-bottom:20px">'
         +'<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;width:40%;color:#475569">ERP</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">'+esc(cleanNom)+'</td></tr>'
@@ -9042,9 +9042,11 @@ async function qrLoadDocs(token){
     const { data, error } = await sb.functions.invoke('qr-erp-docs',{ body:{ token } });
     if(error) return;
     const docs=(data&&data.docs)||[];
-    if(!docs.length){ box.innerHTML=''; return; }
-    const icon={'Consignes de sécurité':'🛟','Plan de prévention':'📋','Permis de feu':'🔥'};
-    box.innerHTML=`<div class="card card-pad" style="margin:14px 0 0;border:1.5px solid #f59e0b55;background:#fffbeb">
+    const raps=(data&&data.rapports)||[];
+    let html='';
+    if(docs.length){
+      const icon={'Consignes de sécurité':'🛟','Plan de prévention':'📋','Permis de feu':'🔥'};
+      html+=`<div class="card card-pad" style="margin:14px 0 0;border:1.5px solid #f59e0b55;background:#fffbeb">
       <div style="font-weight:700;font-size:13.5px;color:#92400e;margin-bottom:10px;display:flex;align-items:center;gap:7px"><span>⚠️</span> À consulter avant d'intervenir</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         ${docs.map(d=>`<a href="${d.url||'#'}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:#fff;border:1px solid var(--line);border-radius:10px;text-decoration:none;color:var(--ink)">
@@ -9054,9 +9056,51 @@ async function qrLoadDocs(token){
         </a>`).join('')}
       </div>
     </div>`;
+    }
+    if(raps.length){
+      window.__qrTok=token;
+      const byYear={};
+      raps.forEach(r=>{ const y=String(r.date||'').slice(0,4)||'—'; (byYear[y]=byYear[y]||[]).push(r); });
+      const years=Object.keys(byYear).sort().reverse();
+      const fmtD=d=>{ try{ return new Date(d).toLocaleDateString('fr-FR'); }catch(e){ return String(d||'').slice(0,10); } };
+      html+=`<div class="card card-pad" style="margin:14px 0 0">
+      <div onclick="toggleAcc('qr_raps')" style="font-weight:700;font-size:13.5px;color:var(--ink);display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none">
+        <span>📚</span> Rapports — 3 dernières années
+        <span style="margin-left:auto;background:var(--primary);color:#fff;border-radius:20px;padding:1px 9px;font-size:11.5px">${raps.length}</span>
+        <span id="qr_raps_chev" style="transition:transform .15s;transform:rotate(-90deg)">▾</span>
+      </div>
+      <div id="qr_raps" style="display:none">
+        ${years.map(y=>`
+          <div style="font-size:11.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:12px 0 6px">${esc(y)}</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+          ${byYear[y].map(r=>`<button class="qr-rap-btn" data-b="${esc(r.bucket)}" data-p="${esc(r.path)}" data-n="${esc(r.nom||'rapport')}" style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:#fff;border:1px solid var(--line);border-radius:10px;text-align:left;cursor:pointer;width:100%;font:inherit;color:var(--ink)">
+            <span style="font-size:18px;flex:0 0 auto">📄</span>
+            <span style="min-width:0;flex:1"><span style="display:block;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.nom||'Rapport')}</span>
+            <span style="display:block;font-size:11.5px;color:var(--muted)">${esc(r.source||'Rapport')} — ${fmtD(r.date)}</span></span>
+            <span style="font-size:12px;color:var(--primary);font-weight:600;flex:0 0 auto">Voir →</span>
+          </button>`).join('')}
+          </div>`).join('')}
+        <div style="font-size:11px;color:var(--muted);margin-top:10px">Consultation seule — liens temporaires sécurisés.</div>
+      </div>
+    </div>`;
+    }
+    box.innerHTML=html;
+    box.querySelectorAll('.qr-rap-btn').forEach(b=>{ b.onclick=()=>qrVoirRapport(b); });
   }catch(e){ /* silencieux */ }
 }
 window.qrLoadDocs=qrLoadDocs;
+
+async function qrVoirRapport(btn){
+  const old=btn.querySelector('span:last-child'); const oldTxt=old?old.textContent:'';
+  if(old) old.textContent='…';
+  try{
+    const { data, error } = await sb.functions.invoke('qr-erp-docs',{ body:{ token:window.__qrTok, sign:{ bucket:btn.dataset.b, path:btn.dataset.p } } });
+    if(error||!data||!data.url) throw new Error((data&&data.error)||'lien indisponible');
+    window.open(data.url,'_blank','noopener');
+  }catch(e){ toast('Impossible d\'ouvrir ce rapport','err'); }
+  if(old) old.textContent=oldTxt;
+}
+window.qrVoirRapport=qrVoirRapport;
 
 function qrConsigne(token,info){
   // Si déjà pointé à l'arrivée → aller directement au départ
