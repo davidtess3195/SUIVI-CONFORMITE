@@ -7772,7 +7772,7 @@ async function csEnvoyerAssistance(catKey,catLabel,erpId){
 
       for(const email of pdata.emails){
         const r=await sb.functions.invoke('send-client-email',{body:{
-          to:email,
+          to:[email],
           subject:'Demande d\'assistance technique — Commission de Sécurité du '+dateStr+' — '+cleanNom,
           html:htmlBody
         }});
