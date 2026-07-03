@@ -7531,7 +7531,7 @@ async function viewPreparationCS(c){
           ${erpOpts}
         </select>
         <div style="margin-top:14px">
-          <button class="btn primary" onclick="(()=>{const v=document.getElementById('cs_erp_picker').value;if(!v){toast('Sélectionnez un ERP','err');return;}state.currentErp=v;const se=document.getElementById('selErp');if(se)se.value=v;viewPreparationCS(c);})()">Continuer →</button>
+          <button class="btn primary" onclick="(()=>{const v=document.getElementById('cs_erp_picker').value;if(!v){toast('Sélectionnez un ERP','err');return;}state.currentErp=v;const se=document.getElementById('selErp');if(se)se.value=v;viewPreparationCS(document.getElementById('content'));})()">Continuer →</button>
         </div>
       </div>`;
     return;
