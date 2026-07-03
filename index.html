@@ -7772,6 +7772,11 @@ async function csEnvoyerAssistance(catKey,catLabel,erpId){
 
     for(const [pid,pdata] of Object.entries(byPrest)){
       const _sm=msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+      const confirmUrl='https://conformite-securite.fr/#/cs-confirm?p='+encodeURIComponent(pid)
+        +'&erp='+encodeURIComponent(erpId)
+        +'&date='+encodeURIComponent(dateVal)
+        +'&nom='+encodeURIComponent(pdata.nom||'')
+        +'&erp_nom='+encodeURIComponent(cleanNom);
       const htmlBody='<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">'
         +'<div style="background:#1e3a5f;padding:20px 24px;border-radius:8px 8px 0 0">'
         +'<h2 style="color:#fff;margin:0;font-size:18px">Demande d\'assistance technique</h2>'
@@ -7783,7 +7788,11 @@ async function csEnvoyerAssistance(catKey,catLabel,erpId){
         +'<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;width:40%;color:#475569">ERP</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">'+esc(cleanNom)+'</td></tr>'
         +'<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Date Commission</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">'+esc(dtLabel)+'</td></tr>'
         +'</table>'
-        +'<p style="margin:0 0 8px;color:#1e293b">Merci de nous confirmer votre disponibilité et vos conditions d\'intervention.</p>'
+        +'<p style="margin:0 0 16px;color:#1e293b">Merci de nous confirmer votre disponibilité et vos conditions d\'intervention en cliquant sur le bouton ci-dessous :</p>'
+        +'<div style="text-align:center;margin:0 0 20px">'
+        +'<a href="'+confirmUrl+'" style="display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:8px;font-size:15px;font-weight:700">&#9989; Je confirme mon intervention</a>'
+        +'</div>'
+        +'<p style="margin:0 0 20px;color:#94a3b8;font-size:12px">Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br><a href="'+confirmUrl+'" style="color:#2563eb;word-break:break-all">'+confirmUrl+'</a></p>'
         +'<p style="margin:0;color:#64748b;font-size:13px">Cordialement,<br><b>'+esc(sig)+' — PREVA Conseils</b></p>'
         +'</div>'
         +'</div>';
@@ -8915,6 +8924,7 @@ async function renderCsConfirm(){
   const dateCs=params.get('date');
   const prestNom=decodeURIComponent(params.get('nom')||'');
   const erpNom=decodeURIComponent(params.get('erp_nom')||'');
+  const dateAff=/^\d{4}-\d{2}-\d{2}$/.test(dateCs||'') ? new Date(dateCs+'T00:00:00').toLocaleDateString('fr-FR') : (dateCs||'');
 
   const root=$('#root');
 
@@ -8924,7 +8934,7 @@ async function renderCsConfirm(){
       <div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;padding:28px 32px">
         <div style="font-size:13px;opacity:.8;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Commission de sécurité</div>
         <div style="font-size:20px;font-weight:800">${esc(erpNom)||'Confirmation de présence'}</div>
-        ${dateCs ? '<div style="font-size:14px;opacity:.85;margin-top:6px">📅 '+esc(dateCs)+'</div>' : ''}
+        ${dateCs ? '<div style="font-size:14px;opacity:.85;margin-top:6px">📅 '+esc(dateAff)+'</div>' : ''}
       </div>
       <div style="padding:32px" id="cs_confirm_body">
         <div style="text-align:center;color:#64748b;font-size:14px">Chargement…</div>
@@ -8956,7 +8966,7 @@ async function renderCsConfirm(){
       <div style="font-size:42px;margin-bottom:20px">📋</div>
       <p style="font-size:15px;color:#1e293b;font-weight:600;margin:0 0 8px 0">${esc(prestNom)||'Prestataire'}</p>
       <p style="font-size:14px;color:#64748b;margin:0 0 28px 0">
-        Vous confirmez votre présence à la commission de sécurité du <strong>${esc(dateCs)}</strong> et l'envoi d'un devis.
+        Vous confirmez votre présence à la commission de sécurité du <strong>${esc(dateAff)}</strong> et l'envoi d'un devis.
       </p>
       <button id="cs_confirm_btn" onclick="doCsConfirm()" style="background:#16a34a;color:#fff;border:none;padding:16px 36px;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;width:100%">
         ✅ Confirmer ma présence et l&#39;envoi d&#39;un devis
@@ -8983,7 +8993,7 @@ async function renderCsConfirm(){
         <div style="font-size:52px;margin-bottom:16px">✅</div>
         <div style="font-size:19px;font-weight:800;color:#16a34a;margin-bottom:10px">Présence confirmée !</div>
         <p style="color:#475569;font-size:14px;line-height:1.6;margin:0">
-          Merci <strong>${esc(prestNom)}</strong>, votre présence à la commission de sécurité du <strong>${esc(dateCs)}</strong> chez <strong>${esc(erpNom)}</strong> est bien enregistrée.<br><br>
+          Merci <strong>${esc(prestNom)}</strong>, votre présence à la commission de sécurité du <strong>${esc(dateAff)}</strong> chez <strong>${esc(erpNom)}</strong> est bien enregistrée.<br><br>
           Merci de nous transmettre votre devis dès que possible.
         </p>
       </div>`;
