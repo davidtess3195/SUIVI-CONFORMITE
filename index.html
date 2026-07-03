@@ -586,6 +586,29 @@ const I = {
 ===================================================================== */
 const $ = (s,r=document)=>r.querySelector(s);
 const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function _cleanMobile(v){
+  if(!v) return null;
+  const d=String(v).replace(/[^\d+]/g,'');
+  if(/^0[67]\d{8}$/.test(d)) return '+33'+d.slice(1);
+  if(/^\+33[67]\d{8}$/.test(d)) return d;
+  return null; // mobiles FR uniquement
+}
+function getPhones(p){
+  const list=[];
+  if(!p) return list;
+  if(p.telephone){ const m=_cleanMobile(p.telephone); if(m) list.push({phone:m,label:'Téléphone principal'}); }
+  const c2=p.contacts||{};
+  for(const [role,val] of Object.entries(c2)){
+    if(role==='autres'||!val) continue;
+    const m=_cleanMobile(val.mobile||val.telephone||val.astreinte);
+    if(m) list.push({phone:m,label:role.replace(/_/g,' ')+(val.nom?' — '+val.nom:'')});
+  }
+  if(Array.isArray(c2.autres)){
+    for(const a of c2.autres){ if(!a) continue; const m=_cleanMobile(a.mobile||a.telephone); if(m) list.push({phone:m,label:(a.intitule||'autre')+(a.nom?' — '+a.nom:'')}); }
+  }
+  return list;
+}
+window.getPhones=getPhones;
 const fmtDate = d => d ? new Date(d).toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'}) : '—';
 const fmtDT = d => d ? new Date(d).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
 // Durée lisible : heures + minutes (ex. "1 h 12 min", "6 min", "2 h")
@@ -874,7 +897,7 @@ function _setupDemoProxy(){
 
 
 async function boot(){
-  try{ console.log('%cQUICKPROTECT build: QR-VIEWER-MOBILE-FIX-2026-07-03','color:#2563eb;font-weight:700'); }catch(e){}
+  try{ console.log('%cQUICKPROTECT build: GED-CLASSEMENT-2026-07-03','color:#2563eb;font-weight:700'); }catch(e){}
   // Routes publiques sans login
   const hashNow = location.hash.replace(/^#/,'')||'/';
   if(hashNow==='/admin-login'){ loadCfg(); initSb(); renderAdminAuth(); return; }
@@ -4198,7 +4221,7 @@ async function sendQrConsigne(token,nom,code){
   ])].filter(Boolean);
   if(!prestIds.length){toast('Aucun prestataire li\u00e9 \u00e0 cet ERP','info');return;}
 
-  const {data:prests}=await sb.from('prestataires').select('id,nom,email_rapports,contacts').in('id',prestIds);
+  const {data:prests}=await sb.from('prestataires').select('id,nom,email_rapports,telephone,contacts').in('id',prestIds);
 
   // Historique par email
   const histByEmail={};
@@ -4235,7 +4258,7 @@ async function sendQrConsigne(token,nom,code){
   }
 
   const prestData=(prests||[]).map(p=>({...p,emails:getEmails(p)}));
-  if(prestData.every(p=>!p.emails.length)){toast('Aucun email configur\u00e9 pour les prestataires de cet ERP','info');return;}
+  if(prestData.every(p=>!p.emails.length) && prestData.every(p=>!getPhones(p).length)){toast('Aucun email ni t\u00e9l\u00e9phone configur\u00e9 pour les prestataires de cet ERP','info');return;}
 
   let idx=0;
   const recipHtml=prestData.map(p=>{
@@ -4270,7 +4293,20 @@ async function sendQrConsigne(token,nom,code){
     +'<div class="fld"><label>Message</label>'
     +'<textarea id="qr_msg" rows="10" style="resize:vertical;font-size:13px;font-family:inherit;line-height:1.6"></textarea></div>'
     +'</div>'
-    +'<div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="qr_send_btn">\ud83d\udce7 Envoyer</button></div>');
+    +'<div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn sm" id="qr_sms_btn">💬 Par SMS</button><button class="btn primary" id="qr_send_btn">\ud83d\udce7 Envoyer</button></div>');
+
+  window._qrConsigneCtx={erpId,nom:cleanNom,prestData};
+  document.getElementById('qr_sms_btn').onclick=()=>{
+    const phones=[]; const seen=new Set();
+    for(const p of prestData){ for(const ph of getPhones(p)){ if(!seen.has(ph.phone)){ seen.add(ph.phone); phones.push({phone:ph.phone,label:ph.label+' — '+p.nom}); } } }
+    if(!phones.length){ toast('Aucun numéro mobile détecté pour ces prestataires','info'); return; }
+    smsComposerOpen({
+      title:'SMS — Consigne QR Code',
+      recipients:phones,
+      defaultMessage:'PREVA Conseils : pensez a scanner le QR code a votre arrivee et a votre depart sur '+cleanNom+'. Procedure obligatoire. Lien : '+url,
+      context:{origine:'consigne_qr',erp_id:erpId}
+    });
+  };
 
   document.getElementById('qr_msg').value=defaultMsg;
 
@@ -4458,7 +4494,7 @@ async function formInter(erpId,it){
       <div class="fld"><label>Date prévue</label><input id="f_date" type="date" value="${esc(it.date_prevue)}"></div></div>
     ${it.id?`<div class="fld"><label>Statut</label><select id="f_statut">${Object.keys(ITST).map(s=>`<option value="${s}"${it.statut===s?' selected':''}>${ITST[s][1]}</option>`).join('')}</select></div>`:''}
   </div>
-  <div class="modal-foot">${it.id?'<button class="btn danger" id="del" style="margin-right:auto">Supprimer</button>':''}<button class="btn primary" id="btn_email_inter" style="gap:6px">Demande par email</button><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">${it.id?'Enregistrer':'Créer'}</button></div>`);
+  <div class="modal-foot">${it.id?'<button class="btn danger" id="del" style="margin-right:auto">Supprimer</button>':''}<button class="btn primary" id="btn_email_inter" style="gap:6px">Demande par email</button><button class="btn sm" id="btn_sms_inter">💬 Par SMS</button><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">${it.id?'Enregistrer':'Créer'}</button></div>`);
   if(erpId){const s=$('#f_erp'); if(s)s.value=erpId;}
   $('#save').onclick=async()=>{
     const erp_id=$('#f_erp').value; if(!erp_id){toast('Sélectionne un ERP','err');return;}
@@ -4478,6 +4514,30 @@ async function formInter(erpId,it){
   };
   const del=$('#del'); if(del)del.onclick=async()=>{ if(!confirm('Supprimer cette intervention ?'))return;
     await sb.from('interventions').delete().eq('id',it.id); closeModal(); toast('Supprimée','ok'); renderRoute(); };
+
+  // Bouton demande par SMS au prestataire
+  const btnSms=$('#btn_sms_inter');
+  if(btnSms) btnSms.onclick=()=>{
+    const prestId=$('#f_prest').value;
+    if(!prestId){toast('Sélectionne un prestataire d\'abord','err');return;}
+    const p=(window._interPrestLookup||{})[prestId];
+    if(!p){toast('Prestataire introuvable','err');return;}
+    const phones=getPhones(p);
+    if(!phones.length){toast('Aucun numéro mobile pour ce prestataire','info');return;}
+    const erpId2=$('#f_erp').value;
+    const erpObj=(window._interErpList||[]).find(x=>x.id===erpId2)||{};
+    const erpNom=erpObj.nom||erpId2;
+    const typeInter=$('#f_type').value;
+    const typeLabel={preventive:'Préventive',corrective:'Corrective',travaux:'Travaux',visite:'Visite',commission_securite:'Commission de sécurité'}[typeInter]||typeInter;
+    const datePrevue=$('#f_date').value;
+    const dateStr=datePrevue?new Date(datePrevue).toLocaleDateString('fr-FR'):'à définir';
+    smsComposerOpen({
+      title:'SMS — '+(p.nom||'Prestataire'),
+      recipients:phones,
+      defaultMessage:'PREVA Conseils : demande d\'intervention ('+typeLabel+') — '+erpNom+' — date souhaitee : '+dateStr+'. Merci de nous confirmer votre disponibilite.',
+      context:{origine:'intervention',intervention_id:it.id||null,erp_id:erpId2,prestataire_id:prestId}
+    });
+  };
 
   // Bouton demande par email au prestataire
   const btnEmail=$('#btn_email_inter');
@@ -6972,8 +7032,9 @@ async function viewDocuments(c){
         📥 Glissez-déposez ici vos documents (rapports, PV, plans, attestations…)</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
         <input id="ged_search" oninput="gedRenderList()" placeholder="🔍 Rechercher un document, un client, un ERP…" style="flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)">
-        <select id="ged_cat" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Toutes catégories</option><option value="rapport">📋 Rapports</option><option value="devis">📝 Devis</option><option value="facture">🧾 Factures</option><option value="autre">📄 Autres</option></select>
+        <select id="ged_cat" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Toutes catégories</option><option value="rapport">📋 Rapports</option><option value="devis">📝 Devis</option><option value="facture">🧾 Factures</option><option value="bon_intervention">🛠️ Bons d'intervention</option><option value="autre">📄 Autres</option></select>
         <select id="ged_type" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Tous les types</option>${typeOpts}</select>
+        <select id="ged_prest" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Tous les prestataires</option>${(prestData||[]).map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select>
       </div>
       <div class="ged-grid">
         <div id="ged_list"></div>
@@ -7384,14 +7445,17 @@ function gedRenderList(){
   const q=(document.getElementById('ged_search')?.value||'').trim().toLowerCase();
   const tf=document.getElementById('ged_type')?.value||'';
   const cf=document.getElementById('ged_cat')?.value||'';
+  const pf=document.getElementById('ged_prest')?.value||'';
   const erpName=id=>state.erps.find(e=>e.id===id)?.nom||'';
+  const prestName=id=>(window._gedPrest||[]).find(p=>p.id===id)?.nom||'';
   const clientOf=d=>d.client_id||state.erps.find(e=>e.id===d.erp_id)?.client_id||'__none__';
   const clientNm=cid=>cid==='__none__'?'Sans client':(state.clients.find(c=>c.id===cid)?.raison_sociale||'Client inconnu');
   let list=rows.slice();
   if(cf) list=list.filter(d=>(d.categorie||'rapport')===cf);
   if(tf) list=list.filter(d=>d.type===tf);
-  if(q) list=list.filter(d=>[d.nom_original,d.type,d.lot,erpName(d.erp_id),clientNm(clientOf(d))].filter(Boolean).join(' ').toLowerCase().includes(q));
-  if(!list.length){ host.innerHTML=emptyBlock(I.doc,'Aucun document', (q||tf||cf)?'Aucun résultat pour ce filtre.':'Déposez rapports, PV de commission, plans, DOE et attestations.', (q||tf||cf)?'':`<button class="btn primary" onclick="formDoc()">${I.plus} Déposer</button>`); return; }
+  if(pf) list=list.filter(d=>d.prestataire_id===pf);
+  if(q) list=list.filter(d=>[d.nom_original,d.type,d.lot,erpName(d.erp_id),prestName(d.prestataire_id),clientNm(clientOf(d))].filter(Boolean).join(' ').toLowerCase().includes(q));
+  if(!list.length){ host.innerHTML=emptyBlock(I.doc,'Aucun document', (q||tf||cf||pf)?'Aucun résultat pour ce filtre.':'Déposez rapports, PV de commission, plans, DOE et attestations.', (q||tf||cf||pf)?'':`<button class="btn primary" onclick="formDoc()">${I.plus} Déposer</button>`); return; }
   window._gedOpen=window._gedOpen||new Set();
   const searching=!!(q||tf||cf);
   const byClient={}; list.forEach(d=>{ const cid=clientOf(d); (byClient[cid]=byClient[cid]||[]).push(d); });
@@ -7400,11 +7464,12 @@ function gedRenderList(){
     const docs=byClient[cid];
     const open = searching || window._gedOpen.has(cid);
     const byType={}; docs.forEach(d=>{ const t=d.type||'Autre'; (byType[t]=byType[t]||[]).push(d); });
-    const CAT_ORDER=['Bureau de contrôle','Maintenance','Compte rendu','Rapport','Devis','Facture','Plans','DOE','Sécurité','Autres'];
-    const CAT_ICON={'Bureau de contrôle':'⚖️','Maintenance':'🔧','Compte rendu':'📝','Rapport':'📋','Devis':'📝','Facture':'🧾','Plans':'🗺️','DOE':'📐','Sécurité':'🛟','Autres':'📄'};
+    const CAT_ORDER=['Bureau de contrôle','Maintenance','Compte rendu','Rapport','Devis','Facture',"Bon d'intervention",'Plans','DOE','Sécurité','Autres'];
+    const CAT_ICON={'Bureau de contrôle':'⚖️','Maintenance':'🔧','Compte rendu':'📝','Rapport':'📋','Devis':'📝','Facture':'🧾',"Bon d'intervention":'🛠️','Plans':'🗺️','DOE':'📐','Sécurité':'🛟','Autres':'📄'};
     const catOf=(type)=>{ const t=(type||'').toLowerCase();
       if(t==='devis') return 'Devis';
       if(t==='facture') return 'Facture';
+      if(t==="bon d'intervention"||t==='bon intervention'||t.indexOf("bon d'intervention")>=0) return "Bon d'intervention";
       if(t==='rvat'||t==='pv commission'||t.indexOf('contrôle')>=0||t.indexOf('controle')>=0||t.indexOf('vérif')>=0||t.indexOf('verif')>=0||t==='bureau de contrôle') return 'Bureau de contrôle';
       if(t.indexOf('maintenance')>=0) return 'Maintenance';
       if(t==='consignes de sécurité'||t==='consignes de securite'||t==='plan de prévention'||t==='plan de prevention'||t==='permis de feu') return 'Sécurité';
@@ -7426,12 +7491,14 @@ function gedRenderList(){
       const nmJs=esc(d.nom_original||'doc').replace(/'/g,"\\'");
       const pathJs=esc(d.fichier_path||'').replace(/'/g,"\\'");
       return `<div style="border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--surface)">
-        <div style="font-size:13px;font-weight:600;color:var(--ink);overflow-wrap:anywhere;word-break:break-word">${esc(d.nom_original||'Document')}${avisBadge(d.avis)}${isRap?(()=>{const m=({rapport:['Rapport reçu','#0891b2'],devis:['Devis reçu','#d97706'],facture:['Facture reçue','#16a34a'],autre:['Reçu','#64748b']})[dcat]||['Reçu','#0891b2'];return `<span style="background:${m[1]};color:#fff;font-size:10px;font-weight:600;padding:1px 7px;border-radius:999px;margin-left:6px;white-space:nowrap">${m[0]}</span>`;})():''}${(d.type && d.type.toLowerCase()!==catOf(d.type).toLowerCase())?`<span style="font-size:11px;color:var(--muted);margin-left:6px">${esc(d.type)}</span>`:''}</div>
+        <div style="font-size:13px;font-weight:600;color:var(--ink);overflow-wrap:anywhere;word-break:break-word">${esc(d.nom_original||'Document')}${avisBadge(d.avis)}${isRap?(()=>{const m=({rapport:['Rapport reçu','#0891b2'],devis:['Devis reçu','#d97706'],facture:['Facture reçue','#16a34a'],bon_intervention:["Bon d'intervention reçu",'#7c3aed'],autre:['Reçu','#64748b']})[dcat]||['Reçu','#0891b2'];return `<span style="background:${m[1]};color:#fff;font-size:10px;font-weight:600;padding:1px 7px;border-radius:999px;margin-left:6px;white-space:nowrap">${m[0]}</span>`;})():''}${(d.type && d.type.toLowerCase()!==catOf(d.type).toLowerCase())?`<span style="font-size:11px;color:var(--muted);margin-left:6px">${esc(d.type)}</span>`:''}</div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:7px">
           <span style="font-size:12px;color:var(--muted)">${d.erp_id?esc(erpName(d.erp_id)):(d.emetteur?('✉ '+esc(d.emetteur)):'—')}${d.lot?' · '+esc(d.lot):''}</span>
+          ${d.prestataire_id?`<span style="font-size:12px;color:var(--muted)">🔧 ${esc(prestName(d.prestataire_id))}</span>`:''}
           <span style="font-size:12px;color:var(--muted)">${fmtDate(docDate(d))}</span>
           <span style="margin-left:auto;display:flex;gap:6px">
             <button class="btn sm" onclick="previewDoc('${pathJs}','${nmJs}','${bk}')">👁️ Visualiser</button>
+            <button class="btn sm" title="Renommer / classer" onclick="gedEditDoc('${d.id}')">✏️ Modifier</button>
             <button class="btn sm" title="Supprimer" onclick="delDoc('${d.id}')" style="color:var(--danger,#dc2626);border-color:var(--line)">🗑</button>
           </span>
         </div>
@@ -7468,6 +7535,65 @@ function gedRenderList(){
   }).join('');
 }
 window.gedRenderList=gedRenderList;
+
+const GED_TYPES=['Rapport','Devis','Facture',"Bon d'intervention",'Compte rendu','RVAT','PV commission','Maintenance préventive','Maintenance corrective','Courrier','Attestation','DOE','Plan','Preuve','Photo','Autre'];
+const GED_CATEGORIES=[['rapport','Rapport'],['devis','Devis'],['facture','Facture'],['bon_intervention',"Bon d'intervention"],['autre','Autre']];
+
+function gedEditDoc(id){
+  const d=(window._gedAllDocs||[]).find(x=>x.id===id); if(!d){toast('Document introuvable','err');return;}
+  const clientId=d.client_id||state.erps.find(e=>e.id===d.erp_id)?.client_id||'';
+  const erpsClient=clientId?state.erps.filter(e=>e.client_id===clientId):state.erps;
+  const erpOpts='<option value="">— Aucun —</option>'+erpsClient.map(e=>`<option value="${e.id}"${d.erp_id===e.id?' selected':''}>${esc(e.nom)}</option>`).join('');
+  const prestOpts='<option value="">— Aucun —</option>'+(window._gedPrest||[]).map(p=>`<option value="${p.id}"${d.prestataire_id===p.id?' selected':''}>${esc(p.nom)}</option>`).join('');
+  const typeOpts=GED_TYPES.map(t=>`<option value="${esc(t)}"${d.type===t?' selected':''}>${esc(t)}</option>`).join('');
+  const catOpts=GED_CATEGORIES.map(([v,l])=>`<option value="${v}"${(d.categorie||'rapport')===v?' selected':''}>${esc(l)}</option>`).join('');
+  const currentName=d.nom_original||(d.fichier_path||'').split('/').pop()||'document';
+  const extMatch=currentName.match(/\.[a-zA-Z0-9]+$/); const ext=extMatch?extMatch[0]:'';
+  const baseName=ext?currentName.slice(0,-ext.length):currentName;
+
+  openModal(`<div class="modal-head"><h2>Modifier le document</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+      <div><label class="lb">Nom du fichier</label>
+        <div style="display:flex;align-items:center;gap:0">
+          <input id="ged_edit_name" value="${esc(baseName)}" style="flex:1;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:10px 0 0 10px;font-size:13.5px">
+          <span style="padding:10px 12px;border:1px solid var(--line);border-left:none;border-radius:0 10px 10px 0;background:var(--surface-2);color:var(--muted);font-size:13px">${esc(ext)}</span>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="fld"><label>Catégorie</label><select id="ged_edit_cat">${catOpts}</select></div>
+        <div class="fld"><label>Type précis</label><select id="ged_edit_type">${typeOpts}</select></div>
+      </div>
+      <div class="row2">
+        <div class="fld"><label>Établissement / ERP</label><select id="ged_edit_erp">${erpOpts}</select></div>
+        <div class="fld"><label>Prestataire</label><select id="ged_edit_prest">${prestOpts}</select></div>
+      </div>
+      <div class="fld"><label>Date du document</label><input id="ged_edit_date" type="date" value="${d.date_document||''}"></div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" id="ged_edit_save">Enregistrer</button></div>`);
+
+  document.getElementById('ged_edit_save').onclick=async()=>{
+    const btn=document.getElementById('ged_edit_save'); btn.disabled=true; btn.textContent='Enregistrement…';
+    const newBase=(document.getElementById('ged_edit_name').value||'').trim();
+    if(!newBase){ toast('Le nom ne peut pas être vide','err'); btn.disabled=false; btn.textContent='Enregistrer'; return; }
+    const newName=newBase+ext;
+    try{
+      const {error}=await sb.from('documents').update({
+        nom_original:newName,
+        categorie:document.getElementById('ged_edit_cat').value||'rapport',
+        type:document.getElementById('ged_edit_type').value||null,
+        erp_id:document.getElementById('ged_edit_erp').value||null,
+        prestataire_id:document.getElementById('ged_edit_prest').value||null,
+        date_document:document.getElementById('ged_edit_date').value||null,
+        statut:'classe'
+      }).eq('id',id);
+      if(error) throw error;
+      closeModal(); toast('Document mis à jour','ok');
+      const cont=document.getElementById('content'); if(cont) viewDocuments(cont);
+    }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Enregistrer'; }
+  };
+}
+window.gedEditDoc=gedEditDoc;
 window.delDoc=async function(id){
   const d=(window._gedAllDocs||[]).find(x=>x.id===id); if(!d) return;
   if(!confirm('Supprimer définitivement « '+(d.nom_original||'ce document')+' » ?\nCette action est irréversible.')) return;
@@ -7593,28 +7719,7 @@ async function viewPreparationCS(c){
     return list;
   }
 
-  function _cleanMobile(v){
-    if(!v) return null;
-    const d=String(v).replace(/[^\d+]/g,'');
-    if(/^0[67]\d{8}$/.test(d)) return '+33'+d.slice(1);
-    if(/^\+33[67]\d{8}$/.test(d)) return d;
-    return null; // on ne cible que les mobiles FR pour l'envoi SMS
-  }
-  function getPhones(p){
-    const list=[];
-    if(p.telephone){ const m=_cleanMobile(p.telephone); if(m) list.push({phone:m,label:'Téléphone principal'}); }
-    const c2=p.contacts||{};
-    for(const [role,val] of Object.entries(c2)){
-      if(role==='autres'||!val) continue;
-      const raw=val.mobile||val.telephone||val.astreinte;
-      const m=_cleanMobile(raw);
-      if(m) list.push({phone:m,label:role.replace(/_/g,' ')+(val.nom?' — '+val.nom:'')});
-    }
-    if(Array.isArray(c2.autres)){
-      for(const a of c2.autres){ if(!a) continue; const m=_cleanMobile(a.mobile||a.telephone); if(m) list.push({phone:m,label:(a.intitule||'autre')+(a.nom?' — '+a.nom:'')}); }
-    }
-    return list;
-  }
+  // getPhones/_cleanMobile désormais globaux (voir HELPERS en tête de fichier)
 
   // Regrouper par catégorie
   const bycat={};
@@ -7738,6 +7843,165 @@ async function viewPreparationCS(c){
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Commission de sécurité</h1><p>Planifier et envoyer les demandes d’assistance technique aux prestataires.</p></div></div>`+html;
 }
 window.viewPreparationCS=viewPreparationCS;
+
+/* ================= COMPOSEUR SMS GLOBAL =================
+   smsComposerOpen({
+     title: 'Envoyer un SMS',
+     recipients: [{phone:'+336...', label:'...', checked:true}],
+     defaultMessage: '...',
+     context: { origine:'verifications', intervention_id:..., erp_id:..., prestataire_id:... }
+   })
+   Réutilisable depuis n'importe quelle page : modèles pré-écrits, texte libre, envoi immédiat ou programmé.
+============================================================ */
+let _smsTemplatesCache=null;
+async function _smsLoadTemplates(){
+  if(_smsTemplatesCache) return _smsTemplatesCache;
+  try{ const {data}=await sb.from('sms_templates').select('id,nom,contenu').order('nom'); _smsTemplatesCache=data||[]; }
+  catch(e){ _smsTemplatesCache=[]; }
+  return _smsTemplatesCache;
+}
+
+async function smsComposerOpen(opts){
+  opts=opts||{};
+  const title=opts.title||'Envoyer un SMS';
+  const recipients=opts.recipients||[];
+  const defaultMessage=opts.defaultMessage||'';
+  const context=opts.context||{};
+  const templates=await _smsLoadTemplates();
+
+  const recipBoxes=recipients.length?recipients.map((r,i)=>`<label style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;cursor:pointer;margin-bottom:6px">
+      <input type="checkbox" class="sms-rcp-chk" value="${esc(r.phone)}" ${r.checked!==false?'checked':''} style="width:16px;height:16px;flex:0 0 auto">
+      <span style="min-width:0;flex:1"><span style="display:block;font-size:13px;font-weight:600">${esc(r.phone)}</span>
+      ${r.label?`<span style="display:block;font-size:11.5px;color:var(--muted)">${esc(r.label)}</span>`:''}</span>
+    </label>`).join('') : `<p style="font-size:12.5px;color:var(--muted);margin:0 0 8px">Aucun numéro détecté automatiquement — ajoutez-en un ci-dessous.</p>`;
+
+  const tplOpts='<option value="">— Choisir un modèle —</option>'+templates.map(t=>`<option value="${esc(t.id)}">${esc(t.nom)}</option>`).join('');
+
+  openModal(`<div class="modal-head"><h2>${esc(title)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px">
+      <div><label class="lb">Destinataires</label>
+        <div id="sms-rcp-list">${recipBoxes}</div>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <input type="tel" id="sms-rcp-extra" placeholder="Ajouter un numéro (06...)" style="flex:1;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-size:13px">
+          <button class="btn sm" id="sms-rcp-add">Ajouter</button>
+        </div>
+      </div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <label class="lb" style="margin:0;flex:1">Message</label>
+          <select id="sms-tpl-sel" style="font-size:12.5px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;max-width:220px">${tplOpts}</select>
+        </div>
+        <textarea id="sms-body" rows="5" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;font-size:13.5px;line-height:1.5;resize:vertical">${esc(defaultMessage)}</textarea>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+          <button type="button" onclick="smsTplSaveNew()" style="background:none;border:none;color:var(--primary);font-size:11.5px;cursor:pointer;padding:0">+ Enregistrer comme modèle</button>
+          <span id="sms-char-count" style="font-size:11px;color:var(--muted)"></span>
+        </div>
+      </div>
+      <div>
+        <div style="display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px;margin-bottom:10px">
+          <button type="button" class="btn sm" id="sms-mode-now" onclick="smsSetMode('now')">Envoyer maintenant</button>
+          <button type="button" class="btn sm" id="sms-mode-later" onclick="smsSetMode('later')">Programmer</button>
+        </div>
+        <div id="sms-sched-box" style="display:none">
+          <input type="datetime-local" id="sms-sched-dt" style="padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-size:13px">
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" id="sms-send-btn">Envoyer</button></div>`);
+
+  window._smsMode='now';
+  window._smsContext=context;
+  smsSetMode('now');
+
+  const cc=document.getElementById('sms-char-count');
+  const updateCount=()=>{ const v=document.getElementById('sms-body')?.value||''; const seg=v.length<=160?1:Math.ceil(v.length/153); cc.textContent=v.length+' caractères — '+seg+' segment'+(seg>1?'s':''); };
+  document.getElementById('sms-body').addEventListener('input',updateCount); updateCount();
+
+  document.getElementById('sms-tpl-sel').onchange=function(){
+    const t=templates.find(x=>x.id===this.value);
+    if(t){ document.getElementById('sms-body').value=t.contenu; updateCount(); }
+  };
+
+  document.getElementById('sms-rcp-add').onclick=()=>{
+    const inp=document.getElementById('sms-rcp-extra'); const m=_cleanMobile(inp.value);
+    if(!m){ toast('Numéro mobile invalide (06/07)','err'); return; }
+    const box=document.getElementById('sms-rcp-list');
+    box.insertAdjacentHTML('beforeend',`<label style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;cursor:pointer;margin-bottom:6px">
+      <input type="checkbox" class="sms-rcp-chk" value="${esc(m)}" checked style="width:16px;height:16px;flex:0 0 auto">
+      <span style="font-size:13px;font-weight:600">${esc(m)}</span></label>`);
+    inp.value='';
+  };
+
+  document.getElementById('sms-send-btn').onclick=smsComposerSubmit;
+}
+window.smsComposerOpen=smsComposerOpen;
+
+function smsSetMode(mode){
+  window._smsMode=mode;
+  const bNow=document.getElementById('sms-mode-now'), bLater=document.getElementById('sms-mode-later');
+  const box=document.getElementById('sms-sched-box'); const btn=document.getElementById('sms-send-btn');
+  if(bNow) bNow.className='btn sm'+(mode==='now'?' primary':'');
+  if(bLater) bLater.className='btn sm'+(mode==='later'?' primary':'');
+  if(box) box.style.display=mode==='later'?'block':'none';
+  if(btn) btn.textContent=mode==='later'?'Programmer l\'envoi':'Envoyer';
+  if(mode==='later'){
+    const dt=document.getElementById('sms-sched-dt');
+    if(dt && !dt.value){ const d=new Date(Date.now()+3600000); d.setMinutes(0,0,0); dt.value=d.toISOString().slice(0,16); }
+  }
+}
+window.smsSetMode=smsSetMode;
+
+async function smsTplSaveNew(){
+  const contenu=(document.getElementById('sms-body')?.value||'').trim();
+  if(!contenu){ toast('Message vide','err'); return; }
+  const nom=prompt('Nom du modèle :'); if(!nom) return;
+  try{
+    const {error}=await sb.from('sms_templates').insert({nom:nom.trim(),contenu});
+    if(error) throw error;
+    _smsTemplatesCache=null; toast('Modèle enregistré','ok');
+    const templates=await _smsLoadTemplates();
+    const sel=document.getElementById('sms-tpl-sel');
+    if(sel){ sel.innerHTML='<option value="">— Choisir un modèle —</option>'+templates.map(t=>`<option value="${esc(t.id)}">${esc(t.nom)}</option>`).join(''); }
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+}
+window.smsTplSaveNew=smsTplSaveNew;
+
+async function smsComposerSubmit(){
+  const dedup=[...new Set([...document.querySelectorAll('.sms-rcp-chk:checked')].map(x=>x.value))];
+  const message=(document.getElementById('sms-body')?.value||'').trim();
+  if(!dedup.length){ toast('Sélectionnez au moins un destinataire','err'); return; }
+  if(!message){ toast('Message vide','err'); return; }
+  const btn=document.getElementById('sms-send-btn'); btn.disabled=true; const oldTxt=btn.textContent; btn.textContent='…';
+  const ctx=window._smsContext||{};
+  const who=state.profile?.nom||state.user?.email||'';
+
+  if(window._smsMode==='later'){
+    const dtVal=document.getElementById('sms-sched-dt')?.value;
+    if(!dtVal){ toast('Choisissez une date/heure','err'); btn.disabled=false; btn.textContent=oldTxt; return; }
+    const sendAt=new Date(dtVal).toISOString();
+    try{
+      const rows=dedup.map(phone=>({destinataire:phone,message,send_at:sendAt,contexte:ctx,created_by:who}));
+      const {error}=await sb.from('sms_scheduled').insert(rows);
+      if(error) throw error;
+      closeModal(); toast('SMS programmé pour '+dedup.length+' destinataire'+(dedup.length>1?'s':'')+' — '+new Date(sendAt).toLocaleString('fr-FR'),'ok');
+    }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent=oldTxt; }
+    return;
+  }
+
+  let ok=0,fail=0;
+  for(const phone of dedup){
+    try{
+      const {data,error}=await sb.functions.invoke('send-sms',{body:{to:[phone],message}});
+      if(error||(data&&data.error)) throw new Error((data&&data.error)||error.message);
+      ok++;
+    }catch(e){ fail++; }
+  }
+  closeModal();
+  if(ok>0) toast(ok+' SMS envoyé'+(ok>1?'s':''),'ok');
+  if(fail>0) toast(fail+' SMS en échec','err');
+}
+window.smsComposerSubmit=smsComposerSubmit;
 
 function csDeselectAll(){
   document.querySelectorAll('input[type=checkbox][data-prest], input[type=checkbox][data-prest-sms]').forEach(cb=>{ cb.checked=false; });
@@ -8549,9 +8813,25 @@ function qrAccesSendMail(id){
       <div id="qa-mail-body" contenteditable="true" spellcheck="true" style="border:1.5px dashed var(--line);border-radius:12px;padding:14px;background:#fafafa;outline:none;max-height:45vh;overflow:auto">${_qrAccesMailHtml(a,c)}</div>
     </div>
     <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn sm" onclick="qrAccesSendSms('${a.id}')">💬 Par SMS</button>
       <button class="btn primary" onclick="qrAccesSendMailGo('${a.id}',this)">Envoyer</button></div>`,'lg');
 }
 window.qrAccesSendMail=qrAccesSendMail;
+
+function qrAccesSendSms(id){
+  const a=(window._qrAccesCache||[]).find(x=>x.id===id); if(!a) return;
+  const p=(window._prestCache||[]).find(x=>x.id===a.prestataire_id);
+  const c=(state.clients||[]).find(x=>x.id===a.client_id);
+  const phones=p?getPhones(p):[];
+  if(!phones.length){ toast('Aucun numéro mobile pour ce prestataire','info'); return; }
+  smsComposerOpen({
+    title:'SMS — Accès rapports',
+    recipients:phones,
+    defaultMessage:'PREVA Conseils : votre mot de passe de consultation des rapports ('+(c?c.raison_sociale:'')+') : '+(a.password_plain||'')+'. Valable jusqu\'au '+fmtDate(a.expires_at)+'. Scannez le QR de l\'etablissement puis saisissez ce mot de passe.',
+    context:{origine:'acces_rapports',acces_id:a.id,prestataire_id:a.prestataire_id,client_id:a.client_id}
+  });
+}
+window.qrAccesSendSms=qrAccesSendSms;
 
 async function qrAccesSendMailGo(id,btn){
   const a=(window._qrAccesCache||[]).find(x=>x.id===id); if(!a) return;
@@ -9661,7 +9941,7 @@ function viewVerifications(content){
   function vdl(d){if(!d)return null;return Math.round((new Date(d)-new Date())/86400000);}
   function ptom(p){const s=(p||'').toLowerCase();if(/hebdo/.test(s))return 0.25;if(/mensuel|1 mois/.test(s))return 1;if(/trimestr|3 mois/.test(s))return 3;if(/semestr|6 mois/.test(s))return 6;if(/annuel|1 an/.test(s))return 12;if(/2 ans/.test(s))return 24;if(/3 ans/.test(s))return 36;return null;}
   async function vload(){
-    const[e,p]=await Promise.all([vapi('erps?select=id,nom,client_id'),vapi('prestataires?select=id,nom,email_rapports')]);
+    const[e,p]=await Promise.all([vapi('erps?select=id,nom,client_id'),vapi('prestataires?select=id,nom,email_rapports,telephone,contacts')]);
     (e||[]).forEach(x=>verp[x.id]=x);(p||[]).forEach(x=>vpr[x.id]=x);
     const[r1,r2,r3,r4,c]=await Promise.all([
       vapi('interventions?select=*&reponse_a_traiter=eq.true&statut=eq.demandee&order=reponse_recue_at.desc'),
@@ -9708,9 +9988,11 @@ function viewVerifications(content){
       <div class="vactions"><span style="font-size:12px;color:#64748b">Date :</span>
       <input type="date" class="vdinput" id="vd-${i.id}" value="${i.date_proposee||''}">
       <button class="vbtn g" onclick="verifConfirmer('${i.id}')">✓ Confirmer</button>
-      <button class="vbtn s" onclick="verifReporter('${i.id}')">⏸ Reporter</button></div>`;
+      <button class="vbtn s" onclick="verifReporter('${i.id}')">⏸ Reporter</button>
+      <button class="vbtn s" onclick="verifSmsRappel('${i.id}','${tab}')">💬 SMS</button></div>`;
     }else if(tab==='sans_reponse'){
-      act=`<div class="vactions"><button class="vbtn o" onclick="verifRelancerManuel('${i.id}','${i.email_to||''}')">📧 Relancer</button><button class="vbtn s" onclick="verifProgrammerTel('${i.id}')">📞 Par tél</button></div>`;
+      act=`<div class="vactions"><button class="vbtn o" onclick="verifRelancerManuel('${i.id}','${i.email_to||''}')">📧 Relancer</button><button class="vbtn s" onclick="verifProgrammerTel('${i.id}')">📞 Par tél</button>
+      <button class="vbtn s" onclick="verifSmsRappel('${i.id}','${tab}')">💬 SMS</button></div>`;
     }else if(tab==='programmee'){
       act=`<div class="vactions"><button class="vbtn g" onclick="verifRealise('${i.id}','${i.obligation_id||''}')">✅ Réalisé</button><button class="vbtn r" onclick="verifNonRealise('${i.id}')">❌ Non réalisé</button></div>`;
     }
@@ -9880,6 +10162,21 @@ function viewVerifications(content){
     toast('RDV confirmé — mail envoyé','ok');await verifRefresh();
   };
   window.verifReporter=async function(id){await vpatch('interventions',id,{reponse_a_traiter:false,statut:'a_reprogrammer'});toast('Reporté','ok');await verifRefresh();};
+  window.verifSmsRappel=async function(id,tab){
+    const src=tab==='repondre'?vd.repondre:vd.sans_reponse;
+    const i=(src||[]).find(x=>x.id===id); if(!i){ toast('Élément introuvable','err'); return; }
+    const e=verp[i.erp_id]||{}, pr=vpr[i.prestataire_id]||{};
+    const phones=getPhones(pr);
+    const cleanNom=(e.nom||'').replace(/^ERP-\d+[-\s]*/,'').trim();
+    const defaultMessage='PREVA Conseils : nous vous contactons au sujet de la verification de '+(i.objet||i.domaine||'votre intervention')+' — '+cleanNom+'. Merci de nous confirmer votre disponibilite.';
+    smsComposerOpen({
+      title:'SMS — '+(pr.nom||'Prestataire'),
+      recipients:phones,
+      defaultMessage,
+      context:{origine:'verifications',intervention_id:id,erp_id:i.erp_id,prestataire_id:i.prestataire_id}
+    });
+  };
+
   window.verifRelancerManuel=async function(id,em){
     if(!em){toast('Email manquant','err');return;}
     if(!confirm('Relancer '+em+' ?'))return;
