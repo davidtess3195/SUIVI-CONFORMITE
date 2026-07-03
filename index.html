@@ -75,7 +75,7 @@ h1,h2,h3{font-family:var(--fd);font-weight:600;letter-spacing:-.01em}
 .scope{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .scope-sel{display:flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:7px 11px;font-size:13px;box-shadow:var(--sh)}
 .scope-sel svg{width:15px;height:15px;color:var(--muted)}
-.scope-sel select{border:none;background:none;font-weight:600;color:var(--ink);outline:none;max-width:190px}
+.scope-sel select{border:none;background:none;font-weight:600;color:var(--ink);outline:none;max-width:190px;padding-right:18px;-webkit-appearance:none;appearance:none}
 .search{margin-left:auto;position:relative;display:flex;align-items:center}
 .search svg{position:absolute;left:12px;width:16px;height:16px;color:var(--muted-2)}
 .search input{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 12px 9px 35px;width:230px;outline:none;box-shadow:var(--sh)}
@@ -7801,7 +7801,7 @@ async function csEnvoyerAssistance(catKey,catLabel,erpId){
     const user_id=state.user?.id;
     const user_label=state.profile?.nom||state.user?.email||'';
     const destinataires=Object.entries(byPrest).flatMap(([pid,pdata])=>pdata.emails.map(e=>({email:e,prestataire:pdata.nom,prestataire_id:pid})));
-    await sb.from('audit_log').insert({user_id,user_label,action:'cs_assistance',entite:'erp',entite_id:erpId,erp_id:erpId,details:{destinataires,categorie:catLabel,commission_date:dtLabel,erp_nom:cleanNom}}).catch(()=>{});
+    try{ await sb.from('audit_log').insert({user_id,user_label,action:'cs_assistance',entite:'erp',entite_id:erpId,erp_id:erpId,details:{destinataires,categorie:catLabel,commission_date:dtLabel,erp_nom:cleanNom}}); }catch(_){}
 
     closeModal();
     if(ok>0) toast(ok+' email'+(ok>1?'s':'')+'  envoyé'+(ok>1?'s':''),'ok');
