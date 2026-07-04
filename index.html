@@ -4612,11 +4612,22 @@ async function formInter(erpId,it){
     if(it.id)payload.statut=$('#f_statut').value;
     try{ if(it.id){delete payload.erp_id; await sb.from('interventions').update(payload).eq('id',it.id);}
       else{ payload.statut=$('#f_date').value?'programmee':'a_programmer'; await sb.from('interventions').insert(payload);}
+      // Si cette intervention est liée à une vérification (obligation), synchroniser son échéance sur la nouvelle date
+      if(it.id && it.obligation_id && payload.date_prevue){
+        try{ await sb.from('obligations').update({prochaine_echeance:payload.date_prevue}).eq('id',it.obligation_id); }catch(_){}
+      }
       // Positionner le calendrier du tableau de bord sur le mois de l'intervention pour qu'elle soit visible
       const dISO=$('#f_date').value;
       if(dISO){ const d=new Date(dISO); if(!isNaN(d)) window._dashCalMonth=new Date(d.getFullYear(),d.getMonth(),1); }
       _modalDirty=false; closeModal(); toast(it.id?'Intervention modifiée':'Intervention créée','ok'); renderRoute();
-    }catch(e){ toast(e.message,'err'); }
+    }catch(e){
+      const msg=(e&&e.message)||'';
+      if(msg.indexOf('uniq_active_inter_per_oblig')>=0 || e.code==='23505'){
+        toast('Une intervention est d\u00e9j\u00e0 en cours pour cette v\u00e9rification. Terminez ou annulez-la avant d\'en cr\u00e9er une nouvelle.','err');
+      } else {
+        toast('Erreur lors de l\'enregistrement. Merci de r\u00e9essayer.','err');
+      }
+    }
   };
   const del=$('#del'); if(del)del.onclick=async()=>{ if(!confirm('Supprimer cette intervention ?'))return;
     await sb.from('interventions').delete().eq('id',it.id); closeModal(); toast('Supprimée','ok'); renderRoute(); };
@@ -10246,7 +10257,15 @@ function viewVerifications(content){
     const res=await fetch(SUPA_URL+'/rest/v1/interventions',{method:'POST',
       headers:{apikey:ANON_KEY,'Authorization':'Bearer '+tok,'Content-Type':'application/json','Prefer':'return=representation'},
       body:JSON.stringify(body)});
-    if(!res.ok){const err=await res.text();toast('Erreur: '+err,'err');return;}
+    if(!res.ok){
+      const err=await res.text();
+      if(err.indexOf('uniq_active_inter_per_oblig')>=0 || err.indexOf('23505')>=0){
+        toast('Une intervention est déjà en cours pour cette vérification (déjà programmée, en attente de réponse ou de rapport). Terminez ou annulez-la avant d\'en créer une nouvelle.','err');
+      } else {
+        toast('Erreur lors de la programmation. Merci de réessayer.','err');
+      }
+      return;
+    }
     // Mettre à jour prochaine_echeance
     await fetch(SUPA_URL+'/rest/v1/obligations?id=eq.'+oblId,{method:'PATCH',
       headers:{apikey:ANON_KEY,'Authorization':'Bearer '+tok,'Content-Type':'application/json'},
