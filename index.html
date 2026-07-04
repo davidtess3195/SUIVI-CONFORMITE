@@ -903,7 +903,7 @@ function _setupDemoProxy(){
 
 
 async function boot(){
-  try{ console.log('%cQUICKPROTECT build: OBLIG-PROGRAMMER-INTER-2026-07-03','color:#2563eb;font-weight:700'); }catch(e){}
+  try{ console.log('%cQUICKPROTECT build: AUTO-REDIRECTION-EMAIL-2026-07-04','color:#2563eb;font-weight:700'); }catch(e){}
   // Routes publiques sans login
   const hashNow = location.hash.replace(/^#/,'')||'/';
   if(hashNow==='/admin-login'){ loadCfg(); initSb(); renderAdminAuth(); return; }
@@ -1900,11 +1900,26 @@ async function genEmailClient(clientId, raisonSociale){
     const {data,error}=await sb.rpc('gen_email_conformite',{p_raison_sociale:raisonSociale, p_client_id:clientId});
     if(error) throw error;
     toast('Adresse générée : '+data,'ok');
+    creerRedirectionEmailOVH(data);
     await loadEmailsClients();
     await loadScope(); fillScopeSelectors();
   }catch(e){ toast(e.message,'err'); }
 }
 window.genEmailClient=genEmailClient;
+
+// Crée côté OVH la redirection réelle vers rapports@conformite-securite.fr pour cet alias.
+// Sans cette étape, l'alias existe dans la base mais aucun mail n'y sera jamais délivré (bounce "User unknown").
+async function creerRedirectionEmailOVH(alias){
+  if(!alias) return;
+  try{
+    const {data,error}=await sb.functions.invoke('create-email-redirection',{body:{alias}});
+    if(error||(data&&data.error)) throw new Error((data&&data.error)||error.message);
+    if(!(data&&data.deja_existante)) toast('Redirection email créée côté serveur ✓','ok');
+  }catch(e){
+    toast("⚠️ La redirection email n'a pas pu être créée automatiquement ("+(e.message||e)+"). Vérifiez-la manuellement dans l'espace OVH.",'err');
+  }
+}
+window.creerRedirectionEmailOVH=creerRedirectionEmailOVH;
 
 function editEmailClient(clientId, currentEmail, actifStr){
   const actif=actifStr==='true';
@@ -1938,6 +1953,7 @@ function editEmailClient(clientId, currentEmail, actifStr){
     try{
       await sb.from('clients').update({email_conformite:email, email_conformite_actif:$('#ec_actif').checked}).eq('id',clientId);
       closeModal(); toast('Adresse enregistrée : '+email,'ok');
+      creerRedirectionEmailOVH(email);
       { const cont=document.getElementById('content'); if(cont && location.hash.replace(/^#/,'').includes('/clients/'+clientId)) viewClient(cont, clientId); }
       try{ await loadScope(); fillScopeSelectors(); }catch(_){}
       if(typeof loadEmailsClients==='function') loadEmailsClients();
@@ -3208,13 +3224,17 @@ async function loadClientDossier(id, erps){
   const erpIds=(erps||[]).map(e=>e.id);
   let phs=[], docs=[], convs=[];
   try{ if(erpIds.length){ const r=await sb.from('photos_urgentes').select('id,erp_id,photo_path,commentaire,date_photo,created_at,traitement,traitement_date,mission').in('erp_id',erpIds).eq('traitement','fait').order('created_at',{ascending:false}); phs=r.data||[]; } }catch(e){}
-  try{ const r=await sb.from('documents').select('id,type,nom_original,fichier_path,date_document,created_at').eq('client_id',id).in('type',['Compte rendu','Rapport']).order('date_document',{ascending:false}); docs=r.data||[]; }catch(e){}
+  try{ const r=await sb.from('documents').select('id,type,nom_original,fichier_path,date_document,created_at,tags').eq('client_id',id).order('date_document',{ascending:false}); docs=r.data||[]; }catch(e){}
   try{ const r=await sb.from('conversations').select('*').eq('client_id',id).order('date_conv',{ascending:false}); convs=r.data||[]; }catch(e){}
   window._dossierConvs=window._dossierConvs||{}; convs.forEach(cv=>{ window._dossierConvs[cv.id]=cv; });
   const photos=phs.filter(p=>p.photo_path);
   const notes =phs.filter(p=>!p.photo_path);
   const crs   =docs.filter(d=>d.type==='Compte rendu');
   const raps  =docs.filter(d=>d.type==='Rapport');
+  const devis =docs.filter(d=>d.type==='Devis');
+  const factures=docs.filter(d=>d.type==='Facture');
+  const diversTypes=['Compte rendu','Rapport','Devis','Facture'];
+  const divers=docs.filter(d=>!diversTypes.includes(d.type));
 
   const sub=(d)=>fmtDate(d) ;
   const photoItem=p=>{ const isV=isVideoPath(p.photo_path); const url=publicPhoto(p.photo_path);
@@ -3230,11 +3250,18 @@ async function loadClientDossier(id, erps){
       <div style="font-size:12.5px;font-weight:600;color:var(--ink)">${esc(p.commentaire||'Note')}</div>
       <div style="font-size:11px;color:var(--muted)">${fmtDate(p.date_photo||p.created_at)}${p.traitement_date?' · Fait le '+fmtDate(p.traitement_date):''}</div>
     </div>`;
+  const docBucket=d=>{ const t=d.tags||''; return (t.indexOf('cat:')>=0||t.indexOf('source:rapports')>=0)?'rapports':'documents'; };
   const docItem=d=>{ const nm=(d.nom_original||d.type||'document.pdf'); const safe=nm.replace(/'/g,'\\u2019');
-    return `<div onclick="previewDoc('${d.fichier_path}','${safe}')" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;background:var(--surface-2)">
+    return `<div onclick="previewDoc('${d.fichier_path}','${safe}','${docBucket(d)}')" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;background:var(--surface-2)">
       <span style="font-size:17px;flex:0 0 auto">📄</span>
       <div style="min-width:0;flex:1"><div style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nm)}</div>
       <div style="font-size:11px;color:var(--muted)">${fmtDate(d.date_document||d.created_at)}</div></div>
+    </div>`; };
+  const docItemTyped=d=>{ const nm=(d.nom_original||d.type||'document.pdf'); const safe=nm.replace(/'/g,'\\u2019');
+    return `<div onclick="previewDoc('${d.fichier_path}','${safe}','${docBucket(d)}')" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;background:var(--surface-2)">
+      <span style="font-size:17px;flex:0 0 auto">📄</span>
+      <div style="min-width:0;flex:1"><div style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nm)}</div>
+      <div style="font-size:11px;color:var(--muted)">${esc(d.type||'Document')} · ${fmtDate(d.date_document||d.created_at)}</div></div>
     </div>`; };
 
   const convItem=cv=>`<div onclick="formConversation((window._dossierConvs||{})['${cv.id}'])" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;background:var(--surface-2)">
@@ -3258,7 +3285,10 @@ async function loadClientDossier(id, erps){
     card('Notes', '📝', '#f59e0b', notes.map(noteItem), 'Aucune note traitée') +
     card('Photos', '📷', '#2563eb', photos.map(photoItem), 'Aucune photo traitée') +
     card('Comptes rendus', '📄', '#16a34a', crs.map(docItem), 'Aucun compte rendu archivé') +
-    card('Rapports', '📋', '#7c3aed', raps.map(docItem), 'Aucun rapport archivé');
+    card('Rapports', '📋', '#7c3aed', raps.map(docItem), 'Aucun rapport archivé') +
+    card('Devis', '📝', '#d97706', devis.map(docItem), 'Aucun devis archivé') +
+    card('Factures', '🧾', '#16a34a', factures.map(docItem), 'Aucune facture archivée') +
+    card('Divers', '📁', '#64748b', divers.map(docItemTyped), 'Aucun autre document');
 }
 window.loadClientDossier=loadClientDossier;
 
@@ -7455,12 +7485,19 @@ function formDoc(prefiles){
     </div>
     <div class="row2"><div class="fld"><label>Type</label><select id="f_type" onchange="docTypeChange()"><option>Rapport</option><option>Devis</option><option>Facture</option><option>Bureau de contrôle</option><option>RVAT</option><option>PV commission</option><option>Compte rendu</option><option>Maintenance préventive</option><option>Maintenance corrective</option><option>Courrier</option><option>Plan</option><option>DOE</option><option>Consignes de sécurité</option><option>Plan de prévention</option><option>Permis de feu</option><option>Attestation</option><option>Preuve</option><option>Photo</option></select></div>
       <div class="fld"><label>Lot</label><input id="f_lot" placeholder="SSI, Électricité…"></div></div>
-    <div class="row2"><div class="fld"><label>Date du document <span style="color:var(--muted-2);font-weight:400;font-size:11px">(date réelle, ex. date de la commission)</span></label><input id="f_date" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
-      <div class="fld" id="f_avis_zone" style="display:none"><label>Avis de la commission</label><select id="f_avis"><option value="">— non précisé —</option><option>Favorable</option><option>Favorable avec prescriptions</option><option>Défavorable</option><option>Avis différé</option></select></div></div>
+    <div class="row2"><div class="fld"><label>Prestataire <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel)</span></label><select id="f_prest"><option value="">— (optionnel) —</option>${(window._gedPrest||[]).map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select></div>
+      <div class="fld"><label>Date du document <span style="color:var(--muted-2);font-weight:400;font-size:11px">(date réelle, ex. date de la commission)</span></label><input id="f_date" type="date" value="${new Date().toISOString().slice(0,10)}"></div></div>
+    <div class="fld" id="f_avis_zone" style="display:none"><label>Avis de la commission</label><select id="f_avis"><option value="">— non précisé —</option><option>Favorable</option><option>Favorable avec prescriptions</option><option>Défavorable</option><option>Avis différé</option></select></div>
     ${fileField}
   </div>
   <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">Déposer</button></div>`);
   docFormErpOpts(preErp?preErp.id:''); docTypeChange();
+  // Suggestion automatique du prestataire à partir du nom du/des fichier(s) déposé(s)
+  if(files&&files.length&&window._gedPrest&&window._gedPrest.length){
+    const hay=files.map(f=>f.name).join(' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const match=window._gedPrest.find(p=>{ const n=(p.nom||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); return n.length>=3 && hay.includes(n); });
+    if(match){ const sel=$('#f_prest'); if(sel) sel.value=match.id; }
+  }
   $('#save').onclick=async()=>{
     const client_id=$('#f_client').value;
     const erp_id=$('#f_erp').value||null;
@@ -7472,6 +7509,7 @@ function formDoc(prefiles){
     const date_document=$('#f_date')?.value||null;
     const avis=((type==='PV commission'||type==='RVAT') && $('#f_avis'))?($('#f_avis').value||null):null;
     const lot=$('#f_lot').value||null;
+    const prestataire_id=$('#f_prest')?.value||null;
     try{
       let i=0;
       const folder = erp_id || ('client_'+client_id);
@@ -7491,7 +7529,7 @@ function formDoc(prefiles){
         const upName=(fileToUpload && fileToUpload.name) ? fileToUpload.name : file.name;
         const path=folder+'/'+Date.now()+'_'+upName.replace(/[^\w.\-]/g,'_');
         const {error:upErr}=await sb.storage.from('documents').upload(path,fileToUpload,{contentType:(fileToUpload&&fileToUpload.type)||undefined}); if(upErr)throw upErr;
-        await sb.from('documents').insert({erp_id,client_id,type,categorie:catFromType(type),lot,date_document,avis,fichier_path:path,nom_original:file.name});
+        await sb.from('documents').insert({erp_id,client_id,prestataire_id,type,categorie:catFromType(type),lot,date_document,avis,fichier_path:path,nom_original:file.name});
       }
       _modalDirty=false; closeModal(); toast(list.length>1?`${list.length} documents déposés`:'Document déposé','ok'); renderRoute();
     }catch(e){ toast(e.message,'err'); btn.disabled=false; btn.textContent='Déposer'; }
@@ -9799,7 +9837,12 @@ window.qrPrestView=qrPrestView;
 // Visionneuse plein écran — consultation seule (pas de lien de téléchargement)
 function qrViewerOpen(url,nom){
   const isPdf=/\.pdf(\?|$)/i.test((url||'').split('#')[0]) || /\.pdf$/i.test(nom||'');
-  const src=isPdf?url+'#toolbar=0&navpanes=0&statusbar=0':url;
+  const isAndroid=/android/i.test(navigator.userAgent||'');
+  // Chrome/WebView Android n'affiche pas les PDF en iframe (page blanche) contrairement à iOS Safari et au desktop.
+  // Repli sur la visionneuse Google Docs (toujours intégrée, sans lien de téléchargement direct exposé).
+  const src=isPdf
+    ? (isAndroid ? 'https://docs.google.com/gview?embedded=true&url='+encodeURIComponent(url) : url+'#toolbar=0&navpanes=0&statusbar=0')
+    : url;
   lockScroll();
   const ov=document.createElement('div');
   ov.id='qr-viewer';
