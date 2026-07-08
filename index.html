@@ -4500,25 +4500,19 @@ function interTable(rows){
   const erpName=id=>state.erps.find(e=>e.id===id)?.nom||'';
   const typeColor={preventive:'#2563eb',corrective:'#dc2626',travaux:'#f59e0b',visite:'#16a34a',commission_securite:'#9333ea'};
   const typeLabel={preventive:'Préventive',corrective:'Corrective',travaux:'Travaux',visite:'Visite',commission_securite:'Commission de sécurité'};
-  return `<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:14px">
+  return `<div style="display:flex;flex-direction:column;gap:10px">
     ${rows.map(i=>{ const dot=typeColor[i.type]||'#94a3b8';
       const data=JSON.stringify(i).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-      return `<div style="display:flex;flex-direction:column;border-radius:14px;border:1px solid var(--line);background:var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.05);cursor:pointer;overflow:hidden;transition:box-shadow .15s,transform .15s" onmouseenter="this.style.boxShadow='0 6px 20px rgba(0,0,0,.1)';this.style.transform='translateY(-1px)'" onmouseleave="this.style.boxShadow='0 1px 4px rgba(0,0,0,.05)';this.style.transform=''" onclick="formInter(null,${data})">
-        <div style="padding:15px 16px;display:flex;flex-direction:column;gap:10px;flex:1">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:10.5px;font-weight:700;color:${dot};background:${dot}18;padding:3px 10px;border-radius:20px;letter-spacing:.04em;text-transform:uppercase">${esc(typeLabel[i.type]||i.type||'—')}</span>
-            ${i.code_int?`<span class="mono" style="font-size:11px;color:var(--muted-2);margin-left:auto">${esc(i.code_int)}</span>`:''}
-          </div>
-          <div style="font-size:14.5px;font-weight:700;color:var(--ink);line-height:1.35;overflow-wrap:anywhere;word-break:break-word">${esc(i.objet||i.domaine||'—')}</div>
-          <div style="display:flex;flex-direction:column;gap:3px">
-            ${erpName(i.erp_id)?`<div style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(erpName(i.erp_id))}</div>`:''}
-            <div style="font-size:12px;color:var(--muted)">${fmtDate(i.date_prevue)||'—'}</div>
-          </div>
+      return `<div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;width:100%;padding:11px 16px;border-radius:12px;border:1px solid var(--line);border-left:4px solid ${dot};background:var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.05);cursor:pointer;transition:box-shadow .15s,transform .15s" onmouseenter="this.style.boxShadow='0 6px 20px rgba(0,0,0,.1)';this.style.transform='translateY(-1px)'" onmouseleave="this.style.boxShadow='0 1px 4px rgba(0,0,0,.05)';this.style.transform=''" onclick="formInter(null,${data})">
+        <span style="font-size:10.5px;font-weight:700;color:${dot};background:${dot}18;padding:3px 10px;border-radius:20px;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap">${esc(typeLabel[i.type]||i.type||'—')}</span>
+        <div style="flex:1 1 240px;min-width:0">
+          <div style="font-size:14px;font-weight:700;color:var(--ink);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.objet||i.domaine||'—')}</div>
+          ${erpName(i.erp_id)?`<div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(erpName(i.erp_id))}</div>`:''}
         </div>
-        <div style="padding:10px 16px 13px;display:flex;align-items:center;gap:8px;border-top:1px solid var(--line-2)">
-          ${statusPill(i.statut,ITST)}
-          <button class="btn sm" style="margin-left:auto;font-size:12px" title="Tableau de bord" onclick="event.stopPropagation();gotoClientDashboard('${i.erp_id}','${esc(i.date_prevue||'')}')">Tableau de bord</button>
-        </div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap">${fmtDate(i.date_prevue)||'—'}</div>
+        ${i.code_int?`<span class="mono" style="font-size:11px;color:var(--muted-2);white-space:nowrap">${esc(i.code_int)}</span>`:''}
+        ${statusPill(i.statut,ITST)}
+        <button class="btn sm" style="font-size:12px;white-space:nowrap" title="Tableau de bord" onclick="event.stopPropagation();gotoClientDashboard('${i.erp_id}','${esc(i.date_prevue||'')}')">Tableau de bord</button>
       </div>`;
     }).join('')}
   </div>`;
@@ -4600,7 +4594,7 @@ async function formInter(erpId,it){
       <div class="fld"><label>Date prévue</label><input id="f_date" type="date" value="${esc(it.date_prevue)}"></div></div>
     ${it.id?`<div class="fld"><label>Statut</label><select id="f_statut">${Object.keys(ITST).map(s=>`<option value="${s}"${it.statut===s?' selected':''}>${ITST[s][1]}</option>`).join('')}</select></div>`:''}
   </div>
-  <div class="modal-foot">${it.id?'<button class="btn danger" id="del" style="margin-right:auto">Supprimer</button>':''}<button class="btn primary" id="btn_email_inter" style="gap:6px">Demande par email</button><button class="btn sm" id="btn_sms_inter">💬 Par SMS</button><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">${it.id?'Enregistrer':'Créer'}</button></div>`);
+  <div class="modal-foot">${it.id?'<button class="btn danger" id="del" style="margin-right:auto">Supprimer</button>':''}${it.id&&(it.type==='travaux'||it.type==='corrective')?`<button class="btn sm" title="Générer le PV de réception de travaux" onclick="pvFromInter('${it.id}')">🤝 PV réception</button>`:''}<button class="btn primary" id="btn_email_inter" style="gap:6px">Demande par email</button><button class="btn sm" id="btn_sms_inter">💬 Par SMS</button><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">${it.id?'Enregistrer':'Créer'}</button></div>`);
   if(erpId){const s=$('#f_erp'); if(s)s.value=erpId;}
   $('#save').onclick=async()=>{
     const erp_id=$('#f_erp').value; if(!erp_id){toast('Sélectionne un ERP','err');return;}
@@ -7472,6 +7466,8 @@ function catFromType(type){
   const t=(type||'').toLowerCase();
   if(t==='devis') return 'devis';
   if(t==='facture') return 'facture';
+  if(t==='pv de réception'||t==='pv de reception') return 'pv_reception';
+  if(t==='courrier') return 'mail';
   if(['rapport','bureau de contrôle','rvat','pv commission','compte rendu','maintenance préventive','maintenance corrective'].includes(t)) return 'rapport';
   return 'autre';
 }
@@ -7589,8 +7585,8 @@ function gedRenderList(){
     const docs=byClient[cid];
     const open = searching || window._gedOpen.has(cid);
     const byType={}; docs.forEach(d=>{ const t=d.type||'Autre'; (byType[t]=byType[t]||[]).push(d); });
-    const CAT_ORDER=['Bureau de contrôle','Maintenance','Compte rendu','Rapport','Devis','Facture',"Bon d'intervention",'Plans','DOE','Sécurité','Autres'];
-    const CAT_ICON={'Bureau de contrôle':'⚖️','Maintenance':'🔧','Compte rendu':'📝','Rapport':'📋','Devis':'📝','Facture':'🧾',"Bon d'intervention":'🛠️','Plans':'🗺️','DOE':'📐','Sécurité':'🛟','Autres':'📄'};
+    const CAT_ORDER=['Bureau de contrôle','Maintenance','Compte rendu','Rapport','Devis','Facture',"Bon d'intervention",'PV de réception','Mail','Plans','DOE','Sécurité','Autres'];
+    const CAT_ICON={'Bureau de contrôle':'⚖️','Maintenance':'🔧','Compte rendu':'📝','Rapport':'📋','Devis':'📝','Facture':'🧾',"Bon d'intervention":'🛠️','PV de réception':'🤝','Mail':'📧','Plans':'🗺️','DOE':'📐','Sécurité':'🛟','Autres':'📄'};
     const catOf=(type)=>{ const t=(type||'').toLowerCase();
       if(t==='devis') return 'Devis';
       if(t==='facture') return 'Facture';
@@ -7600,6 +7596,8 @@ function gedRenderList(){
       if(t==='consignes de sécurité'||t==='consignes de securite'||t==='plan de prévention'||t==='plan de prevention'||t==='permis de feu') return 'Sécurité';
       if(t==='compte rendu') return 'Compte rendu';
       if(t==='rapport') return 'Rapport';
+      if(t==='pv de réception'||t==='pv de reception'||t==='pv réception'||t==='pv reception') return 'PV de réception';
+      if(t==='courrier'||t==='mail'||t==='message') return 'Mail';
       if(t==='plan'||t==='plans') return 'Plans';
       if(t==='doe') return 'DOE';
       return 'Autres'; };
@@ -7616,13 +7614,14 @@ function gedRenderList(){
       const nmJs=esc(d.nom_original||'doc').replace(/'/g,"\\'");
       const pathJs=esc(d.fichier_path||'').replace(/'/g,"\\'");
       return `<div style="border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--surface)">
-        <div style="font-size:13px;font-weight:600;color:var(--ink);overflow-wrap:anywhere;word-break:break-word">${esc(d.nom_original||'Document')}${avisBadge(d.avis)}${isRap?(()=>{const m=({rapport:['Rapport reçu','#0891b2'],devis:['Devis reçu','#d97706'],facture:['Facture reçue','#16a34a'],bon_intervention:["Bon d'intervention reçu",'#7c3aed'],autre:['Reçu','#64748b']})[dcat]||['Reçu','#0891b2'];return `<span style="background:${m[1]};color:#fff;font-size:10px;font-weight:600;padding:1px 7px;border-radius:999px;margin-left:6px;white-space:nowrap">${m[0]}</span>`;})():''}${(d.type && d.type.toLowerCase()!==catOf(d.type).toLowerCase())?`<span style="font-size:11px;color:var(--muted);margin-left:6px">${esc(d.type)}</span>`:''}</div>
+        <div style="font-size:13px;font-weight:600;color:var(--ink);overflow-wrap:anywhere;word-break:break-word">${esc(d.nom_original||'Document')}${avisBadge(d.avis)}${isRap?(()=>{const m=({rapport:['Rapport reçu','#0891b2'],devis:['Devis reçu','#d97706'],facture:['Facture reçue','#16a34a'],bon_intervention:["Bon d'intervention reçu",'#7c3aed'],mail:['Mail reçu','#0ea5e9'],autre:['Reçu','#64748b']})[dcat]||['Reçu','#0891b2'];return `<span style="background:${m[1]};color:#fff;font-size:10px;font-weight:600;padding:1px 7px;border-radius:999px;margin-left:6px;white-space:nowrap">${m[0]}</span>`;})():''}${(d.type && d.type.toLowerCase()!==catOf(d.type).toLowerCase())?`<span style="font-size:11px;color:var(--muted);margin-left:6px">${esc(d.type)}</span>`:''}</div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:7px">
           <span style="font-size:12px;color:var(--muted)">${d.erp_id?esc(erpName(d.erp_id)):(d.emetteur?('✉ '+esc(d.emetteur)):'—')}${d.lot?' · '+esc(d.lot):''}</span>
           ${d.prestataire_id?`<span style="font-size:12px;color:var(--muted)">🔧 ${esc(prestName(d.prestataire_id))}</span>`:''}
           <span style="font-size:12px;color:var(--muted)">${fmtDate(docDate(d))}</span>
           <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
-            <button class="btn sm" onclick="previewDoc('${pathJs}','${nmJs}','${bk}')">👁️ Visualiser</button>
+            ${d.email_corps?`<button class="btn sm" onclick="gedViewMail('${d.id}')">👁️ Visualiser</button>`:`<button class="btn sm" onclick="previewDoc('${pathJs}','${nmJs}','${bk}')">👁️ Visualiser</button>`}
+            ${dcat==='devis'||(d.type||'').toLowerCase()==='devis'?`<button class="btn sm" title="Générer un PV de réception de travaux à partir de ce devis" onclick="pvFromDevis('${d.id}')">🤝 PV réception</button>`:''}
             <button class="btn sm" title="Renommer / classer" onclick="gedEditDoc('${d.id}')">✏️ Modifier</button>
             <button class="btn sm" title="Supprimer" onclick="delDoc('${d.id}')" style="color:var(--danger,#dc2626);border-color:var(--line)">🗑</button>
           </span>
@@ -7661,8 +7660,194 @@ function gedRenderList(){
 }
 window.gedRenderList=gedRenderList;
 
-const GED_TYPES=['Rapport','Devis','Facture',"Bon d'intervention",'Compte rendu','RVAT','PV commission','Maintenance préventive','Maintenance corrective','Courrier','Attestation','DOE','Plan','Preuve','Photo','Autre'];
-const GED_CATEGORIES=[['rapport','Rapport'],['devis','Devis'],['facture','Facture'],['bon_intervention',"Bon d'intervention"],['autre','Autre']];
+const GED_TYPES=['Rapport','Devis','Facture',"Bon d'intervention",'PV de réception','Compte rendu','RVAT','PV commission','Maintenance préventive','Maintenance corrective','Courrier','Attestation','DOE','Plan','Preuve','Photo','Autre'];
+const GED_CATEGORIES=[['rapport','Rapport'],['devis','Devis'],['facture','Facture'],['bon_intervention',"Bon d'intervention"],['pv_reception','PV de réception'],['mail','Mail'],['autre','Autre']];
+
+// Affiche directement le contenu d'un mail reçu (expéditeur, objet, date, corps) dans une modale
+function gedViewMail(id){
+  const d=(window._gedAllDocs||[]).find(x=>x.id===id); if(!d){toast('Document introuvable','err');return;}
+  openModal(`<div class="modal-head"><h2>📧 ${esc(d.email_sujet||d.nom_original||'Message')}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;flex-direction:column;gap:4px;padding:10px 12px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px">
+        ${d.email_expediteur?`<div style="font-size:12.5px;color:var(--muted)"><b style="color:var(--ink)">De :</b> ${esc(d.email_expediteur)}</div>`:''}
+        ${d.email_sujet?`<div style="font-size:12.5px;color:var(--muted)"><b style="color:var(--ink)">Objet :</b> ${esc(d.email_sujet)}</div>`:''}
+        ${d.email_date?`<div style="font-size:12.5px;color:var(--muted)"><b style="color:var(--ink)">Reçu le :</b> ${fmtDate(d.email_date)}</div>`:''}
+      </div>
+      <div style="font-size:13.5px;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;max-height:55vh;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:14px;background:var(--surface)">${esc(d.email_corps||'')}</div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Fermer</button>
+      <button class="btn" onclick="closeModal();gedEditDoc('${d.id}')">✏️ Modifier / classer</button></div>`);
+}
+window.gedViewMail=gedViewMail;
+
+/* ============================================================
+   PV DE RÉCEPTION DE TRAVAUX
+   Génération depuis un devis (GED) ou une intervention travaux :
+   formulaire pré-rempli -> page A4 imprimable -> archivage GED
+   (catégorie pv_reception, rubrique "PV de réception").
+   ============================================================ */
+async function pvFromDevis(docId){
+  const d=(window._gedAllDocs||[]).find(x=>x.id===docId); if(!d){toast('Devis introuvable','err');return;}
+  const clientId=d.client_id||state.erps.find(e=>e.id===d.erp_id)?.client_id||null;
+  pvForm({client_id:clientId, erp_id:d.erp_id||null, prestataire_id:d.prestataire_id||null,
+          devis_ref:(d.nom_original||'').replace(/\.[a-zA-Z0-9]+$/,''), devis_date:d.date_document||''});
+}
+window.pvFromDevis=pvFromDevis;
+
+async function pvFromInter(interId){
+  try{
+    const {data:it}=await sb.from('interventions').select('*').eq('id',interId).maybeSingle();
+    if(!it){toast('Intervention introuvable','err');return;}
+    const clientId=state.erps.find(e=>e.id===it.erp_id)?.client_id||null;
+    pvForm({client_id:clientId, erp_id:it.erp_id||null, prestataire_id:it.prestataire_id||null,
+            devis_ref:'', devis_date:'', objet:it.objet||it.domaine||''});
+  }catch(e){ toast(e.message,'err'); }
+}
+window.pvFromInter=pvFromInter;
+
+async function pvForm(pre){
+  pre=pre||{};
+  let client=null, prests=[];
+  try{
+    const [c,p]=await Promise.all([
+      pre.client_id?sb.from('clients').select('id,raison_sociale,siret,adresse_siege,code_postal,ville,telephone,email').eq('id',pre.client_id).maybeSingle():Promise.resolve({data:null}),
+      sb.from('prestataires').select('id,nom,siret,adresse,contacts').order('nom')
+    ]);
+    client=c.data; prests=p.data||[];
+  }catch(e){ toast(e.message,'err'); return; }
+  window._pvPrests=prests; window._pvClient=client;
+  const erpsClient=pre.client_id?state.erps.filter(e=>e.client_id===pre.client_id):state.erps;
+  const erpOpts=erpsClient.map(e=>`<option value="${e.id}"${pre.erp_id===e.id?' selected':''}>${esc(e.nom)}</option>`).join('');
+  const prestOpts='<option value="">— choisir —</option>'+prests.map(p=>`<option value="${p.id}"${pre.prestataire_id===p.id?' selected':''}>${esc(p.nom)}</option>`).join('');
+  const today=new Date().toISOString().slice(0,10);
+  openModal(`<div class="modal-head"><h2>🤝 PV de réception de travaux</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:12px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px">
+        <b style="color:var(--ink)">Client :</b> ${esc(client?.raison_sociale||'—')}${client?.siret?' · SIRET '+esc(client.siret):''}</div>
+      <div class="row2">
+        <div class="fld"><label>Établissement / ERP <span class="req">*</span></label><select id="pv_erp">${erpOpts}</select></div>
+        <div class="fld"><label>Prestataire <span class="req">*</span></label><select id="pv_prest">${prestOpts}</select></div>
+      </div>
+      <div class="row2">
+        <div class="fld"><label>Référence du devis</label><input id="pv_devis_ref" value="${esc(pre.devis_ref||'')}" placeholder="ex : DV-2026-0389"></div>
+        <div class="fld"><label>Date du devis</label><input id="pv_devis_date" type="date" value="${esc(pre.devis_date||'')}"></div>
+      </div>
+      <div class="row2">
+        <div class="fld"><label>Montant (€ HT)</label><input id="pv_montant" placeholder="ex : 8 470,00"></div>
+        <div class="fld"><label>Date de la visite <span class="req">*</span></label><input id="pv_date" type="date" value="${today}"></div>
+      </div>
+      <div class="fld"><label>Objet des travaux</label><input id="pv_objet" value="${esc(pre.objet||'')}" placeholder="ex : Remise en conformité du désenfumage — bâtiment A"></div>
+      <div class="fld"><label>Prestations examinées <span style="font-weight:400;color:var(--muted)">(une par ligne, reprises du devis)</span></label>
+        <textarea id="pv_lignes" rows="6" onkeydown="event.stopPropagation()" style="width:100%;border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box" placeholder="Remplacement de 2 exutoires de désenfumage 1 m² — cage A1&#10;Remplacement du treuil de commande — RDC&#10;Essais fonctionnels et remise du rapport"></textarea></div>
+      <div style="font-size:11.5px;color:var(--muted)">Le document sera généré au format A4, prêt à imprimer et à faire signer sur place (cases Conforme/Non conforme, décision, réserves, signatures). Il est archivé automatiquement dans la GED, rubrique « PV de réception ».</div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" id="pv_gen">🖨️ Générer &amp; archiver</button></div>`);
+  document.getElementById('pv_gen').onclick=pvGenerate;
+}
+window.pvForm=pvForm;
+
+function pvPrestContact(p){
+  if(!p) return {nom:'',tel:'',email:''};
+  let c=p.contacts; if(typeof c==='string'){try{c=JSON.parse(c);}catch(_){c=null;}}
+  const ca=c&&(c.charge_affaire||Object.values(c).find(x=>x&&(x.nom||x.email)));
+  return {nom:ca?.nom||'', tel:ca?.mobile||ca?.telephone||'', email:ca?.email||p.email_rapports||''};
+}
+
+async function pvGenerate(){
+  const btn=document.getElementById('pv_gen');
+  const erpId=document.getElementById('pv_erp').value;
+  const prestId=document.getElementById('pv_prest').value;
+  const dateVisite=document.getElementById('pv_date').value;
+  if(!erpId||!prestId||!dateVisite){toast('ERP, prestataire et date de visite sont requis','err');return;}
+  btn.disabled=true; btn.textContent='Génération…';
+  const client=window._pvClient||{};
+  const erp=state.erps.find(e=>e.id===erpId)||{};
+  const prest=(window._pvPrests||[]).find(p=>p.id===prestId)||{};
+  const pc=pvPrestContact(prest);
+  const devisRef=document.getElementById('pv_devis_ref').value.trim();
+  const devisDate=document.getElementById('pv_devis_date').value;
+  const montant=document.getElementById('pv_montant').value.trim();
+  const objet=document.getElementById('pv_objet').value.trim();
+  const lignes=document.getElementById('pv_lignes').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const num='REC-'+new Date().getFullYear()+'-'+String(Date.now()).slice(-5);
+  const fd=s=>{ if(!s) return '—'; const d=new Date(s); return isNaN(d)?s:d.toLocaleDateString('fr-FR'); };
+  const adresseClient=[client.adresse_siege,[client.code_postal,client.ville].filter(Boolean).join(' ')].filter(Boolean).join(' — ');
+  const rows=(lignes.length?lignes:['']).map((l,i)=>`<tr><td class="c">${i+1}</td><td>${esc(l)||'&nbsp;'}</td><td class="c">☐</td><td class="c">☐</td></tr>`).join('');
+  const html=`<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>PV de réception ${esc(num)}</title><style>
+    @page{size:A4;margin:14mm}
+    body{font-family:Helvetica,Arial,sans-serif;color:#1a1a1a;font-size:11px;line-height:1.4;margin:0}
+    .head{display:flex;justify-content:space-between;border-bottom:2.5px solid #C8102E;padding-bottom:6px}
+    .brand{font-size:16px;font-weight:700;color:#C8102E}.brand small{display:block;font-size:9px;font-weight:400;color:#555}
+    .meta{text-align:right;font-size:10.5px}
+    h1{text-align:center;color:#C8102E;font-size:17px;margin:12px 0 2px}
+    .sub{text-align:center;color:#555;font-size:9.5px;margin-bottom:8px}
+    h2{background:#C8102E;color:#fff;font-size:11px;padding:4px 8px;margin:12px 0 5px}
+    table{width:100%;border-collapse:collapse}
+    td,th{border:1px solid #ccc;padding:5px 7px;vertical-align:top;text-align:left;font-size:10.5px}
+    th{background:#f5f5f5}
+    .c{text-align:center}
+    .small{font-size:8.5px;color:#555}
+    .sig td{height:80px}
+    .dec td{padding:7px 9px}
+    @media print{.noprint{display:none}}
+  </style></head><body>
+  <div class="noprint" style="background:#fff8e1;border:1px solid #e0c060;padding:8px 12px;margin-bottom:10px;font-size:12px">
+    Document prêt — <button onclick="window.print()" style="font-size:12px;padding:4px 12px;cursor:pointer">🖨️ Imprimer</button> (ou Ctrl+P). Ce bandeau n'apparaît pas à l'impression.</div>
+  <div class="head"><div class="brand">PREVA CONSEILS<small>Conseil en sécurité incendie &amp; conformité ERP</small></div>
+    <div class="meta"><b>PV n° :</b> ${esc(num)}<br><b>Date :</b> ${fd(dateVisite)}</div></div>
+  <h1>PROCÈS-VERBAL DE RÉCEPTION DE TRAVAUX</h1>
+  <div class="sub">Établi contradictoirement entre le maître d'ouvrage et l'entreprise — article 1792-6 du Code civil</div>
+  <h2>1. PARTIES</h2>
+  <table><tr><th style="width:50%">MAÎTRE D'OUVRAGE (Client)</th><th>ENTREPRISE (Prestataire)</th></tr>
+    <tr><td><b>${esc(client.raison_sociale||'')}</b><br>${esc(adresseClient||'')}<br>${client.siret?'SIRET : '+esc(client.siret)+'<br>':''}Représenté par : ______________________________<br>${[client.telephone,client.email].filter(Boolean).map(esc).join(' — ')}</td>
+    <td><b>${esc(prest.nom||'')}</b><br>${esc(prest.adresse||'')}<br>${prest.siret?'SIRET : '+esc(prest.siret)+'<br>':''}Représentée par : ${esc(pc.nom)||'______________________________'}<br>${[pc.tel,pc.email].filter(Boolean).map(esc).join(' — ')}</td></tr></table>
+  <h2>2. OUVRAGE ET RÉFÉRENCES</h2>
+  <table>
+    <tr><th style="width:26%">Établissement (ERP)</th><td>${esc(erp.nom||'')}${erp.code_erp?' — '+esc(erp.code_erp):''}</td></tr>
+    <tr><th>Devis de référence</th><td>${esc(devisRef)||'—'}${devisDate?' du '+fd(devisDate):''}${montant?' — Montant : '+esc(montant)+' € HT':''}</td></tr>
+    <tr><th>Objet des travaux</th><td>${esc(objet)||'—'}</td></tr>
+    <tr><th>Date de la visite</th><td>${fd(dateVisite)}, en présence des deux parties</td></tr></table>
+  <h2>3. PRESTATIONS EXAMINÉES</h2>
+  <table><tr><th class="c" style="width:6%">N°</th><th>Désignation</th><th class="c" style="width:12%">Conforme</th><th class="c" style="width:14%">Non conforme</th></tr>${rows}</table>
+  <h2>4. DÉCISION DU MAÎTRE D'OUVRAGE</h2>
+  <table class="dec">
+    <tr><td>☐ &nbsp;<b>Réception SANS réserve</b> — les travaux sont acceptés en l'état.</td></tr>
+    <tr><td>☐ &nbsp;<b>Réception AVEC réserves</b> — travaux acceptés sous réserve de la levée des points listés au §5, dans un délai de ________ jours.</td></tr>
+    <tr><td>☐ &nbsp;<b>Réception REFUSÉE</b> — motif : ___________________________________________________________________</td></tr></table>
+  <h2>5. RÉSERVES ÉVENTUELLES</h2>
+  <table><tr><th class="c" style="width:6%">N°</th><th>Description de la réserve</th><th class="c" style="width:18%">Délai de levée</th></tr>
+    <tr><td class="c">1</td><td style="height:22px"></td><td></td></tr>
+    <tr><td class="c">2</td><td style="height:22px"></td><td></td></tr>
+    <tr><td class="c">3</td><td style="height:22px"></td><td></td></tr></table>
+  <div class="small" style="margin-top:3px">La levée des réserves fera l'objet d'un constat contradictoire consigné dans l'application PREVA CONSEILS (module Levées des réserves).</div>
+  <h2>6. EFFETS DE LA RÉCEPTION</h2>
+  <div class="small">La réception constitue le point de départ des garanties légales : garantie de parfait achèvement (1 an — art. 1792-6 C. civ.), garantie de bon fonctionnement (2 ans — art. 1792-3 C. civ.) et garantie décennale (10 ans — art. 1792 C. civ.). Elle emporte transfert de la garde de l'ouvrage au maître d'ouvrage, sous réserve des points listés au §5.</div>
+  <h2>7. SIGNATURES</h2>
+  <table class="sig"><tr><th style="width:50%">Pour le maître d'ouvrage<br><span class="small">Nom, qualité, signature et cachet — mention « lu et approuvé »</span></th>
+    <th>Pour l'entreprise<br><span class="small">Nom, qualité, signature et cachet</span></th></tr>
+    <tr><td>Fait à : __________________ le : __________</td><td>Fait à : __________________ le : __________</td></tr></table>
+  <div style="border-top:1.5px solid #C8102E;margin-top:8px;padding-top:4px" class="small">PREVA CONSEILS — conformite-securite.fr — PV ${esc(num)}${devisRef?' · Devis '+esc(devisRef):''} · Deux originaux, un pour chaque partie.</div>
+  </body></html>`;
+  try{
+    // Archivage GED
+    const fname='PV de réception '+num+(devisRef?' - '+devisRef:'')+'.html';
+    const path=(erpId||('client_'+(client.id||'x')))+'/'+Date.now()+'_'+fname.replace(/[^\w.\-]/g,'_');
+    const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+    const {error:ue}=await sb.storage.from('documents').upload(path,blob,{contentType:'text/html'});
+    if(ue) throw ue;
+    await sb.from('documents').insert({client_id:client.id||null,erp_id:erpId,prestataire_id:prestId,
+      type:'PV de réception',categorie:'pv_reception',nom_original:fname,fichier_path:path,
+      date_document:dateVisite,statut:'classe',tags:'source:app;cat:pv_reception'+(devisRef?';devis:'+devisRef:'')});
+    // Ouverture pour impression
+    const w=window.open('','_blank'); 
+    if(w){ w.document.write(html); w.document.close(); }
+    else { toast('Popup bloquée : le PV est archivé dans la GED (rubrique PV de réception)','err'); }
+    _modalDirty=false; closeModal(); toast('PV de réception généré et archivé','ok');
+    const cont=document.getElementById('content'); if(cont && location.hash.indexOf('documents')>=0) viewDocuments(cont);
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='🖨️ Générer & archiver'; }
+}
+window.pvGenerate=pvGenerate;
 
 function gedEditDoc(id){
   const d=(window._gedAllDocs||[]).find(x=>x.id===id); if(!d){toast('Document introuvable','err');return;}
@@ -7693,6 +7878,14 @@ function gedEditDoc(id){
         <div class="fld"><label>Prestataire</label><select id="ged_edit_prest">${prestOpts}</select></div>
       </div>
       <div class="fld"><label>Date du document</label><input id="ged_edit_date" type="date" value="${d.date_document||''}"></div>
+      ${d.email_corps?`<details style="border:1px solid var(--line);border-radius:10px;background:var(--surface-2);overflow:hidden">
+        <summary style="padding:10px 12px;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink);user-select:none">📧 Message d'origine${d.email_date?` — ${fmtDate(d.email_date)}`:''}</summary>
+        <div style="padding:0 12px 12px;display:flex;flex-direction:column;gap:6px">
+          ${d.email_expediteur?`<div style="font-size:12px;color:var(--muted)"><b style="color:var(--ink)">De :</b> ${esc(d.email_expediteur)}</div>`:''}
+          ${d.email_sujet?`<div style="font-size:12px;color:var(--muted)"><b style="color:var(--ink)">Objet :</b> ${esc(d.email_sujet)}</div>`:''}
+          <div style="font-size:12.5px;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;background:var(--surface);border:1px solid var(--line-2);border-radius:8px;padding:10px">${esc(d.email_corps)}</div>
+        </div>
+      </details>`:''}
     </div>
     <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
       <button class="btn primary" id="ged_edit_save">Enregistrer</button></div>`);
