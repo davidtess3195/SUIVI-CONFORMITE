@@ -7125,7 +7125,7 @@ window.delRapport=async function(id,path){
 
 async function viewDocuments(c){
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Documents (GED)</h1><p>Rapports, PV, plans, DOE, attestations.</p></div>
-    <div class="actions"><button class="btn primary" onclick="formDoc()">${I.plus} Déposer un document</button></div></div>${loadingBlock()}`;
+    <div class="actions"><button class="btn sm" onclick="pvForm({})">🤝 Générer un PV de réception</button><button class="btn primary" onclick="formDoc()">${I.plus} Déposer un document</button></div></div>${loadingBlock()}`;
   try{
     let q=sb.from('documents').select('*').order('created_at',{ascending:false}); q=gedScopeFilter(q);
     const [{data:docData},{data:prestData}]=await Promise.all([
@@ -7138,13 +7138,12 @@ async function viewDocuments(c){
     const types=[...new Set(rows.map(d=>d.type).filter(Boolean))];
     const typeOpts=types.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('');
     c.innerHTML=`<div class="page-head"><div class="t"><h1>Documents (GED)</h1><p>${rows.length} document(s) · classés par client et par type.</p></div>
-      <div class="actions"><button class="btn primary" onclick="formDoc()">${I.plus} Déposer un document</button></div></div>
+      <div class="actions"><button class="btn sm" onclick="pvForm({})">🤝 Générer un PV de réception</button><button class="btn primary" onclick="formDoc()">${I.plus} Déposer un document</button></div></div>
       <div id="ged_drop" ondragover="event.preventDefault();this.style.borderColor='var(--primary)';this.style.background='rgba(37,99,235,.05)'" ondragleave="this.style.borderColor='var(--line)';this.style.background='transparent'" ondrop="gedHandleDrop(event)" style="border:2px dashed var(--line);border-radius:12px;padding:14px;text-align:center;color:var(--muted);font-size:13px;margin-bottom:14px;transition:.12s">
         📥 Glissez-déposez ici vos documents (rapports, PV, plans, attestations…)</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
         <input id="ged_search" oninput="gedRenderList()" placeholder="🔍 Rechercher un document, un client, un ERP…" style="flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)">
-        <select id="ged_cat" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Toutes catégories</option><option value="rapport">📋 Rapports</option><option value="devis">📝 Devis</option><option value="facture">🧾 Factures</option><option value="bon_intervention">🛠️ Bons d'intervention</option><option value="autre">📄 Autres</option></select>
-        <select id="ged_type" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Tous les types</option>${typeOpts}</select>
+        <select id="ged_rub" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Toutes les rubriques</option><option value="Bureau de contrôle">⚖️ Bureau de contrôle</option><option value="Maintenance">🔧 Maintenance</option><option value="Compte rendu">📝 Compte rendu</option><option value="Rapport">📋 Rapport</option><option value="Devis">📝 Devis</option><option value="Devis signé">✍️ Devis signé</option><option value="Facture">🧾 Facture</option><option value="Bon d'intervention">🛠️ Bon d'intervention</option><option value="PV de réception">🤝 PV de réception</option><option value="Mail">📧 Mail</option><option value="Plans">🗺️ Plans</option><option value="DOE">📐 DOE</option><option value="Sécurité">🛟 Sécurité</option><option value="Autres">📄 Autres</option></select>
         <select id="ged_prest" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Tous les prestataires</option>${(prestData||[]).map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select>
       </div>
       <div class="ged-grid">
@@ -7464,6 +7463,7 @@ window.crArchiveCopy=async function(){
 // Catégorie (axe tri email : rapport/devis/facture/autre) déduite du type GED choisi
 function catFromType(type){
   const t=(type||'').toLowerCase();
+  if(t==='devis signé'||t==='devis signe') return 'devis_signe';
   if(t==='devis') return 'devis';
   if(t==='facture') return 'facture';
   if(t==='pv de réception'||t==='pv de reception') return 'pv_reception';
@@ -7564,19 +7564,33 @@ function gedRenderList(){
   const TYPE_ICON={'Compte rendu':'📝','Rapport':'📋','RVAT':'⚡','PV commission':'⚖️','Courrier':'✉️','Attestation':'✅','DOE':'📐','Plan':'🗺️','Preuve':'📎','Photo':'🖼️'};
   const rows=window._gedAllDocs||[];
   const q=(document.getElementById('ged_search')?.value||'').trim().toLowerCase();
-  const tf=document.getElementById('ged_type')?.value||'';
-  const cf=document.getElementById('ged_cat')?.value||'';
+  const rf=document.getElementById('ged_rub')?.value||'';
   const pf=document.getElementById('ged_prest')?.value||'';
+  // Même logique de rubrique que l'affichage groupé plus bas (catOf) — filtre = ce qu'on voit
+  const rubOf=(type)=>{ const t=(type||'').toLowerCase();
+    if(t==='devis signé'||t==='devis signe') return 'Devis signé';
+    if(t==='devis') return 'Devis';
+    if(t==='facture') return 'Facture';
+    if(t==="bon d'intervention"||t==='bon intervention'||t.indexOf("bon d'intervention")>=0) return "Bon d'intervention";
+    if(t==='rvat'||t==='pv commission'||t.indexOf('contrôle')>=0||t.indexOf('controle')>=0||t.indexOf('vérif')>=0||t.indexOf('verif')>=0||t==='bureau de contrôle') return 'Bureau de contrôle';
+    if(t.indexOf('maintenance')>=0) return 'Maintenance';
+    if(t==='consignes de sécurité'||t==='consignes de securite'||t==='plan de prévention'||t==='plan de prevention'||t==='permis de feu') return 'Sécurité';
+    if(t==='compte rendu') return 'Compte rendu';
+    if(t==='rapport') return 'Rapport';
+    if(t==='pv de réception'||t==='pv de reception'||t==='pv réception'||t==='pv reception') return 'PV de réception';
+    if(t==='courrier'||t==='mail'||t==='message') return 'Mail';
+    if(t==='plan'||t==='plans') return 'Plans';
+    if(t==='doe') return 'DOE';
+    return 'Autres'; };
   const erpName=id=>state.erps.find(e=>e.id===id)?.nom||'';
   const prestName=id=>(window._gedPrest||[]).find(p=>p.id===id)?.nom||'';
   const clientOf=d=>d.client_id||state.erps.find(e=>e.id===d.erp_id)?.client_id||'__none__';
   const clientNm=cid=>cid==='__none__'?'Sans client':(state.clients.find(c=>c.id===cid)?.raison_sociale||'Client inconnu');
   let list=rows.slice();
-  if(cf) list=list.filter(d=>(d.categorie||'rapport')===cf);
-  if(tf) list=list.filter(d=>d.type===tf);
+  if(rf) list=list.filter(d=>rubOf(d.type)===rf);
   if(pf) list=list.filter(d=>d.prestataire_id===pf);
   if(q) list=list.filter(d=>[d.nom_original,d.type,d.lot,erpName(d.erp_id),prestName(d.prestataire_id),clientNm(clientOf(d))].filter(Boolean).join(' ').toLowerCase().includes(q));
-  if(!list.length){ host.innerHTML=emptyBlock(I.doc,'Aucun document', (q||tf||cf||pf)?'Aucun résultat pour ce filtre.':'Déposez rapports, PV de commission, plans, DOE et attestations.', (q||tf||cf||pf)?'':`<button class="btn primary" onclick="formDoc()">${I.plus} Déposer</button>`); return; }
+  if(!list.length){ host.innerHTML=emptyBlock(I.doc,'Aucun document', (q||rf||pf)?'Aucun résultat pour ce filtre.':'Déposez rapports, PV de commission, plans, DOE et attestations.', (q||rf||pf)?'':`<button class="btn primary" onclick="formDoc()">${I.plus} Déposer</button>`); return; }
   window._gedOpen=window._gedOpen||new Set();
   const searching=!!(q||tf||cf);
   const byClient={}; list.forEach(d=>{ const cid=clientOf(d); (byClient[cid]=byClient[cid]||[]).push(d); });
@@ -7585,9 +7599,10 @@ function gedRenderList(){
     const docs=byClient[cid];
     const open = searching || window._gedOpen.has(cid);
     const byType={}; docs.forEach(d=>{ const t=d.type||'Autre'; (byType[t]=byType[t]||[]).push(d); });
-    const CAT_ORDER=['Bureau de contrôle','Maintenance','Compte rendu','Rapport','Devis','Facture',"Bon d'intervention",'PV de réception','Mail','Plans','DOE','Sécurité','Autres'];
-    const CAT_ICON={'Bureau de contrôle':'⚖️','Maintenance':'🔧','Compte rendu':'📝','Rapport':'📋','Devis':'📝','Facture':'🧾',"Bon d'intervention":'🛠️','PV de réception':'🤝','Mail':'📧','Plans':'🗺️','DOE':'📐','Sécurité':'🛟','Autres':'📄'};
+    const CAT_ORDER=['Bureau de contrôle','Maintenance','Compte rendu','Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Mail','Plans','DOE','Sécurité','Autres'];
+    const CAT_ICON={'Bureau de contrôle':'⚖️','Maintenance':'🔧','Compte rendu':'📝','Rapport':'📋','Devis':'📝','Devis signé':'✍️','Facture':'🧾',"Bon d'intervention":'🛠️','PV de réception':'🤝','Mail':'📧','Plans':'🗺️','DOE':'📐','Sécurité':'🛟','Autres':'📄'};
     const catOf=(type)=>{ const t=(type||'').toLowerCase();
+      if(t==='devis signé'||t==='devis signe') return 'Devis signé';
       if(t==='devis') return 'Devis';
       if(t==='facture') return 'Facture';
       if(t==="bon d'intervention"||t==='bon intervention'||t.indexOf("bon d'intervention")>=0) return "Bon d'intervention";
@@ -7614,14 +7629,15 @@ function gedRenderList(){
       const nmJs=esc(d.nom_original||'doc').replace(/'/g,"\\'");
       const pathJs=esc(d.fichier_path||'').replace(/'/g,"\\'");
       return `<div style="border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--surface)">
-        <div style="font-size:13px;font-weight:600;color:var(--ink);overflow-wrap:anywhere;word-break:break-word">${esc(d.nom_original||'Document')}${avisBadge(d.avis)}${isRap?(()=>{const m=({rapport:['Rapport reçu','#0891b2'],devis:['Devis reçu','#d97706'],facture:['Facture reçue','#16a34a'],bon_intervention:["Bon d'intervention reçu",'#7c3aed'],mail:['Mail reçu','#0ea5e9'],autre:['Reçu','#64748b']})[dcat]||['Reçu','#0891b2'];return `<span style="background:${m[1]};color:#fff;font-size:10px;font-weight:600;padding:1px 7px;border-radius:999px;margin-left:6px;white-space:nowrap">${m[0]}</span>`;})():''}${(d.type && d.type.toLowerCase()!==catOf(d.type).toLowerCase())?`<span style="font-size:11px;color:var(--muted);margin-left:6px">${esc(d.type)}</span>`:''}</div>
+        <div style="font-size:13px;font-weight:600;color:var(--ink);overflow-wrap:anywhere;word-break:break-word">${esc(d.nom_original||'Document')}${avisBadge(d.avis)}${isRap?(()=>{const m=({rapport:['Rapport reçu','#0891b2'],devis:['Devis reçu','#d97706'],devis_signe:['Devis signé','#16a34a'],facture:['Facture reçue','#16a34a'],bon_intervention:["Bon d'intervention reçu",'#7c3aed'],mail:['Mail reçu','#0ea5e9'],autre:['Reçu','#64748b']})[dcat]||['Reçu','#0891b2'];return `<span style="background:${m[1]};color:#fff;font-size:10px;font-weight:600;padding:1px 7px;border-radius:999px;margin-left:6px;white-space:nowrap">${m[0]}</span>`;})():''}${(d.type && d.type.toLowerCase()!==catOf(d.type).toLowerCase())?`<span style="font-size:11px;color:var(--muted);margin-left:6px">${esc(d.type)}</span>`:''}</div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:7px">
           <span style="font-size:12px;color:var(--muted)">${d.erp_id?esc(erpName(d.erp_id)):(d.emetteur?('✉ '+esc(d.emetteur)):'—')}${d.lot?' · '+esc(d.lot):''}</span>
           ${d.prestataire_id?`<span style="font-size:12px;color:var(--muted)">🔧 ${esc(prestName(d.prestataire_id))}</span>`:''}
+          ${d.source_devis_id?(()=>{const dv=(window._gedAllDocs||[]).find(x=>x.id===d.source_devis_id);return dv?`<span style="font-size:12px;color:var(--muted);cursor:pointer;text-decoration:underline dotted" title="Ouvrir le devis rattaché" onclick="event.stopPropagation();gedEditDoc('${dv.id}')">📎 ${esc((dv.nom_original||'Devis').replace(/\.[a-zA-Z0-9]+$/,'').slice(0,40))}</span>`:'';})():''}
           <span style="font-size:12px;color:var(--muted)">${fmtDate(docDate(d))}</span>
           <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
             ${d.email_corps?`<button class="btn sm" onclick="gedViewMail('${d.id}')">👁️ Visualiser</button>`:`<button class="btn sm" onclick="previewDoc('${pathJs}','${nmJs}','${bk}')">👁️ Visualiser</button>`}
-            ${dcat==='devis'||(d.type||'').toLowerCase()==='devis'?`<button class="btn sm" title="Générer un PV de réception de travaux à partir de ce devis" onclick="pvFromDevis('${d.id}')">🤝 PV réception</button>`:''}
+            ${['devis','devis_signe'].includes(dcat)||['devis','devis signé','devis signe'].includes((d.type||'').toLowerCase())?`<button class="btn sm" title="Générer un PV de réception de travaux à partir de ce devis" onclick="pvFromDevis('${d.id}')">🤝 PV réception</button>`:''}
             <button class="btn sm" title="Renommer / classer" onclick="gedEditDoc('${d.id}')">✏️ Modifier</button>
             <button class="btn sm" title="Supprimer" onclick="delDoc('${d.id}')" style="color:var(--danger,#dc2626);border-color:var(--line)">🗑</button>
           </span>
@@ -7660,8 +7676,8 @@ function gedRenderList(){
 }
 window.gedRenderList=gedRenderList;
 
-const GED_TYPES=['Rapport','Devis','Facture',"Bon d'intervention",'PV de réception','Compte rendu','RVAT','PV commission','Maintenance préventive','Maintenance corrective','Courrier','Attestation','DOE','Plan','Preuve','Photo','Autre'];
-const GED_CATEGORIES=[['rapport','Rapport'],['devis','Devis'],['facture','Facture'],['bon_intervention',"Bon d'intervention"],['pv_reception','PV de réception'],['mail','Mail'],['autre','Autre']];
+const GED_TYPES=['Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Compte rendu','RVAT','PV commission','Maintenance préventive','Maintenance corrective','Courrier','Attestation','DOE','Plan','Preuve','Photo','Autre'];
+const GED_CATEGORIES=[['rapport','Rapport'],['devis','Devis'],['devis_signe','Devis signé'],['facture','Facture'],['bon_intervention',"Bon d'intervention"],['pv_reception','PV de réception'],['mail','Mail'],['autre','Autre']];
 
 // Affiche directement le contenu d'un mail reçu (expéditeur, objet, date, corps) dans une modale
 function gedViewMail(id){
@@ -7689,7 +7705,7 @@ window.gedViewMail=gedViewMail;
 async function pvFromDevis(docId){
   const d=(window._gedAllDocs||[]).find(x=>x.id===docId); if(!d){toast('Devis introuvable','err');return;}
   const clientId=d.client_id||state.erps.find(e=>e.id===d.erp_id)?.client_id||null;
-  pvForm({client_id:clientId, erp_id:d.erp_id||null, prestataire_id:d.prestataire_id||null,
+  pvForm({client_id:clientId, erp_id:d.erp_id||null, prestataire_id:d.prestataire_id||null, devis_id:d.id,
           devis_ref:(d.nom_original||'').replace(/\.[a-zA-Z0-9]+$/,''), devis_date:d.date_document||''});
 }
 window.pvFromDevis=pvFromDevis;
@@ -7707,27 +7723,36 @@ window.pvFromInter=pvFromInter;
 
 async function pvForm(pre){
   pre=pre||{};
-  let client=null, prests=[];
+  let client=null, prests=[], devisList=[];
   try{
-    const [c,p]=await Promise.all([
+    const [c,p,dv]=await Promise.all([
       pre.client_id?sb.from('clients').select('id,raison_sociale,siret,adresse_siege,code_postal,ville,telephone,email').eq('id',pre.client_id).maybeSingle():Promise.resolve({data:null}),
-      sb.from('prestataires').select('id,nom,siret,adresse,contacts').order('nom')
+      sb.from('prestataires').select('id,nom,siret,adresse,contacts').order('nom'),
+      pre.client_id?sb.from('documents').select('id,nom_original,date_document,prestataire_id,erp_id,categorie').eq('client_id',pre.client_id).in('categorie',['devis','devis_signe']).order('date_document',{ascending:false}).limit(100):Promise.resolve({data:[]})
     ]);
-    client=c.data; prests=p.data||[];
+    client=c.data; prests=p.data||[]; devisList=dv.data||[];
   }catch(e){ toast(e.message,'err'); return; }
-  window._pvPrests=prests; window._pvClient=client;
-  const erpsClient=pre.client_id?state.erps.filter(e=>e.client_id===pre.client_id):state.erps;
-  const erpOpts=erpsClient.map(e=>`<option value="${e.id}"${pre.erp_id===e.id?' selected':''}>${esc(e.nom)}</option>`).join('');
+  window._pvPrests=prests; window._pvClient=client; window._pvDevisList=devisList;
+  const devisOpt=d=>`<option value="${d.id}"${pre.devis_id===d.id?' selected':''}>${esc((d.nom_original||'Devis').replace(/\.[a-zA-Z0-9]+$/,''))}${d.categorie==='devis_signe'?' ✍️':''}${d.date_document?' — '+new Date(d.date_document).toLocaleDateString('fr-FR'):''}</option>`;
+  const devisOpts='<option value="">— aucun / saisie libre —</option>'+devisList.map(devisOpt).join('');
+  const erpsClient=pre.client_id?state.erps.filter(e=>e.client_id===pre.client_id):[];
+  const erpOpts='<option value="">— choisir —</option>'+erpsClient.map(e=>`<option value="${e.id}"${pre.erp_id===e.id?' selected':''}>${esc(e.nom)}</option>`).join('');
   const prestOpts='<option value="">— choisir —</option>'+prests.map(p=>`<option value="${p.id}"${pre.prestataire_id===p.id?' selected':''}>${esc(p.nom)}</option>`).join('');
+  const clientBlock = pre.client_id
+    ? `<div style="font-size:12px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px">
+        <b style="color:var(--ink)">Client :</b> ${esc(client?.raison_sociale||'—')}${client?.siret?' · SIRET '+esc(client.siret):''}</div>`
+    : `<div class="fld"><label>Client <span class="req">*</span></label><select id="pv_client" onchange="pvClientChange()">
+        <option value="">— choisir —</option>${(state.clients||[]).map(c=>`<option value="${c.id}">${esc(c.raison_sociale)}</option>`).join('')}</select></div>`;
   const today=new Date().toISOString().slice(0,10);
   openModal(`<div class="modal-head"><h2>🤝 PV de réception de travaux</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
     <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
-      <div style="font-size:12px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px">
-        <b style="color:var(--ink)">Client :</b> ${esc(client?.raison_sociale||'—')}${client?.siret?' · SIRET '+esc(client.siret):''}</div>
+      ${clientBlock}
       <div class="row2">
         <div class="fld"><label>Établissement / ERP <span class="req">*</span></label><select id="pv_erp">${erpOpts}</select></div>
         <div class="fld"><label>Prestataire <span class="req">*</span></label><select id="pv_prest">${prestOpts}</select></div>
       </div>
+      <div class="fld"><label>Devis à rattacher <span style="font-weight:400;color:var(--muted)">(pré-remplit la référence et lie les deux documents en GED)</span></label>
+        <select id="pv_devis_sel" onchange="pvDevisChange()">${devisOpts}</select></div>
       <div class="row2">
         <div class="fld"><label>Référence du devis</label><input id="pv_devis_ref" value="${esc(pre.devis_ref||'')}" placeholder="ex : DV-2026-0389"></div>
         <div class="fld"><label>Date du devis</label><input id="pv_devis_date" type="date" value="${esc(pre.devis_date||'')}"></div>
@@ -7747,6 +7772,43 @@ async function pvForm(pre){
 }
 window.pvForm=pvForm;
 
+// Sélection d'un devis à rattacher : pré-remplit référence, date, prestataire et ERP
+window.pvDevisChange=function(){
+  const id=document.getElementById('pv_devis_sel')?.value;
+  const d=(window._pvDevisList||[]).find(x=>x.id===id);
+  if(!d) return;
+  const ref=document.getElementById('pv_devis_ref'); if(ref) ref.value=(d.nom_original||'').replace(/\.[a-zA-Z0-9]+$/,'');
+  const dt=document.getElementById('pv_devis_date'); if(dt && d.date_document) dt.value=d.date_document;
+  const pr=document.getElementById('pv_prest'); if(pr && d.prestataire_id) pr.value=d.prestataire_id;
+  const er=document.getElementById('pv_erp'); if(er && d.erp_id) er.value=d.erp_id;
+};
+
+// Bouton global : quand l'utilisateur choisit le client, charger ses infos, filtrer les ERP et ses devis
+window.pvClientChange=async function(){
+  const cid=document.getElementById('pv_client')?.value;
+  const erpSel=document.getElementById('pv_erp');
+  const devSel=document.getElementById('pv_devis_sel');
+  window._pvClient=null; window._pvDevisList=[];
+  if(erpSel) erpSel.innerHTML='<option value="">— choisir —</option>';
+  if(devSel) devSel.innerHTML='<option value="">— aucun / saisie libre —</option>';
+  if(!cid) return;
+  try{
+    const [{data},{data:dv}]=await Promise.all([
+      sb.from('clients').select('id,raison_sociale,siret,adresse_siege,code_postal,ville,telephone,email').eq('id',cid).maybeSingle(),
+      sb.from('documents').select('id,nom_original,date_document,prestataire_id,erp_id,categorie').eq('client_id',cid).in('categorie',['devis','devis_signe']).order('date_document',{ascending:false}).limit(100)
+    ]);
+    window._pvClient=data||null; window._pvDevisList=dv||[];
+  }catch(_){}
+  if(erpSel){
+    const erps=state.erps.filter(e=>e.client_id===cid);
+    erpSel.innerHTML='<option value="">— choisir —</option>'+erps.map(e=>`<option value="${e.id}">${esc(e.nom)}</option>`).join('');
+    if(erps.length===1) erpSel.value=erps[0].id;
+  }
+  if(devSel){
+    devSel.innerHTML='<option value="">— aucun / saisie libre —</option>'+(window._pvDevisList||[]).map(d=>`<option value="${d.id}">${esc((d.nom_original||'Devis').replace(/\.[a-zA-Z0-9]+$/,''))}${d.categorie==='devis_signe'?' ✍️':''}${d.date_document?' — '+new Date(d.date_document).toLocaleDateString('fr-FR'):''}</option>`).join('');
+  }
+};
+
 function pvPrestContact(p){
   if(!p) return {nom:'',tel:'',email:''};
   let c=p.contacts; if(typeof c==='string'){try{c=JSON.parse(c);}catch(_){c=null;}}
@@ -7759,6 +7821,7 @@ async function pvGenerate(){
   const erpId=document.getElementById('pv_erp').value;
   const prestId=document.getElementById('pv_prest').value;
   const dateVisite=document.getElementById('pv_date').value;
+  if(document.getElementById('pv_client') && !window._pvClient){toast('Sélectionne un client','err');return;}
   if(!erpId||!prestId||!dateVisite){toast('ERP, prestataire et date de visite sont requis','err');return;}
   btn.disabled=true; btn.textContent='Génération…';
   const client=window._pvClient||{};
@@ -7774,27 +7837,34 @@ async function pvGenerate(){
   const fd=s=>{ if(!s) return '—'; const d=new Date(s); return isNaN(d)?s:d.toLocaleDateString('fr-FR'); };
   const adresseClient=[client.adresse_siege,[client.code_postal,client.ville].filter(Boolean).join(' ')].filter(Boolean).join(' — ');
   const rows=(lignes.length?lignes:['']).map((l,i)=>`<tr><td class="c">${i+1}</td><td>${esc(l)||'&nbsp;'}</td><td class="c">☐</td><td class="c">☐</td></tr>`).join('');
-  const html=`<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>PV de réception ${esc(num)}</title><style>
-    @page{size:A4;margin:14mm}
-    body{font-family:Helvetica,Arial,sans-serif;color:#1a1a1a;font-size:11px;line-height:1.4;margin:0}
-    .head{display:flex;justify-content:space-between;border-bottom:2.5px solid #C8102E;padding-bottom:6px}
-    .brand{font-size:16px;font-weight:700;color:#C8102E}.brand small{display:block;font-size:9px;font-weight:400;color:#555}
-    .meta{text-align:right;font-size:10.5px}
-    h1{text-align:center;color:#C8102E;font-size:17px;margin:12px 0 2px}
-    .sub{text-align:center;color:#555;font-size:9.5px;margin-bottom:8px}
-    h2{background:#C8102E;color:#fff;font-size:11px;padding:4px 8px;margin:12px 0 5px}
+  const html=`<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PV de réception ${esc(num)}</title><style>
+    @page{size:A4;margin:0}
+    html,body{margin:0;padding:0}
+    body{font-family:Helvetica,Arial,sans-serif;color:#1a1a1a;font-size:12px;line-height:1.55;background:#9a9a9a}
+    .page{width:210mm;min-height:297mm;box-sizing:border-box;padding:16mm 15mm;margin:16px auto;background:#fff;box-shadow:0 3px 18px rgba(0,0,0,.35);position:relative}
+    .head{display:flex;justify-content:space-between;border-bottom:2.5px solid #C8102E;padding-bottom:8px}
+    .brand{font-size:17px;font-weight:700;color:#C8102E}.brand small{display:block;font-size:9.5px;font-weight:400;color:#555}
+    .meta{text-align:right;font-size:11px}
+    h1{text-align:center;color:#C8102E;font-size:19px;margin:18px 0 4px;letter-spacing:.02em}
+    .sub{text-align:center;color:#555;font-size:10px;margin-bottom:14px}
+    h2{background:#C8102E;color:#fff;font-size:12px;padding:6px 10px;margin:20px 0 10px}
     table{width:100%;border-collapse:collapse}
-    td,th{border:1px solid #ccc;padding:5px 7px;vertical-align:top;text-align:left;font-size:10.5px}
+    td,th{border:1px solid #ccc;padding:8px 10px;vertical-align:top;text-align:left;font-size:11.5px;line-height:1.5}
     th{background:#f5f5f5}
     .c{text-align:center}
-    .small{font-size:8.5px;color:#555}
-    .sig td{height:80px}
-    .dec td{padding:7px 9px}
-    @media print{.noprint{display:none}}
+    .small{font-size:9.5px;color:#555;line-height:1.5}
+    .sig td{height:110px}
+    .dec td{padding:11px 12px;vertical-align:top}
+    .wline{display:inline-block;border-bottom:1px solid #999;min-width:120mm;height:14px;margin-left:4px}
+    .wshort{display:inline-block;border-bottom:1px solid #999;min-width:22mm;height:14px;margin:0 3px}
+    .pagenum{position:absolute;bottom:8mm;right:15mm;font-size:9px;color:#888}
+    @media print{body{background:#fff}.page{width:auto;min-height:auto;margin:0;box-shadow:none;padding:16mm 15mm;page-break-after:always}.page:last-of-type{page-break-after:auto}.pagenum{position:fixed}.noprint{display:none}}
+    @media screen and (max-width:220mm){.page{width:auto;margin:0;box-shadow:none}}
   </style></head><body>
-  <div class="noprint" style="background:#fff8e1;border:1px solid #e0c060;padding:8px 12px;margin-bottom:10px;font-size:12px">
+  <div class="noprint" style="background:#fff8e1;border-bottom:1px solid #e0c060;padding:8px 12px;font-size:12px;position:sticky;top:0">
     Document prêt — <button onclick="window.print()" style="font-size:12px;padding:4px 12px;cursor:pointer">🖨️ Imprimer</button> (ou Ctrl+P). Ce bandeau n'apparaît pas à l'impression.</div>
-  <div class="head"><div class="brand">PREVA CONSEILS<small>Conseil en sécurité incendie &amp; conformité ERP</small></div>
+  <div class="page">
+  <div class="head"><div class="brand">${esc(client.raison_sociale||'')}<small>${esc(adresseClient||'')}${client.siret?' · SIRET '+esc(client.siret):''}</small></div>
     <div class="meta"><b>PV n° :</b> ${esc(num)}<br><b>Date :</b> ${fd(dateVisite)}</div></div>
   <h1>PROCÈS-VERBAL DE RÉCEPTION DE TRAVAUX</h1>
   <div class="sub">Établi contradictoirement entre le maître d'ouvrage et l'entreprise — article 1792-6 du Code civil</div>
@@ -7810,24 +7880,37 @@ async function pvGenerate(){
     <tr><th>Date de la visite</th><td>${fd(dateVisite)}, en présence des deux parties</td></tr></table>
   <h2>3. PRESTATIONS EXAMINÉES</h2>
   <table><tr><th class="c" style="width:6%">N°</th><th>Désignation</th><th class="c" style="width:12%">Conforme</th><th class="c" style="width:14%">Non conforme</th></tr>${rows}</table>
-  <h2>4. DÉCISION DU MAÎTRE D'OUVRAGE</h2>
+  <div class="pagenum">PV ${esc(num)} — page 1/2</div>
+  </div>
+  <div class="page">
+  <div class="head"><div class="brand">${esc(client.raison_sociale||'')}<small>${esc(adresseClient||'')}${client.siret?' · SIRET '+esc(client.siret):''}</small></div>
+    <div class="meta"><b>PV n° :</b> ${esc(num)}<br><b>Date :</b> ${fd(dateVisite)}</div></div>
+  <h2 style="margin-top:24px">4. DÉCISION DU MAÎTRE D'OUVRAGE</h2>
   <table class="dec">
-    <tr><td>☐ &nbsp;<b>Réception SANS réserve</b> — les travaux sont acceptés en l'état.</td></tr>
-    <tr><td>☐ &nbsp;<b>Réception AVEC réserves</b> — travaux acceptés sous réserve de la levée des points listés au §5, dans un délai de ________ jours.</td></tr>
-    <tr><td>☐ &nbsp;<b>Réception REFUSÉE</b> — motif : ___________________________________________________________________</td></tr></table>
+    <tr><td style="height:24mm">☐ &nbsp;<b>Réception SANS réserve</b> — les travaux sont acceptés en l'état.<br><br>
+      Observations : <span class="wline"></span><br><span class="wline" style="margin-left:0"></span></td></tr>
+    <tr><td style="height:30mm">☐ &nbsp;<b>Réception AVEC réserves</b> — les travaux sont acceptés sous réserve de la levée des points listés au §5,<br>
+      dans un délai de <b><span class="wshort"></span></b> jours, soit au plus tard le <b><span class="wshort"></span></b>.<br><br>
+      Observations : <span class="wline"></span><br><span class="wline" style="margin-left:0"></span></td></tr>
+    <tr><td style="height:30mm">☐ &nbsp;<b>Réception REFUSÉE</b><br><br>
+      Motif : <span class="wline"></span><br><span class="wline" style="margin-left:0"></span><br><span class="wline" style="margin-left:0"></span></td></tr></table>
   <h2>5. RÉSERVES ÉVENTUELLES</h2>
   <table><tr><th class="c" style="width:6%">N°</th><th>Description de la réserve</th><th class="c" style="width:18%">Délai de levée</th></tr>
-    <tr><td class="c">1</td><td style="height:22px"></td><td></td></tr>
-    <tr><td class="c">2</td><td style="height:22px"></td><td></td></tr>
-    <tr><td class="c">3</td><td style="height:22px"></td><td></td></tr></table>
-  <div class="small" style="margin-top:3px">La levée des réserves fera l'objet d'un constat contradictoire consigné dans l'application PREVA CONSEILS (module Levées des réserves).</div>
+    <tr><td class="c">1</td><td style="height:34px"></td><td></td></tr>
+    <tr><td class="c">2</td><td style="height:34px"></td><td></td></tr>
+    <tr><td class="c">3</td><td style="height:34px"></td><td></td></tr>
+    <tr><td class="c">4</td><td style="height:34px"></td><td></td></tr>
+    <tr><td class="c">5</td><td style="height:34px"></td><td></td></tr></table>
+  <div class="small" style="margin-top:5px">La levée des réserves fera l'objet d'un constat contradictoire entre les parties.</div>
   <h2>6. EFFETS DE LA RÉCEPTION</h2>
   <div class="small">La réception constitue le point de départ des garanties légales : garantie de parfait achèvement (1 an — art. 1792-6 C. civ.), garantie de bon fonctionnement (2 ans — art. 1792-3 C. civ.) et garantie décennale (10 ans — art. 1792 C. civ.). Elle emporte transfert de la garde de l'ouvrage au maître d'ouvrage, sous réserve des points listés au §5.</div>
   <h2>7. SIGNATURES</h2>
   <table class="sig"><tr><th style="width:50%">Pour le maître d'ouvrage<br><span class="small">Nom, qualité, signature et cachet — mention « lu et approuvé »</span></th>
     <th>Pour l'entreprise<br><span class="small">Nom, qualité, signature et cachet</span></th></tr>
     <tr><td>Fait à : __________________ le : __________</td><td>Fait à : __________________ le : __________</td></tr></table>
-  <div style="border-top:1.5px solid #C8102E;margin-top:8px;padding-top:4px" class="small">PREVA CONSEILS — conformite-securite.fr — PV ${esc(num)}${devisRef?' · Devis '+esc(devisRef):''} · Deux originaux, un pour chaque partie.</div>
+  <div style="border-top:1.5px solid #C8102E;margin-top:14px;padding-top:6px" class="small">PV ${esc(num)}${devisRef?' · Devis '+esc(devisRef):''} — Établi en deux originaux, un pour chaque partie.</div>
+  <div class="pagenum">PV ${esc(num)} — page 2/2</div>
+  </div>
   </body></html>`;
   try{
     // Archivage GED
@@ -7838,7 +7921,8 @@ async function pvGenerate(){
     if(ue) throw ue;
     await sb.from('documents').insert({client_id:client.id||null,erp_id:erpId,prestataire_id:prestId,
       type:'PV de réception',categorie:'pv_reception',nom_original:fname,fichier_path:path,
-      date_document:dateVisite,statut:'classe',tags:'source:app;cat:pv_reception'+(devisRef?';devis:'+devisRef:'')});
+      date_document:dateVisite,statut:'classe',source_devis_id:(document.getElementById('pv_devis_sel')?.value||null),
+      tags:'source:app;cat:pv_reception'+(devisRef?';devis:'+devisRef:'')});
     // Ouverture pour impression
     const w=window.open('','_blank'); 
     if(w){ w.document.write(html); w.document.close(); }
