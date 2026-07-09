@@ -7143,7 +7143,7 @@ async function viewDocuments(c){
         📥 Glissez-déposez ici vos documents (rapports, PV, plans, attestations…)</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
         <input id="ged_search" oninput="gedRenderList()" placeholder="🔍 Rechercher un document, un client, un ERP…" style="flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)">
-        <select id="ged_rub" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Toutes les rubriques</option><option value="Bureau de contrôle">⚖️ Bureau de contrôle</option><option value="Maintenance">🔧 Maintenance</option><option value="Compte rendu">📝 Compte rendu</option><option value="Rapport">📋 Rapport</option><option value="Devis">📝 Devis</option><option value="Devis signé">✍️ Devis signé</option><option value="Facture">🧾 Facture</option><option value="Bon d'intervention">🛠️ Bon d'intervention</option><option value="PV de réception">🤝 PV de réception</option><option value="Mail">📧 Mail</option><option value="Plans">🗺️ Plans</option><option value="DOE">📐 DOE</option><option value="Sécurité">🛟 Sécurité</option><option value="Autres">📄 Autres</option></select>
+        <select id="ged_rub" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Toutes les rubriques</option><option value="Bureau de contrôle">Bureau de contrôle</option><option value="Maintenance">Maintenance</option><option value="Compte rendu">Compte rendu</option><option value="Rapport">Rapport</option><option value="Devis">Devis</option><option value="Devis signé">Devis signé</option><option value="Facture">Facture</option><option value="Bon d'intervention">Bon d'intervention</option><option value="PV de réception">PV de réception</option><option value="Mail">Mail</option><option value="Plans">Plans</option><option value="DOE">DOE</option><option value="Sécurité">Sécurité</option><option value="Autres">Autres</option></select>
         <select id="ged_prest" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Tous les prestataires</option>${(prestData||[]).map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select>
       </div>
       <div class="ged-grid">
@@ -7592,7 +7592,7 @@ function gedRenderList(){
   if(q) list=list.filter(d=>[d.nom_original,d.type,d.lot,erpName(d.erp_id),prestName(d.prestataire_id),clientNm(clientOf(d))].filter(Boolean).join(' ').toLowerCase().includes(q));
   if(!list.length){ host.innerHTML=emptyBlock(I.doc,'Aucun document', (q||rf||pf)?'Aucun résultat pour ce filtre.':'Déposez rapports, PV de commission, plans, DOE et attestations.', (q||rf||pf)?'':`<button class="btn primary" onclick="formDoc()">${I.plus} Déposer</button>`); return; }
   window._gedOpen=window._gedOpen||new Set();
-  const searching=!!(q||tf||cf);
+  const searching=!!(q||rf||pf);
   const byClient={}; list.forEach(d=>{ const cid=clientOf(d); (byClient[cid]=byClient[cid]||[]).push(d); });
   const cids=Object.keys(byClient).sort((a,b)=>clientNm(a).localeCompare(clientNm(b)));
   host.innerHTML=cids.map(cid=>{
@@ -7638,6 +7638,7 @@ function gedRenderList(){
           <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
             ${d.email_corps?`<button class="btn sm" onclick="gedViewMail('${d.id}')">👁️ Visualiser</button>`:`<button class="btn sm" onclick="previewDoc('${pathJs}','${nmJs}','${bk}')">👁️ Visualiser</button>`}
             ${['devis','devis_signe'].includes(dcat)||['devis','devis signé','devis signe'].includes((d.type||'').toLowerCase())?`<button class="btn sm" title="Générer un PV de réception de travaux à partir de ce devis" onclick="pvFromDevis('${d.id}')">🤝 PV réception</button>`:''}
+            ${dcat==='pv_reception'||(d.type||'').toLowerCase().indexOf('pv de r')===0?`<button class="btn sm" title="Envoyer le PV au prestataire par email, avec rappel SMS" onclick="pvSend('${d.id}')">✉️ Envoyer</button>`:''}
             <button class="btn sm" title="Renommer / classer" onclick="gedEditDoc('${d.id}')">✏️ Modifier</button>
             <button class="btn sm" title="Supprimer" onclick="delDoc('${d.id}')" style="color:var(--danger,#dc2626);border-color:var(--line)">🗑</button>
           </span>
@@ -7932,6 +7933,112 @@ async function pvGenerate(){
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='🖨️ Générer & archiver'; }
 }
 window.pvGenerate=pvGenerate;
+
+/* Envoi du PV de réception au prestataire : email au gabarit standard avec lien
+   sécurisé vers le document, et rappel SMS programmable pour que le prestataire
+   n'oublie pas de compléter et signer le PV avec le client le jour de la visite. */
+async function pvSend(docId){
+  const d=(window._gedAllDocs||[]).find(x=>x.id===docId); if(!d){toast('Document introuvable','err');return;}
+  const p=(window._gedPrest||[]).find(x=>x.id===d.prestataire_id);
+  // Collecte des emails et mobiles du prestataire
+  const emails=[], mobiles=[];
+  if(p){
+    if(p.email_rapports) emails.push({label:'Email principal',email:p.email_rapports});
+    let cts=p.contacts; if(typeof cts==='string'){try{cts=JSON.parse(cts);}catch(_){cts=null;}}
+    const ctsList=cts?(Array.isArray(cts)?cts:[...Object.values(cts).filter(c=>c&&!Array.isArray(c)),...(Array.isArray(cts.autres)?cts.autres:[])]):[];
+    ctsList.forEach(c=>{
+      if(c&&c.email&&!emails.find(x=>x.email===c.email)) emails.push({label:c.nom||'Contact',email:c.email});
+      if(c&&c.mobile&&!mobiles.find(x=>x.mobile===c.mobile)) mobiles.push({label:c.nom||'Contact',mobile:c.mobile});
+    });
+  }
+  const erp=state.erps.find(e=>e.id===d.erp_id)||{};
+  // Rappel SMS proposé par défaut : veille de la date de visite à 9h (ou demain 9h si passée)
+  const visite=d.date_document?new Date(d.date_document):null;
+  let defRappel=visite?new Date(visite.getTime()-24*3600*1000):new Date(Date.now()+24*3600*1000);
+  if(defRappel<new Date()) defRappel=new Date(Date.now()+3600*1000);
+  defRappel.setHours(9,0,0,0); if(defRappel<new Date()) defRappel=new Date(Date.now()+3600*1000);
+  const dtLocal=x=>{const z=n=>String(n).padStart(2,'0');return x.getFullYear()+'-'+z(x.getMonth()+1)+'-'+z(x.getDate())+'T'+z(x.getHours())+':'+z(x.getMinutes());};
+  openModal(`<div class="modal-head"><h2>✉️ Envoyer le PV de réception</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:12px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px">
+        <b style="color:var(--ink)">${esc(d.nom_original||'PV')}</b><br>Prestataire : ${esc(p?.nom||'—')} · ERP : ${esc(erp.nom||'—')} · Visite : ${d.date_document?new Date(d.date_document).toLocaleDateString('fr-FR'):'—'}</div>
+      <div class="fld"><label>Email du destinataire <span class="req">*</span></label>
+        <select id="pvs_email">${emails.map(e=>`<option value="${esc(e.email)}">${esc(e.label)} — ${esc(e.email)}</option>`).join('')}<option value="__autre__">✏️ Autre adresse…</option></select>
+        <input id="pvs_email_custom" placeholder="adresse@exemple.fr" style="margin-top:6px;display:none"></div>
+      <div class="fld"><label>Message d'accompagnement <span style="font-weight:400;color:var(--muted)">(optionnel)</span></label>
+        <textarea id="pvs_comment" rows="3" onkeydown="event.stopPropagation()" style="width:100%;border:1px solid var(--line);border-radius:6px;padding:7px 10px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box" placeholder="ex : Merci de compléter et signer ce PV avec la direction le jour de l'intervention."></textarea></div>
+      <div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface-2)">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer">
+          <input type="checkbox" id="pvs_sms" ${mobiles.length?'checked':''} style="accent-color:#2563eb"> 💬 Programmer un rappel SMS au prestataire</label>
+        <div id="pvs_sms_zone" style="margin-top:10px;display:${mobiles.length?'flex':'none'};flex-direction:column;gap:8px">
+          <div class="row2">
+            <div class="fld" style="margin:0"><label>Mobile</label>
+              <select id="pvs_mobile">${mobiles.map(m=>`<option value="${esc(m.mobile)}">${esc(m.label)} — ${esc(m.mobile)}</option>`).join('')}<option value="__autre__">✏️ Autre numéro…</option></select>
+              <input id="pvs_mobile_custom" placeholder="06 XX XX XX XX" style="margin-top:6px;display:none"></div>
+            <div class="fld" style="margin:0"><label>Date et heure du rappel</label><input id="pvs_sms_dt" type="datetime-local" value="${dtLocal(defRappel)}"></div>
+          </div>
+          <div style="font-size:11.5px;color:var(--muted)">Message : rappel de compléter et signer le PV de réception avec le client lors de la visite.</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" id="pvs_go">Envoyer</button></div>`);
+  document.getElementById('pvs_email').onchange=function(){document.getElementById('pvs_email_custom').style.display=this.value==='__autre__'?'block':'none';};
+  const mobSel=document.getElementById('pvs_mobile'); if(mobSel) mobSel.onchange=function(){document.getElementById('pvs_mobile_custom').style.display=this.value==='__autre__'?'block':'none';};
+  document.getElementById('pvs_sms').onchange=function(){document.getElementById('pvs_sms_zone').style.display=this.checked?'flex':'none';};
+  document.getElementById('pvs_go').onclick=async()=>{
+    const btn=document.getElementById('pvs_go');
+    const selE=document.getElementById('pvs_email').value;
+    const to=selE==='__autre__'?(document.getElementById('pvs_email_custom').value.trim()):selE;
+    if(!to){toast('Renseigne l\'adresse email','err');return;}
+    btn.disabled=true; btn.textContent='Envoi…';
+    try{
+      // Lien sécurisé vers le PV, valable 14 jours
+      const {data:su,error:se}=await sb.storage.from('documents').createSignedUrl(d.fichier_path,14*24*3600);
+      if(se) throw se;
+      const lien=su.signedUrl;
+      const comment=document.getElementById('pvs_comment').value.trim();
+      const dateVisiteStr=d.date_document?new Date(d.date_document).toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}):'à définir';
+      const html=`<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">
+        <div style="background:#1e3a5f;padding:20px 24px;border-radius:8px 8px 0 0">
+          <h2 style="color:#fff;margin:0;font-size:18px">PV de réception de travaux</h2>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:24px">
+          <p style="margin:0 0 16px;color:#1e293b">Bonjour,</p>
+          <p style="margin:0 0 20px;color:#1e293b">Veuillez trouver ci-dessous le procès-verbal de réception de travaux à <b>compléter et signer avec le client</b> lors de la visite :</p>
+          <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+            <tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;width:40%;color:#475569">Établissement</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(erp.nom||'—')}</td></tr>
+            <tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Date de la visite</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(dateVisiteStr)}</td></tr>
+            <tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Document</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(d.nom_original||'PV de réception')}</td></tr>
+            ${comment?`<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569;vertical-align:top">Commentaire</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b;white-space:pre-line">${esc(comment)}</td></tr>`:''}
+          </table>
+          <p style="margin:0 0 20px;text-align:center"><a href="${lien}" style="display:inline-block;background:#1e3a5f;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600">📄 Consulter et imprimer le PV</a></p>
+          <p style="margin:0 0 8px;color:#64748b;font-size:12px">Ce lien est valable 14 jours. Le PV est à imprimer en deux exemplaires, complété, coché et signé par les deux parties le jour de la réception.</p>
+          <p style="margin:0;color:#64748b;font-size:13px">Cordialement,<br><b>PREVA Conseils</b></p>
+        </div>
+      </div>`;
+      const subject=`PV de réception de travaux à signer — ${erp.nom||''}${d.date_document?' — '+new Date(d.date_document).toLocaleDateString('fr-FR'):''}`;
+      const {error}=await sb.functions.invoke('send-client-email',{body:{to,subject,html}});
+      if(error) throw error;
+      // Rappel SMS programmé
+      let smsMsg='';
+      if(document.getElementById('pvs_sms').checked){
+        const selM=document.getElementById('pvs_mobile')?.value||'';
+        const mob=selM==='__autre__'?(document.getElementById('pvs_mobile_custom').value.trim()):selM;
+        const dtVal=document.getElementById('pvs_sms_dt').value;
+        if(mob&&dtVal){
+          const message=`PREVA Conseils : rappel — PV de réception de travaux (${erp.nom||'ERP'}) à compléter et signer avec le client lors de la visite du ${dateVisiteStr}. Document reçu par email.`;
+          const who=state.profile?.nom||state.user?.email||'';
+          const {error:e2}=await sb.from('sms_scheduled').insert({destinataire:mob,message,send_at:new Date(dtVal).toISOString(),contexte:{type:'pv_reception',document_id:d.id},created_by:who});
+          if(e2) throw e2;
+          smsMsg=' + rappel SMS programmé le '+new Date(dtVal).toLocaleString('fr-FR');
+        }
+      }
+      _modalDirty=false; closeModal(); toast('PV envoyé à '+to+smsMsg,'ok');
+    }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Envoyer'; }
+  };
+}
+window.pvSend=pvSend;
 
 function gedEditDoc(id){
   const d=(window._gedAllDocs||[]).find(x=>x.id===id); if(!d){toast('Document introuvable','err');return;}
