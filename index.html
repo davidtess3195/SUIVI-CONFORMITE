@@ -47,7 +47,7 @@ h1,h2,h3{font-family:var(--fd);font-weight:600;letter-spacing:-.01em}
 
 /* ---------- Layout ---------- */
 #app{display:flex;min-height:100vh}
-.sidebar{width:248px;background:#2158d8;color:#fff;display:flex;flex-direction:column;position:fixed;inset:0 auto 0 0;z-index:40;transition:transform .25s,width .22s ease}
+.sidebar{width:248px;background:#2158d8;color:#fff;display:flex;flex-direction:column;position:fixed;inset:0 auto 0 0;z-index:40;transition:transform .25s}
 .brand{display:flex;align-items:center;gap:11px;padding:20px 20px 16px}
 .brand .logo{width:34px;height:34px;border-radius:9px;background:transparent;display:grid;place-items:center;flex:0 0 auto}
 .brand .logo svg{width:19px;height:19px}
@@ -70,11 +70,6 @@ h1,h2,h3{font-family:var(--fd);font-weight:600;letter-spacing:-.01em}
 .nsec.open .nsec-chev{transform:rotate(180deg)}
 .nsec-b{display:none}
 ".nsec.open .nsec-b{display:block;background:rgba(0,0,0,.16);padding:4px 0}
-.nsec[data-sec="admin"]{margin-top:10px;border-top:1px solid rgba(255,255,255,.16);padding-top:4px}
-.nav a:focus-visible,.nsec-h:focus-visible{outline:2px solid #fff;outline-offset:-2px}
-.nav{overflow-y:auto}
-.nav::-webkit-scrollbar{width:6px}
-.nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.25);border-radius:3px}
 .nsec-b a{padding:9px 14px 9px 42px;font-weight:500;font-size:13.2px}
 .nsec-b a svg{display:none}
 .nav a svg{width:18px;height:18px;flex:0 0 auto;opacity:.85}
@@ -91,20 +86,8 @@ h1,h2,h3{font-family:var(--fd);font-weight:600;letter-spacing:-.01em}
 .user-chip .info span{font-size:11px;color:rgba(255,255,255,.65);text-transform:capitalize}
 
 .main{flex:1;margin-left:248px;min-width:0;display:flex;flex-direction:column;transition:margin-left .25s}
-#app.side-off .sidebar{width:64px}
-#app.side-off .main{margin-left:64px}
-#app.side-off .nav a>span,#app.side-off .nsec-h>span{display:none}
-#app.side-off .nsec-chev{display:none}
-#app.side-off .nsec-b{display:none!important}
-#app.side-off .nav a,#app.side-off .nsec-h{justify-content:center;padding:13px 0}
-#app.side-off .nav a.active{clip-path:none;padding-right:0}
-#app.side-off .badge{position:absolute;top:5px;right:7px;transform:scale(.85)}
-#app.side-off .side-foot .info{display:none}
-#app.side-off .user-chip{justify-content:center;padding:8px 4px}
-@media(max-width:840px){#app.side-off .sidebar{width:248px}#app.side-off .main{margin-left:0}
- #app.side-off .nav a>span,#app.side-off .nsec-h>span{display:flex}
- #app.side-off .nsec-chev{display:block}
- #app.side-off .nav a,#app.side-off .nsec-h{justify-content:flex-start;padding:11px 14px}}
+#app.side-off .sidebar{transform:translateX(-100%)}
+#app.side-off .main{margin-left:0}
 .topbar{position:sticky;top:0;z-index:30;background:#0b1220;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:14px;padding:15px 26px;min-height:78px}
 .tb-brand{display:flex;align-items:center;gap:10px;color:#fff;font-weight:800;font-size:16.5px;letter-spacing:-.2px;flex:0 0 auto;margin-right:8px;white-space:nowrap}
 .tb-brand img{width:32px;height:32px;object-fit:contain;display:block}
@@ -2579,7 +2562,7 @@ const NAV = [
 const NAV_BADGES={'/photos':'badge-photos','/rapports':'badge-rapports','/verifications':'badge-verif','/pointage':'badge-pointage'};
 function navLink(it){ const p=it[0],l=it[1],ic=it[2];
   const b=NAV_BADGES[p]?`<span class="badge" id="${NAV_BADGES[p]}" style="display:none">0</span>`:'';
-  return `<a href="#${p}" data-base="${p}" title="${l}">${ic}<span>${l}</span>${b}</a>`; }
+  return `<a href="#${p}" data-base="${p}">${ic}<span>${l}</span>${b}</a>`; }
 
 function renderApp(){
   const initials=(state.profile?.nom||'?').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase();
@@ -2591,7 +2574,7 @@ function renderApp(){
       <div style="height:14px"></div>
       <nav class="nav" id="nav">${NAV.map(g=> g.link ? navLink(g.link) : `
         <div class="nsec" data-sec="${g.sec}">
-          <button class="nsec-h" type="button" title="${g.titre}" onclick="navSec('${g.sec}')">${g.ic||''}<span>${g.titre}</span><span class="badge nsec-badge" style="display:none">0</span><svg class="nsec-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <button class="nsec-h" type="button" onclick="navSec('${g.sec}')">${g.ic||''}<span>${g.titre}</span><span class="badge nsec-badge" style="display:none">0</span><svg class="nsec-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
           <div class="nsec-b">${g.items.map(navLink).join('')}</div>
         </div>`).join('')}</nav>
       <div class="side-foot">
@@ -2626,7 +2609,6 @@ function renderApp(){
   fillScopeSelectors();
   if(window.fselInit) fselInit();
   if(window.navRestore) navRestore();
-  try{ if(localStorage.getItem('sideOff')==='1' && window.innerWidth>840) document.getElementById('app').classList.add('side-off'); }catch(_){}
   renderRoute();
   if(typeof updateRapportsBadge==='function') updateRapportsBadge();
   const navEl=document.getElementById('nav');
@@ -2658,7 +2640,7 @@ function onScope(kind,val){
 window.onScope=onScope; window.navigate=navigate;
 function toggleSidebar(open){
   const sb=document.getElementById('sidebar'); if(!sb) return;
-  if(window.innerWidth>840 && open===undefined){ const app=document.getElementById('app'); if(app){ const off=app.classList.toggle('side-off'); try{localStorage.setItem('sideOff',off?'1':'0');}catch(_){} return; } }
+  if(window.innerWidth>840 && open===undefined){ const app=document.getElementById('app'); if(app){ app.classList.toggle('side-off'); return; } }
   const willOpen=(open===undefined)?!sb.classList.contains('open'):!!open;
   sb.classList.toggle('open',willOpen);
   let scrim=document.getElementById('navScrim');
@@ -2671,8 +2653,6 @@ window.toggleSidebar=toggleSidebar;
 /* ── Menu accordéon : sections dépliables ── */
 function navSecState(){ try{return JSON.parse(localStorage.getItem('navOpen')||'[]');}catch(_){return [];} }
 window.navSec=function(id,open){
-  const app=document.getElementById('app');
-  if(app && app.classList.contains('side-off') && window.innerWidth>840){ app.classList.remove('side-off'); try{localStorage.setItem('sideOff','0');}catch(_){} if(open===undefined) open=true; }
   const el=document.querySelector('.nsec[data-sec="'+id+'"]'); if(!el) return;
   const willOpen=(open===undefined)?!el.classList.contains('open'):!!open;
   if(el.classList.contains('open')===willOpen && open!==undefined) return;
