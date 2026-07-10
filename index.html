@@ -47,31 +47,64 @@ h1,h2,h3{font-family:var(--fd);font-weight:600;letter-spacing:-.01em}
 
 /* ---------- Layout ---------- */
 #app{display:flex;min-height:100vh}
-.sidebar{width:248px;background:var(--navy);color:#cbd5e1;display:flex;flex-direction:column;position:fixed;inset:0 auto 0 0;z-index:40;transition:transform .25s}
+.sidebar{width:248px;background:#2158d8;color:#fff;display:flex;flex-direction:column;position:fixed;inset:0 auto 0 0;z-index:40;transition:transform .25s,width .22s ease}
 .brand{display:flex;align-items:center;gap:11px;padding:20px 20px 16px}
 .brand .logo{width:34px;height:34px;border-radius:9px;background:transparent;display:grid;place-items:center;flex:0 0 auto}
 .brand .logo svg{width:19px;height:19px}
 .brand .name{font-family:var(--fd);font-weight:700;font-size:22px;color:#fff;line-height:1;letter-spacing:-.5px}
 .brand .sub{font-size:10.5px;color:#7c8ba1;letter-spacing:.08em;text-transform:uppercase;margin-top:3px}
-.nav{flex:1;overflow-y:auto;padding:8px 12px}
+.nav{flex:1;overflow-y:auto;padding:6px 0 10px;}
 .nav .grp{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:#5d7290;padding:16px 12px 7px}
-.nav a{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:9px;color:#aab8cc;font-weight:500;font-size:13.6px;margin-bottom:1px;transition:.12s}
+.nav a{position:relative;display:flex;align-items:center;gap:11px;padding:11px 14px;color:#fff;font-weight:600;font-size:13.6px;transition:background .12s}
+.nav a svg{width:21px;height:21px;opacity:.95;flex:0 0 auto}
+.nav a:hover{background:rgba(255,255,255,.14)}
+.nav a.active{background:#0f2a6b;color:#fff;margin-right:0;clip-path:polygon(0 0,calc(100% - 11px) 0,100% 50%,calc(100% - 11px) 100%,0 100%);padding-right:24px}
+.nav a.active .badge{margin-right:2px}
+.nsec-h{position:relative;width:100%;display:flex;align-items:center;gap:11px;background:none;border:none;cursor:pointer;padding:11px 14px;font-size:13.6px;color:#fff;font-weight:600;font-family:inherit;text-align:left;transition:background .12s}
+.nsec-h svg:first-child{width:21px;height:21px;opacity:.95;flex:0 0 auto}
+.nsec-h:hover{background:rgba(255,255,255,.14)}
+.nsec-h .badge{margin-left:auto}
+.nsec-h .nsec-chev{width:14px;height:14px;flex:0 0 auto;margin-left:auto;transition:transform .2s;color:rgba(255,255,255,.75)}
+.nsec-h .badge + .nsec-chev{margin-left:7px}
+.nsec.open > .nsec-h{background:rgba(0,0,0,.10)}
+.nsec.open .nsec-chev{transform:rotate(180deg)}
+.nsec-b{display:none}
+".nsec.open .nsec-b{display:block;background:rgba(0,0,0,.16);padding:4px 0}
+.nsec[data-sec="admin"]{margin-top:10px;border-top:1px solid rgba(255,255,255,.16);padding-top:4px}
+.nav a:focus-visible,.nsec-h:focus-visible{outline:2px solid #fff;outline-offset:-2px}
+.nav{overflow-y:auto}
+.nav::-webkit-scrollbar{width:6px}
+.nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.25);border-radius:3px}
+.nsec-b a{padding:9px 14px 9px 42px;font-weight:500;font-size:13.2px}
+.nsec-b a svg{display:none}
 .nav a svg{width:18px;height:18px;flex:0 0 auto;opacity:.85}
 .nav a:hover{background:var(--navy-2);color:#fff}
 .nav a.active{background:var(--primary);color:#fff;box-shadow:0 4px 14px rgba(37,99,235,.4)}
 .nav a.active svg{opacity:1}
 .nav a .badge{margin-left:auto;background:var(--critique);color:#fff;font-size:11px;font-weight:700;min-width:19px;height:19px;border-radius:10px;display:grid;place-items:center;padding:0 5px}
-.side-foot{padding:12px;border-top:1px solid var(--navy-2)}
+.side-foot{padding:12px;border-top:1px solid rgba(255,255,255,.18)}
 .user-chip{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;cursor:pointer}
-.user-chip:hover{background:var(--navy-2)}
-.avatar{width:32px;height:32px;border-radius:8px;background:#2b3f5c;color:#dbe5f1;display:grid;place-items:center;font-weight:600;font-size:13px;flex:0 0 auto}
+.user-chip:hover{background:rgba(255,255,255,.12)}
+.avatar{width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,.2);color:#fff;display:grid;place-items:center;font-weight:600;font-size:13px;flex:0 0 auto}
 .user-chip .info{min-width:0}
 .user-chip .info b{color:#e7edf5;font-size:13px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.user-chip .info span{font-size:11px;color:#7c8ba1;text-transform:capitalize}
+.user-chip .info span{font-size:11px;color:rgba(255,255,255,.65);text-transform:capitalize}
 
 .main{flex:1;margin-left:248px;min-width:0;display:flex;flex-direction:column;transition:margin-left .25s}
-#app.side-off .sidebar{transform:translateX(-100%)}
-#app.side-off .main{margin-left:0}
+#app.side-off .sidebar{width:64px}
+#app.side-off .main{margin-left:64px}
+#app.side-off .nav a>span,#app.side-off .nsec-h>span{display:none}
+#app.side-off .nsec-chev{display:none}
+#app.side-off .nsec-b{display:none!important}
+#app.side-off .nav a,#app.side-off .nsec-h{justify-content:center;padding:13px 0}
+#app.side-off .nav a.active{clip-path:none;padding-right:0}
+#app.side-off .badge{position:absolute;top:5px;right:7px;transform:scale(.85)}
+#app.side-off .side-foot .info{display:none}
+#app.side-off .user-chip{justify-content:center;padding:8px 4px}
+@media(max-width:840px){#app.side-off .sidebar{width:248px}#app.side-off .main{margin-left:0}
+ #app.side-off .nav a>span,#app.side-off .nsec-h>span{display:flex}
+ #app.side-off .nsec-chev{display:block}
+ #app.side-off .nav a,#app.side-off .nsec-h{justify-content:flex-start;padding:11px 14px}}
 .topbar{position:sticky;top:0;z-index:30;background:#0b1220;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:14px;padding:15px 26px;min-height:78px}
 .tb-brand{display:flex;align-items:center;gap:10px;color:#fff;font-weight:800;font-size:16.5px;letter-spacing:-.2px;flex:0 0 auto;margin-right:8px;white-space:nowrap}
 .tb-brand img{width:32px;height:32px;object-fit:contain;display:block}
@@ -1054,7 +1087,7 @@ function renderRoute(){
 ===================================================================== */
 function renderConfig(){
   $('#root').innerHTML = `<div class="auth"><div class="left">
-    <div class="brand2"><b style="font-size:22px;letter-spacing:-.3px">PREVA CONSEILS</b></div>
+    <div class="brand2"><b style="font-size:22px;letter-spacing:2.5px">CONFORMITÉ SÉCURITÉ</b></div>
     <h2>Suivi réglementaire incendie ERP</h2>
     <p>Ne jamais oublier une vérification, ne jamais perdre un rapport, ne jamais laisser une réserve sans suivi.</p>
   </div><div class="right"><div class="form">
@@ -1138,7 +1171,7 @@ function renderAuth(mode){
       <button class="btn primary" id="go" style="width:100%;justify-content:center">Enregistrer le mot de passe</button>`
   };
   $('#root').innerHTML=`<div class="auth"><div class="left">
-    <div class="brand2" style="margin-bottom:0"><b style="font-size:22px;letter-spacing:-.3px">PREVA CONSEILS</b></div>
+    <div class="brand2" style="margin-bottom:0"><b style="font-size:22px;letter-spacing:2.5px">CONFORMITÉ SÉCURITÉ</b></div>
     <div style="flex:1;display:flex;align-items:center;justify-content:center;position:relative">
       <img src="${LOGO_WHITE}" alt="Dossier Vérifié" style="width:min(58%,260px);height:auto;display:block;opacity:.97">
     </div>
@@ -2507,13 +2540,46 @@ window.wizFinish=wizFinish;
 /* =====================================================================
    APP SHELL
 ===================================================================== */
+const NICON=(d)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const NI={
+ dash:NICON('<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>'),
+ etab:NICON('<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4M10 10h4M10 14h4M10 18h4"/>'),
+ clients:NICON('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
+ erp:NICON('<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01M12 6h.01M16 6h.01M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01"/>'),
+ plan:NICON('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="m9 16 2 2 4-4"/>'),
+ alert:NICON('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/>'),
+ cam:NICON('<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>'),
+ cr:NICON('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/>'),
+ briefcase:NICON('<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>'),
+ wrench:NICON('<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>'),
+ chat:NICON('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'),
+ clock:NICON('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'),
+ shield:NICON('<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1 1 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>'),
+ tools:NICON('<path d="M15.7 3.3a3.6 3.6 0 0 0-4.4 4.9L3 16.5V21h4.5l8.3-8.3a3.6 3.6 0 0 0 4.9-4.4l-2.9 2.9-2.5-.6-.6-2.5z"/>'),
+ bell:NICON('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'),
+ checks:NICON('<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8M13 12h8M13 18h8"/>'),
+ folderO:NICON('<path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>'),
+ folder:NICON('<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>'),
+ inbox:NICON('<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>'),
+ contrat:NICON('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m10.5 12.5 2 2L9 18H7v-2z"/>'),
+ landmark:NICON('<line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/>'),
+ gauge:NICON('<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>'),
+ gear:NICON('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/>'),
+};
 const NAV = [
-  ['Pilotage', [['/','Tableau de bord',I.dash],['/verifications','Vérifications & Relances',I.verif],['/interventions','Interventions',I.inter],['/reserves','Levées des réserves',I.reserve],['/photos','Photos et vidéos',I.photo],['/conversations','Conversations',I.conv],['/compte-rendu','Compte rendu',I.doc]]],
-  ['Référentiel', [['/clients','Clients',I.clients],['/erps','ERP',I.erp],['/plan-maintenance','Plan de maintenance',I.plan],['/prestataires','Prestataires',I.prest]]],
-  ['Documents & terrain', [['/documents','Documents (GED)',I.doc],['/rapports','Rapports reçus',I.doc],['/contrats','Contrats de maintenance',I.doc],['/pointage','Pointage & journal',I.qr]]],
-  ['Commission de sécurité', [['/preparation-cs','Commission de sécurité',I.cs]]],
-  ['Administration', [['/admin','Tableau de bord admin',I.settings],['/parametres','Paramètres & email',I.settings]]],
+  {link:['/','Tableau de bord',NI.dash]},
+  {sec:'etab',   titre:'Établissement',          ic:NI.etab,      items:[['/clients','Clients',NI.clients],['/erps','ERP',NI.erp],['/plan-maintenance','Plan de maintenance',NI.plan]]},
+  {sec:'sitdeg', titre:'Situation dégradée',     ic:NI.alert,     items:[['/photos','Photos et vidéos',NI.cam],['/compte-rendu','Compte rendu',NI.cr]]},
+  {sec:'prest',  titre:'Suivi des prestataires', ic:NI.briefcase, items:[['/prestataires','Prestataires',NI.wrench],['/conversations','Conversations',NI.chat],['/pointage','Pointage & journal',NI.clock]]},
+  {sec:'suivi',  titre:'Suivi et conformité',    ic:NI.shield,    items:[['/interventions','Interventions',NI.tools],['/verifications','Vérifications & relances',NI.bell],['/reserves','Levées des réserves',NI.checks]]},
+  {sec:'ged',    titre:'Gestion documentaire',   ic:NI.folderO,   items:[['/documents','Documents (GED)',NI.folder],['/rapports','Rapports reçus',NI.inbox],['/contrats','Contrats de maintenance',NI.contrat]]},
+  {link:['/preparation-cs','Commission de sécurité',NI.landmark]},
+  {sec:'admin',  titre:'Administration',         ic:NI.gear,      items:[['/admin','Tableau de bord admin',NI.gauge],['/parametres','Paramètres & email',NI.gear]]},
 ];
+const NAV_BADGES={'/photos':'badge-photos','/rapports':'badge-rapports','/verifications':'badge-verif','/pointage':'badge-pointage'};
+function navLink(it){ const p=it[0],l=it[1],ic=it[2];
+  const b=NAV_BADGES[p]?`<span class="badge" id="${NAV_BADGES[p]}" style="display:none">0</span>`:'';
+  return `<a href="#${p}" data-base="${p}" title="${l}">${ic}<span>${l}</span>${b}</a>`; }
 
 function renderApp(){
   const initials=(state.profile?.nom||'?').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase();
@@ -2523,16 +2589,16 @@ function renderApp(){
     </div>`:''}
     <aside class="sidebar" id="sidebar" style="${state.demo?'top:38px;height:calc(100vh - 38px)':''}">
       <div style="height:14px"></div>
-      <nav class="nav" id="nav">${NAV.map(g=>`
-        <div class="grp">${g[0]}</div>
-        ${g[1].map(([p,l,ic])=>`<a href="#${p}" data-base="${p}">${ic}<span>${l}</span>${p==='/photos'?'<span class="badge" id="badge-photos" style="display:none">0</span>':''}${p==='/rapports'?'<span class="badge" id="badge-rapports" style="display:none">0</span>':p==='/verifications'?'<span class="badge" id="badge-verif" style="display:none">0</span>':p==='/pointage'?'<span class="badge" id="badge-pointage" style="display:none">0</span>':''}</a>`).join('')}
-      `).join('')}</nav>
+      <nav class="nav" id="nav">${NAV.map(g=> g.link ? navLink(g.link) : `
+        <div class="nsec" data-sec="${g.sec}">
+          <button class="nsec-h" type="button" title="${g.titre}" onclick="navSec('${g.sec}')">${g.ic||''}<span>${g.titre}</span><span class="badge nsec-badge" style="display:none">0</span><svg class="nsec-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="nsec-b">${g.items.map(navLink).join('')}</div>
+        </div>`).join('')}</nav>
       <div class="side-foot">
         <div class="user-chip" onclick="navigate('/parametres')">
           <div class="avatar">${initials}</div>
           <div class="info"><b>${esc(state.profile?.nom||'')}</b><span>${esc(state.profile?.role||'')}</span></div>
         </div>
-        <div style="font-size:9.5px;color:var(--muted);text-align:center;margin-top:8px;letter-spacing:.02em;opacity:.7">v. 2026-07-09 — LOGO BANDEAU</div>
       </div>
     </aside>
     <div class="main" style="${state.demo?'padding-top:38px':''}">
@@ -2559,6 +2625,8 @@ function renderApp(){
   </div>`;
   fillScopeSelectors();
   if(window.fselInit) fselInit();
+  if(window.navRestore) navRestore();
+  try{ if(localStorage.getItem('sideOff')==='1' && window.innerWidth>840) document.getElementById('app').classList.add('side-off'); }catch(_){}
   renderRoute();
   if(typeof updateRapportsBadge==='function') updateRapportsBadge();
   const navEl=document.getElementById('nav');
@@ -2590,7 +2658,7 @@ function onScope(kind,val){
 window.onScope=onScope; window.navigate=navigate;
 function toggleSidebar(open){
   const sb=document.getElementById('sidebar'); if(!sb) return;
-  if(window.innerWidth>840 && open===undefined){ const app=document.getElementById('app'); if(app){ app.classList.toggle('side-off'); return; } }
+  if(window.innerWidth>840 && open===undefined){ const app=document.getElementById('app'); if(app){ const off=app.classList.toggle('side-off'); try{localStorage.setItem('sideOff',off?'1':'0');}catch(_){} return; } }
   const willOpen=(open===undefined)?!sb.classList.contains('open'):!!open;
   sb.classList.toggle('open',willOpen);
   let scrim=document.getElementById('navScrim');
@@ -2599,6 +2667,40 @@ function toggleSidebar(open){
   } else if(scrim){ scrim.remove(); }
 }
 window.toggleSidebar=toggleSidebar;
+
+/* ── Menu accordéon : sections dépliables ── */
+function navSecState(){ try{return JSON.parse(localStorage.getItem('navOpen')||'[]');}catch(_){return [];} }
+window.navSec=function(id,open){
+  const app=document.getElementById('app');
+  if(app && app.classList.contains('side-off') && window.innerWidth>840){ app.classList.remove('side-off'); try{localStorage.setItem('sideOff','0');}catch(_){} if(open===undefined) open=true; }
+  const el=document.querySelector('.nsec[data-sec="'+id+'"]'); if(!el) return;
+  const willOpen=(open===undefined)?!el.classList.contains('open'):!!open;
+  if(el.classList.contains('open')===willOpen && open!==undefined) return;
+  el.classList.toggle('open',willOpen);
+  let st=navSecState().filter(x=>x!==id); if(willOpen) st.push(id);
+  try{localStorage.setItem('navOpen',JSON.stringify(st));}catch(_){}
+};
+// Badges agrégés : une section repliée porte la somme des badges de ses entrées
+window.navBadgeSync=function(){
+  document.querySelectorAll('#nav .nsec').forEach(sec=>{
+    let sum=0;
+    sec.querySelectorAll('.nsec-b .badge').forEach(b=>{ if(b.style.display!=='none'){ sum+=parseInt(b.textContent)||0; } });
+    const hb=sec.querySelector('.nsec-h .badge'); if(!hb) return;
+    if(sum>0){ const t=String(sum); if(hb.textContent!==t) hb.textContent=t; if(hb.style.display==='none') hb.style.display=''; }
+    else if(hb.style.display!=='none') hb.style.display='none';
+  });
+};
+window.navRestore=function(){
+  navSecState().forEach(id=>{ const el=document.querySelector('.nsec[data-sec="'+id+'"]'); if(el) el.classList.add('open'); });
+  navBadgeSync();
+  const nav=document.getElementById('nav');
+  if(nav){
+    if(window._navObs) window._navObs.disconnect();
+    let t=null;
+    window._navObs=new MutationObserver(()=>{ clearTimeout(t); t=setTimeout(navBadgeSync,60); });
+    window._navObs.observe(nav,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['style']});
+  }
+};
 
 /* ── Menu déroulant custom des sélecteurs de périmètre (bandeau) ── */
 window.syncScopeLabels=function(){
@@ -2638,6 +2740,8 @@ window.scopePick=function(kind,v){
 function setActiveNav(base){
   document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('active',a.dataset.base===base));
   document.querySelectorAll('.mob-nav-item').forEach(a=>a.classList.toggle('active',a.dataset.base===base));
+  const act=document.querySelector('#nav a.active'); const sec=act&&act.closest('.nsec');
+  if(sec && !sec.classList.contains('open')) navSec(sec.dataset.sec,true);
   toggleSidebar(false);
 }
 function erpFilter(q){ if(state.currentErp!=='all') return q.eq('erp_id',state.currentErp);
@@ -9664,8 +9768,12 @@ async function renderQrAccesTable(){
 window.renderQrAccesTable=renderQrAccesTable;
 
 function qrAccesGenModal(){
-  const prests=(window._prestCache||[]).filter(p=>p.categorie!=='bureau_de_controle');
-  const opts=prests.map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('');
+  const all=window._prestCache||[];
+  const prests=all.filter(p=>p.categorie!=='bureau_de_controle');
+  const bureaux=all.filter(p=>p.categorie==='bureau_de_controle');
+  const opt=p=>`<option value="${p.id}">${esc(p.nom)}</option>`;
+  const opts=(prests.length?`<optgroup label="Prestataires">${prests.map(opt).join('')}</optgroup>`:'')
+            +(bureaux.length?`<optgroup label="Bureaux de contrôle">${bureaux.map(opt).join('')}</optgroup>`:'');
   const clOpts=(state.clients||[]).map(c=>`<option value="${c.id}">${esc(c.raison_sociale)}</option>`).join('');
   openModal(`<div class="modal-head"><h2>Générer un accès rapports</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
     <div class="modal-body">
