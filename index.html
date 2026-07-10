@@ -2574,7 +2574,7 @@ function renderApp(){
       <div style="height:14px"></div>
       <nav class="nav" id="nav">${NAV.map(g=> g.link ? navLink(g.link) : `
         <div class="nsec" data-sec="${g.sec}">
-          <button class="nsec-h" type="button" onclick="navSec('${g.sec}')">${g.ic||''}<span>${g.titre}</span><span class="badge nsec-badge" style="display:none">0</span><svg class="nsec-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <button class="nsec-h" type="button" data-nav-sec="${g.sec}">${g.ic||''}<span>${g.titre}</span><span class="badge nsec-badge" style="display:none">0</span><svg class="nsec-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
           <div class="nsec-b">${g.items.map(navLink).join('')}</div>
         </div>`).join('')}</nav>
       <div class="side-foot">
@@ -2673,6 +2673,14 @@ window.navBadgeSync=function(){
 window.navRestore=function(){
   navSecState().forEach(id=>{ const el=document.querySelector('.nsec[data-sec="'+id+'"]'); if(el) el.classList.add('open'); });
   navBadgeSync();
+  var navD=document.getElementById('nav');
+  if(navD && !navD._navBound){
+    navD._navBound=true;
+    navD.addEventListener('click',function(e){
+      var t=e.target; while(t && t!==navD && !(t.classList&&t.classList.contains('nsec-h'))) t=t.parentNode;
+      if(t && t!==navD){ e.preventDefault(); var sec=t.parentNode; if(sec&&sec.dataset&&sec.dataset.sec) navSec(sec.dataset.sec); }
+    },true);
+  }
   const nav=document.getElementById('nav');
   if(nav){
     if(window._navObs) window._navObs.disconnect();
