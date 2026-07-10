@@ -47,7 +47,7 @@ h1,h2,h3{font-family:var(--fd);font-weight:600;letter-spacing:-.01em}
 
 /* ---------- Layout ---------- */
 #app{display:flex;min-height:100vh}
-.sidebar{width:248px;background:#2158d8;color:#fff;display:flex;flex-direction:column;position:fixed;inset:0 auto 0 0;z-index:40;transition:transform .25s}
+.sidebar{width:248px;background:#1a44ad;color:#fff;display:flex;flex-direction:column;position:fixed;inset:0 auto 0 0;z-index:40;transition:transform .25s}
 .brand{display:flex;align-items:center;gap:11px;padding:20px 20px 16px}
 .brand .logo{width:34px;height:34px;border-radius:9px;background:transparent;display:grid;place-items:center;flex:0 0 auto}
 .brand .logo svg{width:19px;height:19px}
@@ -55,24 +55,59 @@ h1,h2,h3{font-family:var(--fd);font-weight:600;letter-spacing:-.01em}
 .brand .sub{font-size:10.5px;color:#7c8ba1;letter-spacing:.08em;text-transform:uppercase;margin-top:3px}
 .nav{flex:1;overflow-y:auto;padding:6px 0 10px;}
 .nav .grp{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:#5d7290;padding:16px 12px 7px}
-.nav a{position:relative;display:flex;align-items:center;gap:11px;padding:11px 14px;color:#fff;font-weight:600;font-size:13.6px;transition:background .12s}
-.nav a svg{width:21px;height:21px;opacity:.95;flex:0 0 auto}
+.nav a{position:relative;display:flex;align-items:center;gap:11px;padding:8px 14px;color:#fff;font-weight:600;font-size:13.6px;transition:background .12s}
+.nav > a > svg{width:32px;height:32px;padding:6px;border:1.5px solid rgba(255,255,255,.55);border-radius:9px;box-sizing:border-box;opacity:.95;flex:0 0 auto;transition:background .15s,border-color .15s,color .15s}
 .nav a:hover{background:rgba(255,255,255,.14)}
 .nav a.active{background:#0f2a6b;color:#fff;margin-right:0;clip-path:polygon(0 0,calc(100% - 11px) 0,100% 50%,calc(100% - 11px) 100%,0 100%);padding-right:24px}
 .nav a.active .badge{margin-right:2px}
-.nsec-h{position:relative;width:100%;display:flex;align-items:center;gap:11px;background:none;border:none;cursor:pointer;padding:11px 14px;font-size:13.6px;color:#fff;font-weight:600;font-family:inherit;text-align:left;transition:background .12s}
-.nsec-h svg:first-child{width:21px;height:21px;opacity:.95;flex:0 0 auto}
+.cal-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.cal-nav{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:5px;box-shadow:var(--sh)}
+.cal-nav button{width:30px;height:30px;border-radius:8px;border:none;background:none;cursor:pointer;font-size:15px;color:var(--ink);display:grid;place-items:center}
+.cal-nav button:hover{background:rgba(37,99,235,.08)}
+.cal-nav .cal-m{font-weight:800;font-size:14.5px;min-width:150px;text-align:center;text-transform:capitalize}
+.cal-span{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:4px;gap:2px;box-shadow:var(--sh)}
+.cal-span button{border:none;background:none;font-family:inherit;font-size:12px;font-weight:700;color:var(--muted);padding:6px 11px;border-radius:8px;cursor:pointer}
+.cal-span button.on{background:#2563eb;color:#fff}
+.cal-mt{grid-column:1/-1;font-size:14px;font-weight:800;color:var(--ink);text-transform:capitalize;margin:14px 2px 2px}
+.cal-mt:first-child{margin-top:0}
+.cal-leg{display:flex;gap:7px;flex-wrap:wrap;margin-left:auto}
+.cal-leg button{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px 11px;cursor:pointer;font-family:inherit;transition:opacity .12s}
+.cal-leg button.off{opacity:.35}
+.cal-leg .dot{width:9px;height:9px;border-radius:99px}
+.cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px}
+.cal-dow div{font-size:10.5px;font-weight:800;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;text-align:center}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.cal-cell{background:var(--surface);border:1px solid var(--line);border-radius:11px;min-height:98px;padding:6px 6px 7px;cursor:pointer;transition:border-color .12s,box-shadow .12s;display:flex;flex-direction:column;gap:3px;min-width:0}
+.cal-cell:hover{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.cal-cell.out{opacity:.4}
+.cal-cell.today{border-color:#2563eb;border-width:2px}
+.cal-cell .d{font-size:11.5px;font-weight:700;color:var(--muted)}
+.cal-cell.today .d{color:#2563eb}
+.cal-pill{font-size:10.5px;font-weight:600;color:#fff;border-radius:6px;padding:2px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-more{font-size:10.5px;font-weight:700;color:#2563eb}
+@media(max-width:840px){.cal-cell{min-height:64px}.cal-pill{display:none}.cal-cell .nb{font-size:10px;font-weight:800;color:#fff;background:#2563eb;border-radius:99px;padding:1px 6px;align-self:flex-start}}
+.qa{padding:8px 12px 2px}
+.qa-t{display:flex;align-items:center;gap:10px;justify-content:center;font-size:11.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#fff;margin:2px 0 10px;text-align:center}
+.qa-t::before,.qa-t::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.35)}
+.qa-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.qa-tile{display:flex;flex-direction:column;align-items:center;gap:6px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:11px;padding:10px 6px;cursor:pointer;color:#fff;font-family:inherit;transition:background .15s,border-color .15s}
+.qa-tile:hover{background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.45)}
+.qa-tile svg{width:20px;height:20px}
+.qa-tile span{font-size:11px;font-weight:700;line-height:1.15;text-align:center}
+.nsec-h{position:relative;width:100%;display:flex;align-items:center;gap:11px;background:none;border:none;cursor:pointer;padding:8px 38px 8px 14px;font-size:13.6px;color:#fff;font-weight:600;font-family:inherit;text-align:left;transition:background .12s}
+.nsec-h > svg:first-child{width:32px;height:32px;padding:6px;border:1.5px solid rgba(255,255,255,.55);border-radius:9px;box-sizing:border-box;opacity:.95;flex:0 0 auto;transition:background .15s,border-color .15s,color .15s}
 .nsec-h:hover{background:rgba(255,255,255,.14)}
 .nsec-h .badge{margin-left:auto}
-.nsec-h .nsec-chev{width:14px;height:14px;flex:0 0 auto;margin-left:auto;transition:transform .2s;color:rgba(255,255,255,.75)}
-.nsec-h .badge + .nsec-chev{margin-left:7px}
-.nsec.open > .nsec-h{background:rgba(0,0,0,.10)}
-.nsec.open .nsec-chev{transform:rotate(180deg)}
+.nsec-h .nsec-chev{position:absolute;right:14px;top:50%;transform:translateY(-50%);width:14px;height:14px;transition:transform .2s;color:rgba(255,255,255,.8);margin:0}
+
+.nsec.open > .nsec-h{background:rgba(255,255,255,.10)}
+.nsec.open > .nsec-h > svg:first-child{background:#fff;color:#1a44ad;border-color:#fff}
+.nsec.open > .nsec-h > span{font-weight:800}
+.nsec.open .nsec-chev{transform:translateY(-50%) rotate(180deg)}
 .nsec-b{display:none}
-".nsec.open .nsec-b{display:block;background:rgba(0,0,0,.16);padding:4px 0}
-.nsec-b a{padding:9px 14px 9px 42px;font-weight:500;font-size:13.2px}
+.nsec.open .nsec-b{display:block;background:rgba(255,255,255,.13);padding:4px 0}
+.nsec-b a{padding:10px 14px 10px 42px;font-weight:500;font-size:13.2px}
 .nsec-b a svg{display:none}
-.nav a svg{width:18px;height:18px;flex:0 0 auto;opacity:.85}
 .nav a:hover{background:var(--navy-2);color:#fff}
 .nav a.active{background:var(--primary);color:#fff;box-shadow:0 4px 14px rgba(37,99,235,.4)}
 .nav a.active svg{opacity:1}
@@ -1027,6 +1062,9 @@ async function loadScope(){
 const routes = {};
 function route(path,fn){ routes[path]=fn; }
 function navigate(h){ if(('#'+h)===location.hash){ renderRoute(); } else { location.hash=h; } }
+// Les SMS coupent les liens au caractère # : on accepte donc ?qr=token et on réécrit.
+try{ const _q=new URLSearchParams(location.search).get('qr');
+  if(_q){ history.replaceState(null,'',location.pathname); location.hash='#/qr/'+_q; } }catch(_){}
 window.addEventListener('hashchange',renderRoute);
 
 function renderRoute(){
@@ -1057,6 +1095,7 @@ function renderRoute(){
   if(base==='/compte-rendu') return viewCompteRendu(content);
   if(base==='/conversations') return viewConversations(content);
   if(base==='/plan-maintenance') return viewPlanMaintenance(content);
+  if(base==='/agenda') return viewAgenda(content);
   if(base==='/preparation-cs') return viewPreparationCS(content);
   if(base==='/prestataires') return viewPrestataires(content);
   if(base==='/parametres') return viewParametres(content);
@@ -2547,6 +2586,10 @@ const NI={
  contrat:NICON('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m10.5 12.5 2 2L9 18H7v-2z"/>'),
  landmark:NICON('<line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/>'),
  gauge:NICON('<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>'),
+ sms:NICON('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/>'),
+ key:NICON('<circle cx="7.5" cy="15.5" r="4.5"/><path d="m11 12 8.5-8.5"/><path d="m16 7 3 3"/><path d="m13 10 2 2"/>'),
+ pv:NICON('<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 13 2 2 4-4"/>'),
+ cal:NICON('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 15h.01M12 15h.01M16 15h.01M8 19h.01M12 19h.01"/>'),
  gear:NICON('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/>'),
 };
 const NAV = [
@@ -2572,7 +2615,14 @@ function renderApp(){
     </div>`:''}
     <aside class="sidebar" id="sidebar" style="${state.demo?'top:38px;height:calc(100vh - 38px)':''}">
       <div style="height:14px"></div>
-      <nav class="nav" id="nav">${NAV.map(g=> g.link ? navLink(g.link) : `
+      <nav class="nav" id="nav">${navLink(NAV[0].link)}
+      <div class="qa"><div class="qa-t">Accès rapide</div><div class="qa-grid">
+        <button type="button" class="qa-tile" onclick="quickSmsModal()">${NI.sms}<span>SMS</span></button>
+        <button type="button" class="qa-tile" onclick="pvForm({})">${NI.pv}<span>PV réception</span></button>
+        <button type="button" class="qa-tile" onclick="arModal()">${NI.key}<span>Générer accès</span></button>
+        <button type="button" class="qa-tile" onclick="navigate('/agenda')">${NI.cal}<span>Agenda</span></button>
+      </div></div>
+      ${NAV.slice(1).map(g=> g.link ? navLink(g.link) : `
         <div class="nsec" data-sec="${g.sec}">
           <button class="nsec-h" type="button" data-nav-sec="${g.sec}">${g.ic||''}<span>${g.titre}</span><span class="badge nsec-badge" style="display:none">0</span><svg class="nsec-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
           <div class="nsec-b">${g.items.map(navLink).join('')}</div>
@@ -8543,6 +8593,413 @@ async function pvUploadSigned(docId){
   inp.click();
 }
 window.pvUploadSigned=pvUploadSigned;
+
+/* ── Accès rapide : envoi/programmation d'un SMS manuel ── */
+window.QS_TPL=[
+ {n:'Rappel PV de réception', t:"PREVA Conseils : rappel — PV de réception de travaux ([établissement]) à compléter et signer avec le client lors de la visite du [date]. Document reçu par email."},
+ {n:'Pointage QR (arrivée/départ)', t:"PREVA Conseils : pensez a scanner le QR code a votre arrivee et a votre depart sur [établissement]. Procedure obligatoire."},
+ {n:"Demande d'intervention", t:"PREVA Conseils : demande d'intervention ([type]) — [établissement] — date souhaitee : [date]. Merci de nous confirmer votre disponibilite."},
+ {n:'Commission de sécurité', t:"PREVA Conseils : Commission de Sécurité le [date] — [établissement]. Merci de confirmer votre intervention via le lien reçu par email, ou en répondant à ce SMS."},
+ {n:'Relance vérification', t:"PREVA Conseils : nous vous contactons au sujet de la verification de [objet] — [établissement]. Merci de nous confirmer votre disponibilite."}
+];
+// Mobiles d'une fiche prestataire (mêmes règles que le PV de réception)
+function qsContactsOf(p){
+  const out=[];
+  let cts=p&&p.contacts; if(typeof cts==='string'){try{cts=JSON.parse(cts);}catch(_){cts=null;}}
+  const l=cts?(Array.isArray(cts)?cts:[...Object.values(cts).filter(c=>c&&!Array.isArray(c)),...(Array.isArray(cts.autres)?cts.autres:[])]):[];
+  l.forEach(c=>{ if(c&&c.mobile){ const m=String(c.mobile).replace(/[\s.]/g,''); if(!out.find(x=>x.v===m)) out.push({label:c.nom||'Contact',v:m}); } });
+  return out;
+}
+window.quickSmsModal=async function(){
+  if(!window._prestCache || !window._prestCache.length){
+    try{ const {data,error}=await sb.from('prestataires').select('*').order('nom'); if(error) throw error; window._prestCache=data||[]; }
+    catch(e){ toast('Chargement des prestataires impossible : '+(e.message||e),'err'); return; }
+  }
+  window._qsSel={};
+  const all=window._prestCache;
+  const opt=p=>`<option value="${p.id}">${esc(p.nom)}</option>`;
+  const prests=all.filter(p=>p.categorie!=='bureau_de_controle'), bureaux=all.filter(p=>p.categorie==='bureau_de_controle');
+  const popts='<option value="">— Choisir un prestataire —</option>'
+    +(prests.length?`<optgroup label="Prestataires">${prests.map(opt).join('')}</optgroup>`:'')
+    +(bureaux.length?`<optgroup label="Bureaux de contrôle">${bureaux.map(opt).join('')}</optgroup>`:'');
+  const topts='<option value="">— Message libre (sans modèle) —</option>'+QS_TPL.map((t,i)=>`<option value="${i}">${esc(t.n)}</option>`).join('');
+  const now=new Date(Date.now()+3*60000); now.setSeconds(0,0);
+  const pad=x=>String(x).padStart(2,'0');
+  const dt=now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate())+'T'+pad(now.getHours())+':'+pad(now.getMinutes());
+  openModal(`<div class="modal-head"><h2>Envoyer un SMS <span style="font-size:11px;font-weight:600;color:var(--muted);vertical-align:middle">v3</span></h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <div class="fld" style="margin:0"><label>Modèle de message</label>
+        <select id="qs_tpl" onchange="qsTpl()">${topts}</select></div>
+      <div class="fld" style="margin:0"><label>Message</label>
+        <textarea id="qs_msg" rows="3" maxlength="459" oninput="document.getElementById('qs_cnt').textContent=this.value.length" onkeydown="event.stopPropagation()" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box" placeholder="Message libre, ou choisis un modèle ci-dessus puis complète les [crochets]…"></textarea>
+        <div style="font-size:11px;color:var(--muted);text-align:right"><span id="qs_cnt">0</span>/459 caractères</div></div>
+      <div class="fld" style="margin:0"><label>Destinataires — contacts d'un prestataire <span style="font-weight:400;color:var(--muted)">(tu peux enchaîner plusieurs prestataires, les coches s'additionnent)</span></label>
+        <select id="qs_prest" onchange="qsPrestChange()">${popts}</select>
+        <div id="qs_list" style="display:flex;flex-direction:column;gap:6px;max-height:132px;overflow:auto;padding:2px;margin-top:8px"></div></div>
+      <div class="fld" style="margin:0"><label>Sélection <span id="qs_seln" style="font-weight:400;color:var(--muted)">(0)</span></label>
+        <div id="qs_selected" style="display:flex;flex-wrap:wrap;gap:6px"><span style="font-size:12px;color:var(--muted)">Aucun contact sélectionné pour l'instant.</span></div></div>
+      <div class="fld" style="margin:0"><label>Autres numéros <span style="font-weight:400;color:var(--muted)">(séparés par des virgules)</span></label>
+        <input id="qs_to" placeholder="＋ 06 XX XX XX XX, 07 XX XX XX XX" style="width:100%;box-sizing:border-box;border:1px dashed var(--line);border-radius:10px;padding:9px 12px;font-size:12.5px;background:var(--surface-2)"></div>
+      <div class="fld" style="margin:0"><label>Date et heure d'envoi</label><input id="qs_dt" type="datetime-local" value="${dt}">
+        <div style="font-size:11.5px;color:var(--muted);margin-top:4px">Le robot expédie les SMS toutes les 5 minutes : un envoi « maintenant » part dans les 5 minutes.</div></div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+      <button class="btn" id="qs_go2" onclick="quickSmsSend('planned')">${I.clock||''} Programmer</button>
+      <button class="btn primary" id="qs_go" onclick="quickSmsSend('now')">Envoyer maintenant</button></div>`);
+};
+window.qsTpl=function(){
+  const v=document.getElementById('qs_tpl').value;
+  const ta=document.getElementById('qs_msg');
+  ta.value=(v==='')?'':QS_TPL[+v].t;
+  document.getElementById('qs_cnt').textContent=ta.value.length;
+  ta.focus();
+};
+window.qsPrestChange=function(){
+  const pid=document.getElementById('qs_prest').value;
+  const host=document.getElementById('qs_list'); if(!host) return;
+  const p=(window._prestCache||[]).find(x=>x.id===pid);
+  if(!p){ host.innerHTML=''; return; }
+  const list=qsContactsOf(p);
+  host.innerHTML=list.length?list.map(x=>{
+    const on=!!window._qsSel[x.v];
+    return `<label data-pvchip style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:2px solid ${on?'#2563eb':'var(--line)'};border-radius:10px;cursor:pointer;background:${on?'rgba(37,99,235,.06)':'var(--surface)'};transition:border-color .12s,background .12s;user-select:none">
+      <input type="checkbox" value="${esc(x.v)}" data-label="${esc(x.label)}" data-prest="${esc(p.nom)}"${on?' checked':''} onchange="qsToggle(this)" style="accent-color:#2563eb;width:16px;height:16px;flex:0 0 auto">
+      <span style="width:28px;height:28px;border-radius:8px;background:rgba(37,99,235,.1);display:grid;place-items:center;font-size:13px;flex:0 0 auto">💬</span>
+      <span style="min-width:0"><span style="display:block;font-size:12.5px;font-weight:600;color:var(--ink)">${esc(x.label)}</span>
+      <span style="display:block;font-size:12px;color:#2563eb">${esc(x.v)}</span></span></label>`;
+  }).join('')
+  :'<div style="font-size:12px;color:var(--muted);padding:4px 2px">Aucun mobile en fiche pour ce prestataire — utilise « Autres numéros ».</div>';
+};
+window.qsToggle=function(inp){
+  if(inp.checked) window._qsSel[inp.value]={label:inp.dataset.label,prest:inp.dataset.prest};
+  else delete window._qsSel[inp.value];
+  const card=inp.closest('[data-pvchip]');
+  if(card){ card.style.borderColor=inp.checked?'#2563eb':'var(--line)'; card.style.background=inp.checked?'rgba(37,99,235,.06)':'var(--surface)'; }
+  qsRenderSel();
+};
+window.qsRemove=function(m){
+  delete window._qsSel[m];
+  const box=document.querySelector('#qs_list input[value="'+m+'"]');
+  if(box){ box.checked=false; const card=box.closest('[data-pvchip]'); if(card){ card.style.borderColor='var(--line)'; card.style.background='var(--surface)'; } }
+  qsRenderSel();
+};
+window.qsRenderSel=function(){
+  const host=document.getElementById('qs_selected'); if(!host) return;
+  const keys=Object.keys(window._qsSel||{});
+  document.getElementById('qs_seln').textContent='('+keys.length+')';
+  host.innerHTML=keys.length?keys.map(m=>{
+    const s=window._qsSel[m];
+    return `<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.35);border-radius:999px;padding:4px 8px 4px 11px;font-size:12px;color:var(--ink)"><b>${esc(s.label)}</b> · ${esc(s.prest)} · ${esc(m)}
+      <button onclick="qsRemove('${esc(m)}')" style="background:none;border:none;cursor:pointer;color:#64748b;font-size:13px;padding:0 2px;line-height:1">✕</button></span>`;
+  }).join('')
+  :'<span style="font-size:12px;color:var(--muted)">Aucun contact sélectionné pour l\'instant.</span>';
+};
+window.quickSmsSend=async function(mode){
+  const extras=(document.getElementById('qs_to').value||'').split(/[,;]/).map(s=>s.replace(/[\s.]/g,'')).filter(Boolean);
+  const to=[...new Set([...Object.keys(window._qsSel||{}),...extras])];
+  const msg=(document.getElementById('qs_msg').value||'').trim();
+  const dtv=(mode==='now')?new Date().toISOString():document.getElementById('qs_dt').value;
+  if(!to.length){toast('Sélectionne au moins un contact ou saisis un numéro','err');return;}
+  if(!msg){toast('Écris le message','err');return;}
+  if(/\[[^\]]+\]/.test(msg)){toast('Complète les champs entre [crochets] du modèle','err');return;}
+  if(!dtv){toast('Choisis la date et l\'heure d\'envoi','err');return;}
+  const when=new Date(dtv);
+  const bad=to.find(x=>!/^(\+33|0)[67]\d{8}$/.test(x));
+  if(bad){toast('Numéro invalide : '+bad,'err');return;}
+  const btn=document.getElementById(mode==='now'?'qs_go':'qs_go2'); const old=btn.textContent; btn.disabled=true; btn.textContent='Envoi…';
+  const b2=document.getElementById(mode==='now'?'qs_go2':'qs_go'); if(b2) b2.disabled=true;
+  try{
+    const who=state.profile?.nom||state.user?.email||'';
+    const rows=to.map(m=>({destinataire:m,message:msg,send_at:when.toISOString(),contexte:{type:'manuel',contact:(window._qsSel&&window._qsSel[m])?window._qsSel[m].label+' ('+window._qsSel[m].prest+')':null},created_by:who}));
+    const {error}=await sb.from('sms_scheduled').insert(rows);
+    if(error) throw error;
+    closeModal();
+    toast(mode==='now'?(rows.length+' SMS en cours d\'envoi (départ par le robot sous 5 min)'):(rows.length+' SMS programmé'+(rows.length>1?'s':'')+' pour le '+when.toLocaleString('fr-FR')),'ok');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent=old; if(b2) b2.disabled=false; }
+};
+/* ── Agenda : calendrier mensuel agrégé ── */
+window.AG_TYPES={
+  verif:{label:'Échéances de vérification',color:'#d97706'},
+  inter:{label:'Interventions prévues',color:'#2563eb'},
+  reslim:{label:'Réserves — date limite',color:'#dc2626'},
+  resrdv:{label:'Réserves — rendez-vous',color:'#7c3aed'},
+  sms:{label:'SMS programmés',color:'#0d9488'}
+};
+window._agDate=null; window._agSpan=1; window._agOff={}; window._agEvents={};
+function agIso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function agErpIds(){
+  let erps=state.erps||[];
+  if(state.currentClient && state.currentClient!=='all') erps=erps.filter(e=>e.client_id===state.currentClient);
+  if(state.currentErp && state.currentErp!=='all') erps=erps.filter(e=>e.id===state.currentErp);
+  return erps.map(e=>e.id);
+}
+window.viewAgenda=async function(c){
+  if(!window._agDate) window._agDate=new Date();
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Agenda</h1><p>Échéances, interventions, réserves et rappels du périmètre sélectionné.</p></div>
+    <div class="actions"><button class="btn" onclick="window._agDate=new Date();viewAgenda(document.getElementById('content'))">Aujourd'hui</button>
+      <button class="btn primary" onclick="quickIntervention()">＋ Programmer une intervention</button></div></div>
+    <div class="cal-top">
+      <div class="cal-nav"><button onclick="agNav(-1)">‹</button><div class="cal-m" id="ag_m"></div><button onclick="agNav(1)">›</button></div>
+      <div class="cal-span">${[[1,'1 mois'],[2,'2 mois'],[3,'3 mois'],[6,'6 mois'],[12,'1 an']].map(([v,l])=>`<button class="${window._agSpan===v?'on':''}" onclick="agSpan(${v})">${l}</button>`).join('')}</div>
+      <div class="cal-leg">${Object.entries(AG_TYPES).map(([k,t])=>`<button id="agl_${k}" class="${window._agOff[k]?'off':''}" onclick="agToggle('${k}')"><span class="dot" style="background:${t.color}"></span>${t.label}</button>`).join('')}</div>
+    </div>
+    <div id="ag_grid"><div style="text-align:center;color:var(--muted);padding:30px 0">Chargement…</div></div>`;
+  const base=window._agDate, span=window._agSpan||1;
+  const first=new Date(base.getFullYear(),base.getMonth(),1);
+  const start=new Date(first); start.setDate(1-((first.getDay()+6)%7));
+  const end=new Date(base.getFullYear(),base.getMonth()+span,7);
+  const sIso=agIso(start), eIso=agIso(end);
+  const erpIds=agErpIds();
+  const ev={};
+  const push=(iso,type,label,route)=>{ if(!iso) return; iso=String(iso).slice(0,10); (ev[iso]=ev[iso]||[]).push({type,label,route}); };
+  try{
+    const erpName=id=>{ const e=(state.erps||[]).find(x=>x.id===id); return e?e.nom:''; };
+    const [ob,it,rs,sm]=await Promise.all([
+      erpIds.length?sb.from('obligations').select('libelle,domaine,erp_id,prochaine_echeance').in('erp_id',erpIds).gte('prochaine_echeance',sIso).lte('prochaine_echeance',eIso):{data:[]},
+      erpIds.length?sb.from('interventions').select('objet,domaine,type,statut,erp_id,date_prevue').in('erp_id',erpIds).gte('date_prevue',sIso).lte('date_prevue',eIso):{data:[]},
+      erpIds.length?sb.from('reserves').select('libelle,statut,erp_id,date_limite,rdv_date').in('erp_id',erpIds).or('and(date_limite.gte.'+sIso+',date_limite.lte.'+eIso+'),and(rdv_date.gte.'+sIso+',rdv_date.lte.'+eIso+')'):{data:[]},
+      sb.from('sms_scheduled').select('destinataire,message,send_at,statut').eq('statut','pending').gte('send_at',sIso).lte('send_at',eIso+'T23:59:59Z')
+    ]);
+    (ob.data||[]).forEach(o=>push(o.prochaine_echeance,'verif',(o.libelle||o.domaine||'Vérification')+' — '+erpName(o.erp_id),'/verifications'));
+    (it.data||[]).forEach(i=>{ if(!/^annul/i.test(i.statut||'')) push(i.date_prevue,'inter',(i.objet||i.domaine||i.type||'Intervention')+' — '+erpName(i.erp_id),'/interventions'); });
+    (rs.data||[]).forEach(r=>{ const done=/lev/i.test(r.statut||'');
+      if(!done && r.date_limite) push(r.date_limite,'reslim','Limite : '+(r.libelle||'réserve')+' — '+erpName(r.erp_id),'/reserves');
+      if(r.rdv_date) push(r.rdv_date,'resrdv','RDV : '+(r.libelle||'réserve')+' — '+erpName(r.erp_id),'/reserves'); });
+    (sm.data||[]).forEach(s=>push(String(s.send_at).slice(0,10),'sms','SMS '+new Date(s.send_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' → '+s.destinataire,null));
+  }catch(e){ console.warn('agenda:',e); }
+  window._agEvents=ev;
+  agRender();
+};
+window.agRender=function(){
+  const base=window._agDate, span=window._agSpan||1, ev=window._agEvents||{};
+  const m=document.getElementById('ag_m'); if(!m) return;
+  const lm=(d)=>d.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  const last=new Date(base.getFullYear(),base.getMonth()+span-1,1);
+  m.textContent=span===1?lm(base):(lm(base)+' → '+lm(last));
+  const today=agIso(new Date());
+  const dow='<div class="cal-dow"><div>Lun</div><div>Mar</div><div>Mer</div><div>Jeu</div><div>Ven</div><div>Sam</div><div>Dim</div></div>';
+  let html='';
+  for(let k=0;k<span;k++){
+    const mo=new Date(base.getFullYear(),base.getMonth()+k,1);
+    const gs=new Date(mo); gs.setDate(1-((mo.getDay()+6)%7));
+    if(span>1) html+=`<div class="cal-mt">${lm(mo)}</div>`;
+    html+=dow+'<div class="cal-grid">';
+    for(let i=0;i<42;i++){
+      const d=new Date(gs); d.setDate(gs.getDate()+i);
+      const iso=agIso(d);
+      const list=(ev[iso]||[]).filter(x=>!window._agOff[x.type]);
+      const out=d.getMonth()!==mo.getMonth();
+      html+=`<div class="cal-cell${out?' out':''}${iso===today?' today':''}" onclick="agDay('${iso}')">
+        <span class="d">${d.getDate()}</span>
+        ${list.length?`<span class="nb" style="display:none">${list.length}</span>`:''}
+        ${list.slice(0,3).map(x=>`<span class="cal-pill" style="background:${AG_TYPES[x.type].color}">${esc(x.label)}</span>`).join('')}
+        ${list.length>3?`<span class="cal-more">+${list.length-3} autres</span>`:''}
+      </div>`;
+    }
+    html+='</div>';
+  }
+  document.getElementById('ag_grid').innerHTML=html;
+};
+window.agSpan=function(v){ window._agSpan=v; viewAgenda(document.getElementById('content')); };
+window.agNav=function(delta){
+  const d=window._agDate, span=window._agSpan||1;
+  window._agDate=new Date(d.getFullYear(),d.getMonth()+delta*span,1);
+  viewAgenda(document.getElementById('content'));
+};
+window.agToggle=function(k){
+  window._agOff[k]=!window._agOff[k];
+  const b=document.getElementById('agl_'+k); if(b) b.classList.toggle('off',!!window._agOff[k]);
+  agRender();
+};
+window.agDay=function(iso){
+  const list=((window._agEvents||{})[iso]||[]).filter(x=>!window._agOff[x.type]);
+  const dl=new Date(iso+'T00:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  openModal(`<div class="modal-head"><h2 style="text-transform:capitalize">${dl}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:8px">
+      ${list.length?list.map(x=>`<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+        <span style="width:10px;height:10px;border-radius:99px;background:${AG_TYPES[x.type].color};flex:0 0 auto"></span>
+        <span style="flex:1;min-width:0;font-size:13px">${esc(x.label)}</span>
+        ${x.route?`<button class="btn" style="flex:0 0 auto" onclick="closeModal();navigate('${x.route}')">Ouvrir</button>`:''}
+      </div>`).join(''):'<div style="color:var(--muted);font-size:13px;text-align:center;padding:14px 0">Rien de prévu ce jour.</div>'}
+      <button class="btn primary" style="margin-top:6px" onclick="closeModal();formInter(null,{date_prevue:'${iso}'})">＋ Programmer une intervention ce jour</button>
+    </div>`);
+};
+
+/* ── Accès rapide : accès ponctuel à des rapports (mot de passe à durée limitée) ── */
+window.AR_VAL=[[3,'3 heures'],[7,'7 heures'],[12,'12 heures'],[24,'24 heures'],[48,'48 heures'],[168,'7 jours'],[720,'30 jours']];
+window._arSel={}; window._arDocs=[]; window._arMobSel={}; window._arMailSel={};
+window.arModal=async function(){
+  if(!window._prestCache || !window._prestCache.length){
+    try{ const {data}=await sb.from('prestataires').select('*').order('nom'); window._prestCache=data||[]; }catch(_){ window._prestCache=[]; }
+  }
+  window._arSel={}; window._arDocs=[]; window._arMobSel={}; window._arMailSel={};
+  let erps=state.erps||[];
+  if(state.currentClient && state.currentClient!=='all') erps=erps.filter(e=>e.client_id===state.currentClient);
+  const cur=(state.currentErp&&state.currentErp!=='all')?state.currentErp:'';
+  const eopts='<option value="">— Choisir un établissement —</option>'+erps.map(e=>`<option value="${e.id}"${e.id===cur?' selected':''}>${esc(e.nom)}</option>`).join('');
+  const vopts=AR_VAL.map(([v,l])=>`<option value="${v}"${v===48?' selected':''}>${l}</option>`).join('');
+  openModal(`<div class="modal-head"><h2>Accès rapports <span style="font-size:11px;font-weight:600;color:var(--muted);vertical-align:middle">temporaire</span></h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <div id="ar_form" style="display:flex;flex-direction:column;gap:12px">
+        <div class="fld" style="margin:0"><label>Établissement (ERP)</label>
+          <select id="ar_erp" onchange="arErpChange()">${eopts}</select></div>
+        <div class="fld" style="margin:0"><label>Rapports à partager <span id="ar_seln" style="font-weight:400;color:var(--muted)">(0 sélectionné)</span></label>
+          <div id="ar_list" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto;padding:2px">
+            <div style="font-size:12px;color:var(--muted);padding:4px 2px">Choisis d'abord un établissement.</div></div></div>
+        <div id="ar_sugg"></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <div class="fld" style="margin:0;flex:1;min-width:150px"><label>Validité du mot de passe</label>
+            <select id="ar_val">${vopts}</select></div>
+          <div class="fld" style="margin:0;flex:1;min-width:170px"><label>Mot de passe</label>
+            <div style="display:flex;gap:6px"><input id="ar_pwd" readonly value="${_qrGenPwd()}" style="flex:1;font-weight:700;letter-spacing:1px">
+            <button class="btn" title="Régénérer" onclick="document.getElementById('ar_pwd').value=_qrGenPwd()">↻</button></div></div></div>
+        <div class="fld" style="margin:0"><label>Envoyer par SMS <span style="font-weight:400;color:var(--muted)">(mobiles, séparés par des virgules — optionnel)</span></label>
+          <input id="ar_mob" placeholder="06 XX XX XX XX, 07 XX XX XX XX"></div>
+        <div class="fld" style="margin:0"><label>Envoyer par email <span style="font-weight:400;color:var(--muted)">(adresses séparées par des virgules — optionnel)</span></label>
+          <input id="ar_mail" placeholder="prestataire@exemple.fr, bureau@controle.fr"></div>
+      </div>
+      <div id="ar_result"></div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Fermer</button>
+      <button class="btn" onclick="closeModal();quickAcces()">Accès permanent prestataire…</button>
+      <button class="btn primary" id="ar_go" onclick="arCreate()">Générer et envoyer</button></div>`);
+  if(cur) arErpChange();
+};
+window.arErpChange=async function(){
+  const v=document.getElementById('ar_erp').value;
+  const host=document.getElementById('ar_list'); if(!host) return;
+  window._arSel={}; window._arMobSel={}; window._arMailSel={}; arCount(); arSuggest();
+  if(!v){ host.innerHTML='<div style="font-size:12px;color:var(--muted);padding:4px 2px">Choisis d\'abord un établissement.</div>'; return; }
+  host.innerHTML='<div style="font-size:12px;color:var(--muted);padding:4px 2px">Chargement des rapports…</div>';
+  try{
+    const gedTypes=['Rapport','Bureau de contrôle','RVAT','Compte rendu','Maintenance préventive','Maintenance corrective'];
+    const {data,error}=await sb.from('documents')
+      .select('id,nom_original,type,date_document,created_at,prestataire_id,emetteur')
+      .eq('erp_id',v).in('type',gedTypes).not('fichier_path','is',null)
+      .order('date_document',{ascending:false,nullsFirst:false}).limit(200);
+    if(error) throw error;
+    arRenderDocs(data||[]);
+  }catch(e){ host.innerHTML='<div style="font-size:12px;color:var(--danger,#dc2626)">Erreur de chargement : '+esc(e.message||String(e))+'</div>'; }
+};
+function arContactsOf(p){
+  const out=[];
+  let cts=p&&p.contacts; if(typeof cts==='string'){try{cts=JSON.parse(cts);}catch(_){cts=null;}}
+  const l=cts?(Array.isArray(cts)?cts:[...Object.values(cts).filter(c=>c&&!Array.isArray(c)),...(Array.isArray(cts.autres)?cts.autres:[])]):[];
+  l.forEach(c=>{ if(!c) return;
+    const m=c.mobile?String(c.mobile).replace(/[\s.]/g,''):null;
+    const e=c.email?String(c.email).trim():null;
+    if(m||e) out.push({label:c.nom||'Contact',mobile:m,email:e});
+  });
+  if(p&&p.email_rapports&&!out.find(x=>x.email===p.email_rapports)) out.push({label:'Adresse rapports',mobile:null,email:String(p.email_rapports).trim()});
+  return out;
+}
+window.arSuggest=function(){
+  const host=document.getElementById('ar_sugg'); if(!host) return;
+  const pids=[...new Set((window._arDocs||[]).filter(d=>window._arSel[d.id]).map(d=>d.prestataire_id).filter(Boolean))];
+  const groups=pids.map(pid=>({p:(window._prestCache||[]).find(x=>x.id===pid)})).filter(g=>g.p)
+    .map(g=>({nom:g.p.nom,contacts:arContactsOf(g.p)})).filter(g=>g.contacts.length);
+  // Élaguer les sélections dont le prestataire n'est plus concerné
+  const validM=new Set(), validE=new Set();
+  groups.forEach(g=>g.contacts.forEach(c=>{ if(c.mobile) validM.add(c.mobile); if(c.email) validE.add(c.email); }));
+  Object.keys(window._arMobSel).forEach(k=>{ if(!validM.has(k)) delete window._arMobSel[k]; });
+  Object.keys(window._arMailSel).forEach(k=>{ if(!validE.has(k)) delete window._arMailSel[k]; });
+  if(!groups.length){ host.innerHTML=''; return; }
+  host.innerHTML=`<div class="fld" style="margin:0"><label>Contacts suggérés <span style="font-weight:400;color:var(--muted)">(d'après les rapports cochés)</span></label>
+    <div style="display:flex;flex-direction:column;gap:6px;max-height:170px;overflow:auto;padding:2px">`+
+    groups.map(g=>g.contacts.map(c=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)">
+      <span style="min-width:0;flex:1"><span style="display:block;font-size:12.5px;font-weight:600;color:var(--ink)">${esc(c.label)}</span>
+      <span style="display:block;font-size:11px;color:var(--muted)">${esc(g.nom)}</span></span>
+      ${c.mobile?`<label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:#2563eb;cursor:pointer;white-space:nowrap"><input type="checkbox" value="${esc(c.mobile)}"${window._arMobSel[c.mobile]?' checked':''} onchange="if(this.checked)window._arMobSel[this.value]=true;else delete window._arMobSel[this.value]" style="accent-color:#2563eb">📱 ${esc(c.mobile)}</label>`:''}
+      ${c.email?`<label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:#0d9488;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px"><input type="checkbox" value="${esc(c.email)}"${window._arMailSel[c.email]?' checked':''} onchange="if(this.checked)window._arMailSel[this.value]=true;else delete window._arMailSel[this.value]" style="accent-color:#0d9488">✉️ ${esc(c.email)}</label>`:''}
+    </div>`).join('')).join('')+`</div></div>`;
+};
+window.arRenderDocs=function(list){
+  window._arDocs=list;
+  const host=document.getElementById('ar_list'); if(!host) return;
+  const pname=id=>{ const p=(window._prestCache||[]).find(x=>x.id===id); return p?p.nom:''; };
+  host.innerHTML=list.length?list.map(d=>{
+    const on=!!window._arSel[d.id];
+    const who=pname(d.prestataire_id)||d.emetteur||'';
+    const dt=d.date_document||String(d.created_at||'').slice(0,10);
+    return `<label data-pvchip style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:2px solid ${on?'#2563eb':'var(--line)'};border-radius:10px;cursor:pointer;background:${on?'rgba(37,99,235,.06)':'var(--surface)'};user-select:none">
+      <input type="checkbox" value="${esc(d.id)}"${on?' checked':''} onchange="arToggle(this)" style="accent-color:#2563eb;width:16px;height:16px;flex:0 0 auto">
+      <span style="min-width:0;flex:1"><span style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(d.nom_original||d.type)}</span>
+      <span style="display:block;font-size:11.5px;color:var(--muted)">${esc(d.type)}${who?' · '+esc(who):''}${dt?' · '+esc(String(dt)):''}</span></span></label>`;
+  }).join(''):'<div style="font-size:12px;color:var(--muted);padding:4px 2px">Aucun rapport en GED pour cet établissement.</div>';
+};
+window.arToggle=function(inp){
+  if(inp.checked) window._arSel[inp.value]=true; else delete window._arSel[inp.value];
+  const card=inp.closest('[data-pvchip]');
+  if(card){ card.style.borderColor=inp.checked?'#2563eb':'var(--line)'; card.style.background=inp.checked?'rgba(37,99,235,.06)':'var(--surface)'; }
+  arCount(); arSuggest();
+};
+window.arCount=function(){ const s=document.getElementById('ar_seln'); if(s) s.textContent='('+Object.keys(window._arSel).length+' sélectionné'+(Object.keys(window._arSel).length>1?'s':'')+')'; };
+window.arCreate=async function(){
+  const erpId=document.getElementById('ar_erp').value;
+  const ids=Object.keys(window._arSel);
+  const hours=parseInt(document.getElementById('ar_val').value,10)||48;
+  const pwd=(document.getElementById('ar_pwd').value||'').trim();
+  const mobiles=[...new Set([...Object.keys(window._arMobSel||{}),...(document.getElementById('ar_mob').value||'').split(/[,;]/).map(s=>s.replace(/[\s.]/g,'')).filter(Boolean)])];
+  const mails=[...new Set([...Object.keys(window._arMailSel||{}),...(document.getElementById('ar_mail').value||'').split(/[,;]/).map(s=>s.trim()).filter(Boolean)])];
+  if(!erpId){toast('Choisis un établissement','err');return;}
+  if(!ids.length){toast('Sélectionne au moins un rapport','err');return;}
+  const badM=mobiles.find(x=>!/^(\+33|0)[67]\d{8}$/.test(x));
+  if(badM){toast('Numéro invalide : '+badM,'err');return;}
+  const badE=mails.find(x=>!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x));
+  if(badE){toast('Email invalide : '+badE,'err');return;}
+  const btn=document.getElementById('ar_go'); btn.disabled=true; btn.textContent='Génération…';
+  try{
+    const {data:erp,error:e1}=await sb.from('erps').select('id,nom,client_id,qr_token').eq('id',erpId).maybeSingle();
+    if(e1||!erp) throw (e1||new Error('Établissement introuvable'));
+    if(!erp.qr_token) throw new Error('Cet établissement n\'a pas encore de QR/lien public.');
+    const hash=await _qrSha256(pwd);
+    const exp=new Date(Date.now()+hours*3600*1000);
+    const who=state.profile?.nom||state.user?.email||'';
+    const {error:e2}=await sb.from('acces_rapports').insert({erp_id:erp.id,client_id:erp.client_id,doc_ids:ids,password_hash:hash,password_plain:pwd,expires_at:exp.toISOString(),actif:true,created_by:who});
+    if(e2) throw e2;
+    const link=buildQrUrl(erp.qr_token).replace('#/qr/','?qr=');
+    const valLabel=(AR_VAL.find(v=>v[0]===hours)||[hours,hours+' h'])[1];
+    const expStr=exp.toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    let smsN=0, mailN=0, mailErr=0;
+    if(mobiles.length){
+      const msg=`PREVA Conseils : accès à ${ids.length} rapport${ids.length>1?'s':''} — ${erp.nom}. Lien : ${link} — Mot de passe : ${pwd} (valable ${valLabel}, jusqu'au ${expStr}).`;
+      const rows=mobiles.map(m=>({destinataire:m,message:msg,send_at:new Date().toISOString(),contexte:{type:'acces_rapports',erp:erp.nom},created_by:who}));
+      const {error:e3}=await sb.from('sms_scheduled').insert(rows);
+      if(!e3) smsN=rows.length;
+    }
+    if(mails.length){
+      const docsList=window._arDocs.filter(d=>window._arSel[d.id]).map(d=>'<li>'+esc(d.nom_original||d.type)+'</li>').join('');
+      const html=`<p>Bonjour,</p><p>PREVA Conseils vous donne accès à <b>${ids.length} rapport${ids.length>1?'s':''}</b> concernant <b>${esc(erp.nom)}</b> :</p><ul>${docsList}</ul>
+        <p>Consultez-les ici : <a href="${link}">${link}</a><br>Mot de passe : <b style="font-size:16px;letter-spacing:1px">${esc(pwd)}</b><br>Validité : ${valLabel} (jusqu'au ${expStr}).</p><p>Cordialement,<br>PREVA Conseils</p>`;
+      for(const to of mails){
+        try{ const {error:e4}=await sb.functions.invoke('send-client-email',{body:{to,subject:'Accès rapports — '+erp.nom,html}}); if(e4) mailErr++; else mailN++; }
+        catch(_){ mailErr++; }
+      }
+    }
+    document.getElementById('ar_form').style.display='none';
+    document.getElementById('ar_result').innerHTML=`<div style="display:flex;flex-direction:column;gap:10px">
+      <div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.4);border-radius:11px;padding:12px 14px;font-size:13px">
+        ✅ Accès créé pour <b>${ids.length} rapport${ids.length>1?'s':''}</b> — ${esc(erp.nom)}<br>
+        Validité : <b>${valLabel}</b> (expire le ${expStr})<br>
+        ${smsN?'📱 '+smsN+' SMS programmé'+(smsN>1?'s':'')+' (départ sous 5 min)<br>':''}
+        ${mailN?'✉️ '+mailN+' email'+(mailN>1?'s':'')+' envoyé'+(mailN>1?'s':'')+'<br>':''}
+        ${mailErr?'<span style="color:#dc2626">⚠ '+mailErr+' email(s) en échec</span>':''}
+      </div>
+      <div class="fld" style="margin:0"><label>Lien</label><div style="display:flex;gap:6px"><input readonly value="${esc(link)}" style="flex:1;font-size:12px"><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(link)}');toast('Lien copié','ok')">Copier</button></div></div>
+      <div class="fld" style="margin:0"><label>Mot de passe</label><div style="display:flex;gap:6px"><input readonly value="${esc(pwd)}" style="flex:1;font-weight:700;letter-spacing:2px"><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(pwd)}');toast('Mot de passe copié','ok')">Copier</button></div></div>
+    </div>`;
+    btn.style.display='none';
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Générer et envoyer'; }
+};
+
+/* ── Accès rapide : génération d'accès avec chargement des prestataires à la demande ── */
+window.quickAcces=async function(){
+  if(!window._prestCache || !window._prestCache.length){
+    try{ const {data,error}=await sb.from('prestataires').select('*').order('nom'); if(error) throw error; window._prestCache=data||[]; }
+    catch(e){ toast('Chargement des prestataires impossible : '+(e.message||e),'err'); return; }
+  }
+  qrAccesGenModal();
+};
 
 /* Dépôt de la copie signée d'un devis (scan PDF ou photo) : archivée dans la
    rubrique « Devis signé », rattachée au même client / ERP / prestataire,
