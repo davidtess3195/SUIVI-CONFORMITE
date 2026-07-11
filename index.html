@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<script>try{var _q=new URLSearchParams(location.search).get('qr');if(_q){history.replaceState(null,'',location.pathname);location.hash='#/qr/'+_q;}}catch(_){}</script>
+<script>try{var _sp=new URLSearchParams(location.search),_q=_sp.get('qr'),_c=_sp.get('c');if(_q){try{localStorage.removeItem('qr_prest_sess');}catch(e){}if(_c)window.__qrCode=_c;history.replaceState(null,'',location.pathname);location.hash='#/qr/'+_q;}}catch(_){}</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -1098,6 +1098,8 @@ function renderRoute(){
   if(base==='/conversations') return viewConversations(content);
   if(base==='/plan-maintenance') return viewPlanMaintenance(content);
   if(base==='/agenda') return viewAgenda(content);
+  if(base==='/historique-sms') return viewHistoSms(content);
+  if(base==='/acces-rapports') return viewAccesRapports(content);
   if(base==='/preparation-cs') return viewPreparationCS(content);
   if(base==='/prestataires') return viewPrestataires(content);
   if(base==='/parametres') return viewParametres(content);
@@ -2594,6 +2596,8 @@ const NI={
  key:NICON('<circle cx="7.5" cy="15.5" r="4.5"/><path d="m11 12 8.5-8.5"/><path d="m16 7 3 3"/><path d="m13 10 2 2"/>'),
  pv:NICON('<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 13 2 2 4-4"/>'),
  cal:NICON('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 15h.01M12 15h.01M16 15h.01M8 19h.01M12 19h.01"/>'),
+ hist:NICON('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+ keyl:NICON('<rect x="3" y="10" width="18" height="11" rx="2"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/><path d="M12 15v2"/>'),
  gear:NICON('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/>'),
 };
 const NAV = [
@@ -2625,6 +2629,8 @@ function renderApp(){
         <button type="button" class="qa-tile" onclick="pvForm({})">${NI.pv}<span>PV réception</span></button>
         <button type="button" class="qa-tile" onclick="arModal()">${NI.key}<span>Générer accès</span></button>
         <button type="button" class="qa-tile" onclick="navigate('/agenda')">${NI.cal}<span>Agenda</span></button>
+        <button type="button" class="qa-tile" onclick="navigate('/historique-sms')">${NI.hist}<span>Historique SMS</span></button>
+        <button type="button" class="qa-tile" onclick="navigate('/acces-rapports')">${NI.keyl}<span>Accès rapports</span></button>
       </div></div>
       ${NAV.slice(1).map(g=> g.link ? navLink(g.link) : `
         <div class="nsec" data-sec="${g.sec}">
@@ -8740,6 +8746,109 @@ window.quickSmsSend=async function(mode){
     toast(to.length+' SMS programmé'+(to.length>1?'s':'')+' pour le '+when.toLocaleString('fr-FR'),'ok');
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent=old; if(b2) b2.disabled=false; }
 };
+/* ── Historique des SMS ── */
+window.HS_TYPES={manuel:'Manuel',acces_rapports:'Accès rapports',pv_reception:'PV réception',relance:'Relance'};
+window.viewHistoSms=async function(c){
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Historique des SMS</h1><p>Tous les envois : immédiats, programmés et à venir.</p></div>
+    <div class="actions"><button class="btn primary" onclick="quickSmsModal()">＋ Nouveau SMS</button></div></div>
+    <div id="hs_box"><div style="display:grid;place-items:center;padding:30px"><div class="spin"></div></div></div>`;
+  try{
+    const {data,error}=await sb.from('sms_scheduled').select('destinataire,message,send_at,sent_at,statut,contexte,created_by,created_at').order('created_at',{ascending:false}).limit(300);
+    if(error) throw error;
+    hsRender(data||[]);
+  }catch(e){ document.getElementById('hs_box').innerHTML='<div class="card card-pad" style="color:var(--danger,#dc2626)">Erreur de chargement : '+esc(e.message||e)+'</div>'; }
+};
+window.hsRender=function(rows){
+  const box=document.getElementById('hs_box'); if(!box) return;
+  if(!rows.length){ box.innerHTML='<div class="card card-pad" style="color:var(--muted)">Aucun SMS pour le moment.</div>'; return; }
+  const chip=r=>{
+    const s=(r.statut||'').toLowerCase();
+    if(s==='sent') return '<span style="background:rgba(22,163,74,.1);color:#16a34a;border:1px solid rgba(22,163,74,.35);border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700">✓ envoyé'+(r.sent_at?' '+new Date(r.sent_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'')+'</span>';
+    if(s==='error'||s==='failed') return '<span style="background:rgba(220,38,38,.08);color:#dc2626;border:1px solid rgba(220,38,38,.35);border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700">✕ échec</span>';
+    const fut=r.send_at && new Date(r.send_at)>new Date();
+    return '<span style="background:rgba(217,119,6,.1);color:#d97706;border:1px solid rgba(217,119,6,.35);border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700">⏱ '+(fut?('programmé '+new Date(r.send_at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})):'en attente du robot')+'</span>';
+  };
+  const badge=r=>{
+    const t=(r.contexte&&r.contexte.type)||'autre';
+    const lbl=HS_TYPES[t]||t;
+    return '<span style="background:rgba(37,99,235,.08);color:#2563eb;border-radius:6px;padding:2px 7px;font-size:10.5px;font-weight:700">'+esc(lbl)+'</span>';
+  };
+  const byDay={};
+  rows.forEach(r=>{ const d=new Date(r.send_at||r.created_at); const k=d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}); (byDay[k]=byDay[k]||[]).push(r); });
+  box.innerHTML=Object.entries(byDay).map(([day,list])=>`
+    <div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:capitalize;margin:16px 2px 8px">${esc(day)}</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+    ${list.map(r=>{
+      const who=r.contexte&&r.contexte.contact?(' — '+esc(r.contexte.contact)):'';
+      return `<div class="card" style="padding:11px 14px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px">
+          <b style="font-size:13px">${esc(r.destinataire)}</b>${who?'<span style="font-size:12px;color:var(--muted)">'+who+'</span>':''}
+          ${badge(r)}<span style="flex:1"></span>${chip(r)}
+        </div>
+        <div style="font-size:12.5px;color:var(--ink);opacity:.85;white-space:pre-line;word-break:break-word">${esc(r.message||'')}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:5px">par ${esc(r.created_by||'—')}</div>
+      </div>`;
+    }).join('')}
+    </div>`).join('');
+};
+
+/* ── Tableau de bord des accès rapports ── */
+window.viewAccesRapports=async function(c){
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Accès rapports</h1><p>Tous les partages temporaires : en cours, expirés, révoqués.</p></div>
+    <div class="actions"><button class="btn primary" onclick="arModal()">＋ Nouvel accès</button></div></div>
+    <div id="arh_stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px"></div>
+    <div id="arh_box"><div style="display:grid;place-items:center;padding:30px"><div class="spin"></div></div></div>`;
+  try{
+    const {data,error}=await sb.from('acces_rapports').select('id,erp_id,doc_ids,password_plain,expires_at,actif,created_by,created_at').order('created_at',{ascending:false}).limit(150);
+    if(error) throw error;
+    arhRender(data||[]);
+  }catch(e){ document.getElementById('arh_box').innerHTML='<div class="card card-pad" style="color:var(--danger,#dc2626)">Erreur : '+esc(e.message||e)+'</div>'; }
+};
+window.arhRender=function(rows){
+  const box=document.getElementById('arh_box'), st=document.getElementById('arh_stats'); if(!box) return;
+  const now=Date.now();
+  const stat=(lbl,val,col)=>`<div class="card" style="padding:12px 14px"><div style="font-size:22px;font-weight:800;color:${col}">${val}</div><div style="font-size:11.5px;color:var(--muted);font-weight:600">${lbl}</div></div>`;
+  const actifs=rows.filter(r=>r.actif&&new Date(r.expires_at)>now).length;
+  const exp24=rows.filter(r=>r.actif&&new Date(r.expires_at)>now&&new Date(r.expires_at)<now+864e5).length;
+  if(st) st.innerHTML=stat('Accès en cours',actifs,'#16a34a')+stat('Expirent sous 24 h',exp24,'#d97706')+stat('Total créés',rows.length,'#2563eb');
+  if(!rows.length){ box.innerHTML='<div class="card card-pad" style="color:var(--muted)">Aucun accès généré pour le moment.</div>'; return; }
+  const erpOf=id=>{ const e=(state.erps||[]).find(x=>x.id===id); return e||{nom:'Établissement',qr_token:null}; };
+  box.innerHTML='<div style="display:flex;flex-direction:column;gap:8px">'+rows.map(r=>{
+    const e=erpOf(r.erp_id);
+    const expired=new Date(r.expires_at)<=now;
+    const status=!r.actif?'<span style="background:rgba(100,116,139,.12);color:#64748b;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700">révoqué</span>'
+      :expired?'<span style="background:rgba(100,116,139,.12);color:#64748b;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700">expiré</span>'
+      :'<span style="background:rgba(22,163,74,.1);color:#16a34a;border:1px solid rgba(22,163,74,.35);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700">● en cours</span>';
+    const nb=Array.isArray(r.doc_ids)?r.doc_ids.length:0;
+    const link=e.qr_token?('https://conformite-securite.fr/?qr='+e.qr_token+(r.password_plain?('&c='+encodeURIComponent(r.password_plain)):'')):null;
+    const live=r.actif&&!expired;
+    return `<div class="card" style="padding:12px 14px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <b style="font-size:13.5px">${esc(e.nom)}</b>
+        <span style="font-size:12px;color:var(--muted)">${nb} rapport${nb>1?'s':''}</span>
+        ${status}<span style="flex:1"></span>
+        <span style="font-size:11.5px;color:var(--muted)">créé le ${new Date(r.created_at).toLocaleDateString('fr-FR')} par ${esc(r.created_by||'—')} · expire le ${new Date(r.expires_at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <code style="background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:3px 10px;font-size:12.5px;font-weight:700;letter-spacing:1px">${esc(r.password_plain||'••••')}</code>
+        ${live&&link?`<button class="btn sm" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(link)}');toast('Lien copié','ok')">Copier le lien</button>
+        <button class="btn sm" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(r.password_plain||'')}');toast('Code copié','ok')">Copier le code</button>
+        <button class="btn sm" style="color:#dc2626;border-color:rgba(220,38,38,.4)" onclick="arhRevoke('${esc(r.id)}',this)">Révoquer</button>`:''}
+      </div>
+    </div>`;
+  }).join('')+'</div>';
+};
+window.arhRevoke=async function(id,btn){
+  if(!confirm('Révoquer cet accès ? Le code cessera de fonctionner immédiatement.')) return;
+  btn.disabled=true; btn.textContent='…';
+  try{
+    const {error}=await sb.from('acces_rapports').update({actif:false}).eq('id',id);
+    if(error) throw error;
+    toast('Accès révoqué','ok');
+    viewAccesRapports(document.getElementById('content'));
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Révoquer'; }
+};
+
 /* ── Agenda : calendrier mensuel agrégé ── */
 window.AG_TYPES={
   verif:{label:'Échéances de vérification',color:'#d97706'},
@@ -8996,7 +9105,7 @@ window.arCreate=async function(){
     const expStr=exp.toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
     let smsN=0, mailN=0, mailErr=0;
     if(mobiles.length){
-      const msg=`PREVA Conseils : accès à ${ids.length} rapport${ids.length>1?'s':''} — ${erp.nom}. Lien : ${link} — Mot de passe : ${pwd} (valable ${valLabel}, jusqu'au ${expStr}).`;
+      const msg=`PREVA Conseils — ${ids.length} rapport${ids.length>1?'s':''} : ${erp.nom}\nAccès direct (1 clic) :\n${link}&c=${encodeURIComponent(pwd)}\nCode si demandé : ${pwd}\nValable ${valLabel} (jusqu'au ${expStr})`;
       let direct=false;
       try{ const {data,error:eD}=await sb.functions.invoke('send-sms',{body:{to:mobiles,message:msg}}); if(!eD && data && data.ok) direct=true; }catch(_){}
       const rows=mobiles.map(m=>({destinataire:m,message:msg,send_at:new Date().toISOString(),statut:direct?'sent':'pending',sent_at:direct?new Date().toISOString():null,contexte:{type:'acces_rapports',erp:erp.nom},created_by:who}));
@@ -9007,7 +9116,8 @@ window.arCreate=async function(){
     if(mails.length){
       const docsList=window._arDocs.filter(d=>window._arSel[d.id]).map(d=>'<li>'+esc(d.nom_original||d.type)+'</li>').join('');
       const html=`<p>Bonjour,</p><p>PREVA Conseils vous donne accès à <b>${ids.length} rapport${ids.length>1?'s':''}</b> concernant <b>${esc(erp.nom)}</b> :</p><ul>${docsList}</ul>
-        <p>Consultez-les ici : <a href="${link}">${link}</a><br>Mot de passe : <b style="font-size:16px;letter-spacing:1px">${esc(pwd)}</b><br>Validité : ${valLabel} (jusqu'au ${expStr}).</p><p>Cordialement,<br>PREVA Conseils</p>`;
+        <p><a href="${link}&c=${encodeURIComponent(pwd)}" style="display:inline-block;background:#1a44ad;color:#fff;padding:10px 18px;border-radius:9px;text-decoration:none;font-weight:700">Consulter les rapports (accès direct)</a></p>
+        <p>Ou rendez-vous sur <a href="${link}">${link}</a> — code : <b style="font-size:16px;letter-spacing:1px">${esc(pwd)}</b><br>Validité : ${valLabel} (jusqu'au ${expStr}).</p><p>Cordialement,<br>PREVA Conseils</p>`;
       for(const to of mails){
         try{ const {error:e4}=await sb.functions.invoke('send-client-email',{body:{to,subject:'Accès rapports — '+erp.nom,html}}); if(e4) mailErr++; else mailN++; }
         catch(_){ mailErr++; }
@@ -9025,7 +9135,7 @@ window.arCreate=async function(){
         ${mailN?'✉️ '+mailN+' email'+(mailN>1?'s':'')+' envoyé'+(mailN>1?'s':'')+'<br>':''}
         ${mailErr?'<span style="color:#dc2626">⚠ '+mailErr+' email(s) en échec</span>':''}
       </div>
-      <div class="fld" style="margin:0"><label>Lien</label><div style="display:flex;gap:6px"><input readonly value="${esc(link)}" style="flex:1;font-size:12px"><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(link)}');toast('Lien copié','ok')">Copier</button></div></div>
+      <div class="fld" style="margin:0"><label>Lien à accès direct (code inclus)</label><div style="display:flex;gap:6px"><input readonly value="${esc(link)}&c=${encodeURIComponent(pwd)}" style="flex:1;font-size:12px"><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(link)}&c='+encodeURIComponent('${esc(pwd)}'));toast('Lien copié','ok')">Copier</button></div></div>
       <div class="fld" style="margin:0"><label>Mot de passe</label><div style="display:flex;gap:6px"><input readonly value="${esc(pwd)}" style="flex:1;font-weight:700;letter-spacing:2px"><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(pwd)}');toast('Mot de passe copié','ok')">Copier</button></div></div>
     </div>`;
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Générer et envoyer'; }
@@ -11192,9 +11302,16 @@ function qrPrestLoginForm(msg){
     <p style="font-size:12.5px;color:var(--muted);margin:0 0 10px">Consultez les rapports de vérification avec le mot de passe fourni par PREVA Conseils.</p>
     ${msg?`<div style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:9px;padding:8px 11px;font-size:12.5px;margin-bottom:10px">${esc(msg)}</div>`:''}
     <div style="display:flex;gap:8px">
-      <input type="password" id="qr-prest-pwd" placeholder="Mot de passe" autocomplete="off" style="flex:1;min-width:0;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-size:14px">
+      <input type="text" id="qr-prest-pwd" placeholder="Code reçu par SMS" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" style="flex:1;min-width:0;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-size:14px">
       <button class="btn primary" id="qr-prest-go" style="flex:0 0 auto">Accéder</button>
     </div>`;
+  // Code embarqué dans le lien : pré-remplir et se connecter tout seul (une seule tentative)
+  if(window.__qrCode){
+    const inp=document.getElementById('qr-prest-pwd');
+    if(inp) inp.value=window.__qrCode;
+    const auto=!window.__qrCodeTried; window.__qrCodeTried=true; window.__qrCode=null;
+    if(auto) setTimeout(()=>{ const g=document.getElementById('qr-prest-go'); if(g) g.click(); },120);
+  }
   const go=async()=>{
     const pwd=(document.getElementById('qr-prest-pwd')||{}).value||'';
     if(!pwd.trim()) return;
