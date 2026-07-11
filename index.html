@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+<script>try{var _q=new URLSearchParams(location.search).get('qr');if(_q){history.replaceState(null,'',location.pathname);location.hash='#/qr/'+_q;}}catch(_){}</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -628,6 +629,10 @@ function getQrBaseUrl(){
 }
 function saveQrBaseUrl(u){ try{ if(u&&u.startsWith('http://')) u=u.replace('http://','https://'); localStorage.setItem("preva_qr_url",u); }catch(e){} }
 function buildQrUrl(token){
+  // Domaine officiel imposé : les liens envoyés ne dépendent plus d'un réglage local périmé
+  return 'https://conformite-securite.fr/#/qr/' + token;
+}
+function buildQrUrl_legacy(token){
   const base = getQrBaseUrl();
   if(base){
     let root = base.replace(/\/+$/,'').replace(/\/index\.html$/i,'').replace(/\/#.*$/,'').replace(/#.*$/,'').replace(/\/+$/,'');
@@ -1062,9 +1067,6 @@ async function loadScope(){
 const routes = {};
 function route(path,fn){ routes[path]=fn; }
 function navigate(h){ if(('#'+h)===location.hash){ renderRoute(); } else { location.hash=h; } }
-// Les SMS coupent les liens au caractère # : on accepte donc ?qr=token et on réécrit.
-try{ const _q=new URLSearchParams(location.search).get('qr');
-  if(_q){ history.replaceState(null,'',location.pathname); location.hash='#/qr/'+_q; } }catch(_){}
 window.addEventListener('hashchange',renderRoute);
 
 function renderRoute(){
@@ -1132,6 +1134,8 @@ function renderConfig(){
    AUTH SCREENS
 ===================================================================== */
 function renderAuth(mode){
+  // Route publique QR : ne jamais écraser la page rapports par l'écran de connexion (course au chargement)
+  if(((location.hash||'').replace('#','')).startsWith('/qr/')){ try{ renderRoute(); }catch(_){} return; }
   const forms = {
     login:`<div style="width:100%;border-radius:12px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,.14);border:1px solid #e2e8f0;margin-bottom:20px"><svg viewBox="0 0 420 264" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:auto">
           <rect width="420" height="264" fill="#f4f6fa"/>
@@ -8710,11 +8714,30 @@ window.quickSmsSend=async function(mode){
   const b2=document.getElementById(mode==='now'?'qs_go2':'qs_go'); if(b2) b2.disabled=true;
   try{
     const who=state.profile?.nom||state.user?.email||'';
-    const rows=to.map(m=>({destinataire:m,message:msg,send_at:when.toISOString(),contexte:{type:'manuel',contact:(window._qsSel&&window._qsSel[m])?window._qsSel[m].label+' ('+window._qsSel[m].prest+')':null},created_by:who}));
-    const {error}=await sb.from('sms_scheduled').insert(rows);
+    const mkRow=(m,st,sent)=>({destinataire:m,message:msg,send_at:when.toISOString(),statut:st,sent_at:sent,contexte:{type:'manuel',contact:(window._qsSel&&window._qsSel[m])?window._qsSel[m].label+' ('+window._qsSel[m].prest+')':null},created_by:who});
+    if(mode==='now'){
+      let direct=false;
+      try{
+        const {data,error}=await sb.functions.invoke('send-sms',{body:{to,message:msg}});
+        if(!error && data && data.ok) direct=true;
+      }catch(_){}
+      if(direct){
+        try{ await sb.from('sms_scheduled').insert(to.map(m=>mkRow(m,'sent',new Date().toISOString()))); }catch(_){}
+        closeModal();
+        toast(to.length+' SMS envoyé'+(to.length>1?'s':'')+' à l\'instant ✓','ok');
+        return;
+      }
+      // Repli : le robot prend le relais sous 5 minutes
+      const {error}=await sb.from('sms_scheduled').insert(to.map(m=>mkRow(m,'pending',null)));
+      if(error) throw error;
+      closeModal();
+      toast('Envoi direct indisponible — pris en charge par le robot (départ sous 5 min)','ok');
+      return;
+    }
+    const {error}=await sb.from('sms_scheduled').insert(to.map(m=>mkRow(m,'pending',null)));
     if(error) throw error;
     closeModal();
-    toast(mode==='now'?(rows.length+' SMS en cours d\'envoi (départ par le robot sous 5 min)'):(rows.length+' SMS programmé'+(rows.length>1?'s':'')+' pour le '+when.toLocaleString('fr-FR')),'ok');
+    toast(to.length+' SMS programmé'+(to.length>1?'s':'')+' pour le '+when.toLocaleString('fr-FR'),'ok');
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent=old; if(b2) b2.disabled=false; }
 };
 /* ── Agenda : calendrier mensuel agrégé ── */
@@ -8860,7 +8883,7 @@ window.arModal=async function(){
       </div>
       <div id="ar_result"></div>
     </div>
-    <div class="modal-foot"><button class="btn" onclick="closeModal()">Fermer</button>
+    <div class="modal-foot" id="ar_foot"><button class="btn" onclick="closeModal()">Fermer</button>
       <button class="btn" onclick="closeModal();quickAcces()">Accès permanent prestataire…</button>
       <button class="btn primary" id="ar_go" onclick="arCreate()">Générer et envoyer</button></div>`);
   if(cur) arErpChange();
@@ -8874,7 +8897,7 @@ window.arErpChange=async function(){
   try{
     const gedTypes=['Rapport','Bureau de contrôle','RVAT','Compte rendu','Maintenance préventive','Maintenance corrective'];
     const {data,error}=await sb.from('documents')
-      .select('id,nom_original,type,date_document,created_at,prestataire_id,emetteur')
+      .select('id,nom_original,type,date_document,created_at,prestataire_id,emetteur,fichier_path,tags')
       .eq('erp_id',v).in('type',gedTypes).not('fichier_path','is',null)
       .order('date_document',{ascending:false,nullsFirst:false}).limit(200);
     if(error) throw error;
@@ -8924,8 +8947,19 @@ window.arRenderDocs=function(list){
     return `<label data-pvchip style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:2px solid ${on?'#2563eb':'var(--line)'};border-radius:10px;cursor:pointer;background:${on?'rgba(37,99,235,.06)':'var(--surface)'};user-select:none">
       <input type="checkbox" value="${esc(d.id)}"${on?' checked':''} onchange="arToggle(this)" style="accent-color:#2563eb;width:16px;height:16px;flex:0 0 auto">
       <span style="min-width:0;flex:1"><span style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(d.nom_original||d.type)}</span>
-      <span style="display:block;font-size:11.5px;color:var(--muted)">${esc(d.type)}${who?' · '+esc(who):''}${dt?' · '+esc(String(dt)):''}</span></span></label>`;
+      <span style="display:block;font-size:11.5px;color:var(--muted)">${esc(d.type)}${who?' · '+esc(who):''}${dt?' · '+esc(String(dt)):''}</span></span>
+      <button type="button" onclick="event.preventDefault();event.stopPropagation();arPreview('${esc(d.id)}')" style="flex:0 0 auto;background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.35);color:#2563eb;border-radius:8px;padding:5px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit">👁 Voir</button></label>`;
   }).join(''):'<div style="font-size:12px;color:var(--muted);padding:4px 2px">Aucun rapport en GED pour cet établissement.</div>';
+};
+window.arPreview=async function(id){
+  const d=(window._arDocs||[]).find(x=>x.id===id);
+  if(!d||!d.fichier_path){ toast('Fichier introuvable','err'); return; }
+  const bucket=((d.tags||'').indexOf('cat:')>=0||(d.tags||'').indexOf('source:rapports')>=0)?'rapports':'documents';
+  try{
+    const {data,error}=await sb.storage.from(bucket).createSignedUrl(d.fichier_path,300);
+    if(error||!data||!data.signedUrl) throw (error||new Error('indisponible'));
+    qrViewerOpen(data.signedUrl, d.nom_original||d.type||'Rapport');
+  }catch(e){ toast('Ce fichier est manquant dans le stockage','err'); }
 };
 window.arToggle=function(inp){
   if(inp.checked) window._arSel[inp.value]=true; else delete window._arSel[inp.value];
@@ -8963,9 +8997,12 @@ window.arCreate=async function(){
     let smsN=0, mailN=0, mailErr=0;
     if(mobiles.length){
       const msg=`PREVA Conseils : accès à ${ids.length} rapport${ids.length>1?'s':''} — ${erp.nom}. Lien : ${link} — Mot de passe : ${pwd} (valable ${valLabel}, jusqu'au ${expStr}).`;
-      const rows=mobiles.map(m=>({destinataire:m,message:msg,send_at:new Date().toISOString(),contexte:{type:'acces_rapports',erp:erp.nom},created_by:who}));
+      let direct=false;
+      try{ const {data,error:eD}=await sb.functions.invoke('send-sms',{body:{to:mobiles,message:msg}}); if(!eD && data && data.ok) direct=true; }catch(_){}
+      const rows=mobiles.map(m=>({destinataire:m,message:msg,send_at:new Date().toISOString(),statut:direct?'sent':'pending',sent_at:direct?new Date().toISOString():null,contexte:{type:'acces_rapports',erp:erp.nom},created_by:who}));
       const {error:e3}=await sb.from('sms_scheduled').insert(rows);
-      if(!e3) smsN=rows.length;
+      if(direct || !e3) smsN=rows.length;
+      window._arDirect=direct;
     }
     if(mails.length){
       const docsList=window._arDocs.filter(d=>window._arSel[d.id]).map(d=>'<li>'+esc(d.nom_original||d.type)+'</li>').join('');
@@ -8977,18 +9014,20 @@ window.arCreate=async function(){
       }
     }
     document.getElementById('ar_form').style.display='none';
+    const foot=document.getElementById('ar_foot');
+    if(foot) foot.innerHTML='<button class="btn primary" style="min-width:140px" onclick="closeModal()">Valider</button>';
+    const mb=document.querySelector('.overlay .modal-body'); if(mb) mb.scrollTop=0;
     document.getElementById('ar_result').innerHTML=`<div style="display:flex;flex-direction:column;gap:10px">
       <div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.4);border-radius:11px;padding:12px 14px;font-size:13px">
         ✅ Accès créé pour <b>${ids.length} rapport${ids.length>1?'s':''}</b> — ${esc(erp.nom)}<br>
         Validité : <b>${valLabel}</b> (expire le ${expStr})<br>
-        ${smsN?'📱 '+smsN+' SMS programmé'+(smsN>1?'s':'')+' (départ sous 5 min)<br>':''}
+        ${smsN?'📱 '+smsN+' SMS '+(window._arDirect?'envoyé'+(smsN>1?'s':'')+' à l\'instant ✓':'pris en charge par le robot (≤ 5 min)')+'<br>':''}
         ${mailN?'✉️ '+mailN+' email'+(mailN>1?'s':'')+' envoyé'+(mailN>1?'s':'')+'<br>':''}
         ${mailErr?'<span style="color:#dc2626">⚠ '+mailErr+' email(s) en échec</span>':''}
       </div>
       <div class="fld" style="margin:0"><label>Lien</label><div style="display:flex;gap:6px"><input readonly value="${esc(link)}" style="flex:1;font-size:12px"><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(link)}');toast('Lien copié','ok')">Copier</button></div></div>
       <div class="fld" style="margin:0"><label>Mot de passe</label><div style="display:flex;gap:6px"><input readonly value="${esc(pwd)}" style="flex:1;font-weight:700;letter-spacing:2px"><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(pwd)}');toast('Mot de passe copié','ok')">Copier</button></div></div>
     </div>`;
-    btn.style.display='none';
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Générer et envoyer'; }
 };
 
@@ -11227,7 +11266,7 @@ async function qrPrestView(btn){
     const { data, error } = await sb.functions.invoke('qr-erp-docs',{ body:{ token:window.__qrTok, session:window.__qrSess, view:{ bucket:btn.dataset.b, path:btn.dataset.p } } });
     if(error||!data||!data.url) throw new Error((data&&data.error)||'indisponible');
     qrViewerOpen(data.url, btn.dataset.n||'Rapport');
-  }catch(e){ toast('Impossible d\'ouvrir ce rapport','err'); }
+  }catch(e){ const m=String(e&&e.message||e||''); toast(/introuvable/i.test(m)?'Ce fichier est manquant dans le stockage (signalez-le à votre contact PREVA)':'Impossible d\'ouvrir ce rapport','err'); }
   if(tag) tag.textContent=old;
 }
 window.qrPrestView=qrPrestView;
@@ -11235,27 +11274,51 @@ window.qrPrestView=qrPrestView;
 // Visionneuse plein écran — consultation seule (pas de lien de téléchargement)
 function qrViewerOpen(url,nom){
   const isPdf=/\.pdf(\?|$)/i.test((url||'').split('#')[0]) || /\.pdf$/i.test(nom||'');
-  const isAndroid=/android/i.test(navigator.userAgent||'');
-  // Chrome/WebView Android n'affiche pas les PDF en iframe (page blanche) contrairement à iOS Safari et au desktop.
-  // Repli sur la visionneuse Google Docs (toujours intégrée, sans lien de téléchargement direct exposé).
-  const src=isPdf
-    ? (isAndroid ? 'https://docs.google.com/gview?embedded=true&url='+encodeURIComponent(url) : url+'#toolbar=0&navpanes=0&statusbar=0')
-    : url;
   lockScroll();
   const ov=document.createElement('div');
   ov.id='qr-viewer';
-  ov.style.cssText='position:fixed;inset:0;z-index:9999;background:#0f172a;display:flex;flex-direction:column;overscroll-behavior:contain;touch-action:none';
+  ov.style.cssText='position:fixed;inset:0;z-index:9999;background:#0f172a;display:flex;flex-direction:column;overscroll-behavior:contain';
   ov.oncontextmenu=e=>{e.preventDefault();return false;};
   ov.innerHTML=`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#1e293b;flex:0 0 auto">
       <span style="color:#fff;font-size:13.5px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nom||'Rapport')}</span>
-      <span style="color:#94a3b8;font-size:11px;flex:0 0 auto">Consultation seule</span>
+      <span id="qr-viewer-pg" style="color:#94a3b8;font-size:11px;flex:0 0 auto">Consultation seule</span>
       <button id="qr-viewer-x" style="flex:0 0 auto;background:#334155;border:none;color:#fff;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer">✕ Fermer</button>
     </div>
-    <div style="flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:#fff">
-      <iframe src="${src}" style="border:none;width:100%;height:100%;display:block;background:#fff" sandbox="allow-same-origin allow-scripts"></iframe>
+    <div id="qr-viewer-body" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y pinch-zoom;background:#525659;padding:10px 6px">
+      <div style="display:grid;place-items:center;padding:40px 0"><div class="spin" style="border-color:#cbd5e1;border-top-color:transparent"></div></div>
     </div>`;
   document.body.appendChild(ov);
   document.getElementById('qr-viewer-x').onclick=()=>{ ov.remove(); unlockScroll(); };
+  const body=document.getElementById('qr-viewer-body');
+  const fallbackFrame=()=>{
+    const isAndroid=/android/i.test(navigator.userAgent||'');
+    const src=isPdf?(isAndroid?'https://docs.google.com/gview?embedded=true&url='+encodeURIComponent(url):url+'#toolbar=0&navpanes=0&statusbar=0'):url;
+    body.style.padding='0';
+    body.innerHTML=`<iframe src="${src}" style="border:none;width:100%;height:100%;display:block;background:#fff"></iframe>`;
+  };
+  if(!isPdf || !window.pdfjsLib){ fallbackFrame(); return; }
+  (async()=>{
+    try{
+      const doc=await pdfjsLib.getDocument({url:url}).promise;
+      body.innerHTML='';
+      const pg=document.getElementById('qr-viewer-pg');
+      if(pg) pg.textContent=doc.numPages+' page'+(doc.numPages>1?'s':'')+' — consultation seule';
+      const W=(body.clientWidth||window.innerWidth)-12;
+      const dpr=Math.min(window.devicePixelRatio||1,2);
+      for(let i=1;i<=doc.numPages;i++){
+        const page=await doc.getPage(i);
+        const v1=page.getViewport({scale:1});
+        const scale=W/v1.width;
+        const vp=page.getViewport({scale:scale*dpr});
+        const c=document.createElement('canvas');
+        c.width=Math.floor(vp.width); c.height=Math.floor(vp.height);
+        c.style.cssText='width:100%;max-width:'+Math.floor(vp.width/dpr)+'px;height:auto;display:block;margin:0 auto 10px;box-shadow:0 1px 8px rgba(0,0,0,.35);background:#fff';
+        body.appendChild(c);
+        const ctx=c.getContext&&c.getContext('2d');
+        await page.render({canvasContext:ctx,viewport:vp}).promise;
+      }
+    }catch(e){ fallbackFrame(); }
+  })();
 }
 window.qrViewerOpen=qrViewerOpen;
 
