@@ -8955,14 +8955,17 @@ window.trvRenderList=function(tabs,res){
   const rec=res.filter(r=>r.recidive).length;
   const taux=res.length?Math.round((res.length-totOuv)/res.length*100):0;
   const stat=(l,v,c2)=>`<div class="card" style="padding:12px 14px"><div style="font-size:22px;font-weight:800;color:${c2}">${v}</div><div style="font-size:11.5px;color:var(--muted);font-weight:600">${l}</div></div>`;
-  if(st) st.innerHTML=stat('Tableaux',tabs.length,'#2563eb')+stat('À lever',totOuv,'#dc2626')+stat('Levées',res.length-totOuv,'#16a34a')+stat('En retard',ret,ret?'#dc2626':'#94a3b8')+stat('Récidives',rec,rec?'#9333ea':'#94a3b8')+stat('Taux de levée',taux+' %',taux===100?'#16a34a':'#d97706');
+  const aval=tabs.filter(t=>t.statut==='a_valider').length;
+  if(st) st.innerHTML=(aval?stat('⏳ À valider',aval,'#d97706'):'')+stat('Tableaux',tabs.length,'#2563eb')+stat('À lever',totOuv,'#dc2626')+stat('Levées',res.length-totOuv,'#16a34a')+stat('En retard',ret,ret?'#dc2626':'#94a3b8')+stat('Récidives',rec,rec?'#9333ea':'#94a3b8')+stat('Taux de levée',taux+' %',taux===100?'#16a34a':'#d97706');
   if(!tabs.length){ box.innerHTML='<div class="card card-pad" style="color:var(--muted)">Aucun tableau pour le moment — crée le premier depuis un rapport de la GED.</div>'; return; }
   const erpOf=id=>{ const e=(state.erps||[]).find(x=>x.id===id); return e?e.nom:'Établissement'; };
   box.innerHTML='<div style="display:flex;flex-direction:column;gap:8px">'+tabs.map(t=>{
     const k=byTab[t.id]||{t:0,l:0,p:0};
     const done=k.t>0&&k.l===k.t;
-    return `<div class="card" style="padding:12px 14px;cursor:pointer" onclick="trvDetail('${esc(t.id)}')">
+    const av=t.statut==='a_valider';
+    return `<div class="card" style="padding:12px 14px;cursor:pointer${av?';border:1.5px solid rgba(217,119,6,.55);background:rgba(217,119,6,.03)':''}" onclick="trvDetail('${esc(t.id)}')">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        ${av?'<span style="background:#d97706;color:#fff;border-radius:6px;padding:2px 8px;font-size:10.5px;font-weight:800">⏳ À VALIDER</span>':''}
         <b style="font-size:13.5px">${esc(t.organisme||'—')}</b>
         <span style="background:rgba(37,99,235,.08);color:#2563eb;border-radius:6px;padding:2px 8px;font-size:10.5px;font-weight:700">${esc(TRV_SOURCES[t.source]||t.source)}</span>
         <span style="font-size:12px;color:var(--muted)">${esc(erpOf(t.erp_id))} · ${t.date_intervention?new Date(t.date_intervention+'T00:00:00').toLocaleDateString('fr-FR'):'—'} · ${t.annee||''}</span>
@@ -9000,13 +9003,37 @@ window.trvDetail=async function(id){
           <div style="font-size:10.5px;color:var(--muted);margin-top:4px">${esc(r.code_obs||'')} · 1er signalement : ${r.date_premier_signalement?new Date(r.date_premier_signalement+'T00:00:00').toLocaleDateString('fr-FR'):'—'} · ${esc(r.article_ref||'')}${r.signature_nom?' · signé par '+esc(r.signature_nom):''}</div>
         </div>`).join('')}
       </div>
-      <div class="modal-foot"><button class="btn" onclick="closeModal()">Fermer</button>
+      ${t.statut==='a_valider'?`<div style="margin:0 18px;background:rgba(217,119,6,.09);border:1px solid rgba(217,119,6,.45);border-radius:10px;padding:9px 12px;font-size:12.5px">🤖 <b>Tableau préparé automatiquement</b> à la réception du rapport — vérifie les observations ci-dessus, puis valide (ou supprime s'il s'agit d'une fausse détection).</div>`:''}
+      <div class="modal-foot">${t.statut==='a_valider'
+        ?`<button class="btn" style="color:#dc2626;border-color:rgba(220,38,38,.4)" onclick="trvSupprimerTab('${esc(t.id)}','${esc(t.rapport_document_id||'')}')">Supprimer (fausse détection)</button>
+          <button class="btn primary" onclick="trvValiderTab('${esc(t.id)}')">✓ Valider le tableau</button>`
+        :`<button class="btn" onclick="closeModal()">Fermer</button>
         <button class="btn" onclick="trvNotify('${esc(erp?erp.nom:'')}',${rows.length},'${esc(t.organisme||'')}')">Notifier le client…</button>
-        <button class="btn primary" onclick="trvSendModal('${esc(t.id)}','${esc(t.erp_id)}','${esc(erp?erp.nom:'')}','${esc(t.organisme||'')}',${rows.length})">✍ Envoyer au technicien…</button></div>`);
+        <button class="btn primary" onclick="trvSendModal('${esc(t.id)}','${esc(t.erp_id)}','${esc(erp?erp.nom:'')}','${esc(t.organisme||'')}',${rows.length})">✍ Envoyer au technicien…</button>`}</div>`);
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
 };
 
 // ── Création : choisir un rapport, analyser, valider
+window.trvValiderTab=async function(id){
+  try{
+    const {error}=await sb.from('tableaux_reserves').update({statut:'en_cours'}).eq('id',id);
+    if(error) throw error;
+    toast('Tableau validé ✓ — tu peux maintenant notifier le client ou l\'envoyer au technicien','ok');
+    closeModal();
+    if(location.hash.includes('tableaux-reserves')) viewTableauxReserves(document.getElementById('content'));
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+window.trvSupprimerTab=async function(id,docId){
+  if(!confirm('Supprimer ce tableau et ses observations ?\n(fausse détection — le rapport ne sera pas ré-analysé)')) return;
+  try{
+    const {error}=await sb.from('tableaux_reserves').delete().eq('id',id);
+    if(error) throw error;
+    if(docId){ try{ await sb.from('documents').update({trv_scan:'aucune_obs'}).eq('id',docId); }catch(_){} }
+    toast('Tableau supprimé','ok');
+    closeModal();
+    if(location.hash.includes('tableaux-reserves')) viewTableauxReserves(document.getElementById('content'));
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
 window.trvModal=async function(){
   let erps=state.erps||[];
   if(state.currentClient && state.currentClient!=='all') erps=erps.filter(e=>e.client_id===state.currentClient);
