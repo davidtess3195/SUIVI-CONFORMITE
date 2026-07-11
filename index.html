@@ -8868,8 +8868,8 @@ window.trvExtractLines=async function(url){
 
 // ── Page principale
 window.viewTableauxReserves=async function(c){
-  c.innerHTML=`<div class="page-head"><div class="t"><h1>Tableaux de réserves</h1><p>Levées de réserves des commissions, bureaux de contrôle et prestataires — 1 rapport = 1 tableau.</p></div>
-    <div class="actions"><button class="btn primary" onclick="trvModal()">＋ Nouveau tableau depuis un rapport</button></div></div>
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Tableaux de réserves</h1><p>1 rapport = 1 tableau, créé automatiquement à l'arrivée du rapport dans la GED. Le prestataire signe ses levées, toi seul peux modifier le tableau.</p></div>
+    </div>
     <div id="trv_filtres" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px"></div>
     <div id="trv_stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px"></div>
     <div id="trv_synth" style="margin-bottom:16px"></div>
@@ -8985,35 +8985,231 @@ window.trvDetail=async function(id){
       sb.from('reserves').select('*').eq('tableau_id',id).order('numero')
     ]);
     if(!t) return;
+    let doc=null;
+    if(t.rapport_document_id){
+      try{ const {data:d}=await sb.from('documents').select('id,nom_original,type,fichier_path,tags,date_document').eq('id',t.rapport_document_id).maybeSingle(); doc=d||null; }catch(_){}
+    }
+    window._trvDoc2=doc;
     const erp=(state.erps||[]).find(x=>x.id===t.erp_id);
     const chip=r=>r.etat_levee==='levee'?'<span style="color:#16a34a;font-weight:700;font-size:11.5px">✓ levée'+(r.date_realisation?' le '+new Date(r.date_realisation+'T00:00:00').toLocaleDateString('fr-FR'):'')+'</span>'
       :r.etat_levee==='partielle'?'<span style="color:#d97706;font-weight:700;font-size:11.5px">◐ partielle</span>'
       :'<span style="color:#dc2626;font-weight:700;font-size:11.5px">● à lever</span>';
     openModal(`<div class="modal-head"><h2>${esc(t.organisme||'Tableau')} — ${esc(erp?erp.nom:'')}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
       <div class="modal-body" style="display:flex;flex-direction:column;gap:8px">
-        <div style="font-size:12px;color:var(--muted)">${esc(t.titre||'')} · intervention du ${t.date_intervention?new Date(t.date_intervention+'T00:00:00').toLocaleDateString('fr-FR'):'—'} · ${rows.length} observation(s)</div>
+        <div style="font-size:12px;color:var(--muted)">${esc(t.titre||'')} · ${rows.length} observation(s)</div>
+        ${doc?`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface-2,#f6f8fb);border:1px solid var(--line);border-radius:10px;padding:9px 12px">
+          <span style="font-size:16px">📄</span>
+          <span style="min-width:0;flex:1 1 160px">
+            <span style="display:block;font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(doc.nom_original||doc.type||'Rapport')}</span>
+            <span style="display:block;font-size:11px;color:var(--muted)">Intervention du ${t.date_intervention?new Date(t.date_intervention+'T00:00:00').toLocaleDateString('fr-FR'):'—'}${t.organisme?' · '+esc(t.organisme):''}</span>
+          </span>
+          <button class="btn sm" style="flex:0 0 auto" onclick="trvVoirRapport()">👁 Voir le rapport</button>
+        </div>`:`<div style="font-size:12px;color:var(--muted)">Intervention du ${t.date_intervention?new Date(t.date_intervention+'T00:00:00').toLocaleDateString('fr-FR'):'—'} · saisie manuelle (pas de rapport lié)</div>`}
         ${rows.map(r=>`<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px">
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
             <b style="font-size:12.5px">N°${r.numero||'—'}</b>
             ${r.recidive?'<span style="background:rgba(220,38,38,.1);color:#dc2626;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:800">RÉCIDIVE</span>':''}
             <span style="font-size:11px;color:var(--muted)">${esc(r.localisation||'')}</span>
             <span style="flex:1"></span>${chip(r)}
+            <button title="Modifier (réservé à vous)" onclick="trvEditRes('${esc(r.id)}','${esc(t.id)}')" style="background:none;border:1px solid var(--line);border-radius:6px;cursor:pointer;padding:2px 8px;font-size:11px">✏</button>
           </div>
           <div style="font-size:12.5px">${esc(r.libelle||'')}</div>
           <div style="font-size:10.5px;color:var(--muted);margin-top:4px">${esc(r.code_obs||'')} · 1er signalement : ${r.date_premier_signalement?new Date(r.date_premier_signalement+'T00:00:00').toLocaleDateString('fr-FR'):'—'} · ${esc(r.article_ref||'')}${r.signature_nom?' · signé par '+esc(r.signature_nom):''}</div>
         </div>`).join('')}
+        <button class="btn sm" style="align-self:flex-start" onclick="trvAddRes('${esc(t.id)}','${esc(t.erp_id)}',${rows.length?Math.max.apply(null,rows.map(x=>x.numero||0)):0})">＋ Ajouter une observation</button>
       </div>
       ${t.statut==='a_valider'?`<div style="margin:0 18px;background:rgba(217,119,6,.09);border:1px solid rgba(217,119,6,.45);border-radius:10px;padding:9px 12px;font-size:12.5px">🤖 <b>Tableau préparé automatiquement</b> à la réception du rapport — vérifie les observations ci-dessus, puis valide (ou supprime s'il s'agit d'une fausse détection).</div>`:''}
       <div class="modal-foot">${t.statut==='a_valider'
         ?`<button class="btn" style="color:#dc2626;border-color:rgba(220,38,38,.4)" onclick="trvSupprimerTab('${esc(t.id)}','${esc(t.rapport_document_id||'')}')">Supprimer (fausse détection)</button>
           <button class="btn primary" onclick="trvValiderTab('${esc(t.id)}')">✓ Valider le tableau</button>`
         :`<button class="btn" onclick="closeModal()">Fermer</button>
+        <button class="btn" onclick="trvPdf('${esc(t.id)}')">📄 PDF récapitulatif</button>
         <button class="btn" onclick="trvNotify('${esc(erp?erp.nom:'')}',${rows.length},'${esc(t.organisme||'')}')">Notifier le client…</button>
         <button class="btn primary" onclick="trvSendModal('${esc(t.id)}','${esc(t.erp_id)}','${esc(erp?erp.nom:'')}','${esc(t.organisme||'')}',${rows.length})">✍ Envoyer au technicien…</button>`}</div>`);
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
 };
 
 // ── Création : choisir un rapport, analyser, valider
+window.trvEditRes=async function(rid,tabId){
+  try{
+    const {data:r}=await sb.from('reserves').select('*').eq('id',rid).maybeSingle();
+    if(!r){toast('Observation introuvable','err');return;}
+    openModal(`<div class="modal-head"><h2>Modifier l'observation N°${r.numero||''}</h2><button class="x" onclick="trvDetail('${esc(tabId)}')">${I.x}</button></div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+        <div class="fld" style="margin:0"><label>Localisation</label><input id="ter_loc" value="${esc(r.localisation||'')}"></div>
+        <div class="fld" style="margin:0"><label>Descriptif</label><textarea id="ter_desc" rows="3" onkeydown="event.stopPropagation()" style="width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;font-family:inherit">${esc(r.libelle||'')}</textarea></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+          <div class="fld" style="margin:0;flex:1;min-width:150px"><label>Date de 1er signalement</label><input id="ter_d1" type="date" value="${esc(r.date_premier_signalement||'')}"></div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#dc2626;font-weight:700;padding-bottom:9px"><input type="checkbox" id="ter_rec" ${r.recidive?'checked':''} style="accent-color:#dc2626;width:15px;height:15px">Récidive</label></div>
+        <div style="font-size:11px;color:var(--muted)">${esc(r.code_obs||'')} ${esc(r.article_ref||'')}</div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" style="color:#dc2626;border-color:rgba(220,38,38,.4);margin-right:auto" onclick="trvDelRes('${esc(rid)}','${esc(tabId)}')">Supprimer l'observation</button>
+        <button class="btn" onclick="trvDetail('${esc(tabId)}')">Annuler</button>
+        <button class="btn primary" onclick="trvEditSave('${esc(rid)}','${esc(tabId)}')">Enregistrer</button></div>`);
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+window.trvEditSave=async function(rid,tabId){
+  try{
+    const patch={
+      localisation:(document.getElementById('ter_loc').value||'').trim()||null,
+      libelle:(document.getElementById('ter_desc').value||'').trim(),
+      date_premier_signalement:document.getElementById('ter_d1').value||null,
+      recidive:!!document.getElementById('ter_rec').checked
+    };
+    if(!patch.libelle){toast('Le descriptif est obligatoire','err');return;}
+    const {error}=await sb.from('reserves').update(patch).eq('id',rid);
+    if(error) throw error;
+    toast('Observation mise à jour ✓','ok');
+    trvDetail(tabId);
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+window.trvDelRes=async function(rid,tabId){
+  if(!confirm('Supprimer cette observation du tableau ?')) return;
+  try{
+    const {error}=await sb.from('reserves').delete().eq('id',rid);
+    if(error) throw error;
+    try{
+      const {count}=await sb.from('reserves').select('id',{count:'exact',head:true}).eq('tableau_id',tabId);
+      await sb.from('tableaux_reserves').update({nb_obs:count||0}).eq('id',tabId);
+    }catch(_){}
+    toast('Observation supprimée','ok');
+    trvDetail(tabId);
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+window.trvAddRes=async function(tabId,erpId,maxNum){
+  try{
+    const {error}=await sb.from('reserves').insert({erp_id:erpId,tableau_id:tabId,numero:(maxNum||0)+1,libelle:'Nouvelle observation — à compléter',etat_levee:'non_levee',statut:'detectee',recidive:false});
+    if(error) throw error;
+    try{
+      const {count}=await sb.from('reserves').select('id',{count:'exact',head:true}).eq('tableau_id',tabId);
+      await sb.from('tableaux_reserves').update({nb_obs:count||0}).eq('id',tabId);
+    }catch(_){}
+    toast('Observation ajoutée — clique ✏ pour la compléter','ok');
+    trvDetail(tabId);
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+/* ── PDF récapitulatif du tableau (régénérable à volonté : reflète l'état du moment) ── */
+window.trvPdf=async function(tabId){
+  toast('Génération du PDF…','ok');
+  try{
+    const [{data:t},{data:rows}]=await Promise.all([
+      sb.from('tableaux_reserves').select('*').eq('id',tabId).maybeSingle(),
+      sb.from('reserves').select('*').eq('tableau_id',tabId).order('numero')
+    ]);
+    if(!t) throw new Error('tableau introuvable');
+    const erp=(state.erps||[]).find(x=>x.id===t.erp_id)||{};
+    const cli=(state.clients||[]).find(x=>x.id===t.client_id)||{};
+    let docSrc=null;
+    if(t.rapport_document_id){
+      try{ const {data:d}=await sb.from('documents').select('nom_original').eq('id',t.rapport_document_id).maybeSingle(); docSrc=d?d.nom_original:null; }catch(_){}
+    }
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF({unit:'mm',format:'a4'});
+    const W=210, M=14, CW=W-2*M;
+    const NAVY=[15,23,42], BLUE=[26,68,173], GRAY=[100,116,139], LINE=[226,232,240];
+    const GREEN=[22,163,74], ORANGE=[217,119,6], RED=[220,38,38];
+    const fmtD=d=>d?new Date(String(d).slice(0,10)+'T00:00:00').toLocaleDateString('fr-FR'):'—';
+    let y=0, page=1;
+    const header=()=>{
+      doc.setFillColor(NAVY[0],NAVY[1],NAVY[2]); doc.rect(0,0,W,24,'F');
+      doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(13);
+      doc.text('TABLEAU DE LEVÉES DE RÉSERVES',M,10);
+      doc.setFontSize(8.5); doc.setFont('helvetica','normal');
+      doc.text((t.organisme||'Organisme')+' — '+(erp.nom||'Établissement'),M,16);
+      doc.setFontSize(7.5); doc.setTextColor(180,196,230);
+      doc.text('CONFORMITÉ SÉCURITÉ · conformite-securite.fr',W-M,10,{align:'right'});
+      doc.text('Édité le '+new Date().toLocaleDateString('fr-FR')+' à '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}),W-M,16,{align:'right'});
+      y=31;
+    };
+    const footer=()=>{
+      doc.setFontSize(7); doc.setTextColor(GRAY[0],GRAY[1],GRAY[2]);
+      doc.text('Document récapitulatif — régénéré à chaque édition, reflète l\'état des levées au moment indiqué.',M,290);
+      doc.text('Page '+page,W-M,290,{align:'right'});
+    };
+    const newPage=()=>{ footer(); doc.addPage(); page++; header(); };
+    const need=(h2)=>{ if(y+h2>278) newPage(); };
+    header();
+    // Cartouche d'informations
+    doc.setFontSize(8.5); doc.setTextColor(NAVY[0],NAVY[1],NAVY[2]); doc.setFont('helvetica','normal');
+    const infos=[
+      ['Client',cli.raison_sociale||cli.nom_commercial||'—'],
+      ['Établissement (ERP)',erp.nom||'—'],
+      ['Organisme',(t.organisme||'—')+'  ·  Source : '+({bureau_de_controle:'Bureau de contrôle',commission:'Commission de sécurité',prestataire:'Prestataire'}[t.source]||t.source||'—')],
+      ['Rapport source',(docSrc||'—')+'  ·  Intervention du '+fmtD(t.date_intervention)]
+    ];
+    infos.forEach(([k,v])=>{
+      doc.setFont('helvetica','bold'); doc.text(k+' :',M,y);
+      doc.setFont('helvetica','normal'); doc.text(doc.splitTextToSize(String(v),CW-38),M+38,y);
+      y+=5.2;
+    });
+    // Synthèse
+    const done=rows.filter(r=>r.etat_levee==='levee').length;
+    const part=rows.filter(r=>r.etat_levee==='partielle').length;
+    const rec=rows.filter(r=>r.recidive).length;
+    y+=2;
+    doc.setFillColor(240,244,252); doc.roundedRect(M,y-4,CW,10,1.5,1.5,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(BLUE[0],BLUE[1],BLUE[2]);
+    doc.text(done+'/'+rows.length+' levée(s) signée(s)'+(part?('   ·   '+part+' partielle(s)'):'')+(rec?('   ·   '+rec+' récidive(s)'):'')+((rows.length-done-part)?('   ·   '+(rows.length-done-part)+' à lever'):''),M+4,y+2.2);
+    y+=12;
+    // Observations
+    for(const r of rows){
+      const desc=doc.splitTextToSize(r.libelle||'',CW-58);
+      const hBlock=Math.max(24, 13+desc.length*3.6+7);
+      need(hBlock+3);
+      doc.setDrawColor(LINE[0],LINE[1],LINE[2]); doc.setFillColor(255,255,255);
+      doc.roundedRect(M,y,CW,hBlock,1.5,1.5,'S');
+      // Bande d'état à gauche
+      const col=r.etat_levee==='levee'?GREEN:(r.etat_levee==='partielle'?ORANGE:RED);
+      doc.setFillColor(col[0],col[1],col[2]); doc.rect(M,y,1.6,hBlock,'F');
+      let yy=y+6;
+      doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(NAVY[0],NAVY[1],NAVY[2]);
+      doc.text('N°'+(r.numero||'—'),M+5,yy);
+      let xAfter=M+5+doc.getTextWidth('N°'+(r.numero||'—'))+3;
+      if(r.recidive){
+        doc.setFillColor(RED[0],RED[1],RED[2]); doc.roundedRect(xAfter,yy-3.4,20,4.6,1,1,'F');
+        doc.setTextColor(255,255,255); doc.setFontSize(6.8); doc.text('RÉCIDIVE',xAfter+10,yy-0.2,{align:'center'});
+        xAfter+=23;
+      }
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.2); doc.setTextColor(GRAY[0],GRAY[1],GRAY[2]);
+      doc.text(doc.splitTextToSize(r.localisation||'',CW-58-(xAfter-M))[0]||'',xAfter,yy);
+      yy+=5;
+      doc.setFontSize(8.4); doc.setTextColor(30,41,59);
+      doc.text(desc,M+5,yy); yy+=desc.length*3.6+1.5;
+      doc.setFontSize(6.8); doc.setTextColor(GRAY[0],GRAY[1],GRAY[2]);
+      doc.text(((r.code_obs||'')+'   '+(r.article_ref||'')).trim()+(r.date_premier_signalement?('   ·   1er signalement : '+fmtD(r.date_premier_signalement)):''),M+5,yy);
+      // Zone droite : état + signature
+      const xr=M+CW-52;
+      doc.setFont('helvetica','bold'); doc.setFontSize(8);
+      doc.setTextColor(col[0],col[1],col[2]);
+      const lbl=r.etat_levee==='levee'?('LEVÉE le '+fmtD(r.date_realisation)):(r.etat_levee==='partielle'?('PARTIELLE le '+fmtD(r.date_realisation)):'À LEVER');
+      doc.text(lbl,xr+50,y+6,{align:'right'});
+      if(r.signature_nom){
+        doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(GRAY[0],GRAY[1],GRAY[2]);
+        doc.text('Signé : '+r.signature_nom,xr+50,y+10.5,{align:'right'});
+      }
+      if(r.signature_data && /^data:image\/png;base64,/.test(r.signature_data)){
+        try{
+          const pr=doc.getImageProperties(r.signature_data);
+          let iw=34, ih=iw*pr.height/pr.width;
+          if(ih>13){ ih=13; iw=ih*pr.width/pr.height; }
+          doc.addImage(r.signature_data,'PNG',xr+50-iw,y+hBlock-ih-2.5,iw,ih);
+        }catch(_){}
+      }
+      y+=hBlock+3;
+    }
+    footer();
+    const fname='Tableau-reserves-'+String(erp.nom||'ERP').replace(/[^A-Za-z0-9À-ÿ]+/g,'_').slice(0,40)+'-'+new Date().toISOString().slice(0,10)+'.pdf';
+    doc.save(fname);
+    toast('PDF téléchargé — '+done+'/'+rows.length+' levées à jour','ok');
+  }catch(e){ toast('Erreur PDF : '+(e.message||e),'err'); }
+};
+window.trvVoirRapport=function(){
+  const d=window._trvDoc2;
+  if(!d||!d.fichier_path){ toast('Aucun fichier lié à ce tableau','err'); return; }
+  const bucket=(((d.tags||'').indexOf('cat:')>=0)||((d.tags||'').indexOf('source:rapports')>=0))?'rapports':'documents';
+  previewDoc(d.fichier_path, d.nom_original||'rapport.pdf', bucket);
+};
 window.trvValiderTab=async function(id){
   try{
     const {error}=await sb.from('tableaux_reserves').update({statut:'en_cours'}).eq('id',id);
@@ -9263,10 +9459,15 @@ window.qrTablView=async function(sess){
 window.qrTablRender=function(data){
   const b=document.getElementById('qr-prest-box'); if(!b) return;
   const t=data.tableau, rows=data.reserves||[];
+  if(window._qrLevPre===undefined) window._qrLevPre=true;
   const done=rows.filter(r=>r.etat_levee==='levee').length;
   const part=rows.filter(r=>r.etat_levee==='partielle').length;
   const fmtD=d=>d?new Date(String(d).slice(0,10)+'T00:00:00').toLocaleDateString('fr-FR'):'—';
   b.innerHTML=`
+    <label style="display:flex;align-items:center;gap:11px;background:#1a44ad;border-radius:12px;padding:12px 14px;cursor:pointer;user-select:none;margin-bottom:12px">
+      <input type="checkbox" id="q_lev2" ${window._qrLevPre?'checked':''} onchange="window._qrLevPre=this.checked;var c=document.getElementById('q_lev');if(c)c.checked=this.checked" style="width:20px;height:20px;accent-color:#fff;flex:0 0 auto">
+      <span style="color:#fff;font-size:13px;font-weight:700;line-height:1.35">Mon intervention concerne des levées de réserves<br><span style="font-weight:500;font-size:11px;opacity:.85">Sera repris automatiquement dans votre pointage d'arrivée ci-dessous.</span></span>
+    </label>
     <div style="margin-bottom:12px">
       <div style="font-size:16px;font-weight:800;color:#0f172a">${esc(t.organisme||'Tableau de réserves')} — ${esc((data.erp||{}).nom||'')}</div>
       <div style="font-size:12px;color:#64748b">${esc(t.titre||'Liste récapitulative des observations issues de la vérification')} · intervention du ${fmtD(t.date_intervention)}</div>
@@ -12162,7 +12363,7 @@ function qrArrivee(token,info){
       </div>
       <div class="fld" id="q_mis_autre_wrap" style="display:none"><label>Précisez la mission <span class="req">*</span></label><input id="q_mis_autre" placeholder="Saisissez la mission" autocomplete="off"></div>
       <label id="q_lev_band" style="display:flex;align-items:center;gap:11px;background:#1a44ad;border-radius:12px;padding:13px 14px;cursor:pointer;user-select:none;margin:4px 0 14px">
-        <input type="checkbox" id="q_lev" style="width:20px;height:20px;accent-color:#fff;flex:0 0 auto">
+        <input type="checkbox" id="q_lev" ${window._qrLevPre?'checked':''} onchange="window._qrLevPre=this.checked;var c2=document.getElementById('q_lev2');if(c2)c2.checked=this.checked" style="width:20px;height:20px;accent-color:#fff;flex:0 0 auto">
         <span style="color:#fff;font-size:13.5px;font-weight:700;line-height:1.35">Mon intervention concerne des levées de réserves<br><span style="font-weight:500;font-size:11.5px;opacity:.85">Le responsable sera alerté et pourra vous envoyer le tableau à signer.</span></span>
       </label>
       <button class="btn primary" id="q_go" style="width:100%;justify-content:center;padding:14px;font-size:15px;border-radius:12px">Valider mon arrivée</button>
