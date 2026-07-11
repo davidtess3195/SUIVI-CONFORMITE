@@ -1100,6 +1100,7 @@ function renderRoute(){
   if(base==='/agenda') return viewAgenda(content);
   if(base==='/historique-sms') return viewHistoSms(content);
   if(base==='/acces-rapports') return viewAccesRapports(content);
+  if(base==='/tableaux-reserves') return viewTableauxReserves(content);
   if(base==='/preparation-cs') return viewPreparationCS(content);
   if(base==='/prestataires') return viewPrestataires(content);
   if(base==='/parametres') return viewParametres(content);
@@ -2596,6 +2597,7 @@ const NI={
  key:NICON('<circle cx="7.5" cy="15.5" r="4.5"/><path d="m11 12 8.5-8.5"/><path d="m16 7 3 3"/><path d="m13 10 2 2"/>'),
  pv:NICON('<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 13 2 2 4-4"/>'),
  cal:NICON('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 15h.01M12 15h.01M16 15h.01M8 19h.01M12 19h.01"/>'),
+ tablo:NICON('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/>'),
  hist:NICON('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
  keyl:NICON('<rect x="3" y="10" width="18" height="11" rx="2"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/><path d="M12 15v2"/>'),
  gear:NICON('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/>'),
@@ -2605,7 +2607,7 @@ const NAV = [
   {sec:'etab',   titre:'Établissement',          ic:NI.etab,      items:[['/clients','Clients',NI.clients],['/erps','ERP',NI.erp],['/plan-maintenance','Plan de maintenance',NI.plan]]},
   {sec:'sitdeg', titre:'Situation dégradée',     ic:NI.alert,     items:[['/photos','Photos et vidéos',NI.cam],['/compte-rendu','Compte rendu',NI.cr]]},
   {sec:'prest',  titre:'Suivi des prestataires', ic:NI.briefcase, items:[['/prestataires','Prestataires',NI.wrench],['/conversations','Conversations',NI.chat],['/pointage','Pointage & journal',NI.clock]]},
-  {sec:'suivi',  titre:'Suivi et conformité',    ic:NI.shield,    items:[['/interventions','Interventions',NI.tools],['/verifications','Vérifications & relances',NI.bell],['/reserves','Levées des réserves',NI.checks]]},
+  {sec:'suivi',  titre:'Suivi et conformité',    ic:NI.shield,    items:[['/interventions','Interventions',NI.tools],['/verifications','Vérifications & relances',NI.bell],['/reserves','Levées des réserves',NI.checks],['/tableaux-reserves','Tableaux de réserves',NI.tablo]]},
   {sec:'ged',    titre:'Gestion documentaire',   ic:NI.folderO,   items:[['/documents','Documents (GED)',NI.folder],['/rapports','Rapports reçus',NI.inbox],['/contrats','Contrats de maintenance',NI.contrat]]},
   {link:['/preparation-cs','Commission de sécurité',NI.landmark]},
   {sec:'admin',  titre:'Administration',         ic:NI.gear,      items:[['/admin','Tableau de bord admin',NI.gauge],['/parametres','Paramètres & email',NI.gear]]},
@@ -7241,11 +7243,12 @@ window.renderPointage=function(period){  window._ptgActivePer=period;
       const hasDet=!!(cr || (mr&&mr!==cr) || phs.length);
       const nom=(((p.prenom||'')+' '+(p.nom||'')).trim())||'Intervenant';
       const sub=[p.societe,erpName(p.erp_id),p.mission].map(x=>(x||'').trim()).filter(Boolean).join(' · ')||'—';
+      const levBadge=p.leve_reserves?'<span style="background:#1a44ad;color:#fff;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:800;margin-left:6px;vertical-align:1px">LEVÉES DE RÉSERVES</span>':'';
       const meta=hasDet?`<div class="pmeta">${(cr||mr)?'<span>Compte-rendu</span>':''}${phs.length?`<span>${phs.length} photo${phs.length>1?'s':''}</span>`:''}</div>`:'';
       const card=`<div class="pcard${hasDet?' clk':''}"${hasDet?` onclick="togglePtg('${p.id}')"`:''}>
         <div class="av" style="background:${avColor(nom)}">${esc(initials(p))}</div>
         <div class="pmain">
-          <div class="pnm">${esc(nom)}${p.nb_intervenants>1?`<span class="pill inf">×${p.nb_intervenants}</span>`:''}${enc?'<span class="pill moy"><span class="d"></span>En cours</span>':''}</div>
+          <div class="pnm">${esc(nom)}${p.nb_intervenants>1?`<span class="pill inf">×${p.nb_intervenants}</span>`:''}${levBadge}${enc?'<span class="pill moy"><span class="d"></span>En cours</span>':''}</div>
           <div class="psub">${esc(sub)}</div>
           ${meta}
         </div>
@@ -8746,6 +8749,617 @@ window.quickSmsSend=async function(mode){
     toast(to.length+' SMS programmé'+(to.length>1?'s':'')+' pour le '+when.toLocaleString('fr-FR'),'ok');
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent=old; if(b2) b2.disabled=false; }
 };
+
+/* ══════════ TABLEAUX DE LEVÉES DE RÉSERVES ══════════ */
+/* Parseur de rapports Bureau de contrôle — format Bureau Veritas (OPALE).
+   Entrée : lignes texte avec cellules séparées par ¦ (produit par trvExtractLines).
+   Sortie : { organisme, date_intervention, observations:[{numero, localisation, descriptif, code_obs, date_premier_signalement, article_ref, recidive}] } */
+window.trvParseVeritas=function(lines){
+  const all=lines.join('\n');
+  const org=/BUREAU VERITAS/i.test(all)?'Bureau Veritas':null;
+  const mInt=all.match(/Intervention du[ ¦]*(\d{2}\/\d{2}\/\d{4})/);
+  const dInt=mInt?mInt[1]:null;
+  const frIso=d=>{ const m=(d||'').match(/(\d{2})\/(\d{2})\/(\d{4})/); return m?(m[3]+'-'+m[2]+'-'+m[1]):null; };
+  const isoInt=frIso(dInt);
+
+  // Délimiter la section récapitulative (2e occurrence du titre = la vraie section)
+  let start=-1, seen=0;
+  for(let i=0;i<lines.length;i++){
+    if(/^Liste récapitulative des observations/.test(lines[i])){ seen++; if(seen>=2){ start=i; break; } }
+  }
+  if(start<0) start=lines.findIndex(l=>/Périmètre vérifié/.test(l));
+  if(start<0) return {organisme:org,date_intervention:isoInt,observations:[]};
+  let end=lines.findIndex((l,i)=>i>start && /^Nota :/.test(l));
+  if(end<0) end=lines.length;
+
+  const FURN=/^(⏎PAGE⏎|Liste récapitulative|des observations issues|vérification$|OPALE \d|Copyright|page ?¦?\d+\/\d+|rapport n°|en date du|Périmètre vérifié|PERSONNE EN SITUATION|ETAI )/;
+  const CAPS=/^[A-Z0-9ÉÈÀÇ' .>-]{3,60}$/;
+  const obs=[];
+  let chain='', pend=[], sub='', cur=null, expectData=false;
+
+  const commit=(code,d1,ref)=>{
+    if(!cur) return;
+    const iso1=frIso(d1);
+    obs.push({numero:cur.n, localisation:chain+(sub?' — '+sub:''), descriptif:cur.desc.join(' ').replace(/\s+/g,' ').trim(),
+      code_obs:code||'', date_premier_signalement:iso1, article_ref:(ref||'').trim(),
+      recidive: !!(iso1 && isoInt && iso1<isoInt)});
+    cur=null; expectData=false;
+  };
+
+  for(let i=start+1;i<end;i++){
+    const L=lines[i]; if(!L) continue;
+    if(FURN.test(L)) continue;
+
+    if(expectData){
+      if(/^Date de 1|^er$|^Code Obs/.test(L)) continue;
+      // Collecter code / date / référence sur plusieurs lignes, cellule par cellule
+      if(!cur._data) cur._data={code:'',d1:'',ref:''};
+      let consumed=false;
+      L.split('¦').forEach(cell=>{
+        cell=cell.trim(); if(!cell) return;
+        const mc=cell.match(/^([A-Z]{1,3}\/\d{4,8}\/\d{4,8}\/\d+)\s*(.*)$/);
+        if(mc && !cur._data.code){ cur._data.code=mc[1]; if(mc[2]) cur._data.ref+=(cur._data.ref?' ':'')+mc[2]; consumed=true; return; }
+        if(/^\d{2}\/\d{2}\/\d{4}$/.test(cell) && !cur._data.d1){ cur._data.d1=cell; consumed=true; return; }
+        if(/^(er|Date de 1.*|NOUVEAU)$/.test(cell)) { consumed=true; return; }
+        // continuation de référence : cellule courte ou texte réglementaire
+        if(cur._data.code || /^(CDT|Art|NF ?C|R\.\d)/.test(cell)){ cur._data.ref+=(cur._data.ref?' ':'')+cell; consumed=true; return; }
+      });
+      if(cur._data.code && cur._data.d1){
+        // la référence peut continuer sur la ligne suivante courte (« 533 ») déjà absorbée par la boucle
+        const nxt=lines[i+1]||'';
+        if(!/^[\d\- ]{1,12}$/.test(nxt.trim())){ commit(cur._data.code,cur._data.d1,cur._data.ref); continue; }
+      }
+      if(consumed) continue;
+      continue;
+    }
+
+    if(cur){
+      if(/^Code Obs/.test(L)){ expectData=true; continue; }
+      const c=L.match(/^([^¦\d]{1,25})¦(.+)$/);
+      cur.desc.push(c?c[2]:L);
+      continue;
+    }
+
+    // Début d'observation : « Point vérifié ¦ N description »
+    const o=L.match(/^(.+?)¦(\d{1,2}) (.{8,})$/);
+    if(o && !/Point vérifié/.test(L)){ cur={n:parseInt(o[2],10), desc:[o[3]]}; pend=[]; continue; }
+
+    if(/^Point vérifié/.test(L)){ if(pend.length){ chain=pend.join(' > '); sub=''; } pend=[]; continue; }
+
+    // Sous-groupe (ex. « TDAE03 : chauffage 1 »)
+    if(/^[A-Z0-9][A-Z0-9 ._-]{1,20} ?: .+/.test(L) && !L.includes('¦')){ sub=L.trim(); continue; }
+
+    if(CAPS.test(L) && !L.includes('¦')){ pend.push(L.trim()); continue; }
+    pend=[];
+  }
+  return {organisme:org, date_intervention:isoInt, observations:obs};
+};
+
+window.TRV_SOURCES={bureau_de_controle:'Bureau de contrôle',commission:'Commission de sécurité',prestataire:'Prestataire'};
+window.TRV_GED_TYPES=['Rapport','Bureau de contrôle','RVAT','Compte rendu','Maintenance préventive','Maintenance corrective'];
+
+// Extraction du texte d'un PDF en lignes à cellules « ¦ » (même géométrie que le banc d'essai)
+window.trvExtractLines=async function(url){
+  const doc=await pdfjsLib.getDocument({url}).promise;
+  const out=[];
+  for(let p=1;p<=doc.numPages;p++){
+    const page=await doc.getPage(p);
+    const tc=await page.getTextContent();
+    const rows={};
+    tc.items.forEach(it=>{
+      if(!it.str||!it.str.trim()) return;
+      const y=Math.round(it.transform[5]/2)*2;
+      (rows[y]=rows[y]||[]).push({x:it.transform[4],s:it.str,w:it.width||0});
+    });
+    Object.keys(rows).map(Number).sort((a,b)=>b-a).forEach(y=>{
+      const items=rows[y].sort((a,b)=>a.x-b.x);
+      let s='',lastEnd=null;
+      items.forEach(i=>{
+        if(lastEnd!==null && i.x-lastEnd>18) s+='¦';
+        else if(s && !s.endsWith(' ')) s+=' ';
+        s+=i.s; lastEnd=i.x+i.w;
+      });
+      out.push(s.replace(/\s+/g,' ').trim());
+    });
+    out.push('⏎PAGE⏎');
+  }
+  return out;
+};
+
+// ── Page principale
+window.viewTableauxReserves=async function(c){
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Tableaux de réserves</h1><p>Levées de réserves des commissions, bureaux de contrôle et prestataires — 1 rapport = 1 tableau.</p></div>
+    <div class="actions"><button class="btn primary" onclick="trvModal()">＋ Nouveau tableau depuis un rapport</button></div></div>
+    <div id="trv_filtres" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px"></div>
+    <div id="trv_stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px"></div>
+    <div id="trv_synth" style="margin-bottom:16px"></div>
+    <div id="trv_box"><div style="display:grid;place-items:center;padding:30px"><div class="spin"></div></div></div>`;
+  try{
+    const [{data:tabs,error:e1},{data:res,error:e2}]=await Promise.all([
+      sb.from('tableaux_reserves').select('*').order('created_at',{ascending:false}).limit(150),
+      sb.from('reserves').select('id,tableau_id,etat_levee,recidive,date_limite,erp_id').not('tableau_id','is',null)
+    ]);
+    if(e1) throw e1; if(e2) throw e2;
+    window._trvData={tabs:tabs||[],res:res||[]};
+    window._trvF={annee:'all',source:'all',erp:''};
+    trvRenderAll();
+  }catch(e){ document.getElementById('trv_box').innerHTML='<div class="card card-pad" style="color:#dc2626">Erreur : '+esc(e.message||e)+'</div>'; }
+};
+window.trvRenderAll=function(){
+  const D=window._trvData||{tabs:[],res:[]}, F=window._trvF||{annee:'all',source:'all',erp:''};
+  let tabs=D.tabs;
+  if(F.annee!=='all') tabs=tabs.filter(t=>String(t.annee)===String(F.annee));
+  if(F.source!=='all') tabs=tabs.filter(t=>t.source===F.source);
+  if(F.erp) tabs=tabs.filter(t=>t.erp_id===F.erp);
+  const ids=new Set(tabs.map(t=>t.id));
+  const res=D.res.filter(r=>ids.has(r.tableau_id));
+  trvRenderFiltres(D);
+  trvRenderSynth(tabs,res);
+  trvRenderList(tabs,res);
+};
+window.trvSetF=function(k,v){ window._trvF[k]=v; if(k!=='erp') window._trvF.erp=''; trvRenderAll(); };
+window.trvRenderFiltres=function(D){
+  const host=document.getElementById('trv_filtres'); if(!host) return;
+  const F=window._trvF;
+  const annees=[...new Set(D.tabs.map(t=>t.annee).filter(Boolean))].sort((a,b)=>b-a);
+  const chip=(lbl,on,click)=>`<button onclick="${click}" style="border:1.5px solid ${on?'#1a44ad':'var(--line)'};background:${on?'rgba(26,68,173,.09)':'var(--surface)'};color:${on?'#1a44ad':'var(--muted)'};border-radius:999px;padding:5px 13px;font-size:12px;font-weight:700;cursor:pointer">${lbl}</button>`;
+  host.innerHTML=
+    chip('Toutes années',F.annee==='all',"trvSetF('annee','all')")
+    +annees.map(a=>chip(a,String(F.annee)===String(a),`trvSetF('annee','${a}')`)).join('')
+    +'<span style="width:10px"></span>'
+    +chip('Toutes sources',F.source==='all',"trvSetF('source','all')")
+    +Object.entries(TRV_SOURCES).map(([k,l])=>chip(l,F.source===k,`trvSetF('source','${k}')`)).join('')
+    +(F.erp?('<span style="width:10px"></span>'+chip('✕ '+esc(((state.erps||[]).find(e=>e.id===F.erp)||{}).nom||'ERP'),true,"trvSetF('erp','')")):'');
+};
+window.trvRenderSynth=function(tabs,res){
+  const host=document.getElementById('trv_synth'); if(!host) return;
+  if(!tabs.length){ host.innerHTML=''; return; }
+  const clientName=id=>{ const c=(state.clients||[]).find(x=>x.id===id); return c?(c.nom||c.raison_sociale||'Client'):'Client'; };
+  const erpName=id=>{ const e=(state.erps||[]).find(x=>x.id===id); return e?e.nom:'Établissement'; };
+  const byErp={};
+  tabs.forEach(t=>{ const k=t.erp_id; (byErp[k]=byErp[k]||{client:t.client_id,tabs:0,t:0,l:0,p:0,rec:0,ret:0,last:null}); byErp[k].tabs++;
+    if(!byErp[k].last||String(t.date_intervention||'')>String(byErp[k].last)) byErp[k].last=t.date_intervention; });
+  const tabErp={}; tabs.forEach(t=>tabErp[t.id]=t.erp_id);
+  const today=new Date().toISOString().slice(0,10);
+  res.forEach(r=>{ const k=tabErp[r.tableau_id]; if(!k||!byErp[k]) return; const b=byErp[k];
+    b.t++; if(r.etat_levee==='levee') b.l++; else { if(r.etat_levee==='partielle') b.p++; if(r.date_limite&&r.date_limite<today) b.ret++; }
+    if(r.recidive) b.rec++; });
+  // Regrouper par client
+  const byClient={};
+  Object.entries(byErp).forEach(([erp,b])=>{ (byClient[b.client]=byClient[b.client]||[]).push([erp,b]); });
+  host.innerHTML='<div class="card" style="padding:4px 0">'+Object.entries(byClient).map(([cid,list])=>{
+    const rows=list.sort((a,b)=>a[1].t-b[1].t).reverse().map(([erp,b])=>{
+      const taux=b.t?Math.round(b.l/b.t*100):0;
+      return `<div onclick="trvSetF('erp','${esc(erp)}')" style="display:flex;align-items:center;gap:8px 10px;padding:9px 14px;border-top:1px solid var(--line);cursor:pointer;flex-wrap:wrap">
+        <span style="flex:1 1 150px;min-width:0;font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(erpName(erp))}</span>
+        <span style="flex:0 0 auto;font-size:11px;color:var(--muted)">${b.tabs} tabl. · ${b.t} obs.</span>
+        <span style="flex:1 1 90px;min-width:70px"><span style="display:block;background:#e2e8f0;border-radius:99px;height:7px;overflow:hidden"><span style="display:block;height:100%;width:${taux}%;background:${taux===100?'#16a34a':taux>=50?'#d97706':'#dc2626'}"></span></span></span>
+        <span style="flex:0 0 58px;text-align:right;font-size:12px;font-weight:800;color:${taux===100?'#16a34a':'var(--ink)'}">${taux} %</span>
+        <span style="flex:0 1 auto;display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">
+          ${b.t-b.l-b.p?`<span style="background:rgba(220,38,38,.08);color:#dc2626;border-radius:6px;padding:1px 7px;font-size:10.5px;font-weight:800">${b.t-b.l-b.p} à lever</span>`:''}
+          ${b.p?`<span style="background:rgba(217,119,6,.1);color:#d97706;border-radius:6px;padding:1px 7px;font-size:10.5px;font-weight:800">${b.p} part.</span>`:''}
+          ${b.ret?`<span style="background:#dc2626;color:#fff;border-radius:6px;padding:1px 7px;font-size:10.5px;font-weight:800">${b.ret} en retard</span>`:''}
+          ${b.rec?`<span style="background:rgba(147,51,234,.1);color:#9333ea;border-radius:6px;padding:1px 7px;font-size:10.5px;font-weight:800">${b.rec} récidive${b.rec>1?'s':''}</span>`:''}
+        </span></div>`;
+    }).join('');
+    return `<div style="padding:10px 14px 4px;font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${esc(clientName(cid))}</div>${rows}`;
+  }).join('')+'</div>';
+};
+window.trvRenderList=function(tabs,res){
+  const st=document.getElementById('trv_stats'), box=document.getElementById('trv_box'); if(!box) return;
+  const byTab={};
+  res.forEach(r=>{ const k=r.tableau_id; (byTab[k]=byTab[k]||{t:0,l:0,p:0}); byTab[k].t++; if(r.etat_levee==='levee') byTab[k].l++; else if(r.etat_levee==='partielle') byTab[k].p++; });
+  const totOuv=res.filter(r=>r.etat_levee!=='levee').length;
+  const today=new Date().toISOString().slice(0,10);
+  const ret=res.filter(r=>r.etat_levee!=='levee'&&r.date_limite&&r.date_limite<today).length;
+  const rec=res.filter(r=>r.recidive).length;
+  const taux=res.length?Math.round((res.length-totOuv)/res.length*100):0;
+  const stat=(l,v,c2)=>`<div class="card" style="padding:12px 14px"><div style="font-size:22px;font-weight:800;color:${c2}">${v}</div><div style="font-size:11.5px;color:var(--muted);font-weight:600">${l}</div></div>`;
+  if(st) st.innerHTML=stat('Tableaux',tabs.length,'#2563eb')+stat('À lever',totOuv,'#dc2626')+stat('Levées',res.length-totOuv,'#16a34a')+stat('En retard',ret,ret?'#dc2626':'#94a3b8')+stat('Récidives',rec,rec?'#9333ea':'#94a3b8')+stat('Taux de levée',taux+' %',taux===100?'#16a34a':'#d97706');
+  if(!tabs.length){ box.innerHTML='<div class="card card-pad" style="color:var(--muted)">Aucun tableau pour le moment — crée le premier depuis un rapport de la GED.</div>'; return; }
+  const erpOf=id=>{ const e=(state.erps||[]).find(x=>x.id===id); return e?e.nom:'Établissement'; };
+  box.innerHTML='<div style="display:flex;flex-direction:column;gap:8px">'+tabs.map(t=>{
+    const k=byTab[t.id]||{t:0,l:0,p:0};
+    const done=k.t>0&&k.l===k.t;
+    return `<div class="card" style="padding:12px 14px;cursor:pointer" onclick="trvDetail('${esc(t.id)}')">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <b style="font-size:13.5px">${esc(t.organisme||'—')}</b>
+        <span style="background:rgba(37,99,235,.08);color:#2563eb;border-radius:6px;padding:2px 8px;font-size:10.5px;font-weight:700">${esc(TRV_SOURCES[t.source]||t.source)}</span>
+        <span style="font-size:12px;color:var(--muted)">${esc(erpOf(t.erp_id))} · ${t.date_intervention?new Date(t.date_intervention+'T00:00:00').toLocaleDateString('fr-FR'):'—'} · ${t.annee||''}</span>
+        <span style="flex:1"></span>
+        ${done?'<span style="background:rgba(22,163,74,.1);color:#16a34a;border:1px solid rgba(22,163,74,.35);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700">✓ tout levé</span>'
+             :`<span style="background:rgba(220,38,38,.08);color:#dc2626;border:1px solid rgba(220,38,38,.3);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700">${k.t-k.l} à lever${k.p?' ('+k.p+' partielle'+(k.p>1?'s':'')+')':''}</span>`}
+        <span style="font-size:11.5px;color:var(--muted)">${k.t} obs.</span>
+      </div></div>`;
+  }).join('')+'</div>';
+};
+
+// ── Détail d'un tableau
+window.trvDetail=async function(id){
+  try{
+    const [{data:t},{data:rows}]=await Promise.all([
+      sb.from('tableaux_reserves').select('*').eq('id',id).maybeSingle(),
+      sb.from('reserves').select('*').eq('tableau_id',id).order('numero')
+    ]);
+    if(!t) return;
+    const erp=(state.erps||[]).find(x=>x.id===t.erp_id);
+    const chip=r=>r.etat_levee==='levee'?'<span style="color:#16a34a;font-weight:700;font-size:11.5px">✓ levée'+(r.date_realisation?' le '+new Date(r.date_realisation+'T00:00:00').toLocaleDateString('fr-FR'):'')+'</span>'
+      :r.etat_levee==='partielle'?'<span style="color:#d97706;font-weight:700;font-size:11.5px">◐ partielle</span>'
+      :'<span style="color:#dc2626;font-weight:700;font-size:11.5px">● à lever</span>';
+    openModal(`<div class="modal-head"><h2>${esc(t.organisme||'Tableau')} — ${esc(erp?erp.nom:'')}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:12px;color:var(--muted)">${esc(t.titre||'')} · intervention du ${t.date_intervention?new Date(t.date_intervention+'T00:00:00').toLocaleDateString('fr-FR'):'—'} · ${rows.length} observation(s)</div>
+        ${rows.map(r=>`<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
+            <b style="font-size:12.5px">N°${r.numero||'—'}</b>
+            ${r.recidive?'<span style="background:rgba(220,38,38,.1);color:#dc2626;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:800">RÉCIDIVE</span>':''}
+            <span style="font-size:11px;color:var(--muted)">${esc(r.localisation||'')}</span>
+            <span style="flex:1"></span>${chip(r)}
+          </div>
+          <div style="font-size:12.5px">${esc(r.libelle||'')}</div>
+          <div style="font-size:10.5px;color:var(--muted);margin-top:4px">${esc(r.code_obs||'')} · 1er signalement : ${r.date_premier_signalement?new Date(r.date_premier_signalement+'T00:00:00').toLocaleDateString('fr-FR'):'—'} · ${esc(r.article_ref||'')}${r.signature_nom?' · signé par '+esc(r.signature_nom):''}</div>
+        </div>`).join('')}
+      </div>
+      <div class="modal-foot"><button class="btn" onclick="closeModal()">Fermer</button>
+        <button class="btn" onclick="trvNotify('${esc(erp?erp.nom:'')}',${rows.length},'${esc(t.organisme||'')}')">Notifier le client…</button>
+        <button class="btn primary" onclick="trvSendModal('${esc(t.id)}','${esc(t.erp_id)}','${esc(erp?erp.nom:'')}','${esc(t.organisme||'')}',${rows.length})">✍ Envoyer au technicien…</button></div>`);
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+// ── Création : choisir un rapport, analyser, valider
+window.trvModal=async function(){
+  let erps=state.erps||[];
+  if(state.currentClient && state.currentClient!=='all') erps=erps.filter(e=>e.client_id===state.currentClient);
+  const cur=(state.currentErp&&state.currentErp!=='all')?state.currentErp:'';
+  const eopts='<option value="">— Choisir un établissement —</option>'+erps.map(e=>`<option value="${e.id}"${e.id===cur?' selected':''}>${esc(e.nom)}</option>`).join('');
+  openModal(`<div class="modal-head"><h2>Nouveau tableau de réserves</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <div id="trv_step1" style="display:flex;flex-direction:column;gap:12px">
+        <div class="fld" style="margin:0"><label>Établissement (ERP)</label><select id="trv_erp" onchange="trvErpChange()">${eopts}</select></div>
+        <div class="fld" style="margin:0"><label>Rapport à analyser</label>
+          <div id="trv_docs" style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow:auto;padding:2px">
+            <div style="font-size:12px;color:var(--muted)">Choisis d'abord un établissement.</div></div></div>
+        <div id="trv_wait" style="display:none;align-items:center;gap:10px;color:var(--muted);font-size:12.5px"><div class="spin" style="width:18px;height:18px"></div> Lecture du rapport en cours…</div>
+      </div>
+      <div id="trv_step2" style="display:none;flex-direction:column;gap:10px"></div>
+      <div id="trv_result"></div>
+    </div>
+    <div class="modal-foot" id="trv_foot"><button class="btn" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" id="trv_go" style="display:none" onclick="trvCreate()">Valider et créer le tableau</button></div>`);
+  if(cur) trvErpChange();
+};
+window.trvErpChange=async function(){
+  const v=document.getElementById('trv_erp').value;
+  const host=document.getElementById('trv_docs'); if(!host) return;
+  if(!v){ host.innerHTML='<div style="font-size:12px;color:var(--muted)">Choisis d\'abord un établissement.</div>'; return; }
+  host.innerHTML='<div style="font-size:12px;color:var(--muted)">Chargement…</div>';
+  try{
+    const {data,error}=await sb.from('documents').select('id,nom_original,type,date_document,created_at,prestataire_id,emetteur,fichier_path,tags')
+      .eq('erp_id',v).in('type',TRV_GED_TYPES).not('fichier_path','is',null)
+      .order('date_document',{ascending:false,nullsFirst:false}).limit(200);
+    if(error) throw error;
+    window._trvDocs=data||[];
+    const pname=id=>{ const p=(window._prestCache||[]).find(x=>x.id===id); return p?p.nom:''; };
+    host.innerHTML=(data||[]).length?data.map(d=>{
+      const who=pname(d.prestataire_id)||d.emetteur||'';
+      const dt=d.date_document||String(d.created_at||'').slice(0,10);
+      return `<label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:2px solid var(--line);border-radius:10px;cursor:pointer;background:var(--surface)">
+        <input type="radio" name="trv_doc" value="${esc(d.id)}" style="accent-color:#2563eb;width:15px;height:15px" onchange="trvAnalyze('${esc(d.id)}')">
+        <span style="min-width:0;flex:1"><span style="display:block;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(d.nom_original||d.type)}</span>
+        <span style="display:block;font-size:11.5px;color:var(--muted)">${esc(d.type)}${who?' · '+esc(who):''}${dt?' · '+esc(String(dt)):''}</span></span></label>`;
+    }).join(''):'<div style="font-size:12px;color:var(--muted)">Aucun rapport en GED pour cet établissement.</div>';
+  }catch(e){ host.innerHTML='<div style="font-size:12px;color:#dc2626">Erreur : '+esc(e.message||e)+'</div>'; }
+};
+window.trvAnalyze=async function(docId){
+  const d=(window._trvDocs||[]).find(x=>x.id===docId); if(!d) return;
+  const wait=document.getElementById('trv_wait'); wait.style.display='flex';
+  try{
+    const bucket=((d.tags||'').indexOf('cat:')>=0||(d.tags||'').indexOf('source:rapports')>=0)?'rapports':'documents';
+    const {data:s,error}=await sb.storage.from(bucket).createSignedUrl(d.fichier_path,300);
+    if(error||!s||!s.signedUrl) throw (error||new Error('fichier introuvable'));
+    const lines=await trvExtractLines(s.signedUrl);
+    const parsed=trvParseVeritas(lines);
+    trvShowValidation(parsed,d);
+  }catch(e){ toast('Analyse impossible : '+(e.message||e),'err'); }
+  wait.style.display='none';
+};
+window.trvShowValidation=function(parsed,doc){
+  window._trvDoc=doc; window._trvRows=(parsed.observations||[]).map(o=>Object.assign({},o));
+  const s2=document.getElementById('trv_step2');
+  document.getElementById('trv_step1').style.display='none';
+  s2.style.display='flex';
+  const sopts=Object.entries(TRV_SOURCES).map(([k,l])=>`<option value="${k}">${l}</option>`).join('');
+  s2.innerHTML=`
+    <div style="background:${parsed.observations.length?'rgba(22,163,74,.08)':'rgba(217,119,6,.1)'};border:1px solid ${parsed.observations.length?'rgba(22,163,74,.4)':'rgba(217,119,6,.4)'};border-radius:10px;padding:9px 12px;font-size:12.5px">
+      ${parsed.observations.length?('✅ '+parsed.observations.length+' observation(s) détectée(s) — vérifie, corrige si besoin, puis valide.'):'⚠ Format non reconnu automatiquement — saisis les observations manuellement ci-dessous.'}</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div class="fld" style="margin:0;flex:1;min-width:150px"><label>Organisme</label><input id="trv_org" value="${esc(parsed.organisme||'')}" placeholder="Bureau Veritas, Apave…"></div>
+      <div class="fld" style="margin:0;flex:1;min-width:140px"><label>Source</label><select id="trv_src">${sopts}</select></div>
+      <div class="fld" style="margin:0;flex:1;min-width:140px"><label>Date d'intervention</label><input id="trv_date" type="date" value="${esc(parsed.date_intervention||'')}"></div></div>
+    <div class="fld" style="margin:0"><label>Observations <span id="trv_n" style="font-weight:400;color:var(--muted)">(${window._trvRows.length})</span></label>
+      <div id="trv_rows" style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow:auto;padding:2px"></div>
+      <button class="btn sm" style="margin-top:6px" onclick="window._trvRows.push({numero:window._trvRows.length+1,localisation:'',descriptif:'',date_premier_signalement:document.getElementById('trv_date').value,article_ref:'',code_obs:'',recidive:false});trvRenderRows()">＋ Ajouter une observation</button></div>`;
+  trvRenderRows();
+  document.getElementById('trv_go').style.display='';
+};
+window.trvRenderRows=function(){
+  const host=document.getElementById('trv_rows'); if(!host) return;
+  document.getElementById('trv_n').textContent='('+window._trvRows.length+')';
+  document.getElementById('trv_go').textContent='Valider et créer le tableau ('+window._trvRows.length+')';
+  host.innerHTML=window._trvRows.map((r,i)=>`<div style="border:1px solid var(--line);border-radius:10px;padding:9px 11px;display:flex;flex-direction:column;gap:6px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <b style="font-size:12px;flex:0 0 auto">N°${r.numero}</b>
+      <input value="${esc(r.localisation||'')}" placeholder="Localisation" oninput="window._trvRows[${i}].localisation=this.value" style="flex:1 1 130px;min-width:0;font-size:11.5px;border:1px solid var(--line);border-radius:7px;padding:5px 8px">
+      <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#dc2626;font-weight:700;flex:0 0 auto"><input type="checkbox" ${r.recidive?'checked':''} onchange="window._trvRows[${i}].recidive=this.checked" style="accent-color:#dc2626">récidive</label>
+      <button onclick="window._trvRows.splice(${i},1);trvRenderRows()" style="flex:0 0 auto;background:none;border:1px solid var(--line);border-radius:6px;color:#64748b;cursor:pointer;padding:2px 7px;font-size:11px">✕</button></div>
+    <textarea rows="2" oninput="window._trvRows[${i}].descriptif=this.value" onkeydown="event.stopPropagation()" placeholder="Descriptif de l'observation" style="width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;font-family:inherit;resize:vertical">${esc(r.descriptif||'')}</textarea>
+    <div style="display:flex;gap:8px;align-items:center;font-size:11px;color:var(--muted)">
+      <span>1er signalement</span><input type="date" value="${esc(r.date_premier_signalement||'')}" onchange="window._trvRows[${i}].date_premier_signalement=this.value" style="border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:11px">
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.code_obs||'')} ${esc(r.article_ref||'')}</span></div>
+  </div>`).join('');
+};
+window.trvCreate=async function(){
+  const erpId=document.getElementById('trv_erp').value;
+  const rows=(window._trvRows||[]).filter(r=>(r.descriptif||'').trim());
+  const org=(document.getElementById('trv_org').value||'').trim();
+  const src=document.getElementById('trv_src').value;
+  const dInt=document.getElementById('trv_date').value||null;
+  if(!rows.length){toast('Aucune observation à enregistrer','err');return;}
+  const btn=document.getElementById('trv_go'); btn.disabled=true; btn.textContent='Création…';
+  try{
+    const erp=(state.erps||[]).find(x=>x.id===erpId)||{};
+    const who=state.profile?.nom||state.user?.email||'';
+    const {data:tab,error:e1}=await sb.from('tableaux_reserves').insert({
+      erp_id:erpId, client_id:erp.client_id||null, source:src, organisme:org||null,
+      date_intervention:dInt, annee:dInt?parseInt(dInt.slice(0,4),10):null,
+      rapport_document_id:(window._trvDoc||{}).id||null, nb_obs:rows.length, created_by:who
+    }).select().single();
+    if(e1||!tab) throw (e1||new Error('création impossible'));
+    const payload=rows.map(r=>({
+      erp_id:erpId, tableau_id:tab.id, numero:r.numero||null,
+      libelle:r.descriptif.trim(), localisation:r.localisation||null,
+      code_obs:r.code_obs||null, article_ref:r.article_ref||null,
+      recidive:!!r.recidive, date_premier_signalement:r.date_premier_signalement||null,
+      etat_levee:'non_levee', statut:'detectee'
+    }));
+    const {error:e2}=await sb.from('reserves').insert(payload);
+    if(e2) throw e2;
+    document.getElementById('trv_step2').style.display='none';
+    document.getElementById('trv_result').innerHTML=`<div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.4);border-radius:11px;padding:12px 14px;font-size:13px">
+      ✅ Tableau créé — <b>${rows.length} observation(s)</b> · ${esc(org||'')} · ${esc(erp.nom||'')}<br>
+      <span style="color:var(--muted);font-size:12px">Les réserves sont dans « Levées des réserves » et l'agenda. Pense à notifier le client.</span></div>`;
+    document.getElementById('trv_foot').innerHTML=`<button class="btn" onclick="closeModal();if(location.hash.includes('tableaux-reserves')){viewTableauxReserves(document.getElementById('content'));}">Valider</button>
+      <button class="btn primary" onclick="trvNotify('${esc(erp.nom||'')}',${rows.length},'${esc(org||'')}')">Notifier le client par SMS…</button>`;
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Valider et créer le tableau ('+rows.length+')'; }
+};
+
+/* ── Envoi du tableau au technicien (accès temporaire + lien magique) ── */
+window.trvSendModal=async function(tabId,erpId,erpNom,org,nb){
+  closeModal();
+  if(!window._prestCache || !window._prestCache.length){
+    try{ const {data}=await sb.from('prestataires').select('*').order('nom'); window._prestCache=data||[]; }catch(_){ window._prestCache=[]; }
+  }
+  const all=window._prestCache;
+  const opt=p=>`<option value="${p.id}">${esc(p.nom)}</option>`;
+  const prests=all.filter(p=>p.categorie!=='bureau_de_controle'), bureaux=all.filter(p=>p.categorie==='bureau_de_controle');
+  const popts='<option value="">— Contacts d\'un prestataire (optionnel) —</option>'
+    +(prests.length?`<optgroup label="Prestataires">${prests.map(opt).join('')}</optgroup>`:'')
+    +(bureaux.length?`<optgroup label="Bureaux de contrôle">${bureaux.map(opt).join('')}</optgroup>`:'');
+  window._tsSel={};
+  openModal(`<div class="modal-head"><h2>Envoyer au technicien <span style="font-size:11px;font-weight:600;color:var(--muted)">levée signée</span></h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <div id="ts_form" style="display:flex;flex-direction:column;gap:12px">
+        <div style="background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.25);border-radius:10px;padding:9px 12px;font-size:12.5px">
+          <b>${esc(org||'Tableau')}</b> — ${esc(erpNom)} · ${nb} observation(s).<br>
+          <span style="color:var(--muted)">Le technicien recevra un lien : il consulte le tableau et <b>signe chaque levée au doigt</b> sur son téléphone.</span></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <div class="fld" style="margin:0;flex:1;min-width:140px"><label>Validité de l'accès</label>
+            <select id="ts_val"><option value="24">24 heures</option><option value="48">48 heures</option><option value="168" selected>7 jours</option><option value="720">30 jours</option></select></div>
+          <div class="fld" style="margin:0;flex:1;min-width:160px"><label>Code</label>
+            <div style="display:flex;gap:6px"><input id="ts_pwd" readonly value="${_qrGenPwd()}" style="flex:1;min-width:0;font-weight:700;letter-spacing:1px">
+            <button class="btn" onclick="document.getElementById('ts_pwd').value=_qrGenPwd()">↻</button></div></div></div>
+        <div class="fld" style="margin:0"><label>Contacts suggérés</label>
+          <select id="ts_prest" onchange="tsPrestChange()">${popts}</select>
+          <div id="ts_list" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div></div>
+        <div class="fld" style="margin:0"><label>Mobile(s) du technicien <span style="font-weight:400;color:var(--muted)">(séparés par des virgules)</span></label>
+          <input id="ts_mob" placeholder="06 XX XX XX XX"></div>
+      </div>
+      <div id="ts_result"></div>
+    </div>
+    <div class="modal-foot" id="ts_foot"><button class="btn" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" id="ts_go" onclick="trvSendGo('${esc(tabId)}','${esc(erpId)}','${esc(erpNom)}','${esc(org||'')}',${nb})">Créer l'accès et envoyer</button></div>`);
+};
+window.tsPrestChange=function(){
+  const pid=document.getElementById('ts_prest').value;
+  const host=document.getElementById('ts_list'); if(!host) return;
+  const p=(window._prestCache||[]).find(x=>x.id===pid);
+  if(!p){ host.innerHTML=''; return; }
+  const list=qsContactsOf(p);
+  host.innerHTML=list.length?list.map(x=>{
+    const on=!!window._tsSel[x.v];
+    return `<label style="display:inline-flex;align-items:center;gap:6px;border:1.5px solid ${on?'#2563eb':'var(--line)'};background:${on?'rgba(37,99,235,.07)':'var(--surface)'};border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;user-select:none">
+      <input type="checkbox" value="${esc(x.v)}"${on?' checked':''} onchange="tsToggle(this)" style="accent-color:#2563eb;width:14px;height:14px">📱 <b>${esc(x.label)}</b> · ${esc(x.v)}</label>`;
+  }).join(''):'<span style="font-size:12px;color:var(--muted)">Aucun mobile en fiche.</span>';
+};
+window.tsToggle=function(inp){
+  if(inp.checked) window._tsSel[inp.value]=true; else delete window._tsSel[inp.value];
+  const card=inp.closest('label');
+  if(card){ card.style.borderColor=inp.checked?'#2563eb':'var(--line)'; card.style.background=inp.checked?'rgba(37,99,235,.07)':'var(--surface)'; }
+};
+window.trvSendGo=async function(tabId,erpId,erpNom,org,nb){
+  const hours=parseInt(document.getElementById('ts_val').value,10)||168;
+  const pwd=(document.getElementById('ts_pwd').value||'').trim();
+  const mobiles=[...new Set([...Object.keys(window._tsSel||{}),...(document.getElementById('ts_mob').value||'').split(/[,;]/).map(s=>s.replace(/[\s.]/g,'')).filter(Boolean)])];
+  const bad=mobiles.find(x=>!/^(\+33|0)[67]\d{8}$/.test(x));
+  if(bad){toast('Numéro invalide : '+bad,'err');return;}
+  const btn=document.getElementById('ts_go'); btn.disabled=true; btn.textContent='Création…';
+  try{
+    const {data:erp,error:e1}=await sb.from('erps').select('id,nom,client_id,qr_token').eq('id',erpId).maybeSingle();
+    if(e1||!erp||!erp.qr_token) throw (e1||new Error('QR de l\'établissement introuvable'));
+    const hash=await _qrSha256(pwd);
+    const exp=new Date(Date.now()+hours*3600*1000);
+    const who=state.profile?.nom||state.user?.email||'';
+    const {error:e2}=await sb.from('acces_tableaux').insert({tableau_id:tabId,erp_id:erpId,client_id:erp.client_id,destinataire:mobiles.join(', ')||null,password_hash:hash,password_plain:pwd,expires_at:exp.toISOString(),actif:true,created_by:who});
+    if(e2) throw e2;
+    const link='https://conformite-securite.fr/?qr='+erp.qr_token+'&c='+encodeURIComponent(pwd);
+    const valLabel=({24:'24 heures',48:'48 heures',168:'7 jours',720:'30 jours'})[hours]||hours+' h';
+    let smsN=0, direct=false;
+    if(mobiles.length){
+      const msg=`PREVA Conseils — Levées de réserves à signer : ${erpNom} (${org||'organisme'}, ${nb} obs.)\nAccès direct (1 clic) :\n${link}\nCode si demandé : ${pwd}\nValable ${valLabel}.`;
+      try{ const {data,error:eD}=await sb.functions.invoke('send-sms',{body:{to:mobiles,message:msg}}); if(!eD && data && data.ok) direct=true; }catch(_){}
+      const rows=mobiles.map(m=>({destinataire:m,message:msg,send_at:new Date().toISOString(),statut:direct?'sent':'pending',sent_at:direct?new Date().toISOString():null,contexte:{type:'levee_tableau',erp:erpNom},created_by:who}));
+      const {error:e3}=await sb.from('sms_scheduled').insert(rows);
+      if(direct||!e3) smsN=rows.length;
+    }
+    document.getElementById('ts_form').style.display='none';
+    document.getElementById('ts_result').innerHTML=`<div style="display:flex;flex-direction:column;gap:10px">
+      <div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.4);border-radius:11px;padding:12px 14px;font-size:13px">
+        ✅ Accès technicien créé — valable ${valLabel}${smsN?('<br>📱 '+smsN+' SMS '+(direct?'envoyé'+(smsN>1?'s':'')+' à l\'instant ✓':'pris en charge par le robot (≤ 5 min)')):''}</div>
+      <div class="fld" style="margin:0"><label>Lien à accès direct (code inclus)</label><div style="display:flex;gap:6px"><input readonly value="${esc(link)}" style="flex:1;min-width:0;font-size:12px"><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(link)}');toast('Lien copié','ok')">Copier</button></div></div></div>`;
+    document.getElementById('ts_foot').innerHTML='<button class="btn primary" style="min-width:140px" onclick="closeModal()">Valider</button>';
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Créer l\'accès et envoyer'; }
+};
+
+/* ── Page publique : mode « levée de tableau » ── */
+window.qrTablView=async function(sess){
+  const b=document.getElementById('qr-prest-box'); if(!b) return;
+  b.innerHTML='<div style="display:grid;place-items:center;padding:20px"><div class="spin"></div></div>';
+  let data=null;
+  try{
+    const r=await sb.functions.invoke('qr-erp-docs',{ body:{ token:window.__qrTok, session:sess.session, tableau:true } });
+    if(r.error) throw r.error; data=r.data;
+  }catch(e){ data=null; }
+  if(!data||data.error||!data.tableau){ try{ localStorage.removeItem('qr_prest_sess'); }catch(e){} qrPrestLoginForm('Session expirée, reconnectez-vous.'); return; }
+  window.__qrSess=sess.session; window.__qrTabl=data;
+  qrTablRender(data);
+};
+window.qrTablRender=function(data){
+  const b=document.getElementById('qr-prest-box'); if(!b) return;
+  const t=data.tableau, rows=data.reserves||[];
+  const done=rows.filter(r=>r.etat_levee==='levee').length;
+  const part=rows.filter(r=>r.etat_levee==='partielle').length;
+  const fmtD=d=>d?new Date(String(d).slice(0,10)+'T00:00:00').toLocaleDateString('fr-FR'):'—';
+  b.innerHTML=`
+    <div style="margin-bottom:12px">
+      <div style="font-size:16px;font-weight:800;color:#0f172a">${esc(t.organisme||'Tableau de réserves')} — ${esc((data.erp||{}).nom||'')}</div>
+      <div style="font-size:12px;color:#64748b">${esc(t.titre||'Liste récapitulative des observations issues de la vérification')} · intervention du ${fmtD(t.date_intervention)}</div>
+      <div style="margin-top:8px;background:#e2e8f0;border-radius:99px;height:9px;overflow:hidden"><div style="height:100%;width:${rows.length?Math.round(done/rows.length*100):0}%;background:#16a34a"></div></div>
+      <div style="font-size:12px;color:#334155;margin-top:4px;font-weight:600">${done}/${rows.length} levée(s) signée(s)${part?' · '+part+' partielle(s)':''}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+    ${rows.map(r=>{
+      const st=r.etat_levee==='levee'
+        ?`<span style="color:#16a34a;font-weight:800;font-size:12px">✓ Levée le ${fmtD(r.date_realisation)}<br><span style="font-weight:600;color:#64748b">signé ${esc(r.signature_nom||'')}</span></span>`
+        :r.etat_levee==='partielle'
+        ?`<span style="color:#d97706;font-weight:800;font-size:12px">◐ Partielle le ${fmtD(r.date_realisation)}<br><span style="font-weight:600;color:#64748b">signé ${esc(r.signature_nom||'')}</span></span>`
+        :'<span style="color:#dc2626;font-weight:800;font-size:12px">● À lever</span>';
+      return `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 13px">
+        <div style="display:flex;gap:8px;align-items:flex-start">
+          <div style="min-width:0;flex:1">
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:3px">
+              <b style="font-size:13px">N°${r.numero||'—'}</b>
+              ${r.recidive?'<span style="background:rgba(220,38,38,.1);color:#dc2626;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:800">RÉCIDIVE</span>':''}
+              <span style="font-size:10.5px;color:#64748b">${esc(r.localisation||'')}</span></div>
+            <div style="font-size:13px;color:#0f172a">${esc(r.libelle||'')}</div>
+            <div style="font-size:10px;color:#94a3b8;margin-top:3px">${esc(r.code_obs||'')} · ${esc(r.article_ref||'')}</div></div>
+          <div style="flex:0 0 auto;text-align:right;max-width:45%">${st}</div></div>
+        ${r.etat_levee!=='levee'?`<button onclick="qrTablSign('${esc(r.id)}')" style="margin-top:9px;width:100%;background:#1a44ad;border:none;color:#fff;border-radius:10px;padding:11px;font-size:13.5px;font-weight:700;cursor:pointer">✍ ${r.etat_levee==='partielle'?'Compléter la levée':'Lever et signer'}</button>`:''}
+      </div>`;
+    }).join('')}
+    </div>`;
+};
+window.qrTablSign=function(rid){
+  const data=window.__qrTabl||{}; const r=(data.reserves||[]).find(x=>x.id===rid); if(!r) return;
+  const today=new Date().toISOString().slice(0,10);
+  let lastNom=''; try{ lastNom=localStorage.getItem('qr_sign_nom')||''; }catch(_){}
+  const ov=document.createElement('div');
+  ov.id='qr-sign';
+  ov.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.94);display:flex;flex-direction:column;padding:14px;overflow-y:auto';
+  ov.innerHTML=`
+    <div style="color:#fff;font-weight:800;font-size:15px;margin-bottom:2px">Levée de la réserve N°${r.numero||''}</div>
+    <div style="color:#cbd5e1;font-size:12px;margin-bottom:10px;max-height:60px;overflow:hidden">${esc(r.libelle||'')}</div>
+    <div style="background:#fff;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:11px">
+      <div style="display:flex;gap:8px">
+        <button id="qs_et_l" onclick="window._qrEt='levee';qrSignEt()" style="flex:1;border:2px solid #16a34a;background:rgba(22,163,74,.1);color:#16a34a;border-radius:10px;padding:10px;font-weight:800;font-size:13px;cursor:pointer">✓ Levée</button>
+        <button id="qs_et_p" onclick="window._qrEt='partielle';qrSignEt()" style="flex:1;border:2px solid #e2e8f0;background:#fff;color:#d97706;border-radius:10px;padding:10px;font-weight:800;font-size:13px;cursor:pointer">◐ Partielle</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <label style="flex:1;min-width:130px;font-size:11px;color:#64748b;font-weight:700">Date de réalisation<br>
+          <input id="qs_date" type="date" value="${today}" style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:8px;padding:8px;font-size:13px;margin-top:3px"></label>
+        <label style="flex:1.4;min-width:150px;font-size:11px;color:#64748b;font-weight:700">Nom et prénom du signataire<br>
+          <input id="qs_nom" value="${esc(lastNom)}" placeholder="Prénom NOM" style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:8px;padding:8px;font-size:13px;margin-top:3px"></label></div>
+      <div>
+        <div style="font-size:11px;color:#64748b;font-weight:700;margin-bottom:3px">Signature <span style="font-weight:500">(au doigt, dans le cadre)</span></div>
+        <canvas id="qs_canvas" style="width:100%;height:160px;border:2px dashed #cbd5e1;border-radius:10px;background:#fff;touch-action:none;display:block"></canvas>
+        <button onclick="qrSignClear()" style="margin-top:5px;background:none;border:1px solid #e2e8f0;border-radius:7px;color:#64748b;font-size:11.5px;padding:4px 10px;cursor:pointer">Effacer</button></div>
+      <div style="display:flex;gap:8px">
+        <button onclick="document.getElementById('qr-sign').remove()" style="flex:1;border:1px solid #e2e8f0;background:#fff;color:#334155;border-radius:10px;padding:12px;font-weight:700;font-size:13.5px;cursor:pointer">Annuler</button>
+        <button id="qs_ok" onclick="qrSignSubmit('${esc(rid)}')" style="flex:1.5;border:none;background:#1a44ad;color:#fff;border-radius:10px;padding:12px;font-weight:800;font-size:13.5px;cursor:pointer">✍ Valider la signature</button></div>
+    </div>`;
+  document.body.appendChild(ov);
+  window._qrEt='levee'; qrSignEt();
+  qrSignInit();
+};
+window.qrSignEt=function(){
+  const l=document.getElementById('qs_et_l'), p=document.getElementById('qs_et_p');
+  if(!l||!p) return;
+  const on=(el,col)=>{ el.style.border='2px solid '+col; el.style.background=col==='#16a34a'?'rgba(22,163,74,.1)':'rgba(217,119,6,.1)'; };
+  const off=el=>{ el.style.border='2px solid #e2e8f0'; el.style.background='#fff'; };
+  if(window._qrEt==='levee'){ on(l,'#16a34a'); off(p); } else { on(p,'#d97706'); off(l); }
+};
+window.qrSignInit=function(){
+  const c=document.getElementById('qs_canvas'); if(!c) return;
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const w=c.clientWidth||300, hgt=160;
+  c.width=w*dpr; c.height=hgt*dpr;
+  const ctx=c.getContext&&c.getContext('2d');
+  window._qrSig={ctx,dpr,strokes:0,drawing:false};
+  if(!ctx) return;
+  ctx.scale(dpr,dpr); ctx.lineWidth=2.4; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#0f172a';
+  const pos=e=>{ const rct=c.getBoundingClientRect(); return {x:e.clientX-rct.left,y:e.clientY-rct.top}; };
+  c.addEventListener('pointerdown',e=>{ e.preventDefault(); c.setPointerCapture&&c.setPointerCapture(e.pointerId); const p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); window._qrSig.drawing=true; });
+  c.addEventListener('pointermove',e=>{ if(!window._qrSig.drawing) return; e.preventDefault(); const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); window._qrSig.strokes++; });
+  const up=()=>{ window._qrSig.drawing=false; };
+  c.addEventListener('pointerup',up); c.addEventListener('pointercancel',up);
+};
+window.qrSignClear=function(){
+  const c=document.getElementById('qs_canvas'); const s=window._qrSig;
+  if(c&&s&&s.ctx){ s.ctx.clearRect(0,0,c.width,c.height); s.strokes=0; }
+};
+window.qrSignPayload=function(rid){
+  const nom=(document.getElementById('qs_nom').value||'').trim();
+  const dt=document.getElementById('qs_date').value;
+  if(!nom) return {error:'Indique le nom du signataire'};
+  if(!dt) return {error:'Indique la date de réalisation'};
+  if(!window._qrSig || window._qrSig.strokes<6) return {error:'Signe dans le cadre avant de valider'};
+  let sig='';
+  try{ sig=document.getElementById('qs_canvas').toDataURL('image/png'); }catch(e){ return {error:'Signature illisible, réessaie'}; }
+  return { reserve_id:rid, etat:window._qrEt||'levee', date_realisation:dt, signature_nom:nom, signature_data:sig };
+};
+window.qrSignSubmit=async function(rid){
+  const p=qrSignPayload(rid);
+  if(p.error){ toast(p.error,'err'); return; }
+  const btn=document.getElementById('qs_ok'); btn.disabled=true; btn.textContent='Enregistrement…';
+  try{
+    const {data,error}=await sb.functions.invoke('qr-erp-docs',{ body:{ token:window.__qrTok, session:window.__qrSess, lever:p } });
+    if(error||!data||!data.ok) throw (error||new Error((data&&data.error)||'échec'));
+    try{ localStorage.setItem('qr_sign_nom',p.signature_nom); }catch(_){}
+    const ov=document.getElementById('qr-sign'); if(ov) ov.remove();
+    // Mettre à jour localement et re-rendre
+    const r=(window.__qrTabl.reserves||[]).find(x=>x.id===rid);
+    if(r){ r.etat_levee=p.etat; r.date_realisation=p.date_realisation; r.signature_nom=p.signature_nom; }
+    qrTablRender(window.__qrTabl);
+    toast(p.etat==='levee'?'Levée signée ✓':'Levée partielle signée','ok');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='✍ Valider la signature'; }
+};
+
+window.trvNotify=async function(erpNom,nb,org){
+  closeModal();
+  await quickSmsModal();
+  const ta=document.getElementById('qs_msg');
+  if(ta){ ta.value='PREVA Conseils : nouveau tableau de levées de réserves — '+(org||'organisme de contrôle')+' — '+erpNom+' : '+nb+' observation(s) à traiter. Connectez-vous à votre espace pour le consulter.';
+    const c=document.getElementById('qs_cnt'); if(c) c.textContent=ta.value.length; }
+};
+
 /* ── Historique des SMS ── */
 window.HS_TYPES={manuel:'Manuel',acces_rapports:'Accès rapports',pv_reception:'PV réception',relance:'Relance'};
 window.viewHistoSms=async function(c){
@@ -8753,7 +9367,7 @@ window.viewHistoSms=async function(c){
     <div class="actions"><button class="btn primary" onclick="quickSmsModal()">＋ Nouveau SMS</button></div></div>
     <div id="hs_box"><div style="display:grid;place-items:center;padding:30px"><div class="spin"></div></div></div>`;
   try{
-    const {data,error}=await sb.from('sms_scheduled').select('destinataire,message,send_at,sent_at,statut,contexte,created_by,created_at').order('created_at',{ascending:false}).limit(300);
+    const {data,error}=await sb.from('sms_scheduled').select('id,destinataire,message,send_at,sent_at,statut,contexte,created_by,created_at').order('created_at',{ascending:false}).limit(300);
     if(error) throw error;
     hsRender(data||[]);
   }catch(e){ document.getElementById('hs_box').innerHTML='<div class="card card-pad" style="color:var(--danger,#dc2626)">Erreur de chargement : '+esc(e.message||e)+'</div>'; }
@@ -8784,6 +9398,7 @@ window.hsRender=function(rows){
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px">
           <b style="font-size:13px">${esc(r.destinataire)}</b>${who?'<span style="font-size:12px;color:var(--muted)">'+who+'</span>':''}
           ${badge(r)}<span style="flex:1"></span>${chip(r)}
+          <button title="Supprimer" onclick="hsDelete('${esc(r.id)}','${(r.statut||'')==='pending'&&r.send_at&&new Date(r.send_at)>new Date()?'1':''}',this)" style="background:none;border:1px solid var(--line);border-radius:7px;color:#64748b;cursor:pointer;padding:3px 8px;font-size:12px;line-height:1">🗑</button>
         </div>
         <div style="font-size:12.5px;color:var(--ink);opacity:.85;white-space:pre-line;word-break:break-word">${esc(r.message||'')}</div>
         <div style="font-size:11px;color:var(--muted);margin-top:5px">par ${esc(r.created_by||'—')}</div>
@@ -8793,6 +9408,17 @@ window.hsRender=function(rows){
 };
 
 /* ── Tableau de bord des accès rapports ── */
+window.hsDelete=async function(id,isFuture,btn){
+  const q=isFuture?'Annuler cet envoi programmé et le supprimer ?\n(le SMS ne partira pas)':'Supprimer ce SMS de l\'historique ?';
+  if(!confirm(q)) return;
+  btn.disabled=true; btn.textContent='…';
+  try{
+    const {error}=await sb.from('sms_scheduled').delete().eq('id',id);
+    if(error) throw error;
+    const card=btn.closest('.card'); if(card) card.remove();
+    toast(isFuture?'Envoi annulé et supprimé':'SMS supprimé','ok');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='🗑'; }
+};
 window.viewAccesRapports=async function(c){
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Accès rapports</h1><p>Tous les partages temporaires : en cours, expirés, révoqués.</p></div>
     <div class="actions"><button class="btn primary" onclick="arModal()">＋ Nouvel accès</button></div></div>
@@ -9135,7 +9761,7 @@ window.arCreate=async function(){
         ${mailN?'✉️ '+mailN+' email'+(mailN>1?'s':'')+' envoyé'+(mailN>1?'s':'')+'<br>':''}
         ${mailErr?'<span style="color:#dc2626">⚠ '+mailErr+' email(s) en échec</span>':''}
       </div>
-      <div class="fld" style="margin:0"><label>Lien à accès direct (code inclus)</label><div style="display:flex;gap:6px"><input readonly value="${esc(link)}&c=${encodeURIComponent(pwd)}" style="flex:1;font-size:12px"><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(link)}&c='+encodeURIComponent('${esc(pwd)}'));toast('Lien copié','ok')">Copier</button></div></div>
+      <div class="fld" style="margin:0"><label>Lien à accès direct (code inclus)</label><div style="display:flex;gap:6px"><input readonly value="${esc(link)}&c=${encodeURIComponent(pwd)}" style="flex:1;min-width:0;font-size:12px"><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(link)}&c='+encodeURIComponent('${esc(pwd)}'));toast('Lien copié','ok')">Copier</button></div></div>
       <div class="fld" style="margin:0"><label>Mot de passe</label><div style="display:flex;gap:6px"><input readonly value="${esc(pwd)}" style="flex:1;font-weight:700;letter-spacing:2px"><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(pwd)}');toast('Mot de passe copié','ok')">Copier</button></div></div>
     </div>`;
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Générer et envoyer'; }
@@ -11291,7 +11917,7 @@ async function qrLoadDocs(token){
     box.innerHTML=html;
     // Session mémorisée sur cet appareil → connexion directe
     let sess=null; try{ sess=JSON.parse(localStorage.getItem('qr_prest_sess')||'null'); }catch(e){}
-    if(sess && sess.session && sess.exp>Date.now()){ qrPrestShowRapports(sess); } else { qrPrestLoginForm(); }
+    if(sess && sess.session && sess.exp>Date.now()){ if(sess.mode==='tableau') qrTablView(sess); else qrPrestShowRapports(sess); } else { qrPrestLoginForm(); }
   }catch(e){ /* silencieux */ }
 }
 window.qrLoadDocs=qrLoadDocs;
@@ -11319,9 +11945,9 @@ function qrPrestLoginForm(msg){
     try{
       const { data, error } = await sb.functions.invoke('qr-erp-docs',{ body:{ token:window.__qrTok, auth:{ password:pwd } } });
       if(error||!data||!data.session){ qrPrestLoginForm((data&&data.error)||'Mot de passe invalide ou expiré'); return; }
-      const sess={ session:data.session, prestataire:data.prestataire||'', exp:new Date(data.expires_at).getTime() };
+      const sess={ session:data.session, prestataire:data.prestataire||'', mode:data.mode||'', exp:new Date(data.expires_at).getTime() };
       try{ localStorage.setItem('qr_prest_sess',JSON.stringify(sess)); }catch(e){}
-      qrPrestShowRapports(sess);
+      if(sess.mode==='tableau') qrTablView(sess); else qrPrestShowRapports(sess);
     }catch(e){ qrPrestLoginForm('Mot de passe invalide ou expiré'); }
   };
   const btn=document.getElementById('qr-prest-go'); if(btn) btn.onclick=go;
@@ -11508,6 +12134,10 @@ function qrArrivee(token,info){
         </div>
       </div>
       <div class="fld" id="q_mis_autre_wrap" style="display:none"><label>Précisez la mission <span class="req">*</span></label><input id="q_mis_autre" placeholder="Saisissez la mission" autocomplete="off"></div>
+      <label id="q_lev_band" style="display:flex;align-items:center;gap:11px;background:#1a44ad;border-radius:12px;padding:13px 14px;cursor:pointer;user-select:none;margin:4px 0 14px">
+        <input type="checkbox" id="q_lev" style="width:20px;height:20px;accent-color:#fff;flex:0 0 auto">
+        <span style="color:#fff;font-size:13.5px;font-weight:700;line-height:1.35">Mon intervention concerne des levées de réserves<br><span style="font-weight:500;font-size:11.5px;opacity:.85">Le responsable sera alerté et pourra vous envoyer le tableau à signer.</span></span>
+      </label>
       <button class="btn primary" id="q_go" style="width:100%;justify-content:center;padding:14px;font-size:15px;border-radius:12px">Valider mon arrivée</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:9px">
@@ -11532,7 +12162,7 @@ function qrArrivee(token,info){
       try{localStorage.setItem('preva_pointage_'+token, data);}catch(e){}
       try{localStorage.setItem('preva_qrinfo', JSON.stringify({nom:v('q_nom'),prenom:v('q_prenom'),tel:v('q_tel'),soc:v('q_soc')}));}catch(e){}
       // Notification email (fire & forget)
-      try{sb.functions.invoke('notif-pointage',{body:{pointage_id:data,type:'arrivee'}}).catch(()=>{});}catch(_){}
+      try{sb.functions.invoke('notif-pointage',{body:{pointage_id:data,type:'arrivee',leve:!!(document.getElementById('q_lev')&&document.getElementById('q_lev').checked)}}).catch(()=>{});}catch(_){}
       qrConfirm(token,'Arrivée enregistrée','Bonne intervention ! Revenez scanner ce QR pour déclarer votre départ.',data,info);
     }catch(e){ toast(e.message,'err'); go.disabled=false; go.textContent='Valider mon arrivée'; }
   };
