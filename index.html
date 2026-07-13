@@ -3490,7 +3490,9 @@ async function viewClient(c,id){
             const tel=ct.telephone?`<a href="tel:${esc(ct.telephone)}" title="${esc(ct.telephone)}" style="text-decoration:none">📞</a>`:'';
             const mob=ct.mobile?`<a href="tel:${esc(ct.mobile)}" title="${esc(ct.mobile)}" style="text-decoration:none">📱</a>`:'';
             return `<div class="card" style="padding:13px 15px">
-              ${ct.role_suivi?`<span class="pill inf" style="font-size:10.5px">${esc(ROLE_CLIENT[ct.role_suivi]||ct.role_suivi)}</span>`:''}
+              ${ct.role_suivi?(ct.role_suivi==='facturation'
+                ?`<span style="display:inline-block;background:#1a44ad;color:#fff;border-radius:999px;padding:2px 10px;font-size:10.5px;font-weight:800">💶 Facturation</span>`
+                :`<span class="pill inf" style="font-size:10.5px">${esc(ROLE_CLIENT[ct.role_suivi]||ct.role_suivi)}</span>`):''}
               <div style="font-weight:700;color:var(--ink);font-size:14px;margin-top:5px">${esc(nom)}</div>
               ${ct.fonction?`<div style="font-size:12.5px;color:var(--muted)">${esc(ct.fonction)}</div>`:''}
               ${ct.email?`<div style="font-size:12.5px;color:var(--muted);margin-top:4px;word-break:break-all">${esc(ct.email)}</div>`:''}
@@ -3506,6 +3508,7 @@ async function viewClient(c,id){
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap"><h1 style="margin:0">${esc(cl.raison_sociale)}</h1></div>
         <div class="meta"><span>${esc(cl.code_client)}</span>${cl.siret?'<span>SIRET '+esc(cl.siret)+'</span>':''}<span>${erps.length} ERP</span></div></div></div></div>
       <div class="actions"><button class="btn" onclick='formClient(${JSON.stringify(cl).replace(/'/g,"&#39;").replace(/</g,"\\u003c")})'>Modifier</button>
+        <button class="btn" onclick="ficheIdModal('${id}','')">Fiche d'identité</button>
         <button class="btn" onclick="sendClientMail('${id}')">Envoyer un mail</button>
         <button class="btn primary" onclick="formErp(null,'${id}')">${I.plus} Ajouter un ERP</button></div></div>
       <div class="info-grid" style="margin-bottom:20px">
@@ -4063,7 +4066,7 @@ async function viewErps(c){
     ${erps.map(e=>`<tr onclick="navigate('/erps/${e.id}')"><td class="mono">${esc(e.code_erp)}</td><td><b>${esc(e.nom)}</b></td>
       <td>${esc(clientName(e.client_id))}</td>
       <td>${statusPill(e.statut,{validee:['','Validée','ok'],brouillon:['','Brouillon','inf'],a_completer:['','À compléter','moy'],archive:['','Archivé','inf']})}</td>
-      <td style="text-align:right"><button class="btn sm" onclick="event.stopPropagation();showQR('${e.qr_token}','${esc(e.nom)}','${esc(e.code_erp)}')">${I.qr} QR</button></td></tr>`).join('')}
+      <td style="text-align:right"><button class="btn sm" onclick="event.stopPropagation();showQR('${e.qr_token}')">${I.qr} QR</button></td></tr>`).join('')}
     </tbody></table></div>`;
 }
 
@@ -4198,7 +4201,8 @@ async function viewErp(c,id){
       <div style="font-size:12.5px;color:var(--muted);margin-bottom:6px"><span class="lnk" onclick="navigate('/erps')">ERP</span> / ${esc(e.code_erp)}</div>
       <div class="dh"><div class="ic">${I.erp}</div><div><h1>${esc(e.nom)}</h1>
         <div class="meta"><span>${esc(e.code_erp)}</span><span>${esc(cl?.raison_sociale||'')}</span>${e.type_erp?'<span>Type '+esc(e.type_erp)+(e.categorie?' · '+esc(e.categorie)+' cat.':'')+'</span>':''}</div></div></div></div>
-      <div class="actions"><button class="btn" onclick="showQR('${e.qr_token}','${esc(e.nom)}','${esc(e.code_erp)}')">${I.qr} QR code</button>
+      <div class="actions"><button class="btn" onclick="ficheIdModal('${e.client_id}','${id}')">Fiche d'identité</button>
+        <button class="btn" onclick="showQR('${e.qr_token}')">${I.qr} QR code</button>
         <button class="btn" onclick='formErp(${JSON.stringify(e).replace(/'/g,"&#39;")})'>Modifier</button>
         <button class="btn danger" onclick="deleteErp('${id}')">🗑 Supprimer</button></div></div>
       <div class="tabs">
@@ -4553,6 +4557,8 @@ function buildQrDataUrl(url, size){
 }
 
 function showQR(token,nom,code){
+  if(!nom||!code){ const _e=(state.erps||[]).find(x=>x.qr_token===token); if(_e){ nom=nom||_e.nom||''; code=code||_e.code_erp||''; } }
+  nom=nom||''; code=code||'';
   const url=buildQrUrl(token);
   const isLocal=isLocalUrl(url);
   const clientNom = state.clients.find(c=>state.erps.find(e=>e.qr_token===token&&e.client_id===c.id))?.raison_sociale||'';
@@ -5220,7 +5226,7 @@ function reserveTable(rows){
 }
 const TYPE_PIECE={rapport:'Rapport',attestation:'Attestation',bureau_controle:'Bureau de contrôle',pv_commission:'PV commission de sécurité',courrier_mairie:'Courrier de la mairie',autre:'Autre'};
 const ROLE_CONTACT={prestataire:'Prestataire / B. de contrôle',mairie:'Mairie',architecte:'Architecte',moe:"Maître d'œuvre",bet:"Bureau d'études",sdis:'Pompiers / SDIS',proprietaire:'Propriétaire / bailleur',autre:'Autre contact'};
-const ROLE_CLIENT={direction:'Direction',gerant:'Gérant / Exploitant',securite:'Responsable sécurité',technique:'Responsable technique',secretaire:'Secrétaire',assistante_direction:'Assistante de direction',responsable_patrimoine:'Responsable patrimoine',chef_service:'Chef de service',agent_maintenance:'Agent de maintenance',mairie:'Mairie',architecte:'Architecte',comptabilite:'Comptabilité',accueil:'Accueil / Standard',autre:'Autre'};
+const ROLE_CLIENT={direction:'Direction',gerant:'Gérant / Exploitant',securite:'Responsable sécurité',technique:'Responsable technique',secretaire:'Secrétaire',assistante_direction:'Assistante de direction',responsable_patrimoine:'Responsable patrimoine',chef_service:'Chef de service',agent_maintenance:'Agent de maintenance',mairie:'Mairie',architecte:'Architecte',comptabilite:'Comptabilité',facturation:'Facturation',accueil:'Accueil / Standard',autre:'Autre'};
 async function viewReserves(c){
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Levées des réserves</h1><p>PV de commission de sécurité — dossier par client et ERP.</p></div>
     <div class="actions"><button class="btn primary" onclick="formReserve()">${I.plus} Nouvelle levée de réserve</button></div></div>${loadingBlock()}`;
@@ -8880,6 +8886,11 @@ window.viewTableauxReserves=async function(c){
       sb.from('reserves').select('id,tableau_id,etat_levee,recidive,date_limite,erp_id').not('tableau_id','is',null)
     ]);
     if(e1) throw e1; if(e2) throw e2;
+    window._trvDocNames={};
+    try{
+      const dids=[...new Set((tabs||[]).map(t=>t.rapport_document_id).filter(Boolean))];
+      if(dids.length){ const {data:ds}=await sb.from('documents').select('id,nom_original').in('id',dids); (ds||[]).forEach(d=>{window._trvDocNames[d.id]=d.nom_original;}); }
+    }catch(_){}
     window._trvData={tabs:tabs||[],res:res||[]};
     window._trvF={annee:'all',source:'all',erp:''};
     trvRenderAll();
@@ -8927,10 +8938,10 @@ window.trvRenderSynth=function(tabs,res){
   // Regrouper par client
   const byClient={};
   Object.entries(byErp).forEach(([erp,b])=>{ (byClient[b.client]=byClient[b.client]||[]).push([erp,b]); });
-  host.innerHTML='<div class="card" style="padding:4px 0">'+Object.entries(byClient).map(([cid,list])=>{
+  host.innerHTML='<div class="card" style="padding:0;overflow:hidden">'+Object.entries(byClient).map(([cid,list])=>{
     const rows=list.sort((a,b)=>a[1].t-b[1].t).reverse().map(([erp,b])=>{
       const taux=b.t?Math.round(b.l/b.t*100):0;
-      return `<div onclick="trvSetF('erp','${esc(erp)}')" style="display:flex;align-items:center;gap:8px 10px;padding:9px 14px;border-top:1px solid var(--line);cursor:pointer;flex-wrap:wrap">
+      return `<div onclick="trvSetF('erp','${esc(erp)}')" style="display:flex;align-items:center;gap:8px 10px;padding:10px 14px;cursor:pointer;flex-wrap:wrap;border-top:1px solid var(--line)" onmouseover="this.style.background='rgba(26,68,173,.04)'" onmouseout="this.style.background=''">
         <span style="flex:1 1 150px;min-width:0;font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(erpName(erp))}</span>
         <span style="flex:0 0 auto;font-size:11px;color:var(--muted)">${b.tabs} tabl. · ${b.t} obs.</span>
         <span style="flex:1 1 90px;min-width:70px"><span style="display:block;background:#e2e8f0;border-radius:99px;height:7px;overflow:hidden"><span style="display:block;height:100%;width:${taux}%;background:${taux===100?'#16a34a':taux>=50?'#d97706':'#dc2626'}"></span></span></span>
@@ -8942,7 +8953,7 @@ window.trvRenderSynth=function(tabs,res){
           ${b.rec?`<span style="background:rgba(147,51,234,.1);color:#9333ea;border-radius:6px;padding:1px 7px;font-size:10.5px;font-weight:800">${b.rec} récidive${b.rec>1?'s':''}</span>`:''}
         </span></div>`;
     }).join('');
-    return `<div style="padding:10px 14px 4px;font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${esc(clientName(cid))}</div>${rows}`;
+    return `<div style="background:#1a44ad;color:#fff;padding:9px 14px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px">${esc(clientName(cid))}</div>${rows}`;
   }).join('')+'</div>';
 };
 window.trvRenderList=function(tabs,res){
@@ -8963,17 +8974,22 @@ window.trvRenderList=function(tabs,res){
     const k=byTab[t.id]||{t:0,l:0,p:0};
     const done=k.t>0&&k.l===k.t;
     const av=t.statut==='a_valider';
+    const docNom=(window._trvDocNames||{})[t.rapport_document_id]||'';
     return `<div class="card" style="padding:12px 14px;cursor:pointer${av?';border:1.5px solid rgba(217,119,6,.55);background:rgba(217,119,6,.03)':''}" onclick="trvDetail('${esc(t.id)}')">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         ${av?'<span style="background:#d97706;color:#fff;border-radius:6px;padding:2px 8px;font-size:10.5px;font-weight:800">⏳ À VALIDER</span>':''}
         <b style="font-size:13.5px">${esc(t.organisme||'—')}</b>
         <span style="background:rgba(37,99,235,.08);color:#2563eb;border-radius:6px;padding:2px 8px;font-size:10.5px;font-weight:700">${esc(TRV_SOURCES[t.source]||t.source)}</span>
-        <span style="font-size:12px;color:var(--muted)">${esc(erpOf(t.erp_id))} · ${t.date_intervention?new Date(t.date_intervention+'T00:00:00').toLocaleDateString('fr-FR'):'—'} · ${t.annee||''}</span>
         <span style="flex:1"></span>
         ${done?'<span style="background:rgba(22,163,74,.1);color:#16a34a;border:1px solid rgba(22,163,74,.35);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700">✓ tout levé</span>'
              :`<span style="background:rgba(220,38,38,.08);color:#dc2626;border:1px solid rgba(220,38,38,.3);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700">${k.t-k.l} à lever${k.p?' ('+k.p+' partielle'+(k.p>1?'s':'')+')':''}</span>`}
-        <span style="font-size:11.5px;color:var(--muted)">${k.t} obs.</span>
-      </div></div>`;
+      </div>
+      ${docNom?`<div style="display:flex;align-items:center;gap:7px;margin-top:7px;min-width:0">
+        <span style="font-size:13px;flex:0 0 auto">📑</span>
+        <span style="font-size:12.5px;font-weight:600;color:var(--ink,#0f172a);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">${esc(docNom)}</span>
+      </div>`:''}
+      <div style="font-size:11.5px;color:var(--muted);margin-top:${docNom?'3':'7'}px">${esc(erpOf(t.erp_id))} · Intervention du ${t.date_intervention?new Date(t.date_intervention+'T00:00:00').toLocaleDateString('fr-FR'):'—'} · ${k.t} observation${k.t>1?'s':''}</div>
+    </div>`;
   }).join('')+'</div>';
 };
 
@@ -8994,6 +9010,7 @@ window.trvDetail=async function(id){
     const chip=r=>r.etat_levee==='levee'?'<span style="color:#16a34a;font-weight:700;font-size:11.5px">✓ levée'+(r.date_realisation?' le '+new Date(r.date_realisation+'T00:00:00').toLocaleDateString('fr-FR'):'')+'</span>'
       :r.etat_levee==='partielle'?'<span style="color:#d97706;font-weight:700;font-size:11.5px">◐ partielle</span>'
       :'<span style="color:#dc2626;font-weight:700;font-size:11.5px">● à lever</span>';
+    window._trvCur={tabId:t.id,erpId:t.erp_id,erpNom:(erp?erp.nom:'')||'',org:t.organisme||'',nb:rows.length};
     openModal(`<div class="modal-head"><h2>${esc(t.organisme||'Tableau')} — ${esc(erp?erp.nom:'')}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
       <div class="modal-body" style="display:flex;flex-direction:column;gap:8px">
         <div style="font-size:12px;color:var(--muted)">${esc(t.titre||'')} · ${rows.length} observation(s)</div>
@@ -9024,8 +9041,8 @@ window.trvDetail=async function(id){
           <button class="btn primary" onclick="trvValiderTab('${esc(t.id)}')">✓ Valider le tableau</button>`
         :`<button class="btn" onclick="closeModal()">Fermer</button>
         <button class="btn" onclick="trvPdf('${esc(t.id)}')">📄 PDF récapitulatif</button>
-        <button class="btn" onclick="trvNotify('${esc(erp?erp.nom:'')}',${rows.length},'${esc(t.organisme||'')}')">Notifier le client…</button>
-        <button class="btn primary" onclick="trvSendModal('${esc(t.id)}','${esc(t.erp_id)}','${esc(erp?erp.nom:'')}','${esc(t.organisme||'')}',${rows.length})">✍ Envoyer au technicien…</button>`}</div>`);
+        <button class="btn" onclick="trvSmsModal('${esc(t.id)}')">📱 Envoyer par SMS…</button>
+        <button class="btn primary" onclick="trvSendCur()">✍ Envoyer au technicien…</button>`}</div>`);
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
 };
 
@@ -9093,6 +9110,13 @@ window.trvAddRes=async function(tabId,erpId,maxNum){
 window.trvPdf=async function(tabId){
   toast('Génération du PDF…','ok');
   try{
+    const b=await trvPdfBuild(tabId);
+    b.doc.save(b.fname);
+    toast('PDF téléchargé — '+b.done+'/'+b.total+' levées à jour','ok');
+  }catch(e){ toast('Erreur PDF : '+(e.message||e),'err'); }
+};
+window.trvPdfBuild=async function(tabId){
+  {
     const [{data:t},{data:rows}]=await Promise.all([
       sb.from('tableaux_reserves').select('*').eq('id',tabId).maybeSingle(),
       sb.from('reserves').select('*').eq('tableau_id',tabId).order('numero')
@@ -9200,9 +9224,117 @@ window.trvPdf=async function(tabId){
     }
     footer();
     const fname='Tableau-reserves-'+String(erp.nom||'ERP').replace(/[^A-Za-z0-9À-ÿ]+/g,'_').slice(0,40)+'-'+new Date().toISOString().slice(0,10)+'.pdf';
-    doc.save(fname);
-    toast('PDF téléchargé — '+done+'/'+rows.length+' levées à jour','ok');
-  }catch(e){ toast('Erreur PDF : '+(e.message||e),'err'); }
+    return {doc,fname,done,total:rows.length,t,erp};
+  }
+};
+/* ── Envoi SMS depuis un tableau : rapports + PDF récapitulatif via lien de consultation ── */
+window.trvSmsModal=async function(tabId){
+  closeModal();
+  try{
+    const [{data:t},{data:rows}]=await Promise.all([
+      sb.from('tableaux_reserves').select('*').eq('id',tabId).maybeSingle(),
+      sb.from('reserves').select('id,etat_levee').eq('tableau_id',tabId)
+    ]);
+    if(!t){toast('Tableau introuvable','err');return;}
+    const erp=(state.erps||[]).find(x=>x.id===t.erp_id)||{};
+    const done=(rows||[]).filter(r=>r.etat_levee==='levee').length;
+    let srcDoc=null, autres=[], contacts=[];
+    try{
+      const [r1,r2,r3]=await Promise.all([
+        t.rapport_document_id?sb.from('documents').select('id,nom_original').eq('id',t.rapport_document_id).maybeSingle():Promise.resolve({data:null}),
+        sb.from('documents').select('id,nom_original,type,date_document').eq('erp_id',t.erp_id).in('type',TRV_GED_TYPES).not('fichier_path','is',null).order('date_document',{ascending:false,nullsFirst:false}).limit(8),
+        t.client_id?sb.from('client_contacts').select('prenom,nom,fonction,mobile,telephone').eq('client_id',t.client_id):Promise.resolve({data:[]})
+      ]);
+      srcDoc=r1.data||null;
+      autres=(r2.data||[]).filter(d=>!srcDoc||d.id!==srcDoc.id);
+      contacts=r3.data||[];
+    }catch(_){}
+    const norm=v=>{v=(v||'').replace(/[\s.\-]/g,''); return /^(\+33|0)[67]\d{8}$/.test(v)?v:null;};
+    const chips=contacts.map(c=>{const m=norm(c.mobile)||norm(c.telephone); if(!m) return ''; const lbl=((c.prenom||'')+' '+(c.nom||'')).trim()||'Contact';
+      return `<label style="display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;user-select:none">
+        <input type="checkbox" value="${esc(m)}" onchange="tsToggle(this);window._tvSel[this.value]=this.checked?true:undefined;if(!this.checked)delete window._tvSel[this.value]" style="accent-color:#2563eb;width:14px;height:14px">📱 <b>${esc(lbl)}</b>${c.fonction?' · '+esc(c.fonction):''}</label>`;
+    }).filter(Boolean).join('');
+    window._tvSel={};
+    const pj=(id,lbl,checked,sub)=>`<label style="display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:10px;padding:8px 11px;cursor:pointer">
+      <input type="checkbox" id="${id}" ${checked?'checked':''} style="accent-color:#1a44ad;width:15px;height:15px;flex:0 0 auto">
+      <span style="min-width:0;flex:1"><span style="display:block;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${lbl}</span>${sub?`<span style="display:block;font-size:11px;color:var(--muted)">${sub}</span>`:''}</span></label>`;
+    openModal(`<div class="modal-head"><h2>Envoyer par SMS <span style="font-size:11px;font-weight:600;color:var(--muted)">documents en consultation</span></h2><button class="x" onclick="trvDetail('${esc(tabId)}')">${I.x}</button></div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+        <div id="tv_form" style="display:flex;flex-direction:column;gap:12px">
+        <div class="fld" style="margin:0"><label>Pièces à joindre (lien de consultation sécurisé)</label>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${pj('tv_recap','📄 PDF récapitulatif du tableau',true,done+'/'+(rows||[]).length+' levées — généré à l\'instant de l\'envoi')}
+            ${srcDoc?pj('tv_src','📑 '+esc(srcDoc.nom_original||'Rapport source'),true,'Rapport d\'origine du tableau'):''}
+            ${autres.length?'<div style="font-size:11px;color:var(--muted);margin-top:2px">Autres documents de l\'établissement :</div>':''}
+            ${autres.map(d=>pj('tv_o_'+d.id,esc(d.nom_original||d.type),false,esc(d.type)+(d.date_document?' · '+esc(String(d.date_document)):''))).join('')}
+          </div></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <div class="fld" style="margin:0;flex:1;min-width:140px"><label>Validité du lien</label>
+            <select id="tv_val"><option value="48">48 heures</option><option value="168" selected>7 jours</option><option value="720">30 jours</option></select></div>
+          <div class="fld" style="margin:0;flex:1;min-width:150px"><label>Code</label>
+            <div style="display:flex;gap:6px"><input id="tv_pwd" readonly value="${_qrGenPwd()}" style="flex:1;min-width:0;font-weight:700;letter-spacing:1px">
+            <button class="btn" onclick="document.getElementById('tv_pwd').value=_qrGenPwd()">↻</button></div></div></div>
+        <div class="fld" style="margin:0"><label>Destinataires</label>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">${chips||'<span style="font-size:12px;color:var(--muted)">Aucun mobile en fiche client.</span>'}</div>
+          <input id="tv_mob" placeholder="Autres mobiles : 06 XX XX XX XX, …" style="margin-top:8px"></div>
+        <div class="fld" style="margin:0"><label>Message</label>
+          <textarea id="tv_msg" rows="3" onkeydown="event.stopPropagation()" style="width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;font-family:inherit">PREVA Conseils — ${esc(t.organisme||'Suivi')} — ${esc(erp.nom||'')} : suivi des levées de réserves (${done}/${(rows||[]).length} levées). Documents en consultation :</textarea></div>
+        </div>
+        <div id="tv_result"></div>
+      </div>
+      <div class="modal-foot" id="tv_foot"><button class="btn" onclick="trvDetail('${esc(tabId)}')">Annuler</button>
+        <button class="btn primary" id="tv_go" onclick="trvSmsGo('${esc(tabId)}')">Envoyer le SMS</button></div>`);
+    window._tvAutres=autres.map(d=>d.id);
+    window._tvSrc=srcDoc?srcDoc.id:null;
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+window.trvSmsGo=async function(tabId){
+  const hours=parseInt(document.getElementById('tv_val').value,10)||168;
+  const pwd=(document.getElementById('tv_pwd').value||'').trim();
+  const mobiles=[...new Set([...Object.keys(window._tvSel||{}),...(document.getElementById('tv_mob').value||'').split(/[,;]/).map(s=>s.replace(/[\s.\-]/g,'')).filter(Boolean)])];
+  const bad=mobiles.find(x=>!/^(\+33|0)[67]\d{8}$/.test(x));
+  if(bad){toast('Numéro invalide : '+bad,'err');return;}
+  if(!mobiles.length){toast('Choisis au moins un destinataire','err');return;}
+  const btn=document.getElementById('tv_go'); btn.disabled=true; btn.textContent='Préparation…';
+  try{
+    const ids=[];
+    if(window._tvSrc && document.getElementById('tv_src') && document.getElementById('tv_src').checked) ids.push(window._tvSrc);
+    (window._tvAutres||[]).forEach(id=>{ const c=document.getElementById('tv_o_'+id); if(c&&c.checked) ids.push(id); });
+    const {data:erp,error:e0}=await sb.from('erps').select('id,nom,client_id,qr_token').eq('id',(await sb.from('tableaux_reserves').select('erp_id').eq('id',tabId).maybeSingle()).data.erp_id).maybeSingle();
+    if(e0||!erp||!erp.qr_token) throw (e0||new Error('QR de l\'établissement introuvable'));
+    // PDF récapitulatif : généré maintenant, déposé en GED, joint au lien
+    if(document.getElementById('tv_recap') && document.getElementById('tv_recap').checked){
+      btn.textContent='Génération du PDF…';
+      const b=await trvPdfBuild(tabId);
+      const blob=b.doc.output('blob');
+      const path=erp.id+'/recap/'+Date.now()+'_'+b.fname.replace(/[^\w.\-]/g,'_');
+      const {error:upErr}=await sb.storage.from('documents').upload(path,blob,{contentType:'application/pdf'});
+      if(upErr) throw upErr;
+      const {data:nd,error:e1}=await sb.from('documents').insert({erp_id:erp.id,client_id:erp.client_id||null,type:'Compte rendu',nom_original:b.fname,fichier_path:path,trv_scan:'aucune_obs'}).select().single();
+      if(e1||!nd) throw (e1||new Error('enregistrement du PDF'));
+      ids.push(nd.id);
+    }
+    if(!ids.length){toast('Choisis au moins une pièce à joindre','err');btn.disabled=false;btn.textContent='Envoyer le SMS';return;}
+    btn.textContent='Création de l\'accès…';
+    const hash=await _qrSha256(pwd);
+    const exp=new Date(Date.now()+hours*3600*1000);
+    const who=state.profile?.nom||state.user?.email||'';
+    const {error:e2}=await sb.from('acces_rapports').insert({erp_id:erp.id,client_id:erp.client_id,doc_ids:ids,password_hash:hash,password_plain:pwd,expires_at:exp.toISOString(),actif:true,created_by:who});
+    if(e2) throw e2;
+    const link='https://conformite-securite.fr/?qr='+erp.qr_token+'&c='+encodeURIComponent(pwd);
+    const valLabel=({48:'48 heures',168:'7 jours',720:'30 jours'})[hours]||hours+' h';
+    const msg=(document.getElementById('tv_msg').value||'').trim()+'\n'+link+'\nCode si demandé : '+pwd+'\nValable '+valLabel+'.';
+    btn.textContent='Envoi…';
+    let direct=false;
+    try{ const {data,error:eD}=await sb.functions.invoke('send-sms',{body:{to:mobiles,message:msg}}); if(!eD && data && data.ok) direct=true; }catch(_){}
+    try{ await sb.from('sms_scheduled').insert(mobiles.map(m=>({destinataire:m,message:msg,send_at:new Date().toISOString(),statut:direct?'sent':'pending',sent_at:direct?new Date().toISOString():null,contexte:{type:'tableau_docs',erp:erp.nom},created_by:who}))); }catch(_){}
+    document.getElementById('tv_form').style.display='none';
+    document.getElementById('tv_result').innerHTML=`<div style="display:flex;flex-direction:column;gap:10px">
+      <div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.4);border-radius:11px;padding:12px 14px;font-size:13px">
+        ✅ ${ids.length} document(s) en consultation — lien valable ${valLabel}<br>📱 ${mobiles.length} SMS ${direct?'envoyé'+(mobiles.length>1?'s':'')+' à l\'instant ✓':'pris en charge par le robot (≤ 5 min)'}</div>
+      <div class="fld" style="margin:0"><label>Lien à accès direct</label><div style="display:flex;gap:6px"><input readonly value="${esc(link)}" style="flex:1;min-width:0;font-size:12px"><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(link)}');toast('Lien copié','ok')">Copier</button></div></div></div>`;
+    document.getElementById('tv_foot').innerHTML='<button class="btn primary" style="min-width:140px" onclick="closeModal()">Valider</button>';
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Envoyer le SMS'; }
 };
 window.trvVoirRapport=function(){
   const d=window._trvDoc2;
@@ -9347,16 +9479,19 @@ window.trvCreate=async function(){
     }));
     const {error:e2}=await sb.from('reserves').insert(payload);
     if(e2) throw e2;
+    window._trvCur={tabId:tab.id,erpId:erpId,erpNom:erp.nom||'',org:org||'',nb:rows.length};
     document.getElementById('trv_step2').style.display='none';
     document.getElementById('trv_result').innerHTML=`<div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.4);border-radius:11px;padding:12px 14px;font-size:13px">
       ✅ Tableau créé — <b>${rows.length} observation(s)</b> · ${esc(org||'')} · ${esc(erp.nom||'')}<br>
       <span style="color:var(--muted);font-size:12px">Les réserves sont dans « Levées des réserves » et l'agenda. Pense à notifier le client.</span></div>`;
     document.getElementById('trv_foot').innerHTML=`<button class="btn" onclick="closeModal();if(location.hash.includes('tableaux-reserves')){viewTableauxReserves(document.getElementById('content'));}">Valider</button>
-      <button class="btn primary" onclick="trvNotify('${esc(erp.nom||'')}',${rows.length},'${esc(org||'')}')">Notifier le client par SMS…</button>`;
+      <button class="btn primary" onclick="trvNotifyCur()">Notifier le client par SMS…</button>`;
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Valider et créer le tableau ('+rows.length+')'; }
 };
 
 /* ── Envoi du tableau au technicien (accès temporaire + lien magique) ── */
+window.trvSendCur=function(){ const c=window._trvCur||{}; trvSendModal(c.tabId,c.erpId,c.erpNom,c.org,c.nb); };
+window.trvNotifyCur=function(){ const c=window._trvCur||{}; trvNotify(c.erpNom,c.nb,c.org); };
 window.trvSendModal=async function(tabId,erpId,erpNom,org,nb){
   closeModal();
   if(!window._prestCache || !window._prestCache.length){
@@ -9588,6 +9723,185 @@ window.trvNotify=async function(erpNom,nb,org){
     const c=document.getElementById('qs_cnt'); if(c) c.textContent=ta.value.length; }
 };
 
+/* ══════════ FICHE D'IDENTITÉ (client / ERP) → email aux prestataires ══════════ */
+window.fiEmailsOf=function(p){
+  const out=[]; const add=(label,v)=>{ v=String(v||'').trim(); if(v&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)&&!out.find(x=>x.v===v)) out.push({label:label||'Contact',v}); };
+  if(p&&p.email_rapports) add(p.nom||'Rapports',p.email_rapports);
+  let cts=p&&p.contacts; if(typeof cts==='string'){try{cts=JSON.parse(cts);}catch(_){cts=null;}}
+  const l=cts?(Array.isArray(cts)?cts:[...Object.values(cts).filter(c=>c&&!Array.isArray(c)),...(Array.isArray(cts.autres)?cts.autres:[])]):[];
+  l.forEach(c=>{ if(c&&c.email) add(c.nom||'Contact',c.email); });
+  return out;
+};
+window.ficheIdModal=async function(clientId,erpId){
+  try{
+    if(!window._prestCache || !window._prestCache.length){
+      try{ const {data}=await sb.from('prestataires').select('*').order('nom'); window._prestCache=data||[]; }catch(_){ window._prestCache=[]; }
+    }
+    const [{data:cl},{data:contacts}]=await Promise.all([
+      sb.from('clients').select('*').eq('id',clientId).maybeSingle(),
+      sb.from('client_contacts').select('*').eq('client_id',clientId).order('nom')
+    ]);
+    if(!cl){toast('Client introuvable','err');return;}
+    const erps=(state.erps||[]).filter(e=>e.client_id===clientId);
+    window._fiData={cl,contacts:contacts||[],erps};
+    window._fiSel={};
+    const eopts='<option value="">— Entité juridique seule (sans établissement) —</option>'+erps.map(e=>`<option value="${e.id}"${e.id===erpId?' selected':''}>${esc(e.nom)}</option>`).join('');
+    const all=window._prestCache;
+    const prests=all.filter(p=>p.categorie!=='bureau_de_controle'), bureaux=all.filter(p=>p.categorie==='bureau_de_controle');
+    const popts='<option value="">— Emails d\'un prestataire / bureau de contrôle —</option>'
+      +(bureaux.length?`<optgroup label="Bureaux de contrôle">${bureaux.map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</optgroup>`:'')
+      +(prests.length?`<optgroup label="Prestataires">${prests.map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</optgroup>`:'');
+    const factDefault=(contacts||[]).find(c=>/factur/i.test(c.role_suivi||'')||/factur/i.test(c.fonction||''));
+    const cChips=(contacts||[]).map(c=>{
+      const nom=[c.prenom,c.nom].filter(Boolean).join(' ')||'Contact';
+      return `<label style="display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:10px;padding:7px 10px;cursor:pointer">
+        <input type="checkbox" id="fi_c_${esc(c.id)}" checked style="accent-color:#1a44ad;width:15px;height:15px;flex:0 0 auto">
+        <span style="min-width:0;flex:1;font-size:12.5px"><b>${esc(nom)}</b>${c.fonction?' · '+esc(c.fonction):''}<span style="display:block;font-size:11px;color:var(--muted)">${[c.telephone,c.mobile,c.email].filter(Boolean).map(esc).join(' · ')||'—'}</span></span>
+        <label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#1a44ad;font-weight:700;flex:0 0 auto;cursor:pointer"><input type="radio" name="fi_fact" value="${esc(c.id)}" ${factDefault&&factDefault.id===c.id?'checked':''} style="accent-color:#1a44ad">Facturation</label>
+      </label>`;
+    }).join('');
+    openModal(`<div class="modal-head"><h2>Fiche d'identité <span style="font-size:11px;font-weight:600;color:var(--muted)">${esc(cl.raison_sociale||'')}</span></h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+        <div id="fi_form" style="display:flex;flex-direction:column;gap:12px">
+        <div class="fld" style="margin:0"><label>Établissement concerné</label><select id="fi_erp">${eopts}</select></div>
+        <div class="fld" style="margin:0"><label>Contacts à faire figurer <span style="font-weight:400;color:var(--muted)">— coche « Facturation » sur le bon contact</span></label>
+          <div style="display:flex;flex-direction:column;gap:6px;max-height:190px;overflow:auto;padding:2px">
+            ${cChips||'<span style="font-size:12px;color:var(--muted)">Aucun contact en fiche client.</span>'}
+            <label style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);padding:2px 2px 0"><input type="radio" name="fi_fact" value="" ${factDefault?'':'checked'} style="accent-color:#94a3b8">Pas de contact facturation sur la fiche</label>
+          </div></div>
+        <div class="fld" style="margin:0"><label>Destinataires (emails)</label>
+          <select id="fi_prest" onchange="fiPrestChange()">${popts}</select>
+          <div id="fi_chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+          <input id="fi_mails" placeholder="Autres emails : contact@bureau.fr, …" style="margin-top:8px"></div>
+        <div class="fld" style="margin:0"><label>Objet</label><input id="fi_subj" value="Fiche d'identité — ${esc(erpId?((erps.find(e=>e.id===erpId)||{}).nom||cl.raison_sociale):(cl.raison_sociale||''))}"></div>
+        <div class="fld" style="margin:0"><label>Message</label>
+          <textarea id="fi_msg" rows="4" onkeydown="event.stopPropagation()" style="width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;font-family:inherit">Bonjour,
+
+Veuillez trouver ci-joint la fiche d'identité de l'établissement, avec ses contacts et le contact facturation.
+
+Cordialement,
+${esc(state.profile?.nom||'PREVA CONSEILS')}</textarea></div>
+        </div>
+        <div id="fi_result"></div>
+      </div>
+      <div class="modal-foot" id="fi_foot"><button class="btn" onclick="closeModal()">Annuler</button>
+        <button class="btn" onclick="ficheIdDl()">📄 Télécharger</button>
+        <button class="btn primary" id="fi_go" onclick="ficheIdSend()">Envoyer par email</button></div>`);
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+window.fiPrestChange=function(){
+  const pid=document.getElementById('fi_prest').value;
+  const host=document.getElementById('fi_chips'); if(!host) return;
+  const p=(window._prestCache||[]).find(x=>x.id===pid);
+  if(!p){ host.innerHTML=''; return; }
+  const list=fiEmailsOf(p);
+  host.innerHTML=list.length?list.map(x=>{
+    const on=!!window._fiSel[x.v];
+    return `<label style="display:inline-flex;align-items:center;gap:6px;border:1.5px solid ${on?'#1a44ad':'var(--line)'};background:${on?'rgba(26,68,173,.07)':'var(--surface)'};border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;user-select:none;max-width:100%">
+      <input type="checkbox" value="${esc(x.v)}"${on?' checked':''} onchange="if(this.checked)window._fiSel[this.value]=true;else delete window._fiSel[this.value];tsToggle(this)" style="accent-color:#1a44ad;width:14px;height:14px">✉️ <b>${esc(x.label)}</b> · <span style="overflow:hidden;text-overflow:ellipsis">${esc(x.v)}</span></label>`;
+  }).join(''):'<span style="font-size:12px;color:var(--muted)">Aucun email en fiche pour ce prestataire.</span>';
+};
+window.ficheIdBuild=function(){
+  const D=window._fiData||{}; const cl=D.cl||{};
+  const erpId=document.getElementById('fi_erp').value;
+  const erp=erpId?(D.erps||[]).find(e=>e.id===erpId):null;
+  const chosen=(D.contacts||[]).filter(c=>{ const cb=document.getElementById('fi_c_'+c.id); return cb&&cb.checked; });
+  let factId=''; document.getElementsByName('fi_fact').forEach?document.getElementsByName('fi_fact').forEach(r=>{if(r.checked)factId=r.value;}):null;
+  if(!factId){ const rs=document.querySelectorAll('input[name="fi_fact"]'); rs.forEach(r=>{ if(r.checked) factId=r.value; }); }
+  const fact=factId?(D.contacts||[]).find(c=>c.id===factId):null;
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const W=210,M=16,CW=W-2*M;
+  const NAVY=[15,23,42],BLUE=[26,68,173],GRAY=[100,116,139],LINE=[226,232,240];
+  let y=0;
+  doc.setFillColor(NAVY[0],NAVY[1],NAVY[2]); doc.rect(0,0,W,26,'F');
+  doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(14);
+  doc.text("FICHE D'IDENTITÉ",M,11);
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  doc.text(erp?(erp.nom||''):(cl.raison_sociale||''),M,18);
+  doc.setFontSize(7.5); doc.setTextColor(180,196,230);
+  doc.text('CONFORMITÉ SÉCURITÉ · conformite-securite.fr',W-M,11,{align:'right'});
+  doc.text('Éditée le '+new Date().toLocaleDateString('fr-FR'),W-M,17,{align:'right'});
+  y=35;
+  const section=t=>{ doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(BLUE[0],BLUE[1],BLUE[2]); doc.text(t.toUpperCase(),M,y); doc.setDrawColor(LINE[0],LINE[1],LINE[2]); doc.line(M,y+1.5,M+CW,y+1.5); y+=7; };
+  const kv=(k,v)=>{ if(!v) return; doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(GRAY[0],GRAY[1],GRAY[2]); doc.text(k,M,y);
+    doc.setFont('helvetica','normal'); doc.setTextColor(NAVY[0],NAVY[1],NAVY[2]);
+    const lines=doc.splitTextToSize(String(v),CW-46); doc.text(lines,M+46,y); y+=Math.max(5.2,lines.length*4.4); };
+  if(erp){
+    section('Établissement recevant du public');
+    kv('Nom',erp.nom); kv('Code ERP',erp.code_erp);
+    kv('Adresse',[erp.adresse,[erp.code_postal,erp.ville].filter(Boolean).join(' ')].filter(Boolean).join(', '));
+    kv('Classement',(erp.type_erp?('Type '+erp.type_erp):'')+(erp.categorie?(' · '+erp.categorie+'e catégorie'):''));
+    kv('Niveaux',erp.niveaux); kv('Activité',erp.activite);
+    kv('Effectif public',erp.effectif_public); kv('Effectif personnel',erp.effectif_personnel||erp.effectif_salarie);
+    kv('Locaux à sommeil',erp.locaux_sommeil===true?'Oui':(erp.locaux_sommeil===false?'Non':erp.locaux_sommeil));
+    y+=3;
+  }
+  section('Entité juridique');
+  kv('Raison sociale',cl.raison_sociale); kv('Nom commercial',cl.nom_commercial);
+  kv('SIRET',cl.siret); kv('Adresse du siège',cl.adresse_siege);
+  kv('Téléphone',cl.telephone); kv('Email',cl.email);
+  y+=3;
+  if(fact){
+    const nomF=[fact.civilite,fact.prenom,fact.nom].filter(Boolean).join(' ');
+    doc.setFillColor(238,243,252); doc.setDrawColor(BLUE[0],BLUE[1],BLUE[2]);
+    const hF=16+( [fact.telephone,fact.mobile].filter(Boolean).length||fact.email?0:0 );
+    doc.roundedRect(M,y-2,CW,18,1.5,1.5,'FD');
+    doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(BLUE[0],BLUE[1],BLUE[2]);
+    doc.text('CONTACT FACTURATION',M+4,y+3);
+    doc.setFontSize(9); doc.setTextColor(NAVY[0],NAVY[1],NAVY[2]);
+    doc.text(nomF+(fact.fonction?(' — '+fact.fonction):''),M+4,y+8);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8);
+    doc.text([fact.telephone,fact.mobile,fact.email].filter(Boolean).join('  ·  ')||'—',M+4,y+12.8);
+    y+=22;
+  }
+  if(chosen.length){
+    section('Contacts');
+    chosen.forEach(c=>{
+      if(y>270){ doc.addPage(); y=20; }
+      const nom=[c.civilite,c.prenom,c.nom].filter(Boolean).join(' ')||'Contact';
+      doc.setFont('helvetica','bold'); doc.setFontSize(8.8); doc.setTextColor(NAVY[0],NAVY[1],NAVY[2]);
+      doc.text(nom+(c.fonction?(' — '+c.fonction):''),M,y);
+      doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(GRAY[0],GRAY[1],GRAY[2]);
+      doc.text([c.telephone,c.mobile,c.email].filter(Boolean).join('  ·  ')||'—',M,y+4.2);
+      y+=10.5;
+    });
+  }
+  doc.setFontSize(7); doc.setTextColor(GRAY[0],GRAY[1],GRAY[2]);
+  doc.text('Fiche établie par PREVA CONSEILS — informations à jour à la date d\'édition.',M,290);
+  const base=erp?(erp.nom||'etablissement'):(cl.raison_sociale||'client');
+  const fname='Fiche-identite-'+String(base).replace(/[^A-Za-z0-9À-ÿ]+/g,'_').slice(0,40)+'.pdf';
+  return {doc,fname,nbContacts:chosen.length,fact:!!fact};
+};
+window.ficheIdDl=function(){
+  try{ const b=ficheIdBuild(); b.doc.save(b.fname); toast('Fiche téléchargée','ok'); }
+  catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+window.ficheIdSend=async function(){
+  const emails=[...new Set([...Object.keys(window._fiSel||{}),...(document.getElementById('fi_mails').value||'').split(/[,;\s]+/).filter(Boolean)])];
+  const bad=emails.find(x=>!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x));
+  if(bad){toast('Email invalide : '+bad,'err');return;}
+  if(!emails.length){toast('Choisis au moins un destinataire','err');return;}
+  const subj=(document.getElementById('fi_subj').value||'').trim()||"Fiche d'identité";
+  const msg=(document.getElementById('fi_msg').value||'').trim();
+  const btn=document.getElementById('fi_go'); btn.disabled=true; btn.textContent='Génération…';
+  try{
+    const b=ficheIdBuild();
+    const b64=b.doc.output('datauristring').split(',')[1];
+    btn.textContent='Envoi…';
+    const html=msg.split(/\n/).map(l=>l.trim()?('<p>'+esc(l)+'</p>'):'<br>').join('');
+    const {data,error}=await sb.functions.invoke('send-client-email',{body:{
+      to:emails, subject:subj, html,
+      attachments:[{filename:b.fname, content:b64, contentType:'application/pdf'}]
+    }});
+    if(error||!data||!data.ok) throw (error||new Error((data&&data.error)||'échec de l\'envoi'));
+    document.getElementById('fi_form').style.display='none';
+    document.getElementById('fi_result').innerHTML=`<div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.4);border-radius:11px;padding:12px 14px;font-size:13px">
+      ✅ Fiche envoyée à <b>${emails.length}</b> destinataire(s)<br>
+      <span style="color:var(--muted);font-size:12px">📎 ${esc(b.fname)} — ${b.nbContacts} contact(s)${b.fact?' + contact facturation':''}</span></div>`;
+    document.getElementById('fi_foot').innerHTML='<button class="btn primary" style="min-width:140px" onclick="closeModal()">Valider</button>';
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Envoyer par email'; }
+};
 /* ── Historique des SMS ── */
 window.HS_TYPES={manuel:'Manuel',acces_rapports:'Accès rapports',pv_reception:'PV réception',relance:'Relance'};
 window.viewHistoSms=async function(c){
@@ -11528,7 +11842,8 @@ function formPrest(p){
         ].map(([key,label],i)=>{
           const c=(p.contacts&&p.contacts[key])||{};
           const hasDone=c.nom||c.telephone||c.mobile||c.astreinte||c.email;
-          return `<div class="acc-item" style="border-bottom:${i<5?'1px solid var(--line-2)':'none'}">
+          const hasAutres=((p.contacts&&p.contacts.autres)||[]).length>0;
+          return `<div class="acc-item" style="border-bottom:${(i<5||hasAutres)?'1px solid var(--line-2)':'none'}">
             <button type="button" onclick="toggleAcc('${key}')"
               style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 14px;background:none;border:none;cursor:pointer;text-align:left;font-family:inherit;transition:.12s"
               onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='none'">
@@ -11554,6 +11869,35 @@ function formPrest(p){
                   <input class="ct-astr" data-key="${key}" type="tel" value="${esc(c.astreinte||'')}" placeholder="07 00 00 00 00"></div>
                 <div class="fld" style="margin-bottom:0;grid-column:1/-1"><label>Email</label>
                   <input class="ct-email" data-key="${key}" type="email" value="${esc(c.email||'')}" placeholder="prenom.nom@societe.fr"></div>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+        ${((p.contacts&&p.contacts.autres)||[]).map((a,j)=>{
+          const k='autre_'+j;
+          const hasA=a&&(a.nom||a.telephone||a.mobile||a.astreinte||a.email);
+          return `<div class="acc-item" style="border-bottom:${j<(((p.contacts&&p.contacts.autres)||[]).length-1)?'1px solid var(--line-2)':'none'}">
+            <button type="button" onclick="toggleAcc('${k}')"
+              style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 14px;background:none;border:none;cursor:pointer;text-align:left;font-family:inherit;transition:.12s"
+              onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='none'">
+              <span style="font-weight:600;font-size:13.5px;flex:1">${esc((a&&a.intitule)||'Autre interlocuteur')}</span>
+              ${hasA
+                ?`<span style="font-size:12px;color:var(--ink);display:flex;gap:12px;align-items:center">
+                    ${a.nom?`<b>${esc(a.nom)}</b>`:''}
+                    ${a.mobile?`<span style="color:var(--muted)">📱 ${esc(a.mobile)}</span>`:''}
+                    ${!a.nom&&!a.mobile&&a.telephone?`<span style="color:var(--muted)">${esc(a.telephone)}</span>`:''}
+                  </span>`
+                :'<span style="font-size:11.5px;color:var(--muted-2)">Non renseigné</span>'}
+              <span id="acc-arrow-${k}" style="color:var(--muted-2);font-size:13px;transition:.2s">▼</span>
+            </button>
+            <div id="acc-${k}" style="display:none;padding:4px 14px 14px;background:var(--surface-2)">
+              <div style="display:flex;flex-direction:column;gap:4px;font-size:12.5px">
+                ${a.nom?`<div><span style="color:var(--muted)">Nom :</span> <b>${esc(a.nom)}</b></div>`:''}
+                ${a.mobile?`<div><span style="color:var(--muted)">Mobile :</span> ${esc(a.mobile)}</div>`:''}
+                ${a.telephone?`<div><span style="color:var(--muted)">Téléphone :</span> ${esc(a.telephone)}</div>`:''}
+                ${a.astreinte?`<div><span style="color:var(--muted)">Astreinte :</span> ${esc(a.astreinte)}</div>`:''}
+                ${a.email?`<div><span style="color:var(--muted)">Email :</span> ${esc(a.email)}</div>`:''}
+                <div style="font-size:11px;color:var(--muted-2);margin-top:4px">✏ Modifiable dans la section « Autres interlocuteurs » ci-dessous.</div>
               </div>
             </div>
           </div>`;
