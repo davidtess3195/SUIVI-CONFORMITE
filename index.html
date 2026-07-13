@@ -3850,7 +3850,8 @@ function formConversation(conv){
       <div class="fld"><label>Échéance de l'action</label><input id="cv_action_date" type="date" value="${esc(cv.action_date||'')}"></div>
       <div class="fld" style="justify-content:flex-end"><label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer;margin-bottom:8px"><input type="checkbox" id="cv_agenda" style="width:17px;height:17px"${cv.intervention_id?' checked disabled':''}> Ajouter à l'agenda du client</label></div>
     </div>
-    <div class="fld"><label>Photos / vidéos associées <span style="color:var(--muted-2);font-weight:400;font-size:11px">(cochez pour rattacher)</span></label>
+    <div class="fld"><label style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">Photos / vidéos associées <span style="color:var(--muted-2);font-weight:400;font-size:11px">(cochez pour rattacher)</span>
+        <button type="button" class="btn sm" style="margin-left:auto" onclick="cvPhotosDeselect()">Tout désélectionner</button></label>
       <div id="cv_photos" style="max-height:190px;overflow:auto;border:1px solid var(--line);border-radius:9px;padding:8px;background:var(--surface-2)"></div></div>
   </div>
   <div class="modal-foot" style="${cv.id?'justify-content:space-between':''}">${cv.id?`<button class="btn ghost" onclick="delConversation('${cv.id}')" style="color:#dc2626;border-color:#fca5a5">Supprimer</button>`:''}<span style="display:flex;gap:10px"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="cv_save">Enregistrer</button></span></div>`);
@@ -3902,6 +3903,12 @@ async function cvLoadPhotos(clientId, currentConvId){
 }
 window.cvLoadPhotos=cvLoadPhotos;
 window.cvReloadPhotos=function(){ const c=document.getElementById('cv_client'); cvLoadPhotos(c?c.value:'', window._cvEditId); };
+window.cvPhotosDeselect=function(){
+  const cbs=document.querySelectorAll('.cv_photo_cb');
+  let nb=0; cbs.forEach(c=>{ if(c.checked){ c.checked=false; nb++; } });
+  if(typeof _modalDirty!=='undefined') _modalDirty=true;
+  toast(nb?nb+' photo(s) désélectionnée(s)':'Aucune photo n\'était cochée','ok');
+};
 
 async function cvLoadSocietes(){
   const sel=document.getElementById('cv_soc_sel'); if(!sel) return;
@@ -4306,10 +4313,11 @@ function renderErpTab(tab,d){
             +'<div style="flex:1;min-width:0">'
               +'<div style="font-weight:600;font-size:13.5px;color:var(--ink);overflow-wrap:anywhere;word-break:break-word">'+esc(r.type||'Rapport')+'</div>'
               +'<div style="font-size:11.5px;color:var(--muted);margin-top:2px">'+esc(fmtDate(r.date_reception)||'')+(r.emetteur?' &#183; '+esc(r.emetteur):'')+'</div>'
-              +(fname?'<div style="font-size:11px;color:var(--muted-2);margin-top:2px;overflow-wrap:anywhere">'+esc(fname)+'</div>':'')
+              +(fname?'<div style="font-size:12px;color:var(--ink);margin-top:3px;overflow-wrap:anywhere;font-weight:600">&#128196; '+esc(fname)+'</div>':'')
             +'</div>'
             +(r.fichier_path
-               ? '<button class="btn sm" onclick="previewRapport(\''+pathJs+'\',\''+fnameJs+'\')">Visualiser</button>'
+               ? '<button class="btn sm" title="Renommer le PDF" onclick="rapRename(\''+r.id+'\',\''+pathJs+'\')">&#9998; Renommer</button>'
+                 +'<button class="btn sm" onclick="previewRapport(\''+pathJs+'\',\''+fnameJs+'\')">Visualiser</button>'
                  +'<button class="btn sm primary" onclick="dlRapport(\''+pathJs+'\',\''+fnameJs+'\')">&#11015;&#65039; T&#233;l&#233;charger</button>'
                : '<span style="color:var(--muted-2);font-size:12px">Pas de PDF</span>')
             +(r.statut==='traite'
@@ -5228,11 +5236,23 @@ const TYPE_PIECE={rapport:'Rapport',attestation:'Attestation',bureau_controle:'B
 const ROLE_CONTACT={prestataire:'Prestataire / B. de contrôle',mairie:'Mairie',architecte:'Architecte',moe:"Maître d'œuvre",bet:"Bureau d'études",sdis:'Pompiers / SDIS',proprietaire:'Propriétaire / bailleur',autre:'Autre contact'};
 const ROLE_CLIENT={direction:'Direction',gerant:'Gérant / Exploitant',securite:'Responsable sécurité',technique:'Responsable technique',secretaire:'Secrétaire',assistante_direction:'Assistante de direction',responsable_patrimoine:'Responsable patrimoine',chef_service:'Chef de service',agent_maintenance:'Agent de maintenance',mairie:'Mairie',architecte:'Architecte',comptabilite:'Comptabilité',facturation:'Facturation',accueil:'Accueil / Standard',autre:'Autre'};
 async function viewReserves(c){
-  c.innerHTML=`<div class="page-head"><div class="t"><h1>Levées des réserves</h1><p>PV de commission de sécurité — dossier par client et ERP.</p></div>
-    <div class="actions"><button class="btn primary" onclick="formReserve()">${I.plus} Nouvelle levée de réserve</button></div></div>${loadingBlock()}`;
+  window._resvSrcF=window._resvSrcF||'all';
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Levées des réserves</h1><p>Commissions de sécurité, bureaux de contrôle et prestataires — dossier par client et ERP.</p></div>
+    <div class="actions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select onchange="window._resvSrcF=this.value;viewReserves(document.getElementById('content'))" style="min-width:190px">
+        <option value="all"${window._resvSrcF==='all'?' selected':''}>Origine : toutes</option>
+        <option value="commission"${window._resvSrcF==='commission'?' selected':''}>🏛 Commission de sécurité</option>
+        <option value="bureau_de_controle"${window._resvSrcF==='bureau_de_controle'?' selected':''}>🏢 Bureau de contrôle</option>
+        <option value="prestataire"${window._resvSrcF==='prestataire'?' selected':''}>🔧 Prestataire</option>
+        <option value="manuel"${window._resvSrcF==='manuel'?' selected':''}>✍ Saisie manuelle</option>
+      </select>
+      <button class="btn primary" onclick="formReserve()">${I.plus} Nouvelle levée de réserve</button></div></div>${loadingBlock()}`;
   try{
     let q=sb.from('reserves').select('*'); q=erpFilter(q);
-    const [resR,prestR,docR,intR,ccR]=await Promise.all([ q, sb.from('prestataires').select('id,nom,categorie,email_rapports,telephone,contacts,client_id,client_ids,affaires'), sb.from('reserve_documents').select('*'), sb.from('reserve_intervenants').select('*').order('created_at'), sb.from('client_contacts').select('*') ]);
+    const [resR,prestR,docR,intR,ccR,tabR]=await Promise.all([ q, sb.from('prestataires').select('id,nom,categorie,email_rapports,telephone,contacts,client_id,client_ids,affaires'), sb.from('reserve_documents').select('*'), sb.from('reserve_intervenants').select('*').order('created_at'), sb.from('client_contacts').select('*'), sb.from('tableaux_reserves').select('id,source,organisme') ]);
+    const tabById={}; (tabR.data||[]).forEach(t=>{ tabById[t.id]=t; });
+    window._resTabs=tabById;
+    const srcOf=r=>{ const t=r.tableau_id?tabById[r.tableau_id]:null; return t?(t.source||'bureau_de_controle'):'manuel'; };
     const ccByClient={}; (ccR.data||[]).forEach(ct=>{ (ccByClient[ct.client_id]=ccByClient[ct.client_id]||[]).push(ct); });
     const clientMainContact=cid=>{
       const list=ccByClient[cid]||[];
@@ -5242,7 +5262,8 @@ async function viewReserves(c){
       const tel=m.telephone||m.mobile||'';
       return {nom,tel};
     };
-    const reserves=resR.data||[];
+    let reserves=resR.data||[];
+    if(window._resvSrcF && window._resvSrcF!=='all') reserves=reserves.filter(r=>srcOf(r)===window._resvSrcF);
     const docsByReserve={}; (docR.data||[]).forEach(d=>{ (docsByReserve[d.reserve_id]=docsByReserve[d.reserve_id]||[]).push(d); });
     const intsByReserve={}; (intR.data||[]).forEach(d=>{ (intsByReserve[d.reserve_id]=intsByReserve[d.reserve_id]||[]).push(d); });
     window._resAll=reserves; window._resPrest=prestR.data||[]; window._resDocs=docsByReserve; window._resInts=intsByReserve;
@@ -5292,6 +5313,11 @@ async function viewReserves(c){
         <div onclick="toggleReserveItem('${r.id}')" title="Cliquer pour déplier / replier" style="display:flex;align-items:center;gap:10px;padding:13px 16px;cursor:pointer;user-select:none;flex-wrap:wrap">
           <span data-rchev="${r.id}" style="color:var(--muted);font-size:17px;line-height:1;display:inline-block;transition:transform .2s;transform:rotate(${rOpen?'90':'0'}deg)">›</span>
           <span style="flex:0 0 auto;font-weight:800;color:#fff;background:${cc};border-radius:8px;padding:2px 9px;font-size:12px">N°${n}</span>
+          ${(()=>{const s=srcOf(r);const t=r.tableau_id?tabById[r.tableau_id]:null;
+            if(s==='commission') return `<span title="${esc(t&&t.organisme||'')}" style="flex:0 0 auto;background:rgba(146,64,14,.1);color:#92400e;border:1px solid rgba(146,64,14,.35);border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:800">🏛 COMMISSION DE SÉCURITÉ</span>`;
+            if(s==='bureau_de_controle') return `<span title="${esc(t&&t.organisme||'')}" style="flex:0 0 auto;background:rgba(26,68,173,.08);color:#1a44ad;border:1px solid rgba(26,68,173,.35);border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:800">🏢 ${esc((t&&t.organisme)||'BUREAU DE CONTRÔLE').toUpperCase()}</span>`;
+            if(s==='prestataire') return `<span style="flex:0 0 auto;background:rgba(22,101,52,.08);color:#166534;border:1px solid rgba(22,101,52,.35);border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:800">🔧 PRESTATAIRE</span>`;
+            return '';})()}
           ${critPill(r.criticite)}
           <span style="flex:1;min-width:120px;font-size:14px;font-weight:600;color:var(--ink);line-height:1.45;white-space:pre-wrap;word-break:break-word">${esc(r.libelle)}</span>
           <span style="flex:0 0 auto">${statusPill(r.statut,REST)}</span>
@@ -7915,7 +7941,7 @@ function formDoc(prefiles){
       <div class="fld"><label>Client <span class="req">*</span></label><select id="f_client" onchange="docFormErpOpts()"><option value="">— choisir —</option>${clientOpts}</select></div>
       <div class="fld"><label>ERP <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel)</span></label><select id="f_erp"><option value="">— (optionnel) —</option></select></div>
     </div>
-    <div class="row2"><div class="fld"><label>Type</label><select id="f_type" onchange="docTypeChange()"><option>Rapport</option><option>Devis</option><option>Facture</option><option>Bureau de contrôle</option><option>RVAT</option><option>PV commission</option><option>Compte rendu</option><option>Maintenance préventive</option><option>Maintenance corrective</option><option>Courrier</option><option>Plan</option><option>DOE</option><option>Consignes de sécurité</option><option>Plan de prévention</option><option>Permis de feu</option><option>Attestation</option><option>Preuve</option><option>Photo</option></select></div>
+    <div class="row2"><div class="fld"><label>Type</label><select id="f_type" onchange="docTypeChange()">${GED_TYPES.map(t=>`<option>${esc(t)}</option>`).join('')}</select></div>
       <div class="fld"><label>Lot</label><input id="f_lot" placeholder="SSI, Électricité…"></div></div>
     <div class="row2"><div class="fld"><label>Prestataire <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel)</span></label><select id="f_prest"><option value="">— (optionnel) —</option>${(window._gedPrest||[]).map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select></div>
       <div class="fld"><label>Date du document <span style="color:var(--muted-2);font-weight:400;font-size:11px">(date réelle, ex. date de la commission)</span></label><input id="f_date" type="date" value="${new Date().toISOString().slice(0,10)}"></div></div>
@@ -8061,7 +8087,8 @@ function gedRenderList(){
           ${d.source_devis_id?(()=>{const dv=(window._gedAllDocs||[]).find(x=>x.id===d.source_devis_id);return dv?`<span style="font-size:12px;color:var(--muted);cursor:pointer;text-decoration:underline dotted" title="Ouvrir le devis rattaché" onclick="event.stopPropagation();gedEditDoc('${dv.id}')">${esc((dv.nom_original||'Devis').replace(/\.[a-zA-Z0-9]+$/,'').slice(0,40))}</span>`:'';})():''}
           <span style="font-size:12px;color:var(--muted)">${fmtDate(docDate(d))}</span>
           <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
-            ${d.email_corps?`<button class="btn sm" onclick="gedViewMail('${d.id}')">Visualiser</button>`:`<button class="btn sm" onclick="previewDoc('${pathJs}','${nmJs}','${bk}')">Visualiser</button>`}
+            ${(((d.tags||'').indexOf('cat:mail')>=0)||(!d.fichier_path&&d.email_corps))?`<button class="btn sm" onclick="gedViewMail('${d.id}')">Visualiser</button>`:`<button class="btn sm" onclick="previewDoc('${pathJs}','${nmJs}','${bk}')">Visualiser</button>`}
+            ${(d.fichier_path&&/\.pdf$/i.test(d.nom_original||d.fichier_path||'')&&['Rapport','Bureau de contrôle','RVAT','PV commission','Compte rendu'].includes(d.type))?`<button class="btn sm" title="Analyser ce rapport et préparer le tableau de levées de réserves" onclick="gedExtractRes('${d.id}')">Extraire réserves</button>`:''}
             ${['devis','devis_signe'].includes(dcat)||['devis','devis signé','devis signe'].includes((d.type||'').toLowerCase())?`<button class="btn sm" title="Générer un PV de réception de travaux à partir de ce devis" onclick="pvFromDevis('${d.id}')">PV réception</button>`:''}
             ${dcat==='devis'&&(d.type||'').toLowerCase()==='devis'?`<button class="btn sm" title="Déposer la copie signée scannée de ce devis" onclick="devisUploadSigned('${d.id}')">Devis signé</button>`:''}
             ${dcat==='pv_reception'&&(d.tags||'').indexOf('signe')<0?`<button class="btn sm" title="Déposer la copie signée scannée de ce PV" onclick="pvUploadSigned('${d.id}')">PV signé</button>`:''}
@@ -8103,7 +8130,7 @@ function gedRenderList(){
 }
 window.gedRenderList=gedRenderList;
 
-const GED_TYPES=['Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Compte rendu','RVAT','PV commission','Maintenance préventive','Maintenance corrective','Courrier','Attestation','DOE','Plan','Preuve','Photo','Autre'];
+const GED_TYPES=['Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Compte rendu','RVAT','PV commission','Bureau de contrôle','Maintenance préventive','Maintenance corrective','Consignes de sécurité','Plan de prévention','Permis de feu','Courrier','Attestation','DOE','Plan','Preuve','Photo','Autre'];
 const GED_CATEGORIES=[['rapport','Rapport'],['devis','Devis'],['devis_signe','Devis signé'],['facture','Facture'],['bon_intervention',"Bon d'intervention"],['pv_reception','PV de réception'],['mail','Mail'],['autre','Autre']];
 
 // Affiche directement le contenu d'un mail reçu (expéditeur, objet, date, corps) dans une modale
@@ -9341,6 +9368,213 @@ window.trvVoirRapport=function(){
   if(!d||!d.fichier_path){ toast('Aucun fichier lié à ce tableau','err'); return; }
   const bucket=(((d.tags||'').indexOf('cat:')>=0)||((d.tags||'').indexOf('source:rapports')>=0))?'rapports':'documents';
   previewDoc(d.fichier_path, d.nom_original||'rapport.pdf', bucket);
+};
+window.trvParseQuali=function(lines){
+  const all=lines.join('\n');
+  if(!/QUALICONSULT/i.test(all)) return null;
+  const STOP=/^(\d\.(\d\.?)? |SOMMAIRE|RENSEIGNEMENTS? GENERAUX|CONSTATS DU VERIFICATEUR|FORME DES AVIS|EMISSION DES AVIS|GLOSSAIRE|ANNEXE|Page ?:|GoProd)/i;
+  const frIso=d=>{const m=(d||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?(m[3]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0')):null;};
+  let dInt=null;
+  let m=all.match(/Date de fin de v[ée]rification[ \u00a6:.-]*(\d{1,2}\/\d{1,2}\/\d{4})/i);
+  if(!m) m=all.match(/Date d[' ]?[ée]mission[ \u00a6:.-]*(\d{1,2}\/\d{1,2}\/\d{4})/i);
+  if(m) dInt=frIso(m[1]);
+  let start=-1;
+  for(let i=0;i<lines.length;i++){ if(/SYNTH[EÈ]SE DES OBSERVATIONS/i.test(lines[i]) && !/\.{4,}/.test(lines[i])) start=i; }
+  const obs=[];
+  if(start>=0){
+    let cur=null;
+    const flush=()=>{ if(!cur) return;
+      const txt=cur.txt.replace(/\s+/g,' ').trim();
+      const segs=txt.split(/ - /); const cats=[];
+      while(segs.length>1){
+        const s=segs[0].trim(); const letters=s.replace(/[^A-Za-zÀ-ÿ]/g,'');
+        const caps=letters.replace(/[^A-ZÀ-Þ]/g,'');
+        if(letters.length>=4 && caps.length/Math.max(letters.length,1)>=0.8){ cats.push(s); segs.shift(); } else break;
+      }
+      obs.push({numero:cur.n, code_obs:'NS'+cur.n, localisation:cats.join(' — ')||null,
+        descriptif:segs.join(' - ').trim(), article_ref:'', date_premier_signalement:null, recidive:false});
+      cur=null; };
+    for(let i=start+1;i<lines.length;i++){
+      const L=(lines[i]||'').trim(); if(!L) continue;
+      if(/^(2[\s.].{0,60}|RENSEIGNEMENTS? GENERAUX.*)$/i.test(L)){ flush(); break; }
+      if(/^Obs\b|^n[°o]\b|^Observations$/i.test(L)) continue;
+      const r=L.match(/^N[S5$][ .]?([0-9IlO]{1,3})[ \u00a6.:,\-]*(.*)$/);
+      if(r){ flush(); const num=r[1].replace(/[Il]/g,'1').replace(/O/g,'0'); cur={n:parseInt(num,10)||obs.length+1, txt:r[2]||''}; continue; }
+      if(cur) cur.txt+=' '+L;
+    }
+    flush();
+  }
+  // Passe globale : rattrape les NSx émis hors zone (l'OCR d'un scan peut réordonner les blocs)
+  const byNum={}; obs.forEach(o=>{ byNum[o.numero]=o; });
+  let cur2=null;
+  const flush2=()=>{ if(!cur2) return;
+    const txt=cur2.txt.replace(/\s+/g,' ').trim();
+    if(txt.length>=15){
+      const segs=txt.split(/ - /); const cats=[];
+      while(segs.length>1){
+        const s=segs[0].trim(); const letters=s.replace(/[^A-Za-zÀ-ÿ]/g,'');
+        const caps=letters.replace(/[^A-ZÀ-Þ]/g,'');
+        if(letters.length>=4 && caps.length/Math.max(letters.length,1)>=0.8){ cats.push(s); segs.shift(); } else break;
+      }
+      const o={numero:cur2.n, code_obs:'NS'+cur2.n, localisation:cats.join(' — ')||null,
+        descriptif:segs.join(' - ').trim(), article_ref:'', date_premier_signalement:null, recidive:false};
+      const ex=byNum[o.numero];
+      if(!ex || o.descriptif.length>ex.descriptif.length) byNum[o.numero]=o;
+    }
+    cur2=null; };
+  for(let i=0;i<lines.length;i++){
+    const L=(lines[i]||'').trim(); if(!L){ continue; }
+    const r=L.match(/^N[S5$][ .]?([0-9IlO]{1,3})[ \u00a6.:,\-]*(.*)$/);
+    if(r){ flush2(); const num=r[1].replace(/[Il]/g,'1').replace(/O/g,'0'); cur2={n:parseInt(num,10), txt:r[2]||''}; if(!cur2.n){cur2=null;} continue; }
+    if(cur2){ if(STOP.test(L)||/SYNTH[EÈ]SE DES OBSERVATIONS/i.test(L)){ flush2(); continue; } cur2.txt+=' '+L; }
+  }
+  flush2();
+  const finale=Object.values(byNum).filter(o=>o.descriptif&&o.descriptif.length>=10).sort((a,b)=>a.numero-b.numero);
+  return {organisme:'Qualiconsult', date_intervention:dInt, observations:finale};
+};
+window._loadTesseract=function(){
+  return new Promise((res,rej)=>{
+    if(window.Tesseract) return res();
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.0/tesseract.min.js';
+    s.onload=()=>res(); s.onerror=()=>rej(new Error('chargement OCR impossible'));
+    document.head.appendChild(s);
+  });
+};
+window.gedOcrRun=async function(docId){
+  const d=(window._gedAllDocs||[]).find(x=>x.id===docId);
+  if(!d||!d.fichier_path){ toast('Document introuvable','err'); return; }
+  if(!d.erp_id){ toast('Classe d\'abord ce document sur un établissement (ERP) — le tableau doit savoir où aller','err'); return; }
+  openModal(`<div class="modal-head"><h2>🔍 Lecture OCR en cours</h2></div>
+    <div class="modal-body">
+      <div id="ocr_prog" style="font-size:13.5px">Préparation…</div>
+      <div style="height:8px;background:var(--surface-2);border-radius:999px;margin-top:12px;overflow:hidden"><div id="ocr_bar" style="height:100%;width:3%;background:#1a44ad;transition:width .4s"></div></div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:10px">Le PDF scanné est transformé en images puis lu page par page (moteur français). Ne ferme pas cette fenêtre.</div>
+    </div><div class="modal-foot"></div>`);
+  const prog=(t,pc)=>{ const e=document.getElementById('ocr_prog'); if(e) e.textContent=t; const b=document.getElementById('ocr_bar'); if(b&&pc) b.style.width=pc+'%'; };
+  let worker=null;
+  try{
+    const bucket=(((d.tags||'').indexOf('cat:')>=0)||((d.tags||'').indexOf('source:rapports')>=0))?'rapports':'documents';
+    prog('Téléchargement du PDF…',6);
+    const {data:su,error:e0}=await sb.storage.from(bucket).createSignedUrl(d.fichier_path,300);
+    if(e0||!su) throw (e0||new Error('accès au fichier'));
+    const buf=await (await fetch(su.signedUrl)).arrayBuffer();
+    prog('Ouverture du document…',10);
+    const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+    prog('Chargement du moteur OCR (première fois : ~15 s)…',14);
+    await _loadTesseract();
+    worker=await Tesseract.createWorker('fra');
+    const maxP=Math.min(pdf.numPages,10);
+    let lines=[];
+    for(let p=1;p<=maxP;p++){
+      prog('Lecture de la page '+p+' / '+maxP+'…', 14+Math.round(70*p/maxP));
+      const page=await pdf.getPage(p);
+      const vp=page.getViewport({scale:2.2});
+      const cv=document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height;
+      await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+      const {data:res}=await worker.recognize(cv);
+      lines=lines.concat(String(res.text||'').split(/\n+/).map(s=>s.trim()).filter(Boolean));
+      const parsed=window.trvParseQuali(lines);
+      if(parsed&&parsed.observations.length&&/(^|\n)\s*2[\s.]|RENSEIGNEMENT/i.test(res.text||'')) break;
+    }
+    await worker.terminate(); worker=null;
+    prog('Analyse du texte reconnu…',90);
+    const parsed=window.trvParseQuali(lines);
+    if(!parsed||!parsed.observations.length){
+      closeModal();
+      toast('OCR terminé — aucune observation reconnue (qualité du scan insuffisante ou format inconnu)','err');
+      return;
+    }
+    prog('Création du tableau…',95);
+    try{
+      const {data:olds}=await sb.from('tableaux_reserves').select('id,statut').eq('rapport_document_id',d.id);
+      for(const o of (olds||[])){
+        if(o.statut==='a_valider'){ await sb.from('tableaux_reserves').delete().eq('id',o.id); }
+        else { closeModal(); toast('Un tableau déjà validé existe pour ce rapport — supprime-le d\'abord si tu veux relancer la lecture','err'); return; }
+      }
+    }catch(_){}
+    const {data:tab,error:e1}=await sb.from('tableaux_reserves').insert({
+      erp_id:d.erp_id, client_id:d.client_id||null, source:'bureau_de_controle',
+      organisme:parsed.organisme, date_intervention:parsed.date_intervention,
+      annee:parsed.date_intervention?parseInt(parsed.date_intervention.slice(0,4),10):null,
+      rapport_document_id:d.id, nb_obs:parsed.observations.length,
+      statut:'a_valider', created_by:'Robot OCR (navigateur)'
+    }).select().single();
+    if(e1||!tab) throw (e1||new Error('insertion du tableau'));
+    const payload=parsed.observations.map(o=>({
+      erp_id:d.erp_id, tableau_id:tab.id, numero:o.numero||null,
+      libelle:o.descriptif, localisation:o.localisation||null,
+      code_obs:o.code_obs||null, article_ref:o.article_ref||null,
+      recidive:false, date_premier_signalement:null,
+      etat_levee:'non_levee', statut:'detectee'
+    }));
+    const {error:e2}=await sb.from('reserves').insert(payload);
+    if(e2) throw e2;
+    try{ await sb.from('documents').update({trv_scan:'tableau_cree'}).eq('id',d.id); }catch(_){}
+    openModal(`<div class="modal-head"><h2>🔍 Réserves extraites par OCR</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+      <div class="modal-body">
+        <div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.4);border-radius:11px;padding:13px 15px;font-size:13.5px">
+          ✅ <b>${parsed.observations.length} observation(s)</b> lue(s) dans le scan (${esc(parsed.organisme)}) : <b>${parsed.observations.map(o=>'NS'+o.numero).join(', ')}</b><br>
+          <span style="font-size:12px;color:var(--muted)">S'il manque des numéros dans cette liste, la qualité du scan est en cause — relance la lecture ou saisis-les avec « ＋ Ajouter une observation ».</span><br>
+          Le tableau est prêt en statut <b style="color:#d97706">⏳ À VALIDER</b> — relis bien les textes : la lecture optique d'un scan peut comporter des coquilles, corrige-les avec ✏ avant validation.</div>
+      </div>
+      <div class="modal-foot"><button class="btn" onclick="closeModal()">Plus tard</button>
+        <button class="btn primary" onclick="closeModal();trvDetail('${esc(tab.id)}')">Vérifier et valider le tableau</button></div>`);
+  }catch(e){
+    if(worker){ try{ worker.terminate(); }catch(_){} }
+    closeModal();
+    toast('OCR impossible : '+(e.message||e),'err');
+  }
+};
+window.gedExtractRes=async function(docId){
+  toast('🤖 Analyse du rapport en cours… (quelques secondes)','ok');
+  try{
+    const {data,error}=await sb.functions.invoke('trv-auto',{body:{document_id:docId,force:true}});
+    if(error) throw error;
+    const a=(data&&data.analyses&&data.analyses[0])||{};
+    if(a.statut==='tableau_a_valider'){
+      openModal(`<div class="modal-head"><h2>🤖 Réserves extraites</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+        <div class="modal-body">
+          <div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.4);border-radius:11px;padding:13px 15px;font-size:13.5px">
+            ✅ <b>${a.obs} observation(s)</b> détectée(s) ${a.organisme?'('+esc(a.organisme)+')':''}<br>
+            Le tableau de levées de réserves a été préparé — il t'attend en statut <b style="color:#d97706">⏳ À VALIDER</b>.</div>
+        </div>
+        <div class="modal-foot"><button class="btn" onclick="closeModal()">Plus tard</button>
+          <button class="btn primary" onclick="closeModal();trvDetail('${esc(a.tableau_id)}')">Vérifier et valider le tableau</button></div>`);
+    }
+    else if(a.statut==='tableau_existant') toast('Un tableau existe déjà pour ce rapport — pas de doublon créé','ok');
+    else if(a.statut==='aucune_obs'){
+      openModal(`<div class="modal-head"><h2>🤖 Analyse du rapport</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+        <div class="modal-body">
+          <div style="background:rgba(217,119,6,.09);border:1px solid rgba(217,119,6,.45);border-radius:11px;padding:13px 15px;font-size:13.5px">
+            ${a.scan_probable
+              ?`📄 Ce PDF ne contient <b>aucun texte</b> : c'est très probablement un <b>document scanné</b> (photocopie).<br><br>Je peux le <b>lire par reconnaissance optique (OCR)</b> directement dans ton navigateur — compte 1 à 2 minutes.`
+              :`Aucune observation reconnue dans le texte de ce rapport (format non pris en charge ou rapport sans réserve).<br><br>Tu peux tenter la <b>lecture OCR</b>, utile si la mise en page est inhabituelle.`}
+          </div>
+        </div>
+        <div class="modal-foot"><button class="btn" onclick="closeModal()">Fermer</button>
+          <button class="btn primary" onclick="gedOcrRun('${esc(docId)}')">🔍 Lancer la lecture OCR</button></div>`);
+    }
+    else if(a.statut==='erreur') toast('Analyse impossible : '+(a.detail||'erreur'),'err');
+    else toast('Document déjà analysé','ok');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+window.rapRename=async function(rapId,path){
+  try{
+    const {data:r}=await sb.from('rapports').select('id,type,fichier_path').eq('id',rapId).maybeSingle();
+    if(!r){toast('Rapport introuvable','err');return;}
+    const cur=(r.fichier_path||'').split('/').pop().replace(/^\d+-\d*-?/,'')||r.type||'';
+    let nv=prompt('Nouveau nom du rapport :',cur);
+    if(nv===null) return;
+    nv=nv.trim(); if(!nv){toast('Nom vide','err');return;}
+    const ext=(cur.match(/\.[a-z0-9]{2,5}$/i)||['.pdf'])[0];
+    if(!/\.[a-z0-9]{2,5}$/i.test(nv)) nv+=ext;
+    const {error:e1}=await sb.from('rapports').update({type:nv.replace(/\.[a-z0-9]{2,5}$/i,'')}).eq('id',rapId);
+    if(e1) throw e1;
+    try{ await sb.from('documents').update({nom_original:nv}).eq('fichier_path',r.fichier_path); }catch(_){}
+    toast('Rapport renommé ✓','ok');
+    renderRoute();
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
 };
 window.trvValiderTab=async function(id){
   try{
