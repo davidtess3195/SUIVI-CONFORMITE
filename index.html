@@ -11769,10 +11769,21 @@ function _buildAffaireRows(affaires){
   if(!list.length) return _affaireRowHtml('','');
   return list.map(a=>_affaireRowHtml(a.erp_id,a.numero)).join('');
 }
-function formPrest(p){
+async function formPrest(p){
   // Si appelé avec une string (depuis un onglet), c'est la catégorie pour un nouveau
   if(typeof p === 'string'){ p = {categorie: p}; }
   p=p||{};
+  window._prestEditId=p.id||'';
+  // Toujours repartir de la version fraîche en base (les cartes de la liste transportent une copie figée)
+  if(p.id){
+    try{
+      const {data:fresh}=await sb.from('prestataires').select('*').eq('id',p.id).maybeSingle();
+      if(fresh&&fresh.id){ p=fresh; if(Array.isArray(window._prestCache)){ const i=window._prestCache.findIndex(x=>x.id===p.id); if(i>=0) window._prestCache[i]=fresh; } }
+    }catch(_){}
+  }
+  let _cAut=p.contacts; if(typeof _cAut==='string'){ try{ _cAut=JSON.parse(_cAut); }catch(_){ _cAut=null; } }
+  window._autresSaved=(((_cAut||{}).autres)||[]).map(a=>Object.assign({},a));
+  setTimeout(()=>{ try{ prestRenderAutresAcc(); }catch(_){} },0);
   const cat=p.categorie||'prestataire';
 
   const typesBdc=PREST_TYPES_BDC;
@@ -11873,35 +11884,7 @@ function formPrest(p){
             </div>
           </div>`;
         }).join('')}
-        ${((p.contacts&&p.contacts.autres)||[]).map((a,j)=>{
-          const k='autre_'+j;
-          const hasA=a&&(a.nom||a.telephone||a.mobile||a.astreinte||a.email);
-          return `<div class="acc-item" style="border-bottom:${j<(((p.contacts&&p.contacts.autres)||[]).length-1)?'1px solid var(--line-2)':'none'}">
-            <button type="button" onclick="toggleAcc('${k}')"
-              style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 14px;background:none;border:none;cursor:pointer;text-align:left;font-family:inherit;transition:.12s"
-              onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='none'">
-              <span style="font-weight:600;font-size:13.5px;flex:1">${esc((a&&a.intitule)||'Autre interlocuteur')}</span>
-              ${hasA
-                ?`<span style="font-size:12px;color:var(--ink);display:flex;gap:12px;align-items:center">
-                    ${a.nom?`<b>${esc(a.nom)}</b>`:''}
-                    ${a.mobile?`<span style="color:var(--muted)">📱 ${esc(a.mobile)}</span>`:''}
-                    ${!a.nom&&!a.mobile&&a.telephone?`<span style="color:var(--muted)">${esc(a.telephone)}</span>`:''}
-                  </span>`
-                :'<span style="font-size:11.5px;color:var(--muted-2)">Non renseigné</span>'}
-              <span id="acc-arrow-${k}" style="color:var(--muted-2);font-size:13px;transition:.2s">▼</span>
-            </button>
-            <div id="acc-${k}" style="display:none;padding:4px 14px 14px;background:var(--surface-2)">
-              <div style="display:flex;flex-direction:column;gap:4px;font-size:12.5px">
-                ${a.nom?`<div><span style="color:var(--muted)">Nom :</span> <b>${esc(a.nom)}</b></div>`:''}
-                ${a.mobile?`<div><span style="color:var(--muted)">Mobile :</span> ${esc(a.mobile)}</div>`:''}
-                ${a.telephone?`<div><span style="color:var(--muted)">Téléphone :</span> ${esc(a.telephone)}</div>`:''}
-                ${a.astreinte?`<div><span style="color:var(--muted)">Astreinte :</span> ${esc(a.astreinte)}</div>`:''}
-                ${a.email?`<div><span style="color:var(--muted)">Email :</span> ${esc(a.email)}</div>`:''}
-                <div style="font-size:11px;color:var(--muted-2);margin-top:4px">✏ Modifiable dans la section « Autres interlocuteurs » ci-dessous.</div>
-              </div>
-            </div>
-          </div>`;
-        }).join('')}
+        <div id="acc-autres-zone"></div>
       </div>
 
       <!-- Autres interlocuteurs libres -->
@@ -11909,28 +11892,9 @@ function formPrest(p){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <span style="font-size:13px;font-weight:600;color:var(--ink)">Autres interlocuteurs</span>
           <button type="button" class="btn sm" onclick="addAutreInterlocuteur()">+ Ajouter</button>
+          <button type="button" class="btn sm primary" onclick="saveAutresInterlocuteurs()">💾 Enregistrer les interlocuteurs</button>
         </div>
-        <div id="autres-interlocuteurs-list">
-          ${((p.contacts&&p.contacts.autres)||[]).map((a,i)=>`
-          <div class="ct-autre-bloc" style="background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:12px 14px;margin-bottom:8px;position:relative">
-            <button type="button" onclick="this.closest('.ct-autre-bloc').remove()"
-              style="position:absolute;top:8px;right:8px;background:none;border:none;cursor:pointer;color:var(--muted-2);font-size:18px;line-height:1">×</button>
-            <div class="fld" style="margin-bottom:8px"><label>Intitulé / Fonction</label>
-              <input class="ct-autre-label" value="${esc(a.intitule||'')}" placeholder="Directeur, Comptabilité..."></div>
-            <div class="row2">
-              <div class="fld" style="margin-bottom:8px"><label>Nom / Prénom</label>
-                <input class="ct-autre-nom" value="${esc(a.nom||'')}"></div>
-              <div class="fld" style="margin-bottom:8px"><label>Mobile</label>
-                <input class="ct-autre-mob" type="tel" value="${esc(a.mobile||'')}"></div>
-              <div class="fld" style="margin-bottom:0"><label>Téléphone</label>
-                <input class="ct-autre-tel" type="tel" value="${esc(a.telephone||'')}"></div>
-              <div class="fld" style="margin-bottom:0"><label>Tél. astreinte</label>
-                <input class="ct-autre-astr" type="tel" value="${esc(a.astreinte||'')}"></div>
-              <div class="fld" style="margin-bottom:0;grid-column:1/-1"><label>Email</label>
-                <input class="ct-autre-email" type="email" value="${esc(a.email||'')}"></div>
-            </div>
-          </div>`).join('')}
-        </div>
+        <div id="autres-interlocuteurs-list" oninput="prestRefreshAutresAcc()"></div>
       </div>
     </div>
 
@@ -12053,7 +12017,8 @@ function formPrest(p){
       astreinte:b.querySelector('.ct-autre-astr')?.value.trim()||null,
       email:b.querySelector('.ct-autre-email')?.value.trim()||null,
     })).filter(a=>a.intitule||a.nom||a.mobile||a.telephone||a.email);
-    if(autres.length) contacts.autres=autres;
+    const _allAutres=((window._autresSaved||[])).concat(autres);
+    if(_allAutres.length) contacts.autres=_allAutres; else delete contacts.autres;
     const payload={
       nom, categorie,
       client_ids: [...document.querySelectorAll('input[name="f_pclient_cb"]:checked')].map(cb=>cb.value),
@@ -12102,7 +12067,7 @@ function addAutreInterlocuteur(){
   const div=document.createElement('div');
   div.className='ct-autre-bloc';
   div.style.cssText='background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:12px 14px;margin-bottom:8px;position:relative';
-  div.innerHTML=`<button type="button" onclick="this.closest('.ct-autre-bloc').remove()"
+  div.innerHTML=`<button type="button" onclick="this.closest('.ct-autre-bloc').remove();prestRefreshAutresAcc()"
     style="position:absolute;top:8px;right:8px;background:none;border:none;cursor:pointer;color:var(--muted-2);font-size:18px;line-height:1">×</button>
     <div class="fld" style="margin-bottom:8px"><label>Intitulé / Fonction</label>
       <input class="ct-autre-label" placeholder="Directeur, Comptabilite..."></div>
@@ -12115,8 +12080,140 @@ function addAutreInterlocuteur(){
     </div>`;
   zone.appendChild(div);
   div.querySelector('.ct-autre-label').focus();
+  prestRefreshAutresAcc();
 }
+window.prestRefreshAutresAcc=function(){
+  const z=document.getElementById('acc-autres-zone'); if(!z) return;
+  const blocs=[...document.querySelectorAll('.ct-autre-bloc')];
+  const g=(b,cl)=>{ const el=b.querySelector(cl); return el?(el.value||'').trim():''; };
+  z.innerHTML=blocs.map((b,j)=>{
+    const k='autre_'+j;
+    const a={intitule:g(b,'.ct-autre-label'),nom:g(b,'.ct-autre-nom'),mobile:g(b,'.ct-autre-mob'),telephone:g(b,'.ct-autre-tel'),astreinte:g(b,'.ct-autre-astr'),email:g(b,'.ct-autre-email')};
+    const hasA=a.nom||a.telephone||a.mobile||a.astreinte||a.email;
+    return `<div class="acc-item" style="border-bottom:${j<blocs.length-1?'1px solid var(--line-2)':'none'}">
+      <button type="button" onclick="toggleAcc('${k}')"
+        style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 14px;background:none;border:none;cursor:pointer;text-align:left;font-family:inherit;transition:.12s"
+        onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='none'">
+        <span style="font-weight:600;font-size:13.5px;flex:1">${esc(a.intitule||'Autre interlocuteur')}</span>
+        ${hasA
+          ?`<span style="font-size:12px;color:var(--ink);display:flex;gap:12px;align-items:center">
+              ${a.nom?`<b>${esc(a.nom)}</b>`:''}
+              ${a.mobile?`<span style="color:var(--muted)">📱 ${esc(a.mobile)}</span>`:''}
+              ${!a.nom&&!a.mobile&&a.telephone?`<span style="color:var(--muted)">${esc(a.telephone)}</span>`:''}
+            </span>`
+          :'<span style="font-size:11.5px;color:var(--muted-2)">Non renseigné</span>'}
+        <span id="acc-arrow-${k}" style="color:var(--muted-2);font-size:13px;transition:.2s">▼</span>
+      </button>
+      <div id="acc-${k}" style="display:none;padding:4px 14px 14px;background:var(--surface-2)">
+        <div style="display:flex;flex-direction:column;gap:4px;font-size:12.5px">
+          ${a.nom?`<div><span style="color:var(--muted)">Nom :</span> <b>${esc(a.nom)}</b></div>`:''}
+          ${a.mobile?`<div><span style="color:var(--muted)">Mobile :</span> ${esc(a.mobile)}</div>`:''}
+          ${a.telephone?`<div><span style="color:var(--muted)">Téléphone :</span> ${esc(a.telephone)}</div>`:''}
+          ${a.astreinte?`<div><span style="color:var(--muted)">Astreinte :</span> ${esc(a.astreinte)}</div>`:''}
+          ${a.email?`<div><span style="color:var(--muted)">Email :</span> ${esc(a.email)}</div>`:''}
+          <div style="font-size:11px;color:var(--muted-2);margin-top:4px">✏ Modifiable dans la section « Autres interlocuteurs » ci-dessous.</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+};
 window.addAutreInterlocuteur=addAutreInterlocuteur;
+window._autreRow=function(a,k,extra,badge){
+  const hasA=a.nom||a.telephone||a.mobile||a.astreinte||a.email||a.intitule;
+  return `<div class="acc-item" style="border-top:1px solid var(--line-2)">
+    <button type="button" onclick="toggleAcc('${k}')"
+      style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 14px;background:none;border:none;cursor:pointer;text-align:left;font-family:inherit;transition:.12s"
+      onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background='none'">
+      <span style="font-weight:600;font-size:13.5px;flex:1">${esc(a.intitule||'Autre interlocuteur')}${badge||''}</span>
+      ${hasA?`<span style="font-size:12px;color:var(--ink);display:flex;gap:12px;align-items:center">
+          ${a.nom?`<b>${esc(a.nom)}</b>`:''}
+          ${a.mobile?`<span style="color:var(--muted)">📱 ${esc(a.mobile)}</span>`:''}
+          ${!a.nom&&!a.mobile&&a.telephone?`<span style="color:var(--muted)">${esc(a.telephone)}</span>`:''}
+        </span>`:'<span style="font-size:11.5px;color:var(--muted-2)">Non renseigné</span>'}
+      <span id="acc-arrow-${k}" style="color:var(--muted-2);font-size:13px;transition:.2s">▼</span>
+    </button>
+    <div id="acc-${k}" style="display:none;padding:4px 14px 14px;background:var(--surface-2)">
+      <div style="display:flex;flex-direction:column;gap:4px;font-size:12.5px">
+        ${a.nom?`<div><span style="color:var(--muted)">Nom :</span> <b>${esc(a.nom)}</b></div>`:''}
+        ${a.mobile?`<div><span style="color:var(--muted)">Mobile :</span> ${esc(a.mobile)}</div>`:''}
+        ${a.telephone?`<div><span style="color:var(--muted)">Téléphone :</span> ${esc(a.telephone)}</div>`:''}
+        ${a.astreinte?`<div><span style="color:var(--muted)">Astreinte :</span> ${esc(a.astreinte)}</div>`:''}
+        ${a.email?`<div><span style="color:var(--muted)">Email :</span> ${esc(a.email)}</div>`:''}
+        ${extra||''}
+      </div>
+    </div>
+  </div>`;
+};
+window.prestRenderAutresAcc=function(){
+  const z=document.getElementById('acc-autres-zone'); if(!z) return;
+  const saved=(window._autresSaved||[]).map((a,j)=>_autreRow(a,'autre_'+j,
+    `<div style="display:flex;gap:8px;margin-top:8px">
+       <button type="button" class="btn sm" onclick="autreEdit(${j})">✏ Modifier</button>
+       <button type="button" class="btn sm" style="color:#dc2626;border-color:rgba(220,38,38,.4)" onclick="autreDel(${j})">🗑 Supprimer</button>
+     </div>`));
+  const g=(b,cl)=>{ const el=b.querySelector(cl); return el?(el.value||'').trim():''; };
+  const pending=[...document.querySelectorAll('.ct-autre-bloc')].map((b,i)=>_autreRow({
+    intitule:g(b,'.ct-autre-label'),nom:g(b,'.ct-autre-nom'),mobile:g(b,'.ct-autre-mob'),
+    telephone:g(b,'.ct-autre-tel'),astreinte:g(b,'.ct-autre-astr'),email:g(b,'.ct-autre-email')
+  },'autre_p'+i,`<div style="font-size:11px;color:var(--muted-2);margin-top:4px">💾 Clique « Enregistrer les interlocuteurs » pour le graver.</div>`,
+  ' <span style="font-size:10px;background:rgba(217,119,6,.12);color:#d97706;border-radius:6px;padding:1px 6px;font-weight:800;vertical-align:1px">EN COURS</span>'));
+  z.innerHTML=saved.join('')+pending.join('');
+};
+window.prestRefreshAutresAcc=function(){ prestRenderAutresAcc(); };
+window._persistAutres=async function(arr){
+  const id=window._prestEditId;
+  const {data:row,error:e0}=await sb.from('prestataires').select('contacts').eq('id',id).maybeSingle();
+  if(e0) throw e0;
+  let contacts=row&&row.contacts?row.contacts:{};
+  if(typeof contacts==='string'){ try{ contacts=JSON.parse(contacts); }catch(_){ contacts={}; } }
+  if(arr.length) contacts.autres=arr; else delete contacts.autres;
+  const {error:e1}=await sb.from('prestataires').update({contacts}).eq('id',id);
+  if(e1) throw e1;
+  if(Array.isArray(window._prestCache)){ const pc=window._prestCache.find(x=>x.id===id); if(pc) pc.contacts=contacts; }
+};
+window.autreDel=async function(j){
+  if(!confirm('Supprimer cet interlocuteur ?')) return;
+  try{
+    const arr=(window._autresSaved||[]).slice(); arr.splice(j,1);
+    await _persistAutres(arr);
+    window._autresSaved=arr;
+    prestRenderAutresAcc();
+    toast('Interlocuteur supprimé','ok');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+window.autreEdit=function(j){
+  const a=(window._autresSaved||[])[j]; if(!a) return;
+  window._autresSaved.splice(j,1);
+  addAutreInterlocuteur();
+  const blocs=document.querySelectorAll('.ct-autre-bloc');
+  const b=blocs[blocs.length-1];
+  const s=(cl,v)=>{ const el=b.querySelector(cl); if(el) el.value=v||''; };
+  s('.ct-autre-label',a.intitule); s('.ct-autre-nom',a.nom); s('.ct-autre-mob',a.mobile);
+  s('.ct-autre-tel',a.telephone); s('.ct-autre-astr',a.astreinte); s('.ct-autre-email',a.email);
+  prestRenderAutresAcc();
+  toast('Modifie puis clique « 💾 Enregistrer les interlocuteurs »','ok');
+};
+window.saveAutresInterlocuteurs=async function(){
+  const id=window._prestEditId;
+  if(!id){ toast('Enregistre d\'abord la fiche (nouveau prestataire), puis reviens ajouter les interlocuteurs','err'); return; }
+  const autres=[...document.querySelectorAll('.ct-autre-bloc')].map(b=>({
+    intitule:b.querySelector('.ct-autre-label')?.value.trim()||null,
+    nom:b.querySelector('.ct-autre-nom')?.value.trim()||null,
+    mobile:b.querySelector('.ct-autre-mob')?.value.trim()||null,
+    telephone:b.querySelector('.ct-autre-tel')?.value.trim()||null,
+    astreinte:b.querySelector('.ct-autre-astr')?.value.trim()||null,
+    email:b.querySelector('.ct-autre-email')?.value.trim()||null,
+  })).filter(a=>a.intitule||a.nom||a.mobile||a.telephone||a.astreinte||a.email);
+  if(!autres.length){ toast('Rien à enregistrer — ajoute un interlocuteur d\'abord','err'); return; }
+  try{
+    const merged=(window._autresSaved||[]).concat(autres);
+    await _persistAutres(merged);
+    window._autresSaved=merged;
+    const zone=document.getElementById('autres-interlocuteurs-list'); if(zone) zone.innerHTML='';
+    prestRenderAutresAcc();
+    toast(autres.length+' interlocuteur(s) enregistré(s) ✓ — saisie effacée','ok');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
 
 function toggleDocZone(type, show){
   const zone=document.getElementById('dropzone-'+type);
