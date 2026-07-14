@@ -1619,7 +1619,6 @@ async function compressPdf(file, qualite=0.78, dpi=110){
 async function viewParametres(c){
   const p=state.profile||{};
   let cfg={actif:false,destinataires:[],expediteur:'alertes@quickprotect.fr',alertes_photo:true,alertes_reserve:true,jours_avant:[90,60,30,15,7]};
-  try{ const {data}=await sb.from('email_settings').select('*').maybeSingle(); if(data) cfg={...cfg,...data}; }catch(e){}
 
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Paramètres</h1><p>Compte, email et notifications.</p></div></div>
 
@@ -1635,63 +1634,14 @@ async function viewParametres(c){
     </div>
   </div>
 
-  <!-- Email -->
+  <!-- Adresse officielle -->
   <div class="card card-pad" style="max-width:560px;margin-bottom:16px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-      <h2 style="font-size:16px;margin:0">Notifications email</h2>
-      <label style="display:flex;align-items:center;gap:8px;margin-left:auto;cursor:pointer;font-size:13px;font-weight:600">
-        <input type="checkbox" id="em_actif"${cfg.actif?' checked':''} style="width:18px;height:18px;accent-color:var(--primary)"> Activer
-      </label>
+    <h2 style="font-size:15px;margin-bottom:8px">📱 Adresse des QR codes et des liens</h2>
+    <div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.35);border-radius:10px;padding:11px 14px;font-size:13px">
+      ✅ Tous les QR codes et liens (SMS, emails) sont générés sur l'adresse officielle sécurisée&nbsp;: <b>https://conformite-securite.fr</b> — rien à configurer.
     </div>
-
-    <!-- URL publique QR -->
-    <div class="card card-pad" style="margin-bottom:16px">
-      <h2 style="font-size:15px;margin-bottom:8px">📱 URL publique pour les QR codes</h2>
-      <p style="color:var(--muted);font-size:13px;margin-bottom:12px">Pour que les intervenants puissent scanner les QR codes avec leur téléphone, l'application doit être accessible sur une URL publique (pas file:// ou localhost).</p>
-      <div style="display:flex;gap:9px">
-        <input id="cfg_qr_url" value="${esc(getQrBaseUrl())}" placeholder="https://votre-domaine.fr/quickprotect/"
-          style="flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px;outline:none">
-        <button class="btn primary" onclick="saveQrPubUrlParam()">Enregistrer</button>
-      </div>
-      <div style="margin-top:8px;font-size:12.5px;color:var(--muted-2)">
-        Options gratuites : <a href="https://netlify.com" target="_blank" style="color:var(--primary)">Netlify</a> · <a href="https://vercel.com" target="_blank" style="color:var(--primary)">Vercel</a> · <a href="https://pages.github.com" target="_blank" style="color:var(--primary)">GitHub Pages</a><br>
-        Glissez index.html → obtenez une URL publique en 2 minutes.
-      </div>
-    </div>
-
-    <div class="cfgbanner" style="margin-bottom:16px">
-      <div><b>Étape 1 — Resend</b> : crée un compte sur <a href="https://resend.com" target="_blank" style="color:#9a3412">resend.com</a>, vérifie ton domaine, copie ta clé API.<br>
-      <b>Étape 2 — Supabase</b> : dans ton projet → <b>Edge Functions → Secrets</b>, ajoute :<br>
-      &nbsp;&nbsp;• <code>RESEND_API_KEY</code> = ta clé Resend<br>
-      &nbsp;&nbsp;• <code>RESEND_FROM</code> = alertes@ton-domaine.fr</div>
-    </div>
-
-    <div class="fld"><label>Destinataires (un email par ligne)</label>
-      <textarea id="em_dest" style="min-height:80px" placeholder="contact@client.fr&#10;responsable@autre.fr">${(cfg.destinataires||[]).join('\n')}</textarea></div>
-    <div class="fld"><label>Adresse expéditeur (après vérification domaine Resend)</label>
-      <input id="em_exp" value="${esc(cfg.expediteur)}" placeholder="alertes@quickprotect.fr"></div>
-    <div class="fld"><label>Seuils de rappel (jours avant échéance)</label>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-        ${[90,60,30,15,7,3].map(j=>`<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer">
-          <input type="checkbox" class="cb-jour" value="${j}"${(cfg.jours_avant||[]).includes(j)?' checked':''} style="width:16px;height:16px;flex:0 0 auto;margin:0;accent-color:var(--primary)"> J-${j}
-        </label>`).join('')}
-      </div>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
-        <input type="checkbox" id="em_photo"${cfg.alertes_photo?' checked':''} style="width:16px;height:16px;flex:0 0 auto;margin:0;accent-color:var(--primary)"> Alerte photo urgente
-      </label>
-      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;margin-left:16px">
-        <input type="checkbox" id="em_reserve"${cfg.alertes_reserve?' checked':''} style="width:16px;height:16px;flex:0 0 auto;margin:0;accent-color:var(--primary)"> Alerte réserve critique
-      </label>
-    </div>
-    <div style="display:flex;gap:9px;margin-top:16px;flex-wrap:wrap">
-      <button class="btn primary" id="em_save">Enregistrer la config</button>
-      <button class="btn" id="em_test">✉️ Envoyer un email test</button>
-      <button class="btn" id="em_rappel">⚡ Envoyer les rappels maintenant</button>
-    </div>
-    <div id="em_status" style="margin-top:12px;font-size:13px"></div>
-  </div>`;
+  </div>
+`;
 
   // Sauvegarder URL QR
   window.saveQrPubUrlParam=function(){
@@ -1705,30 +1655,7 @@ async function viewParametres(c){
   $('#psave').onclick=async()=>{ try{ await sb.from('profiles').update({nom:$('#p_nom').value.trim()}).eq('id',state.user.id);
     state.profile.nom=$('#p_nom').value.trim(); toast('Profil enregistré','ok'); renderApp(); }catch(e){toast(e.message,'err');} };
 
-  async function saveEmailCfg(){
-    const dest=$('#em_dest').value.split('\n').map(s=>s.trim()).filter(Boolean);
-    const jours=[...$('#em_status').closest('.card-pad').querySelectorAll('.cb-jour:checked')].map(el=>parseInt(el.value));
-    const payload={actif:$('#em_actif').checked,destinataires:dest,expediteur:$('#em_exp').value.trim(),
-      jours_avant:jours,alertes_photo:$('#em_photo').checked,alertes_reserve:$('#em_reserve').checked};
-    const {error}=await sb.from('email_settings').update(payload).not('id','is',null);
-    if(error) throw error; toast('Configuration email enregistrée','ok');
-  }
 
-  $('#em_save').onclick=async()=>{ try{ await saveEmailCfg(); }catch(e){toast(e.message,'err');} };
-
-  async function callEmailFn(action, extraMsg){
-    const status=$('#em_status'); if(status) status.innerHTML='<div class="spin" style="width:18px;height:18px;border-width:2px;display:inline-block;vertical-align:middle"></div> En cours…';
-    try{ await saveEmailCfg();
-      const res=await fetch(FN_EMAIL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON_KEY},body:JSON.stringify({action})});
-      const data=await res.json();
-      if(!res.ok||data.error) throw new Error(data.error||'Erreur');
-      if(status) status.innerHTML=`<span style="color:var(--conforme)">✅ ${extraMsg}</span>`;
-      toast(extraMsg,'ok');
-    }catch(e){ if(status)status.innerHTML=`<span style="color:var(--critique)">❌ ${e.message}</span>`; toast(e.message,'err'); }
-  }
-
-  $('#em_test').onclick=()=>callEmailFn('test','Email test envoyé avec succès !');
-  $('#em_rappel').onclick=()=>callEmailFn('rappels','Rappels envoyés !');
 }
 
 /* =====================================================================
@@ -1812,7 +1739,7 @@ async function viewAdmin(c){
 
     c.innerHTML=`
     <div class="page-head"><div class="t"><h1>Administration</h1><p>Vue globale — ${new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})}</p></div>
-      <div class="actions"><button class="btn" onclick="navigate('/parametres')">⚙️ Paramètres email</button></div></div>
+      </div>
 
     <!-- KPIs -->
     <div class="kpis">${kpis.map(kpiCard).join('')}</div>
@@ -2086,10 +2013,8 @@ async function loadEmailsClients(){
         </tr>`;
       }).join('')}
       </tbody></table></div>
-      <div style="margin-top:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--muted)">
-        <b>Configuration DNS requise</b> — Pour activer la réception des emails entrants sur <b>conformite-securite.fr</b>, 
-        configurez un enregistrement MX pointant vers Resend Inbound sur votre registrar.<br>
-        <a href="https://resend.com/docs/send-with-custom-domains" target="_blank" style="color:var(--primary)">Documentation Resend →</a>
+      <div style="margin-top:12px;background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.35);border-radius:10px;padding:12px 14px;font-size:12.5px">
+        ✅ La réception des emails est active sur <b>conformite-securite.fr</b> (boîte OVH) : le robot relève la boîte et classe automatiquement les rapports reçus dans la GED.
       </div>`;
   }catch(e){ el.innerHTML=`<span style="color:var(--critique)">Erreur : ${esc(e.message)}</span>`; }
 }
@@ -2661,7 +2586,7 @@ const NAV = [
   {sec:'suivi',  titre:'Suivi et conformité',    ic:NI.shield,    items:[['/interventions','Interventions',NI.tools],['/verifications','Vérifications & relances',NI.bell],['/reserves','Levées des réserves',NI.checks],['/tableaux-reserves','Tableaux de réserves',NI.tablo]]},
   {sec:'ged',    titre:'Gestion documentaire',   ic:NI.folderO,   items:[['/documents','Documents (GED)',NI.folder],['/rapports','Rapports reçus',NI.inbox],['/contrats','Contrats de maintenance',NI.contrat]]},
   {link:['/preparation-cs','Commission de sécurité',NI.landmark]},
-  {sec:'admin',  titre:'Administration',         ic:NI.gear,      items:[['/admin','Tableau de bord admin',NI.gauge],['/parametres','Paramètres & email',NI.gear]]},
+  {sec:'admin',  titre:'Administration',         ic:NI.gear,      items: state.profile?.role==='admin' ? [['/admin','Tableau de bord admin',NI.gauge],['/parametres','Paramètres & email',NI.gear]] : [['/parametres','Paramètres & email',NI.gear]]},
 ];
 const NAV_BADGES={'/photos':'badge-photos','/rapports':'badge-rapports','/verifications':'badge-verif','/pointage':'badge-pointage'};
 function navLink(it){ const p=it[0],l=it[1],ic=it[2];
@@ -2690,12 +2615,6 @@ function renderApp(){
           <button class="nsec-h" type="button" data-nav-sec="${g.sec}">${g.ic||''}<span>${g.titre}</span><span class="badge nsec-badge" style="display:none">0</span><svg class="nsec-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
           <div class="nsec-b">${g.items.map(navLink).join('')}</div>
         </div>`).join('')}</nav>
-      <div class="side-foot">
-        <div class="user-chip" onclick="navigate('/parametres')">
-          <div class="avatar">${initials}</div>
-          <div class="info"><b>${esc(state.profile?.nom||'')}</b><span>${esc(state.profile?.role||'')}</span></div>
-        </div>
-      </div>
     </aside>
     <div class="main" style="${state.demo?'padding-top:38px':''}">
       <header class="topbar">
@@ -3522,6 +3441,131 @@ window.cfPrestaPick=function(){
   if(!sel||!mail) return; const opt=sel.options[sel.selectedIndex];
   const m=opt?opt.getAttribute('data-mail'):''; if(m) mail.value=m;
 };
+window.clientUserLink=function(clientId,clientNom){
+  openModal(`<div class="modal-head"><h2>🔗 Rattacher un compte existant — ${esc(clientNom)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body">
+      <div class="fld" style="margin-bottom:0"><label>Email du compte déjà créé (chez un autre client)</label>
+        <input id="cl_email" type="email" placeholder="directeur@groupe.fr"></div>
+      <div id="cl_msg" style="font-size:12.5px;margin-top:10px"></div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" id="cl_go" onclick="clientUserLinkGo('${clientId}')">Rattacher</button></div>`);
+};
+window.clientUserLinkGo=async function(clientId){
+  const email=(document.getElementById('cl_email').value||'').trim().toLowerCase();
+  const msg=document.getElementById('cl_msg'), btn=document.getElementById('cl_go');
+  const err=t=>{ msg.style.color='#dc2626'; msg.textContent=t; };
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return err('Adresse email invalide.');
+  btn.disabled=true; btn.textContent='Recherche…';
+  try{
+    const {data:prof,error:eP}=await sb.from('profiles').select('id,nom,role').eq('email',email).maybeSingle();
+    if(eP) throw eP;
+    if(!prof){ btn.disabled=false; btn.textContent='Rattacher'; return err('Aucun compte trouvé avec cet email. Utilise « + Créer un compte » pour en faire un nouveau.'); }
+    if(prof.role==='admin'){ btn.disabled=false; btn.textContent='Rattacher'; return err('Ce compte est un compte du personnel PREVA — impossible à rattacher comme client.'); }
+    const {data:{session}}=await sb.auth.getSession();
+    const r=await fetch(SUPABASE_URL+'/functions/v1/admin-manage-client-user',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+      body:JSON.stringify({action:'add_client_link',user_id:prof.id,client_id:clientId})});
+    const d=await r.json();
+    if(!r.ok||!d.ok) throw new Error(d.error||'Échec du rattachement');
+    msg.style.color='#16a34a'; msg.textContent='✅ '+esc(prof.nom)+' a maintenant accès à ce client également.';
+    btn.textContent='Rattaché ✓';
+    toast('Compte rattaché','ok');
+    setTimeout(()=>{ closeModal(); loadClientUsers(clientId); },1400);
+  }catch(e){ btn.disabled=false; btn.textContent='Rattacher'; err('Erreur : '+(e.message||e)); }
+};
+window.loadClientUsers=async function(clientId){
+  const box=document.getElementById('client-users'); if(!box) return;
+  try{
+    const {data:links,error}=await sb.from('user_clients').select('user_id').eq('client_id',clientId);
+    if(error) throw error;
+    const ids=(links||[]).map(l=>l.user_id);
+    let profs=[];
+    if(ids.length){ const {data}=await sb.from('profiles').select('id,nom,email,statut').in('id',ids); profs=data||[]; }
+    const cnt=document.getElementById('cu-count'); if(cnt) cnt.textContent=profs.length?profs.length+' compte(s)':'';
+    box.innerHTML = profs.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Nom</th><th>Email</th><th>Statut</th><th></th></tr></thead><tbody>
+      ${profs.map(p=>`<tr><td><b>${esc(p.nom)}</b></td><td class="mono" style="font-size:12.5px">${esc(p.email)}</td>
+        <td>${p.statut==='actif'?'<span style="color:#16a34a;font-size:12.5px">● Actif</span>':'<span style="color:#94a3b8;font-size:12.5px">● '+esc(p.statut)+'</span>'}</td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="btn sm" onclick="event.stopPropagation();clientUserResetPwd('${p.id}','${esc(p.nom)}')">🔑 Réinitialiser</button>
+          <button class="btn sm danger" onclick="event.stopPropagation();clientUserRevoke('${p.id}','${clientId}','${esc(p.nom)}')">Révoquer</button>
+        </td></tr>`).join('')}
+      </tbody></table></div>`
+      : `<div style="color:var(--muted);font-size:13px;padding:10px 0">Aucun compte de connexion pour ce client. Le client n'a accès qu'aux liens temporaires que vous lui envoyez (SMS/email).</div>`;
+  }catch(e){ box.innerHTML=`<span style="color:var(--critique);font-size:13px">Erreur : ${esc(e.message||e)}</span>`; }
+};
+window.clientUserCreate=function(clientId,clientNom){
+  const pwd0=(Math.random().toString(36).slice(2,6)+Math.random().toString(36).slice(2,6)+'-'+Math.random().toString(36).slice(2,6)).replace(/[^a-z0-9-]/gi,'');
+  openModal(`<div class="modal-head"><h2>+ Compte de connexion — ${esc(clientNom)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body">
+      <div class="fld"><label>Nom (ex. contact du client)</label><input id="cu_nom" placeholder="Directeur d'établissement"></div>
+      <div class="fld"><label>Email de connexion</label><input id="cu_email" type="email" placeholder="directeur@client.fr"></div>
+      <div class="fld" style="margin-bottom:0"><label>Mot de passe provisoire</label>
+        <div style="display:flex;gap:8px"><input id="cu_pwd" value="${pwd0}" style="flex:1;font-family:Consolas,Menlo,monospace">
+        <button class="btn" onclick="document.getElementById('cu_pwd').value=(Math.random().toString(36).slice(2,6)+Math.random().toString(36).slice(2,6)+'-'+Math.random().toString(36).slice(2,6)).replace(/[^a-z0-9-]/gi,'')">↻</button></div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:4px">Communique-le au client par un canal sûr — il pourra le changer lui-même ensuite (👤 Mon compte).</div></div>
+      <div id="cu_msg" style="font-size:12.5px;margin-top:10px"></div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" id="cu_go" onclick="clientUserCreateGo('${clientId}')">Créer le compte</button></div>`);
+};
+window.clientUserCreateGo=async function(clientId){
+  const nom=(document.getElementById('cu_nom').value||'').trim();
+  const email=(document.getElementById('cu_email').value||'').trim().toLowerCase();
+  const pwd=(document.getElementById('cu_pwd').value||'').trim();
+  const msg=document.getElementById('cu_msg'), btn=document.getElementById('cu_go');
+  const err=t=>{ msg.style.color='#dc2626'; msg.textContent=t; };
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return err('Adresse email invalide.');
+  if(pwd.length<12) return err('Mot de passe : 12 caractères minimum.');
+  btn.disabled=true; btn.textContent='Création…';
+  try{
+    const {data:{session}}=await sb.auth.getSession();
+    const r=await fetch(SUPABASE_URL+'/functions/v1/admin-manage-client-user',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+      body:JSON.stringify({action:'create',email,password:pwd,nom,client_ids:[clientId]})});
+    const d=await r.json();
+    if(!r.ok||!d.ok) throw new Error(d.error||'Échec de la création');
+    msg.style.color='#16a34a'; msg.textContent='✅ Compte créé — communique les identifiants au client.';
+    btn.textContent='Créé ✓';
+    toast('Compte client créé','ok');
+    setTimeout(()=>{ closeModal(); loadClientUsers(clientId); },1400);
+  }catch(e){ btn.disabled=false; btn.textContent='Créer le compte'; err('Erreur : '+(e.message||e)); }
+};
+window.clientUserResetPwd=function(userId,nom){
+  const pwd0=(Math.random().toString(36).slice(2,6)+Math.random().toString(36).slice(2,6)+'-'+Math.random().toString(36).slice(2,6)).replace(/[^a-z0-9-]/gi,'');
+  openModal(`<div class="modal-head"><h2>🔑 Réinitialiser — ${esc(nom)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body">
+      <div class="fld" style="margin-bottom:0"><label>Nouveau mot de passe provisoire</label>
+        <input id="cu_rpwd" value="${pwd0}" style="font-family:Consolas,Menlo,monospace"></div>
+      <div id="cu_rmsg" style="font-size:12.5px;margin-top:10px"></div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" onclick="clientUserResetGo('${userId}')">Réinitialiser</button></div>`);
+};
+window.clientUserResetGo=async function(userId){
+  const pwd=(document.getElementById('cu_rpwd').value||'').trim();
+  const msg=document.getElementById('cu_rmsg');
+  if(pwd.length<12){ msg.style.color='#dc2626'; msg.textContent='12 caractères minimum.'; return; }
+  try{
+    const {data:{session}}=await sb.auth.getSession();
+    const r=await fetch(SUPABASE_URL+'/functions/v1/admin-manage-client-user',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+      body:JSON.stringify({action:'reset_password',user_id:userId,password:pwd})});
+    const d=await r.json(); if(!r.ok||!d.ok) throw new Error(d.error||'Échec');
+    toast('Mot de passe réinitialisé','ok'); closeModal();
+  }catch(e){ msg.style.color='#dc2626'; msg.textContent='Erreur : '+(e.message||e); }
+};
+window.clientUserRevoke=async function(userId,clientId,nom){
+  if(!confirm('Révoquer l\'accès de « '+nom+' » à ce client ?\n\nLe compte ne sera pas supprimé (utile s\'il a accès à d\'autres clients) mais perdra tout accès à celui-ci.')) return;
+  try{
+    const {data:{session}}=await sb.auth.getSession();
+    const r=await fetch(SUPABASE_URL+'/functions/v1/admin-manage-client-user',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+      body:JSON.stringify({action:'revoke',user_id:userId,client_id:clientId})});
+    const d=await r.json(); if(!r.ok||!d.ok) throw new Error(d.error||'Échec');
+    toast('Accès révoqué','ok'); loadClientUsers(clientId);
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
 async function viewClient(c,id){
   const erps=state.erps.filter(e=>e.client_id===id);
   const render=(cl,contacts)=>{
@@ -3587,6 +3631,10 @@ async function viewClient(c,id){
         <button class="btn primary sm" style="margin-left:auto" onclick="editContact({},'${id}')">Ajouter un contact</button>
         <button class="btn sm" onclick='formClient(${JSON.stringify(cl).replace(/'/g,"&#39;").replace(/</g,"\\u003c")})'>Gérer les contacts</button></div>
       ${contactsHtml}
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><h2 style="font-size:16px;margin:0">Comptes de connexion</h2><span style="font-size:12px;color:var(--muted)" id="cu-count"></span>
+        <button class="btn sm" style="margin-left:auto" onclick="clientUserLink('${id}','${esc(cl.raison_sociale)}')">🔗 Rattacher un compte existant</button>
+        <button class="btn primary sm" onclick="clientUserCreate('${id}','${esc(cl.raison_sociale)}')">+ Créer un compte</button></div>
+      <div id="client-users" style="margin-bottom:24px">${loadingBlock()}</div>
       <h2 style="font-size:16px;margin-bottom:12px">Établissements (ERP)</h2>
       ${erps.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Code</th><th>Nom</th><th>Type</th><th>Statut</th></tr></thead><tbody>
         ${erps.map(e=>`<tr onclick="navigate('/erps/${e.id}')"><td class="mono">${esc(e.code_erp)}</td><td><b>${esc(e.nom)}</b></td><td>—</td>
@@ -3598,6 +3646,7 @@ async function viewClient(c,id){
         <div style="color:var(--muted);font-size:13px;padding:10px">Chargement…</div>
       </div>`;
     loadClientDossier(id, erps);
+    loadClientUsers(id);
   };
 
   // 1) Affichage immédiat à partir des données déjà chargées
