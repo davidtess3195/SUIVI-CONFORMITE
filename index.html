@@ -3,6 +3,7 @@
 <head>
 <script>try{var _sp=new URLSearchParams(location.search),_q=_sp.get('qr'),_c=_sp.get('c');if(_q){try{localStorage.removeItem('qr_prest_sess');}catch(e){}if(_c)window.__qrCode=_c;history.replaceState(null,'',location.pathname);location.hash='#/qr/'+_q;}}catch(_){}</script>
 <meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -596,6 +597,21 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .ctr-item{display:flex;align-items:center;gap:9px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px;background:var(--surface-2);font-size:13px}
 .ctr-item .ctr-nom{font-weight:600;line-height:1.2}
 .ctr-item .ctr-spe{font-size:11.5px;color:var(--muted)}
+
+/* À traiter en priorité — lecture téléphone */
+@media (max-width:640px){
+  .prio-tbl tr{display:block;padding:10px 12px;border-bottom:1px solid var(--line-2)}
+  .prio-tbl td{display:block;width:auto !important;border:none !important;padding:2px 0 !important}
+  .prio-tbl td:first-child{width:auto !important;margin-bottom:4px}
+  .prio-tbl td:last-child{text-align:left !important;font-size:12px;margin-top:2px}
+  .prio-tbl img{width:100% !important;max-width:220px;height:auto !important;display:block;margin:8px 0 0 !important}
+}
+/* Pièces jointes des réserves — lecture téléphone */
+@media (max-width:640px){
+  .doc-fam{flex-direction:column !important;gap:5px !important}
+  .doc-fam-lbl{flex:0 0 auto !important;width:auto !important}
+  .doc-fam .btn.sm{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
 </style>
 </head>
 <body>
@@ -3059,7 +3075,7 @@ async function viewDashboard(c){
         </div>
         <div id="dashprio-section-body" style="display:${(window._dashPrioSectionOpen!==false)?'block':'none'};padding:12px">
         ${priorities.length?`<div class="tbl-wrap" style="border:none;box-shadow:none;border-radius:0">
-        <table class="tbl"><tbody>${priorities.map(p=>{
+        <table class="tbl prio-tbl"><tbody>${priorities.map(p=>{
           const miniature = p.photoPath
             ? `<img src="${publicPhoto(p.photoPath)}" style="width:44px;height:34px;object-fit:cover;border-radius:5px;margin-left:8px;vertical-align:middle;cursor:zoom-in" onerror="this.style.display='none'" onclick="event.stopPropagation();zoomPhoto('${publicPhoto(p.photoPath)}')">`
             : '';
@@ -9769,6 +9785,12 @@ window.trvSendModal=async function(tabId,erpId,erpNom,org,nb){
           <div class="fld" style="margin:0;flex:1;min-width:160px"><label>Code</label>
             <div style="display:flex;gap:6px"><input id="ts_pwd" readonly value="${_qrGenPwd()}" style="flex:1;min-width:0;font-weight:700;letter-spacing:1px">
             <button class="btn" onclick="document.getElementById('ts_pwd').value=_qrGenPwd()">↻</button></div></div></div>
+        <div class="fld" style="margin:0"><label>Envoi du SMS au technicien</label>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;min-height:36px">
+            <label style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;height:36px;cursor:pointer"><input type="radio" name="ts_send_when" value="now" checked style="accent-color:#1a44ad;width:15px;height:15px;margin:0">Immédiat</label>
+            <label style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;height:36px;cursor:pointer"><input type="radio" name="ts_send_when" value="prog" style="accent-color:#1a44ad;width:15px;height:15px;margin:0">Programmé :</label>
+            <input type="datetime-local" id="ts_send_dt" style="font-size:12.5px;height:36px;box-sizing:border-box;padding:0 8px" onclick="document.querySelector('input[name=ts_send_when][value=prog]').checked=true">
+          </div></div>
         <div class="fld" style="margin:0"><label>Contacts suggérés</label>
           <select id="ts_prest" onchange="tsPrestChange()">${popts}</select>
           <div id="ts_list" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div></div>
@@ -9776,10 +9798,10 @@ window.trvSendModal=async function(tabId,erpId,erpNom,org,nb){
           <input id="ts_mob" placeholder="06 XX XX XX XX"></div>
         <div class="fld" style="margin:0;border-top:1px solid var(--line);padding-top:12px"><label>🔔 Notifier le client quand le technicien cochera la case « levées de réserves »</label>
           <select id="ts_notif"><option value="">— Aucune notification —</option></select>
-          <div id="ts_notif_when" style="display:none;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:center">
-            <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px"><input type="radio" name="ts_when" value="now" checked style="accent-color:#1a44ad">À l'instant du cochage</label>
-            <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px"><input type="radio" name="ts_when" value="prog" style="accent-color:#1a44ad">Programmé :</label>
-            <input type="datetime-local" id="ts_dt" style="font-size:12.5px" onclick="document.querySelector('input[name=ts_when][value=prog]').checked=true">
+          <div id="ts_notif_when" style="display:none;gap:14px;flex-wrap:wrap;margin-top:8px;align-items:center;min-height:36px">
+            <label style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;height:36px;cursor:pointer"><input type="radio" name="ts_when" value="now" checked style="accent-color:#1a44ad;width:15px;height:15px;margin:0">À l'instant du cochage</label>
+            <label style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;height:36px;cursor:pointer"><input type="radio" name="ts_when" value="prog" style="accent-color:#1a44ad;width:15px;height:15px;margin:0">Programmé :</label>
+            <input type="datetime-local" id="ts_dt" style="font-size:12.5px;height:36px;box-sizing:border-box;padding:0 8px" onclick="document.querySelector('input[name=ts_when][value=prog]').checked=true">
           </div></div>
       </div>
       <div id="ts_result"></div>
@@ -9847,18 +9869,28 @@ window.trvSendGo=async function(tabId,erpId,erpNom,org,nb){
     if(e2) throw e2;
     const link='https://conformite-securite.fr/?qr='+erp.qr_token+'&c='+encodeURIComponent(pwd);
     const valLabel=({24:'24 heures',48:'48 heures',168:'7 jours',720:'30 jours'})[hours]||hours+' h';
+    let sendAt=new Date(); let programme=false;
+    const progR=document.querySelector('input[name=ts_send_when][value=prog]');
+    const dtEl=document.getElementById('ts_send_dt');
+    if(progR&&progR.checked&&dtEl&&dtEl.value){
+      const d=new Date(dtEl.value);
+      if(!isNaN(d)&&d>new Date()){
+        if(d>=exp){ toast('La date d\'envoi programmée dépasse la validité de l\'accès — allonge la validité','err'); btn.disabled=false; btn.textContent='Créer l\'accès et envoyer'; return; }
+        sendAt=d; programme=true;
+      }
+    }
     let smsN=0, direct=false;
     if(mobiles.length){
       const msg=`PREVA Conseils — Levées de réserves à signer : ${erpNom} (${org||'organisme'}, ${nb} obs.)\nAccès direct (1 clic) :\n${link}\nCode si demandé : ${pwd}\nValable ${valLabel}.`;
-      try{ const {data,error:eD}=await sb.functions.invoke('send-sms',{body:{to:mobiles,message:msg}}); if(!eD && data && data.ok) direct=true; }catch(_){}
-      const rows=mobiles.map(m=>({destinataire:m,message:msg,send_at:new Date().toISOString(),statut:direct?'sent':'pending',sent_at:direct?new Date().toISOString():null,contexte:{type:'levee_tableau',erp:erpNom},created_by:who}));
+      if(!programme){ try{ const {data,error:eD}=await sb.functions.invoke('send-sms',{body:{to:mobiles,message:msg}}); if(!eD && data && data.ok) direct=true; }catch(_){} }
+      const rows=mobiles.map(m=>({destinataire:m,message:msg,send_at:sendAt.toISOString(),statut:direct?'sent':'pending',sent_at:direct?new Date().toISOString():null,contexte:{type:'levee_tableau',erp:erpNom},created_by:who}));
       const {error:e3}=await sb.from('sms_scheduled').insert(rows);
       if(direct||!e3) smsN=rows.length;
     }
     document.getElementById('ts_form').style.display='none';
     document.getElementById('ts_result').innerHTML=`<div style="display:flex;flex-direction:column;gap:10px">
       <div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.4);border-radius:11px;padding:12px 14px;font-size:13px">
-        ✅ Accès technicien créé — valable ${valLabel}${smsN?('<br>📱 '+smsN+' SMS '+(direct?'envoyé'+(smsN>1?'s':'')+' à l\'instant ✓':'pris en charge par le robot (≤ 5 min)')):''}</div>
+        ✅ Accès technicien créé — valable ${valLabel}${smsN?('<br>📱 '+smsN+' SMS '+(programme?('programmé'+(smsN>1?'s':'')+' pour le '+sendAt.toLocaleDateString('fr-FR')+' à '+sendAt.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' 🕐'):(direct?'envoyé'+(smsN>1?'s':'')+' à l\'instant ✓':'pris en charge par le robot (≤ 5 min)'))):''}</div>
       <div class="fld" style="margin:0"><label>Lien à accès direct (code inclus)</label><div style="display:flex;gap:6px"><input readonly value="${esc(link)}" style="flex:1;min-width:0;font-size:12px"><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(link)}');toast('Lien copié','ok')">Copier</button></div></div></div>`;
     document.getElementById('ts_foot').innerHTML='<button class="btn primary" style="min-width:140px" onclick="closeModal()">Valider</button>';
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Créer l\'accès et envoyer'; }
@@ -10576,10 +10608,29 @@ window.arCreate=async function(){
       window._arDirect=direct;
     }
     if(mails.length){
-      const docsList=window._arDocs.filter(d=>window._arSel[d.id]).map(d=>'<li>'+esc(d.nom_original||d.type)+'</li>').join('');
-      const html=`<p>Bonjour,</p><p>PREVA Conseils vous donne accès à <b>${ids.length} rapport${ids.length>1?'s':''}</b> concernant <b>${esc(erp.nom)}</b> :</p><ul>${docsList}</ul>
-        <p><a href="${link}&c=${encodeURIComponent(pwd)}" style="display:inline-block;background:#1a44ad;color:#fff;padding:10px 18px;border-radius:9px;text-decoration:none;font-weight:700">Consulter les rapports (accès direct)</a></p>
-        <p>Ou rendez-vous sur <a href="${link}">${link}</a> — code : <b style="font-size:16px;letter-spacing:1px">${esc(pwd)}</b><br>Validité : ${valLabel} (jusqu'au ${expStr}).</p><p>Cordialement,<br>PREVA Conseils</p>`;
+      const docsList=window._arDocs.filter(d=>window._arSel[d.id]).map(d=>`<tr><td style="padding:9px 12px;border-bottom:1px solid #eef1f6;color:#1e293b;font-size:14px">📄 ${esc(d.nom_original||d.type)}</td></tr>`).join('');
+      const directUrl=link+'&c='+encodeURIComponent(pwd);
+      const html=`<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:auto;color:#1e293b">
+        <div style="background:#0f172a;padding:22px 26px;border-radius:10px 10px 0 0">
+          <div style="color:#8fb0e8;font-size:11px;letter-spacing:2px;font-weight:700">PREVA CONSEILS · CONFORMITÉ SÉCURITÉ</div>
+          <h2 style="color:#ffffff;margin:6px 0 0;font-size:20px">Vos rapports sont disponibles</h2>
+        </div>
+        <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 10px 10px;padding:26px">
+          <p style="margin:0 0 18px;font-size:14.5px;line-height:1.55">Bonjour,<br><br>PREVA Conseils met à votre disposition <b>${ids.length} document${ids.length>1?'s':''}</b> concernant l'établissement <b>${esc(erp.nom)}</b>, en consultation sécurisée :</p>
+          <table style="width:100%;border-collapse:collapse;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin:0 0 22px">${docsList}</table>
+          <div style="text-align:center;margin:0 0 22px">
+            <a href="${directUrl}" style="display:inline-block;background:#1a44ad;color:#ffffff;padding:14px 30px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15.5px">▶ &nbsp;Consulter les documents</a>
+            <div style="color:#64748b;font-size:12px;margin-top:8px">Accès direct en 1 clic — aucun code à saisir.</div>
+          </div>
+          <table style="width:100%;border-collapse:collapse;margin:0 0 20px">
+            <tr><td style="padding:9px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;width:42%;color:#475569;font-size:13px">Validité</td><td style="padding:9px 12px;border:1px solid #e2e8f0;font-size:13px">${valLabel} — jusqu'au ${expStr}</td></tr>
+            <tr><td style="padding:9px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569;font-size:13px">Code (si demandé)</td><td style="padding:9px 12px;border:1px solid #e2e8f0"><span style="font-family:Consolas,Menlo,monospace;font-size:17px;font-weight:700;letter-spacing:2px;background:#eef3fc;border:1px dashed #1a44ad;border-radius:6px;padding:3px 10px;color:#1a44ad">${esc(pwd)}</span></td></tr>
+          </table>
+          <p style="margin:0 0 6px;color:#64748b;font-size:12px;line-height:1.5">Si le bouton ne fonctionne pas, rendez-vous sur <a href="${link}" style="color:#1a44ad">${link}</a> puis saisissez le code ci-dessus.</p>
+          <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0">
+          <p style="margin:0;color:#475569;font-size:13px">Cordialement,<br><b>PREVA Conseils</b> — Suivi réglementaire incendie<br><a href="https://conformite-securite.fr" style="color:#1a44ad;font-size:12px">conformite-securite.fr</a></p>
+        </div>
+      </div>`;
       for(const to of mails){
         try{ const {error:e4}=await sb.functions.invoke('send-client-email',{body:{to,subject:'Accès rapports — '+erp.nom,html}}); if(e4) mailErr++; else mailN++; }
         catch(_){ mailErr++; }
