@@ -1419,6 +1419,41 @@ async function doAuth(mode,btn){
   }catch(e){ toast(e.message||'Échec de l\'authentification','err'); btn.disabled=false; btn.textContent=old; }
 }
 
+window.accountModal=function(){
+  const email=(state.user&&state.user.email)||'—';
+  openModal(`<div class="modal-head"><h2>👤 Mon compte</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body">
+      <div class="fld"><label>Adresse de connexion</label>
+        <input value="${esc(email)}" disabled style="background:var(--surface-2);color:var(--muted)">
+        <div style="font-size:11.5px;color:var(--muted);margin-top:4px">Pour changer d'adresse, contacte l'administrateur.</div></div>
+      <div class="fld"><label>Nouveau mot de passe</label>
+        <input type="password" id="ac_p1" autocomplete="new-password" placeholder="12 caractères minimum"></div>
+      <div class="fld" style="margin-bottom:0"><label>Confirmer le nouveau mot de passe</label>
+        <input type="password" id="ac_p2" autocomplete="new-password" placeholder="Répète le même mot de passe"></div>
+      <div id="ac_msg" style="font-size:12.5px;margin-top:10px"></div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" id="ac_go" onclick="accountSavePwd()">Enregistrer le nouveau mot de passe</button></div>`);
+};
+window.accountSavePwd=async function(){
+  const p1=(document.getElementById('ac_p1').value||''), p2=(document.getElementById('ac_p2').value||'');
+  const msg=document.getElementById('ac_msg'), btn=document.getElementById('ac_go');
+  const err=t=>{ msg.style.color='#dc2626'; msg.textContent=t; };
+  if(p1.length<12) return err('12 caractères minimum — une phrase courte fait un excellent mot de passe.');
+  if(p1!==p2) return err('Les deux saisies ne sont pas identiques.');
+  btn.disabled=true; btn.textContent='Enregistrement…';
+  try{
+    const {error}=await sb.auth.updateUser({password:p1});
+    if(error) throw error;
+    msg.style.color='#16a34a'; msg.textContent='✅ Mot de passe changé — il est actif dès maintenant.';
+    btn.textContent='Enregistré ✓';
+    setTimeout(closeModal,1600);
+    toast('Mot de passe mis à jour','ok');
+  }catch(e){
+    btn.disabled=false; btn.textContent='Enregistrer le nouveau mot de passe';
+    err('Erreur : '+(e.message==='New password should be different from the old password.'?'le nouveau mot de passe doit être différent de l\'ancien.':(e.message||e)));
+  }
+};
 async function logout(){ await sb.auth.signOut(); state.user=null; renderAuth('login'); }
 window.logout=logout;
 
@@ -2679,6 +2714,7 @@ function renderApp(){
             <svg class="sc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </div>
         </div>
+        <button class="tb-out" title="Mon compte" aria-label="Mon compte" onclick="accountModal()" style="margin-right:2px">👤<span>Mon compte</span></button>
         <button class="tb-out" title="Se déconnecter" aria-label="Se déconnecter" onclick="logout()">${I.out}<span>Déconnexion</span></button>
       </header>
       <main class="content" id="content"></main>
