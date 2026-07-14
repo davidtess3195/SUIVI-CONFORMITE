@@ -8088,7 +8088,7 @@ function gedRenderList(){
           <span style="font-size:12px;color:var(--muted)">${fmtDate(docDate(d))}</span>
           <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
             ${(((d.tags||'').indexOf('cat:mail')>=0)||(!d.fichier_path&&d.email_corps))?`<button class="btn sm" onclick="gedViewMail('${d.id}')">Visualiser</button>`:`<button class="btn sm" onclick="previewDoc('${pathJs}','${nmJs}','${bk}')">Visualiser</button>`}
-            ${(d.fichier_path&&/\.pdf$/i.test(d.nom_original||d.fichier_path||'')&&['Rapport','Bureau de contrôle','RVAT','PV commission','Compte rendu'].includes(d.type))?`<button class="btn sm" title="Analyser ce rapport et préparer le tableau de levées de réserves" onclick="gedExtractRes('${d.id}')">Extraire réserves</button>`:''}
+            ${(d.fichier_path&&/\.pdf$/i.test(d.nom_original||d.fichier_path||'')&&['Rapport','Bureau de contrôle',"Bon d'intervention"].includes(d.type))?`<button class="btn sm" title="Analyser ce rapport et préparer le tableau de levées de réserves" onclick="gedExtractRes('${d.id}')">Extraire réserves</button>`:''}
             ${['devis','devis_signe'].includes(dcat)||['devis','devis signé','devis signe'].includes((d.type||'').toLowerCase())?`<button class="btn sm" title="Générer un PV de réception de travaux à partir de ce devis" onclick="pvFromDevis('${d.id}')">PV réception</button>`:''}
             ${dcat==='devis'&&(d.type||'').toLowerCase()==='devis'?`<button class="btn sm" title="Déposer la copie signée scannée de ce devis" onclick="devisUploadSigned('${d.id}')">Devis signé</button>`:''}
             ${dcat==='pv_reception'&&(d.tags||'').indexOf('signe')<0?`<button class="btn sm" title="Déposer la copie signée scannée de ce PV" onclick="pvUploadSigned('${d.id}')">PV signé</button>`:''}
@@ -9010,6 +9010,7 @@ window.trvRenderList=function(tabs,res){
         <span style="flex:1"></span>
         ${done?'<span style="background:rgba(22,163,74,.1);color:#16a34a;border:1px solid rgba(22,163,74,.35);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700">✓ tout levé</span>'
              :`<span style="background:rgba(220,38,38,.08);color:#dc2626;border:1px solid rgba(220,38,38,.3);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700">${k.t-k.l} à lever${k.p?' ('+k.p+' partielle'+(k.p>1?'s':'')+')':''}</span>`}
+        <button title="Supprimer ce tableau" onclick="event.stopPropagation();trvDelTab('${esc(t.id)}')" style="background:none;border:1px solid var(--line);border-radius:7px;cursor:pointer;padding:3px 8px;font-size:12px;color:#dc2626">🗑</button>
       </div>
       ${docNom?`<div style="display:flex;align-items:center;gap:7px;margin-top:7px;min-width:0">
         <span style="font-size:13px;flex:0 0 auto">📑</span>
@@ -9469,11 +9470,12 @@ window.gedOcrRun=async function(docId){
     for(let p=1;p<=maxP;p++){
       prog('Lecture de la page '+p+' / '+maxP+'…', 14+Math.round(70*p/maxP));
       const page=await pdf.getPage(p);
-      const vp=page.getViewport({scale:2.2});
+      const vp=page.getViewport({scale:3.0});
       const cv=document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height;
       await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
       const {data:res}=await worker.recognize(cv);
-      lines=lines.concat(String(res.text||'').split(/\n+/).map(s=>s.trim()).filter(Boolean));
+      const txt=String(res.text||'').replace(/[ \t]+(?=N[S5][ .]?\d{1,2}[ .:,\-\u00a6])/g,'\n');
+      lines=lines.concat(txt.split(/\n+/).map(s=>s.trim()).filter(Boolean));
       const parsed=window.trvParseQuali(lines);
       if(parsed&&parsed.observations.length&&/(^|\n)\s*2[\s.]|RENSEIGNEMENT/i.test(res.text||'')) break;
     }
@@ -9574,6 +9576,23 @@ window.rapRename=async function(rapId,path){
     try{ await sb.from('documents').update({nom_original:nv}).eq('fichier_path',r.fichier_path); }catch(_){}
     toast('Rapport renommé ✓','ok');
     renderRoute();
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+window.trvDelTab=async function(id){
+  try{
+    const [{data:t},{count:nbSig}]=await Promise.all([
+      sb.from('tableaux_reserves').select('organisme,nb_obs,rapport_document_id').eq('id',id).maybeSingle(),
+      sb.from('reserves').select('id',{count:'exact',head:true}).eq('tableau_id',id).not('signature_at','is',null)
+    ]);
+    const msg='Supprimer définitivement ce tableau '+(t&&t.organisme?('('+t.organisme+') '):'')+'?\n\n'
+      +'• '+((t&&t.nb_obs)||0)+' observation(s) seront effacées'
+      +((nbSig||0)>0?('\n• ⚠ '+nbSig+' signature(s) de levée seront PERDUES'):'')
+      +'\n\nLe rapport en GED n\'est pas touché (tu pourras relancer « Extraire réserves » pour recréer un tableau).';
+    if(!confirm(msg)) return;
+    const {error}=await sb.from('tableaux_reserves').delete().eq('id',id);
+    if(error) throw error;
+    toast('Tableau supprimé','ok');
+    if(location.hash.includes('tableaux-reserves')) viewTableauxReserves(document.getElementById('content'));
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
 };
 window.trvValiderTab=async function(id){
@@ -9755,11 +9774,35 @@ window.trvSendModal=async function(tabId,erpId,erpNom,org,nb){
           <div id="ts_list" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div></div>
         <div class="fld" style="margin:0"><label>Mobile(s) du technicien <span style="font-weight:400;color:var(--muted)">(séparés par des virgules)</span></label>
           <input id="ts_mob" placeholder="06 XX XX XX XX"></div>
+        <div class="fld" style="margin:0;border-top:1px solid var(--line);padding-top:12px"><label>🔔 Notifier le client quand le technicien cochera la case « levées de réserves »</label>
+          <select id="ts_notif"><option value="">— Aucune notification —</option></select>
+          <div id="ts_notif_when" style="display:none;gap:10px;flex-wrap:wrap;margin-top:8px;align-items:center">
+            <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px"><input type="radio" name="ts_when" value="now" checked style="accent-color:#1a44ad">À l'instant du cochage</label>
+            <label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px"><input type="radio" name="ts_when" value="prog" style="accent-color:#1a44ad">Programmé :</label>
+            <input type="datetime-local" id="ts_dt" style="font-size:12.5px" onclick="document.querySelector('input[name=ts_when][value=prog]').checked=true">
+          </div></div>
       </div>
       <div id="ts_result"></div>
     </div>
     <div class="modal-foot" id="ts_foot"><button class="btn" onclick="closeModal()">Annuler</button>
       <button class="btn primary" id="ts_go" onclick="trvSendGo('${esc(tabId)}','${esc(erpId)}','${esc(erpNom)}','${esc(org||'')}',${nb})">Créer l'accès et envoyer</button></div>`);
+  (async()=>{
+    try{
+      const {data:erp2}=await sb.from('erps').select('client_id').eq('id',erpId).maybeSingle();
+      if(!erp2||!erp2.client_id) return;
+      const {data:cts}=await sb.from('client_contacts').select('prenom,nom,fonction,mobile,telephone').eq('client_id',erp2.client_id).order('nom');
+      const norm=v=>{v=(v||'').replace(/[\s.\-]/g,''); return /^(\+33|0)[67]\d{8}$/.test(v)?v:null;};
+      const sel=document.getElementById('ts_notif'); if(!sel) return;
+      (cts||[]).forEach(c=>{
+        const m=norm(c.mobile)||norm(c.telephone); if(!m) return;
+        const o=document.createElement('option');
+        o.value=m; o.dataset.nom=[c.prenom,c.nom].filter(Boolean).join(' ');
+        o.textContent='📱 '+o.dataset.nom+(c.fonction?' · '+c.fonction:'');
+        sel.appendChild(o);
+      });
+      sel.onchange=function(){ const w=document.getElementById('ts_notif_when'); if(w) w.style.display=this.value?'flex':'none'; };
+    }catch(_){}
+  })();
 };
 window.tsPrestChange=function(){
   const pid=document.getElementById('ts_prest').value;
@@ -9791,7 +9834,16 @@ window.trvSendGo=async function(tabId,erpId,erpNom,org,nb){
     const hash=await _qrSha256(pwd);
     const exp=new Date(Date.now()+hours*3600*1000);
     const who=state.profile?.nom||state.user?.email||'';
-    const {error:e2}=await sb.from('acces_tableaux').insert({tableau_id:tabId,erp_id:erpId,client_id:erp.client_id,destinataire:mobiles.join(', ')||null,password_hash:hash,password_plain:pwd,expires_at:exp.toISOString(),actif:true,created_by:who});
+    let notif_mobile=null, notif_nom=null, notif_send_at=null;
+    const selN=document.getElementById('ts_notif');
+    if(selN && selN.value){
+      notif_mobile=selN.value;
+      notif_nom=(selN.selectedOptions&&selN.selectedOptions[0])?(selN.selectedOptions[0].dataset.nom||null):null;
+      const progRadio=document.querySelector('input[name=ts_when][value=prog]');
+      const dt=document.getElementById('ts_dt');
+      if(progRadio&&progRadio.checked&&dt&&dt.value){ const d=new Date(dt.value); if(!isNaN(d)) notif_send_at=d.toISOString(); }
+    }
+    const {error:e2}=await sb.from('acces_tableaux').insert({tableau_id:tabId,erp_id:erpId,client_id:erp.client_id,destinataire:mobiles.join(', ')||null,password_hash:hash,password_plain:pwd,expires_at:exp.toISOString(),actif:true,created_by:who,notif_mobile,notif_nom,notif_send_at});
     if(e2) throw e2;
     const link='https://conformite-securite.fr/?qr='+erp.qr_token+'&c='+encodeURIComponent(pwd);
     const valLabel=({24:'24 heures',48:'48 heures',168:'7 jours',720:'30 jours'})[hours]||hours+' h';
@@ -9825,6 +9877,14 @@ window.qrTablView=async function(sess){
   window.__qrSess=sess.session; window.__qrTabl=data;
   qrTablRender(data);
 };
+window.trvNotifKick=function(){
+  try{
+    if(window._qrNotifDone) return;
+    if(!window.__qrTok||!window.__qrSess||!window.__qrTabl) return;
+    window._qrNotifDone=true;
+    sb.functions.invoke('trv-notif',{body:{token:window.__qrTok,session:window.__qrSess}}).catch(()=>{});
+  }catch(_){}
+};
 window.qrTablRender=function(data){
   const b=document.getElementById('qr-prest-box'); if(!b) return;
   const t=data.tableau, rows=data.reserves||[];
@@ -9834,8 +9894,8 @@ window.qrTablRender=function(data){
   const fmtD=d=>d?new Date(String(d).slice(0,10)+'T00:00:00').toLocaleDateString('fr-FR'):'—';
   b.innerHTML=`
     <label style="display:flex;align-items:center;gap:11px;background:#1a44ad;border-radius:12px;padding:12px 14px;cursor:pointer;user-select:none;margin-bottom:12px">
-      <input type="checkbox" id="q_lev2" ${window._qrLevPre?'checked':''} onchange="window._qrLevPre=this.checked;var c=document.getElementById('q_lev');if(c)c.checked=this.checked" style="width:20px;height:20px;accent-color:#fff;flex:0 0 auto">
-      <span style="color:#fff;font-size:13px;font-weight:700;line-height:1.35">Mon intervention concerne des levées de réserves<br><span style="font-weight:500;font-size:11px;opacity:.85">Sera repris automatiquement dans votre pointage d'arrivée ci-dessous.</span></span>
+      <input type="checkbox" id="q_lev2" ${window._qrLevPre?'checked':''} onchange="window._qrLevPre=this.checked;var c=document.getElementById('q_lev');if(c)c.checked=this.checked;if(this.checked)trvNotifKick()" style="width:22px;height:22px;accent-color:#16a34a;flex:0 0 auto">
+      <span style="color:#fff;font-size:13px;font-weight:700;line-height:1.35">Mon intervention concerne des levées de réserves<br><span style="font-weight:500;font-size:11px;opacity:.85">Cochez la case — reprise automatique dans votre pointage.</span></span>
     </label>
     <div style="margin-bottom:12px">
       <div style="font-size:16px;font-weight:800;color:#0f172a">${esc(t.organisme||'Tableau de réserves')} — ${esc((data.erp||{}).nom||'')}</div>
@@ -13038,7 +13098,7 @@ function qrArrivee(token,info){
       </div>
       <div class="fld" id="q_mis_autre_wrap" style="display:none"><label>Précisez la mission <span class="req">*</span></label><input id="q_mis_autre" placeholder="Saisissez la mission" autocomplete="off"></div>
       <label id="q_lev_band" style="display:flex;align-items:center;gap:11px;background:#1a44ad;border-radius:12px;padding:13px 14px;cursor:pointer;user-select:none;margin:4px 0 14px">
-        <input type="checkbox" id="q_lev" ${window._qrLevPre?'checked':''} onchange="window._qrLevPre=this.checked;var c2=document.getElementById('q_lev2');if(c2)c2.checked=this.checked" style="width:20px;height:20px;accent-color:#fff;flex:0 0 auto">
+        <input type="checkbox" id="q_lev" ${window._qrLevPre?'checked':''} onchange="window._qrLevPre=this.checked;var c2=document.getElementById('q_lev2');if(c2)c2.checked=this.checked;if(this.checked)trvNotifKick()" style="width:22px;height:22px;accent-color:#16a34a;flex:0 0 auto">
         <span style="color:#fff;font-size:13.5px;font-weight:700;line-height:1.35">Mon intervention concerne des levées de réserves<br><span style="font-weight:500;font-size:11.5px;opacity:.85">Le responsable sera alerté et pourra vous envoyer le tableau à signer.</span></span>
       </label>
       <button class="btn primary" id="q_go" style="width:100%;justify-content:center;padding:14px;font-size:15px;border-radius:12px">Valider mon arrivée</button>
