@@ -4324,7 +4324,8 @@ window.csPassageLinkDocGo=async function(passageId,erpId){
     navigate('/erps/'+erpId+'?t=apercu');
   }catch(e){ btn.disabled=false; btn.textContent='Lier'; toast('Erreur : '+(e.message||e),'err'); }
 };
-window.csPassageModal=async function(erpId,erpNom){
+window.csPassageModal=async function(erpId,erpNom,preText){
+  if(!erpNom){ const e=(state.erps||[]).find(x=>x.id===erpId); erpNom=e?e.nom:''; }
   openModal(`<div class="modal-head"><h2>⚖️ Ajouter un passage — ${esc(erpNom)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
     <div class="modal-body">
       <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Les passages des années antérieures peuvent être saisis rétroactivement, pour garder tout l'historique.</div>
@@ -4334,7 +4335,8 @@ window.csPassageModal=async function(erpId,erpNom){
       <div class="checkrow"><input type="checkbox" id="csp_presc"><label style="margin:0">Avec prescriptions</label></div>
       <div class="fld"><label>Rapport / PV lié <span style="font-weight:400;color:var(--muted)">(déjà déposé en GED, optionnel)</span></label>
         <select id="csp_doc"><option value="">— aucun —</option></select></div>
-      <div class="fld" style="margin-bottom:0"><label>Commentaire</label><textarea id="csp_com" placeholder="Précisions, référence du PV…" style="min-height:70px"></textarea></div>
+      <div class="fld" style="margin-bottom:0"><label>Commentaire</label><textarea id="csp_com" placeholder="Précisions, référence du PV…" style="min-height:${preText?'160px':'70px'}">${esc(preText||'')}</textarea>
+        ${preText?'<div style="font-size:11px;color:var(--muted);margin-top:4px">Texte lu par l’OCR — relis-le, corrige les coquilles et complète date/avis ci-dessus.</div>':''}</div>
     </div>
     <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
       <button class="btn primary" id="csp_go" onclick="csPassageSave('${erpId}')">Enregistrer</button></div>`);
@@ -7780,21 +7782,21 @@ async function viewRapports(c){
       const fname=r.fichier_path?r.fichier_path.split('/').pop().replace(/^\d+-/,''):'';
       const fnameJs=(fname||'rapport.pdf').replace(/'/g,'&#39;'); const pathJs=(r.fichier_path||'').replace(/'/g,'&#39;');
       return `<div style="border:1px solid var(--line);border-radius:12px;padding:13px 15px;background:var(--surface)${r.statut==='traite'?';border-left:3px solid #16a34a':''}">
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
           <div style="flex:1;min-width:0">
             <div style="font-weight:600;font-size:14px;color:var(--ink);overflow-wrap:anywhere;word-break:break-word">${esc(r.type||'Rapport')}</div>
             <div style="font-size:12px;color:var(--muted);margin-top:3px">${esc(fmtDate(r.date_reception)||'')}${r.emetteur?' · '+esc(r.emetteur):''}${e?' · '+esc(e.nom):''}</div>
             ${fname?`<div style="font-size:11px;color:var(--muted-2);margin-top:2px;overflow-wrap:anywhere">${esc(fname)}</div>`:''}
           </div>
-          <span style="flex:0 0 auto;width:76px;text-align:center">${statusPill(r.statut,{recu:['','Reçu','ok'],traite:['','Traité','inf'],en_cours:['','En cours','moy']})}</span>
-          <span style="display:flex;gap:6px;flex-wrap:wrap;flex:0 0 auto">
+          <span style="flex:0 0 auto">${statusPill(r.statut,{recu:['','Reçu','ok'],traite:['','Traité','inf'],en_cours:['','En cours','moy']})}</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
             ${r.fichier_path?`<button class="btn sm" onclick="previewRapport('${pathJs}','${fnameJs}')">Visualiser</button>
             <button class="btn sm primary" onclick="dlRapport('${pathJs}','${fnameJs}')">⬇️ Télécharger</button>`:'<span style="color:var(--muted-2);font-size:12px">Pas de PDF</span>'}
             ${r.statut==='traite'
               ? `<button class="btn sm" style="color:#16a34a;border-color:#16a34a;white-space:nowrap" onclick="toggleRapportTraite('${r.id}',false)">✓ Traité</button>`
               : `<button class="btn sm" style="white-space:nowrap" onclick="toggleRapportTraite('${r.id}',true)">Marquer traité</button>`}
             <button class="btn sm" style="color:#dc2626" title="Supprimer" onclick="delRapport('${r.id}','${pathJs}')">🗑</button>
-          </span>
         </div>
       </div>`;
     };
@@ -7873,7 +7875,7 @@ async function viewDocuments(c){
         Glissez-déposez ici vos documents (rapports, PV, plans, attestations…)</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
         <input id="ged_search" oninput="gedRenderList()" placeholder="Rechercher un document, un client, un ERP…" style="flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)">
-        <select id="ged_rub" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Toutes les rubriques</option><option value="Bureau de contrôle">Bureau de contrôle</option><option value="Maintenance">Maintenance</option><option value="Compte rendu">Compte rendu</option><option value="Rapport">Rapport</option><option value="Devis">Devis</option><option value="Devis signé">Devis signé</option><option value="Facture">Facture</option><option value="Bon d'intervention">Bon d'intervention</option><option value="PV de réception">PV de réception</option><option value="Mail">Mail</option><option value="Plans">Plans</option><option value="DOE">DOE</option><option value="Sécurité">Sécurité</option><option value="Autres">Autres</option></select>
+        <select id="ged_rub" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Toutes les rubriques</option><option value="Commission de sécurité">Commission de sécurité</option><option value="Bureau de contrôle">Bureau de contrôle</option><option value="Maintenance">Maintenance</option><option value="Compte rendu">Compte rendu</option><option value="Rapport">Rapport</option><option value="Devis">Devis</option><option value="Devis signé">Devis signé</option><option value="Facture">Facture</option><option value="Bon d'intervention">Bon d'intervention</option><option value="PV de réception">PV de réception</option><option value="Courrier mairie">Courrier mairie</option><option value="Mail">Mail</option><option value="Plans">Plans</option><option value="DOE">DOE</option><option value="Sécurité">Sécurité</option><option value="Autres">Autres</option></select>
         <select id="ged_prest" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Tous les prestataires</option>${(prestData||[]).map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select>
       </div>
       <div class="ged-grid">
@@ -8200,7 +8202,7 @@ function catFromType(type){
   if(t==='devis') return 'devis';
   if(t==='facture') return 'facture';
   if(t==='pv de réception'||t==='pv de reception') return 'pv_reception';
-  if(t==='courrier') return 'mail';
+  if(t==='courrier'||t==='courrier mairie') return 'mail';
   if(['rapport','bureau de contrôle','rvat','pv commission','compte rendu','maintenance préventive','maintenance corrective'].includes(t)) return 'rapport';
   return 'autre';
 }
@@ -8305,13 +8307,15 @@ function gedRenderList(){
     if(t==='devis') return 'Devis';
     if(t==='facture') return 'Facture';
     if(t==="bon d'intervention"||t==='bon intervention'||t.indexOf("bon d'intervention")>=0) return "Bon d'intervention";
-    if(t==='rvat'||t==='pv commission'||t.indexOf('contrôle')>=0||t.indexOf('controle')>=0||t.indexOf('vérif')>=0||t.indexOf('verif')>=0||t==='bureau de contrôle') return 'Bureau de contrôle';
+    if(t==='pv commission') return 'Commission de sécurité';
+    if(t==='rvat'||t.indexOf('contrôle')>=0||t.indexOf('controle')>=0||t.indexOf('vérif')>=0||t.indexOf('verif')>=0||t==='bureau de contrôle') return 'Bureau de contrôle';
     if(t.indexOf('maintenance')>=0) return 'Maintenance';
     if(t==='consignes de sécurité'||t==='consignes de securite'||t==='plan de prévention'||t==='plan de prevention'||t==='permis de feu') return 'Sécurité';
     if(t==='compte rendu') return 'Compte rendu';
     if(t==='rapport') return 'Rapport';
     if(t==='pv de réception'||t==='pv de reception'||t==='pv réception'||t==='pv reception') return 'PV de réception';
     if(t==='courrier'||t==='mail'||t==='message') return 'Mail';
+    if(t==='courrier mairie') return 'Courrier mairie';
     if(t==='plan'||t==='plans') return 'Plans';
     if(t==='doe') return 'DOE';
     return 'Autres'; };
@@ -8332,20 +8336,22 @@ function gedRenderList(){
     const docs=byClient[cid];
     const open = searching || window._gedOpen.has(cid);
     const byType={}; docs.forEach(d=>{ const t=d.type||'Autre'; (byType[t]=byType[t]||[]).push(d); });
-    const CAT_ORDER=['Bureau de contrôle','Maintenance','Compte rendu','Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Mail','Plans','DOE','Sécurité','Autres'];
-    const CAT_ICON={'Bureau de contrôle':'⚖️','Maintenance':'🔧','Compte rendu':'📝','Rapport':'📋','Devis':'📝','Devis signé':'✍️','Facture':'🧾',"Bon d'intervention":'🛠️','PV de réception':'🤝','Mail':'📧','Plans':'🗺️','DOE':'📐','Sécurité':'🛟','Autres':'📄'};
+    const CAT_ORDER=['Commission de sécurité','Bureau de contrôle','Maintenance','Compte rendu','Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Courrier mairie','Mail','Plans','DOE','Sécurité','Autres'];
+    const CAT_ICON={'Commission de sécurité':'⚖️','Bureau de contrôle':'🔎','Maintenance':'🔧','Compte rendu':'📝','Rapport':'📋','Devis':'📝','Devis signé':'✍️','Facture':'🧾',"Bon d'intervention":'🛠️','PV de réception':'🤝','Courrier mairie':'🏛️','Mail':'📧','Plans':'🗺️','DOE':'📐','Sécurité':'🛟','Autres':'📄'};
     const catOf=(type)=>{ const t=(type||'').toLowerCase();
       if(t==='devis signé'||t==='devis signe') return 'Devis signé';
       if(t==='devis') return 'Devis';
       if(t==='facture') return 'Facture';
       if(t==="bon d'intervention"||t==='bon intervention'||t.indexOf("bon d'intervention")>=0) return "Bon d'intervention";
-      if(t==='rvat'||t==='pv commission'||t.indexOf('contrôle')>=0||t.indexOf('controle')>=0||t.indexOf('vérif')>=0||t.indexOf('verif')>=0||t==='bureau de contrôle') return 'Bureau de contrôle';
+      if(t==='pv commission') return 'Commission de sécurité';
+      if(t==='rvat'||t.indexOf('contrôle')>=0||t.indexOf('controle')>=0||t.indexOf('vérif')>=0||t.indexOf('verif')>=0||t==='bureau de contrôle') return 'Bureau de contrôle';
       if(t.indexOf('maintenance')>=0) return 'Maintenance';
       if(t==='consignes de sécurité'||t==='consignes de securite'||t==='plan de prévention'||t==='plan de prevention'||t==='permis de feu') return 'Sécurité';
       if(t==='compte rendu') return 'Compte rendu';
       if(t==='rapport') return 'Rapport';
       if(t==='pv de réception'||t==='pv de reception'||t==='pv réception'||t==='pv reception') return 'PV de réception';
       if(t==='courrier'||t==='mail'||t==='message') return 'Mail';
+      if(t==='courrier mairie') return 'Courrier mairie';
       if(t==='plan'||t==='plans') return 'Plans';
       if(t==='doe') return 'DOE';
       return 'Autres'; };
@@ -8370,7 +8376,7 @@ function gedRenderList(){
           <span style="font-size:12px;color:var(--muted)">${fmtDate(docDate(d))}</span>
           <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
             ${(((d.tags||'').indexOf('cat:mail')>=0)||(!d.fichier_path&&d.email_corps))?`<button class="btn sm" onclick="gedViewMail('${d.id}')">Visualiser</button>`:`<button class="btn sm" onclick="previewDoc('${pathJs}','${nmJs}','${bk}')">Visualiser</button>`}
-            ${(d.fichier_path&&/\.pdf$/i.test(d.nom_original||d.fichier_path||'')&&['Rapport','Bureau de contrôle',"Bon d'intervention"].includes(d.type))?`<button class="btn sm" title="Analyser ce rapport et préparer le tableau de levées de réserves" onclick="gedExtractRes('${d.id}')">Extraire réserves</button>`:''}
+            ${(d.fichier_path&&/\.pdf$/i.test(d.nom_original||d.fichier_path||'')&&['Rapport','Bureau de contrôle',"Bon d'intervention",'PV commission'].includes(d.type))?`<button class="btn sm" title="Analyser ce rapport et préparer le tableau de levées de réserves" onclick="gedExtractRes('${d.id}')">Extraire réserves</button>`:''}
             ${['devis','devis_signe'].includes(dcat)||['devis','devis signé','devis signe'].includes((d.type||'').toLowerCase())?`<button class="btn sm" title="Générer un PV de réception de travaux à partir de ce devis" onclick="pvFromDevis('${d.id}')">PV réception</button>`:''}
             ${dcat==='devis'&&(d.type||'').toLowerCase()==='devis'?`<button class="btn sm" title="Déposer la copie signée scannée de ce devis" onclick="devisUploadSigned('${d.id}')">Devis signé</button>`:''}
             ${dcat==='pv_reception'&&(d.tags||'').indexOf('signe')<0?`<button class="btn sm" title="Déposer la copie signée scannée de ce PV" onclick="pvUploadSigned('${d.id}')">PV signé</button>`:''}
@@ -9724,6 +9730,46 @@ window._loadTesseract=function(){
     document.head.appendChild(s);
   });
 };
+window.trvDetectCommissionMunicipale=function(lines){
+  const all=lines.join('\n');
+  const hasTitre=/PROC[EÈ]S[ -]VERBAL DE VISITE/i.test(all)||/VISITE D'?UN [EÉ]TABLISSEMENT RECEVANT DU PUBLIC/i.test(all);
+  const hasCommission=/COMMISSION\s+(COMMUNALE|CONSULTATIVE|D['E])?\s*(DE\s+)?S[EÉ]CURIT[EÉ]/i.test(all)||/\bCCSA\b|\bCDSA\b/.test(all);
+  const hasAvis=/[EÉ]MET\s+UN\s+AVIS/i.test(all)||/\bAVIS\s*:?\s*(FAVORABLE|D[EÉ]FAVORABLE)/i.test(all);
+  return (hasTitre||hasCommission)&&hasAvis;
+};
+window.trvParseCommissionMunicipale=function(lines){
+  if(!window.trvDetectCommissionMunicipale(lines)) return null;
+  const all=lines.join('\n');
+  const zoneAvis=(all.match(/[EÉ]MET\s+UN\s+AVIS[\s\S]{0,80}/i)||[all])[0];
+  let avis=null;
+  if(/D[EÉ]FAVORABLE/i.test(zoneAvis)) avis='defavorable';
+  else if(/AVIS\s*:?\s*D[EÉ]FAVORABLE/i.test(all)) avis='defavorable';
+  else if(/FAVORABLE/i.test(zoneAvis)||/AVIS\s*:?\s*FAVORABLE/i.test(all)) avis='favorable';
+  let date_passage=null;
+  let m=all.match(/Date\s+(et\s+Heure\s+)?de\s+la\s+visite\s*:?\s*(?:\w+\s+)?(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/i);
+  if(m){ const jj=m[2],mm=m[3]; let aa=m[4]; if(aa.length===2) aa=(parseInt(aa,10)<=30?'20':'19')+aa; date_passage=`${aa}-${String(mm).padStart(2,'0')}-${String(jj).padStart(2,'0')}`; }
+  else { m=all.match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})/); if(m) date_passage=`${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`; }
+  let startIdx=-1;
+  for(let i=0;i<lines.length;i++){
+    if(/(prescriptions?|observations?|r[eé]serves?)\s+suivante?s?\s*:?\s*$/i.test(lines[i].trim())||/demande\s+la\s+r[eé]alisation\s+des\s+prescriptions/i.test(lines[i])){ startIdx=i; break; }
+  }
+  const items=[]; let cur=null;
+  const STOP=/^(NOTA|N\.?B\.?|Fait\s+[àa]|Signatures?|Le\s+Pr[eé]sident|La\s+commission\s+rappelle)/i;
+  if(startIdx>=0){
+    for(let i=startIdx+1;i<lines.length;i++){
+      const L=(lines[i]||'').trim(); if(!L) continue;
+      if(STOP.test(L)){ if(cur) items.push(cur.trim()); cur=null; break; }
+      const mm2=L.match(/^[XxK✗×√\s]{0,4}(\d{1,2})[.\)]\s*(.*)$/);
+      if(mm2){ if(cur) items.push(cur.trim()); cur=mm2[2]; }
+      else if(cur!==null){ cur+=' '+L; }
+    }
+    if(cur) items.push(cur.trim());
+  }
+  const prescriptions_liste=items.filter(t=>t.length>3);
+  return { avis, date_passage, prescriptions_liste,
+    prescriptions: prescriptions_liste.length>0,
+    commentaire: prescriptions_liste.length ? prescriptions_liste.map((p,i)=>(i+1)+'. '+p).join(' · ') : null };
+};
 window.gedOcrRun=async function(docId){
   const d=(window._gedAllDocs||[]).find(x=>x.id===docId);
   if(!d||!d.fichier_path){ toast('Document introuvable','err'); return; }
@@ -9765,8 +9811,46 @@ window.gedOcrRun=async function(docId){
     prog('Analyse du texte reconnu…',90);
     const parsed=window.trvParseQuali(lines);
     if(!parsed||!parsed.observations.length){
+      // Repli : est-ce un PV de commission municipale (avis + prescriptions) plutôt qu'un rapport technique ?
+      const muni=window.trvParseCommissionMunicipale(lines);
+      if(muni && (muni.avis || muni.prescriptions_liste.length)){
+        prog('Création du passage…',95);
+        const {data:existP}=await sb.from('commission_passages').select('id').eq('document_id',d.id);
+        for(const p of (existP||[])) await sb.from('commission_passages').delete().eq('id',p.id);
+        const {data:passage,error:eM}=await sb.from('commission_passages').insert({
+          erp_id:d.erp_id, document_id:d.id, date_passage:muni.date_passage, avis:muni.avis,
+          prescriptions:muni.prescriptions, commentaire:muni.commentaire, created_by:'Robot OCR (navigateur)'
+        }).select().single();
+        if(eM||!passage){ closeModal(); toast('OCR impossible : '+(eM?eM.message:'insertion du passage'),'err'); return; }
+        try{ await sb.from('documents').update({trv_scan:'passage_cree'}).eq('id',d.id); }catch(_){}
+        openModal(`<div class="modal-head"><h2>🔍 Passage de commission extrait par OCR</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+          <div class="modal-body">
+            <div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.4);border-radius:11px;padding:13px 15px;font-size:13.5px">
+              ✅ Avis <b style="color:${muni.avis==='favorable'?'#16a34a':'#dc2626'}">${muni.avis==='favorable'?'Favorable':(muni.avis==='defavorable'?'Défavorable':'non précisé')}</b>${muni.prescriptions_liste.length?` avec <b>${muni.prescriptions_liste.length} prescription(s)</b>`:' sans prescription'}${muni.date_passage?' — visite du '+esc(muni.date_passage.split('-').reverse().join('/')):''}<br>
+              <span style="font-size:12px;color:var(--muted)">Relis le commentaire généré — une lecture optique peut comporter des coquilles.</span></div>
+          </div>
+          <div class="modal-foot"><button class="btn" onclick="closeModal()">Fermer</button>
+            <button class="btn primary" onclick="closeModal();navigate('/erps/'+'${esc(d.erp_id)}'+'?t=apercu')">Voir dans l'historique</button></div>`);
+        return;
+      }
+      // Aucun format reconnu automatiquement — le texte lu N'EST JAMAIS PERDU : on le propose en finition manuelle (1 clic).
       closeModal();
-      toast('OCR terminé — aucune observation reconnue (qualité du scan insuffisante ou format inconnu)','err');
+      const texteBrut=lines.join('\n').trim();
+      window._ocrTexteBrut=window._ocrTexteBrut||{}; window._ocrTexteBrut[d.id]=texteBrut;
+      if(!texteBrut){
+        toast('OCR terminé — aucun texte lisible dans ce scan (qualité insuffisante). Vérifie la netteté du document original.','err');
+        return;
+      }
+      openModal(`<div class="modal-head"><h2>🔍 Lecture terminée — format non reconnu automatiquement</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+        <div class="modal-body">
+          <div style="background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.35);border-radius:11px;padding:12px 14px;font-size:13px;margin-bottom:12px">
+            Ce document ne correspond à aucun modèle connu (Qualiconsult, Veritas, PV municipal). <b>Rien n'est perdu</b> : voici le texte que l'OCR a lu — vérifie-le puis complète à la main en un clic.
+          </div>
+          <div style="max-height:280px;overflow:auto;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:12px;white-space:pre-wrap;font-family:Consolas,Menlo,monospace">${esc(texteBrut)}</div>
+        </div>
+        <div class="modal-foot"><button class="btn" onclick="closeModal()">Fermer</button>
+          <button class="btn" onclick="navigator.clipboard.writeText(window._ocrTexteBrut['${esc(d.id)}']||'');toast('Texte copié','ok')">📋 Copier le texte</button>
+          <button class="btn primary" onclick="closeModal();csPassageModal('${esc(d.erp_id)}','',window._ocrTexteBrut['${esc(d.id)}'])">＋ Créer le passage avec ce texte</button></div>`);
       return;
     }
     prog('Création du tableau…',95);
@@ -10983,7 +11067,6 @@ function gedEditDoc(id){
   const erpOpts='<option value="">— Aucun —</option>'+erpsClient.map(e=>`<option value="${e.id}"${d.erp_id===e.id?' selected':''}>${esc(e.nom)}</option>`).join('');
   const prestOpts='<option value="">— Aucun —</option>'+(window._gedPrest||[]).map(p=>`<option value="${p.id}"${d.prestataire_id===p.id?' selected':''}>${esc(p.nom)}</option>`).join('');
   const typeOpts=GED_TYPES.map(t=>`<option value="${esc(t)}"${d.type===t?' selected':''}>${esc(t)}</option>`).join('');
-  const catOpts=GED_CATEGORIES.map(([v,l])=>`<option value="${v}"${(d.categorie||'rapport')===v?' selected':''}>${esc(l)}</option>`).join('');
   const currentName=d.nom_original||(d.fichier_path||'').split('/').pop()||'document';
   const extMatch=currentName.match(/\.[a-zA-Z0-9]+$/); const ext=extMatch?extMatch[0]:'';
   const baseName=ext?currentName.slice(0,-ext.length):currentName;
@@ -10997,14 +11080,13 @@ function gedEditDoc(id){
         </div>
       </div>
       <div class="row2">
-        <div class="fld"><label>Catégorie</label><select id="ged_edit_cat">${catOpts}</select></div>
         <div class="fld"><label>Type précis</label><select id="ged_edit_type">${typeOpts}</select></div>
+        <div class="fld"><label>Établissement / ERP</label><select id="ged_edit_erp">${erpOpts}</select></div>
       </div>
       <div class="row2">
-        <div class="fld"><label>Établissement / ERP</label><select id="ged_edit_erp">${erpOpts}</select></div>
         <div class="fld"><label>Prestataire</label><select id="ged_edit_prest">${prestOpts}</select></div>
+        <div class="fld"><label>Date du document</label><input id="ged_edit_date" type="date" value="${d.date_document||''}"></div>
       </div>
-      <div class="fld"><label>Date du document</label><input id="ged_edit_date" type="date" value="${d.date_document||''}"></div>
       ${d.email_corps?`<details style="border:1px solid var(--line);border-radius:10px;background:var(--surface-2);overflow:hidden">
         <summary style="padding:10px 12px;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink);user-select:none">📧 Message d'origine${d.email_date?` — ${fmtDate(d.email_date)}`:''}</summary>
         <div style="padding:0 12px 12px;display:flex;flex-direction:column;gap:6px">
@@ -11023,10 +11105,11 @@ function gedEditDoc(id){
     if(!newBase){ toast('Le nom ne peut pas être vide','err'); btn.disabled=false; btn.textContent='Enregistrer'; return; }
     const newName=newBase+ext;
     try{
+      const typeChoisi=document.getElementById('ged_edit_type').value||null;
       const {error}=await sb.from('documents').update({
         nom_original:newName,
-        categorie:document.getElementById('ged_edit_cat').value||'rapport',
-        type:document.getElementById('ged_edit_type').value||null,
+        categorie:catFromType(typeChoisi),
+        type:typeChoisi,
         erp_id:document.getElementById('ged_edit_erp').value||null,
         prestataire_id:document.getElementById('ged_edit_prest').value||null,
         date_document:document.getElementById('ged_edit_date').value||null,
