@@ -3441,6 +3441,44 @@ window.cfPrestaPick=function(){
   if(!sel||!mail) return; const opt=sel.options[sel.selectedIndex];
   const m=opt?opt.getAttribute('data-mail'):''; if(m) mail.value=m;
 };
+window.clientDeleteModal=async function(clientId,clientNom){
+  openModal(`<div class="modal-head"><h2>🗑 Supprimer — ${esc(clientNom)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body"><div id="cd_body">${loadingBlock()}</div></div>
+    <div class="modal-foot"></div>`);
+  try{
+    const [{count:nbErps},{count:nbDocs},{count:nbRes},{count:nbUsers}]=await Promise.all([
+      sb.from('erps').select('id',{count:'exact',head:true}).eq('client_id',clientId),
+      sb.from('documents').select('id',{count:'exact',head:true}).eq('client_id',clientId),
+      sb.from('reserves').select('id, erps!inner(client_id)',{count:'exact',head:true}).eq('erps.client_id',clientId),
+      sb.from('user_clients').select('user_id',{count:'exact',head:true}).eq('client_id',clientId)
+    ]);
+    document.getElementById('cd_body').innerHTML=`
+      <div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.35);border-radius:11px;padding:14px 16px;font-size:13.5px;line-height:1.6">
+        ⚠️ <b>Suppression définitive et irréversible.</b> Seront détruits avec ce client :
+        <ul style="margin:8px 0 0;padding-left:20px">
+          <li><b>${nbErps||0}</b> établissement(s) (ERP) et tout leur contenu</li>
+          <li><b>${nbDocs||0}</b> document(s) référencé(s) en GED</li>
+          <li>toutes leurs réserves, tableaux, comptes rendus et pointages</li>
+          ${nbUsers?`<li><b>${nbUsers}</b> compte(s) de connexion perdront tout accès</li>`:''}
+        </ul>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:10px">Les fichiers déjà déposés (PDF, photos) resteront dans le stockage — pense à les nettoyer séparément si besoin.</div>
+      <div class="fld" style="margin:14px 0 0"><label>Tape le nom exact du client pour confirmer : <b>${esc(clientNom)}</b></label>
+        <input id="cd_confirm" placeholder="${esc(clientNom)}" oninput="document.getElementById('cd_go').disabled=(this.value.trim()!=='${esc(clientNom).replace(/'/g,"\\'")}')"></div>`;
+    document.querySelector('.modal-foot').innerHTML=`<button class="btn" onclick="closeModal()">Annuler</button>
+      <button class="btn danger" id="cd_go" disabled onclick="clientDeleteGo('${clientId}')">Supprimer définitivement</button>`;
+  }catch(e){ document.getElementById('cd_body').innerHTML=`<span style="color:var(--critique)">Erreur : ${esc(e.message||e)}</span>`; }
+};
+window.clientDeleteGo=async function(clientId){
+  const btn=document.getElementById('cd_go'); btn.disabled=true; btn.textContent='Suppression…';
+  try{
+    const {error}=await sb.from('clients').delete().eq('id',clientId);
+    if(error) throw error;
+    toast('Client supprimé','ok');
+    closeModal();
+    navigate('/clients');
+  }catch(e){ btn.disabled=false; btn.textContent='Supprimer définitivement'; toast('Erreur : '+(e.message||e),'err'); }
+};
 window.clientUserLink=function(clientId,clientNom){
   openModal(`<div class="modal-head"><h2>🔗 Rattacher un compte existant — ${esc(clientNom)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
     <div class="modal-body">
@@ -3606,7 +3644,8 @@ async function viewClient(c,id){
       <div class="actions"><button class="btn" onclick='formClient(${JSON.stringify(cl).replace(/'/g,"&#39;").replace(/</g,"\\u003c")})'>Modifier</button>
         <button class="btn" onclick="ficheIdModal('${id}','')">Fiche d'identité</button>
         <button class="btn" onclick="sendClientMail('${id}')">Envoyer un mail</button>
-        <button class="btn primary" onclick="formErp(null,'${id}')">${I.plus} Ajouter un ERP</button></div></div>
+        <button class="btn primary" onclick="formErp(null,'${id}')">${I.plus} Ajouter un ERP</button>
+        <button class="btn danger" style="margin-left:8px" onclick="clientDeleteModal('${id}','${esc(cl.raison_sociale)}')">🗑 Supprimer</button></div></div>
       <div class="info-grid" style="margin-bottom:20px">
         <div class="it"><div class="k">Adresse siège</div><div class="v">${esc(cl.adresse_siege)||'—'}</div></div>
         <div class="it"><div class="k">Code postal / Ville</div><div class="v">${esc([cl.code_postal,cl.ville].filter(Boolean).join(' '))||'—'}</div></div>
@@ -4190,6 +4229,8 @@ function formErp(er,clientId){
     <div class="fld"><label>Adresse</label><input id="f_adr" value="${esc(e.adresse)}"></div>
     <div class="row2"><div class="fld"><label>Code postal</label><input id="f_cp_erp" value="${esc(e.code_postal)}"></div>
       <div class="fld"><label>Ville</label><input id="f_ville_erp" value="${esc(e.ville)}"></div></div>
+    <div class="row2"><div class="fld"><label>Téléphone de l'établissement</label><input id="f_tel_erp" value="${esc(e.telephone)}"></div>
+      <div class="fld"><label>Email de l'établissement</label><input id="f_email_erp" type="email" value="${esc(e.email)}"></div></div>
     <div class="row3"><div class="fld"><label>Type</label><input id="f_type" placeholder="M, L, N…" value="${esc(e.type_erp)}"></div>
       <div class="fld"><label>Catégorie</label><select id="f_cat">
         <option value="">—</option>
@@ -4201,6 +4242,7 @@ function formErp(er,clientId){
     <div class="fld"><label>Activité</label><input id="f_act" value="${esc(e.activite)}"></div>
     <div class="checkrow"><input type="checkbox" id="f_som"${e.locaux_sommeil?' checked':''}><label style="margin:0">Locaux à sommeil</label></div>
     <div class="checkrow"><input type="checkbox" id="f_eas"${e.eas?' checked':''}><label style="margin:0">EAS (Espace d'Attente Sécurisé)</label></div>
+    <div class="fld"><label>Commentaire <span style="font-weight:400;color:var(--muted)">(apparaît sur la fiche d'identité)</span></label><textarea id="f_com_erp" placeholder="Remarques diverses…" style="min-height:70px">${esc(e.commentaire)}</textarea></div>
     <div class="fld" style="margin-top:12px;padding-top:14px;border-top:1px solid var(--line)">
       <label style="display:flex;align-items:center;gap:6px">Contacts de notification <span style="font-size:11px;font-weight:400;color:var(--muted)">(reçoivent les alertes arrivée / départ)</span></label>
       <div id="f_notif_contacts_list" style="margin-top:8px;display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--surface-2)">
@@ -4242,12 +4284,14 @@ function formErp(er,clientId){
     if(!client_id){toast('Sélectionne un client','err');return;} if(!nom){toast('Le nom est requis','err');return;}
     const payload={client_id,nom,adresse:$('#f_adr').value.trim()||null,
       code_postal:$('#f_cp_erp').value.trim()||null,ville:$('#f_ville_erp').value.trim()||null,
+      telephone:$('#f_tel_erp').value.trim()||null,email:$('#f_email_erp').value.trim()||null,
       type_erp:$('#f_type').value.trim()||null,
       categorie:$('#f_cat').value||null,niveaux:$('#f_niv').value.trim()||null,
       effectif_public:$('#f_efp').value?parseInt($('#f_efp').value):null,
       effectif_salarie:$('#f_efs').value?parseInt($('#f_efs').value):null,
       activite:$('#f_act').value.trim()||null,
       locaux_sommeil:$('#f_som').checked, eas:$('#f_eas').checked,
+      commentaire:$('#f_com_erp').value.trim()||null,
       notif_contact_ids:[...document.querySelectorAll('input[name="f_notif_cb"]:checked')].map(cb=>cb.value)};
     try{ if(er){ delete payload.client_id; await sb.from('erps').update(payload).eq('id',er.id);}else{await sb.from('erps').insert(payload);}
       await loadScope(); fillScopeSelectors(); _modalDirty=false; closeModal(); toast(er?'ERP modifié':'ERP créé — QR généré','ok');
@@ -4255,6 +4299,81 @@ function formErp(er,clientId){
     }catch(err){ toast(err.message,'err'); }
   };
 }
+window.csPassageModal=async function(erpId,erpNom){
+  openModal(`<div class="modal-head"><h2>⚖️ Ajouter un passage — ${esc(erpNom)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Les passages des années antérieures peuvent être saisis rétroactivement, pour garder tout l'historique.</div>
+      <div class="row2"><div class="fld"><label>Date du passage</label><input type="date" id="csp_date" value="${todayISO()}"></div>
+        <div class="fld"><label>Avis</label><select id="csp_avis"><option value="">— non précisé —</option>
+          <option value="favorable">Favorable</option><option value="defavorable">Défavorable</option></select></div></div>
+      <div class="checkrow"><input type="checkbox" id="csp_presc"><label style="margin:0">Avec prescriptions</label></div>
+      <div class="fld"><label>Rapport / PV lié <span style="font-weight:400;color:var(--muted)">(déjà déposé en GED, optionnel)</span></label>
+        <select id="csp_doc"><option value="">— aucun —</option></select></div>
+      <div class="fld" style="margin-bottom:0"><label>Commentaire</label><textarea id="csp_com" placeholder="Précisions, référence du PV…" style="min-height:70px"></textarea></div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" id="csp_go" onclick="csPassageSave('${erpId}')">Enregistrer</button></div>`);
+  try{
+    const {data:docs}=await sb.from('documents').select('id,nom_original,type').eq('erp_id',erpId).in('type',['PV commission','Rapport','Bureau de contrôle']).order('created_at',{ascending:false});
+    const sel=document.getElementById('csp_doc');
+    if(sel && docs&&docs.length) sel.innerHTML='<option value="">— aucun —</option>'+docs.map(d=>`<option value="${d.id}">${esc(d.nom_original||d.type)}</option>`).join('');
+  }catch(_){}
+};
+window.csPassageSave=async function(erpId){
+  const date=document.getElementById('csp_date').value;
+  if(!date){ toast('La date est requise','err'); return; }
+  const btn=document.getElementById('csp_go'); btn.disabled=true; btn.textContent='Enregistrement…';
+  try{
+    const {error}=await sb.from('commission_passages').insert({
+      erp_id:erpId, date_passage:date, avis:document.getElementById('csp_avis').value||null,
+      prescriptions:document.getElementById('csp_presc').checked,
+      commentaire:document.getElementById('csp_com').value.trim()||null,
+      document_id:document.getElementById('csp_doc').value||null,
+    });
+    if(error) throw error;
+    toast('Passage enregistré','ok');
+    closeModal();
+    navigate('/erps/'+erpId+'?t=apercu');
+  }catch(e){ btn.disabled=false; btn.textContent='Enregistrer'; toast('Erreur : '+(e.message||e),'err'); }
+};
+window.csPassageDel=async function(passageId,erpId){
+  if(!confirm("Supprimer ce passage de l'historique ?")) return;
+  try{
+    const {error}=await sb.from('commission_passages').delete().eq('id',passageId);
+    if(error) throw error;
+    toast('Passage supprimé','ok');
+    navigate('/erps/'+erpId+'?t=apercu');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+window.csMairieModal=function(e){
+  openModal(`<div class="modal-head"><h2>🏛️ Coordonnées mairie — ${esc(e.nom)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body">
+      <div class="fld"><label>Mairie</label><input id="cs_mnom" placeholder="Mairie de..." value="${esc(e.mairie_nom)}"></div>
+      <div class="fld"><label>Contact (service, nom)</label><input id="cs_mcontact" placeholder="Service sécurité / M. Dupont" value="${esc(e.mairie_contact)}"></div>
+      <div class="row2"><div class="fld"><label>Email</label><input id="cs_memail" type="email" value="${esc(e.mairie_email)}"></div>
+        <div class="fld"><label>Téléphone</label><input id="cs_mtel" value="${esc(e.mairie_telephone)}"></div></div>
+      <div class="fld" style="margin-bottom:0"><label>Adresse</label><input id="cs_madr" value="${esc(e.mairie_adresse)}"></div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" id="cs_go" onclick="csMairieSave('${e.id}')">Enregistrer</button></div>`);
+};
+window.csMairieSave=async function(erpId){
+  const btn=document.getElementById('cs_go'); btn.disabled=true; btn.textContent='Enregistrement…';
+  const payload={
+    mairie_nom:document.getElementById('cs_mnom').value.trim()||null,
+    mairie_contact:document.getElementById('cs_mcontact').value.trim()||null,
+    mairie_email:document.getElementById('cs_memail').value.trim()||null,
+    mairie_telephone:document.getElementById('cs_mtel').value.trim()||null,
+    mairie_adresse:document.getElementById('cs_madr').value.trim()||null,
+  };
+  try{
+    const {error}=await sb.from('erps').update(payload).eq('id',erpId);
+    if(error) throw error;
+    toast('Coordonnées mairie enregistrées','ok');
+    closeModal();
+    navigate('/erps/'+erpId+'?t=apercu');
+  }catch(e){ btn.disabled=false; btn.textContent='Enregistrer'; toast('Erreur : '+(e.message||e),'err'); }
+};
 window.formErp=formErp;
 window.clearErpFilter=function(){ state.currentClient='all'; state.currentErp='all'; if(typeof fillScopeSelectors==='function') fillScopeSelectors(); navigate('/erps'); };
 window.erpAutoName=function(){
@@ -4293,7 +4412,7 @@ async function viewErp(c,id){
     if(location.hash!==myHash) return;                 // changé de fiche entre-temps
     if(!e){ c.innerHTML=emptyBlock(I.erp,'ERP introuvable','Cet ERP n\'a pas pu être chargé.',`<button class="btn" onclick="navigate('/erps')">← Retour aux ERP</button>`); return; }
     const cl=state.clients.find(x=>x.id===e.client_id);
-    const [eq,ob,it,re,rap,cc,un] = await Promise.all([
+    const [eq,ob,it,re,rap,cc,un,csh] = await Promise.all([
       sb.from('equipements').select('*').eq('erp_id',id),
       sb.from('obligations').select('*').eq('erp_id',id).order('prochaine_echeance'),
       sb.from('interventions').select('*').eq('erp_id',id).order('date_prevue',{ascending:false}),
@@ -4301,10 +4420,11 @@ async function viewErp(c,id){
       sb.from('rapports').select('*').eq('erp_id',id).order('date_reception',{ascending:false}),
       sb.from('client_contacts').select('*').eq('client_id',e.client_id).order('nom'),
       sb.from('equipement_unites').select('*').eq('erp_id',id).order('created_at'),
+      sb.from('commission_passages').select('*, documents(id,fichier_path,nom_original,tags)').eq('erp_id',id).order('date_passage',{ascending:false}),
     ]);
     if(location.hash!==myHash) return;                 // une autre fiche a été demandée pendant le chargement
     const tab = (location.hash.split('?t=')[1])||'apercu';
-    const data={e,cl,eq:eq.data||[],ob:ob.data||[],it:it.data||[],re:re.data||[],rap:rap.data||[],cc:cc.data||[],un:un.data||[]};
+    const data={e,cl,eq:eq.data||[],ob:ob.data||[],it:it.data||[],re:re.data||[],rap:rap.data||[],cc:cc.data||[],un:un.data||[],csh:csh.data||[]};
     c.innerHTML=`<div class="page-head"><div class="t">
       <div style="font-size:12.5px;color:var(--muted);margin-bottom:6px"><span class="lnk" onclick="navigate('/erps')">ERP</span> / ${esc(e.code_erp)}</div>
       <div class="dh"><div class="ic">${I.erp}</div><div><h1>${esc(e.nom)}</h1>
@@ -4356,6 +4476,30 @@ function renderErpTab(tab,d){
       <div class="it"><div class="k">Activité</div><div class="v">${esc(e.activite)||'—'}</div></div>
       <div class="it"><div class="k">Vérifications</div><div class="v">${d.ob.length}</div></div>
       <div class="it"><div class="k">Réserves ouvertes</div><div class="v">${d.re.filter(r=>!['cloturee','levee','rejetee'].includes(r.statut)).length}</div></div>
+    </div>
+    <div class="card" style="margin-top:18px;padding:0;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line,#e2e8f0)">
+        <h3 style="margin:0;font-size:14px;font-weight:600">⚖️ Commission de sécurité</h3>
+        <div style="display:flex;gap:8px">
+          <button class="btn sm" onclick='csMairieModal(${JSON.stringify(e).replace(/'/g,"&#39;")})'>🏛️ Coordonnées mairie</button>
+          <button class="btn sm primary" onclick="csPassageModal('${e.id}','${esc(e.nom)}')">+ Ajouter un passage</button>
+        </div>
+      </div>
+      ${(!e.mairie_nom&&!e.mairie_email&&!e.mairie_telephone)?'':`<div style="padding:10px 16px;border-bottom:1px solid var(--line,#e2e8f0);font-size:12.5px;color:var(--muted)">
+        🏛️ ${esc(e.mairie_nom)||'Mairie'}${e.mairie_contact?' — '+esc(e.mairie_contact):''}${e.mairie_email?' · <a href="mailto:'+esc(e.mairie_email)+'" style="color:var(--primary)">'+esc(e.mairie_email)+'</a>':''}${e.mairie_telephone?' · '+esc(e.mairie_telephone):''}
+      </div>`}
+      ${d.csh.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Date</th><th>Avis</th><th>Commentaire</th><th></th></tr></thead><tbody>
+        ${d.csh.map(p=>`<tr>
+          <td><b>${fmtDate(p.date_passage)}</b></td>
+          <td>${p.avis?`<span style="font-weight:700;color:${p.avis==='favorable'?'#16a34a':'#dc2626'}">${p.avis==='favorable'?'✅ Favorable':'❌ Défavorable'}</span>${p.prescriptions?' <span style="font-size:11.5px;color:var(--muted)">avec prescriptions</span>':' <span style="font-size:11.5px;color:var(--muted)">sans prescriptions</span>'}`:'<span style="color:var(--muted)">— non précisé</span>'}</td>
+          <td style="font-size:12.5px;color:var(--muted)">${esc(p.commentaire)||'—'}</td>
+          <td style="text-align:right;white-space:nowrap">
+            ${p.documents&&p.documents.fichier_path?`<button class="btn sm" onclick="previewDoc('${esc(p.documents.fichier_path)}','${esc(p.documents.nom_original||'')}','${(((p.documents.tags||'').indexOf('cat:')>=0)||((p.documents.tags||'').indexOf('source:rapports')>=0))?'rapports':'documents'}')">👁 Voir le rapport</button>`:''}
+            <button class="btn sm danger" onclick="csPassageDel('${p.id}','${e.id}')">🗑</button>
+          </td>
+        </tr>`).join('')}
+      </tbody></table></div>`
+      :`<div style="padding:20px 16px;color:var(--muted);font-size:13px">Aucun passage enregistré — cliquez « + Ajouter un passage » (les années antérieures peuvent être saisies rétroactivement).</div>`}
     </div>
     <div class="card" style="margin-top:18px;padding:0;overflow:hidden">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line,#e2e8f0)">
@@ -8112,8 +8256,8 @@ window.gedHandleDrop=function(ev){ ev.preventDefault();
 };
 function gedRenderList(){
   const host=document.getElementById('ged_list'); if(!host) return;
-  const TYPE_ORDER=['Compte rendu','Rapport','RVAT','PV commission','Courrier','Attestation','DOE','Plan','Preuve','Photo'];
-  const TYPE_ICON={'Compte rendu':'📝','Rapport':'📋','RVAT':'⚡','PV commission':'⚖️','Courrier':'✉️','Attestation':'✅','DOE':'📐','Plan':'🗺️','Preuve':'📎','Photo':'🖼️'};
+  const TYPE_ORDER=['Compte rendu','Rapport','RVAT','PV commission','Courrier mairie','Courrier','Attestation','DOE','Plan','Preuve','Photo'];
+  const TYPE_ICON={'Compte rendu':'📝','Rapport':'📋','RVAT':'⚡','PV commission':'⚖️','Courrier mairie':'🏛️','Courrier':'✉️','Attestation':'✅','DOE':'📐','Plan':'🗺️','Preuve':'📎','Photo':'🖼️'};
   const rows=window._gedAllDocs||[];
   const q=(document.getElementById('ged_search')?.value||'').trim().toLowerCase();
   const rf=document.getElementById('ged_rub')?.value||'';
@@ -8231,7 +8375,7 @@ function gedRenderList(){
 }
 window.gedRenderList=gedRenderList;
 
-const GED_TYPES=['Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Compte rendu','RVAT','PV commission','Bureau de contrôle','Maintenance préventive','Maintenance corrective','Consignes de sécurité','Plan de prévention','Permis de feu','Courrier','Attestation','DOE','Plan','Preuve','Photo','Autre'];
+const GED_TYPES=['Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Compte rendu','RVAT','PV commission','Courrier mairie','Bureau de contrôle','Maintenance préventive','Maintenance corrective','Consignes de sécurité','Plan de prévention','Permis de feu','Courrier','Attestation','DOE','Plan','Preuve','Photo','Autre'];
 const GED_CATEGORIES=[['rapport','Rapport'],['devis','Devis'],['devis_signe','Devis signé'],['facture','Facture'],['bon_intervention',"Bon d'intervention"],['pv_reception','PV de réception'],['mail','Mail'],['autre','Autre']];
 
 // Affiche directement le contenu d'un mail reçu (expéditeur, objet, date, corps) dans une modale
@@ -10240,8 +10384,9 @@ window.ficheIdBuild=function(){
     const lines=doc.splitTextToSize(String(v),CW-46); doc.text(lines,M+46,y); y+=Math.max(5.2,lines.length*4.4); };
   if(erp){
     section('Établissement recevant du public');
-    kv('Nom',erp.nom); kv('Code ERP',erp.code_erp);
+    kv('Nom',erp.nom);
     kv('Adresse',[erp.adresse,[erp.code_postal,erp.ville].filter(Boolean).join(' ')].filter(Boolean).join(', '));
+    kv('Téléphone',erp.telephone); kv('Email',erp.email);
     kv('Classement',(erp.type_erp?('Type '+erp.type_erp):'')+(erp.categorie?(' · '+erp.categorie+'e catégorie'):''));
     kv('Niveaux',erp.niveaux); kv('Activité',erp.activite);
     kv('Effectif public',erp.effectif_public); kv('Effectif personnel',erp.effectif_personnel||erp.effectif_salarie);
@@ -10277,6 +10422,14 @@ window.ficheIdBuild=function(){
       doc.text([c.telephone,c.mobile,c.email].filter(Boolean).join('  ·  ')||'—',M,y+4.2);
       y+=10.5;
     });
+  }
+  if(erp && erp.commentaire){
+    y+=2;
+    section('Remarques');
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(NAVY[0],NAVY[1],NAVY[2]);
+    const comLines=doc.splitTextToSize(String(erp.commentaire),CW);
+    if(y+comLines.length*4.4>275){ doc.addPage(); y=20; }
+    doc.text(comLines,M,y); y+=comLines.length*4.4+3;
   }
   doc.setFontSize(7); doc.setTextColor(GRAY[0],GRAY[1],GRAY[2]);
   doc.text('Fiche établie par PREVA CONSEILS — informations à jour à la date d\'édition.',M,290);
