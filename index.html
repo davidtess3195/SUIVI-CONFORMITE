@@ -2999,20 +2999,30 @@ async function viewDashboard(c){
               <span data-dchev="${cid}" style="transition:transform .2s;transform:rotate(${open?'90':'0'}deg);font-size:12px;color:var(--primary)">▶</span>
               <b style="flex:1">${esc(clientNmD(cid))}</b>
               <span style="background:#2563eb;color:#fff;font-size:12px;font-weight:600;padding:2px 10px;border-radius:999px">${list.length} réserve(s)</span></div>
-            <div id="dashresbody-${cid}" style="display:${open?'block':'none'}">
-              ${list.map(r=>`<div style="border-top:1px solid var(--line);padding:10px 14px">
-                <div onclick="navigate('/reserves')" style="cursor:pointer;display:flex;align-items:flex-start;gap:10px">
-                  <div style="width:120px;flex-shrink:0">${critPill(r.criticite)}</div>
-                  <div style="flex:1"><b style="font-size:13px">${esc(r.libelle||'')}</b>${r.localisation?`<div style="font-size:12px;color:var(--muted)">📍 ${esc(r.localisation)}</div>`:''}</div>
-                  <div style="color:var(--muted);font-size:12.5px;white-space:nowrap">${r.date_limite?fmtDate(r.date_limite):''}</div></div>
-                <div style="margin-top:8px">
-                  <label style="font-size:11.5px;color:var(--muted);font-weight:600;display:block;margin-bottom:3px">Observations / remarques (suivi…)</label>
-                  <textarea id="obs-${r.id}" onclick="event.stopPropagation()" onblur="if(this.value!==this.defaultValue)saveReserveObs('${r.id}',this.value,this)" placeholder="Écrire un suivi, une remarque…" style="width:100%;box-sizing:border-box;min-height:46px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;font-size:12.5px;resize:vertical">${esc(r.observations||'')}</textarea>
-                  <div style="display:flex;align-items:center;gap:10px;margin-top:5px">
-                    <button class="btn sm primary" onclick="event.stopPropagation();saveReserveObs('${r.id}',document.getElementById('obs-${r.id}').value,document.getElementById('obs-${r.id}'),this)">Enregistrer</button>
-                    <span style="font-size:11px;color:var(--muted-2)">Enregistré aussi automatiquement quand vous cliquez ailleurs.</span>
+            <div id="dashresbody-${cid}" style="display:${open?'block':'none'};padding:10px 14px 4px">
+              ${list.map((r,ri)=>{
+                const critColor={critique:'#dc2626',majeur:'#ea580c',moyen:'#f59e0b',faible:'#16a34a',info:'#64748b'};
+                const cc=critColor[r.criticite]||'#64748b';
+                const rOpen=(window._resvOpen||new Set()).has(r.id);
+                return `<div style="border:1px solid var(--line);border-left:5px solid ${cc};border-radius:12px;margin-bottom:10px;background:var(--surface);overflow:hidden">
+                  <div onclick="toggleReserveItem('${r.id}')" title="Cliquer pour déplier / replier" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;user-select:none;flex-wrap:wrap">
+                    <span data-rchev="${r.id}" style="color:var(--muted);font-size:16px;line-height:1;display:inline-block;transition:transform .2s;transform:rotate(${rOpen?'90':'0'}deg)">›</span>
+                    <span style="flex:0 0 auto;font-weight:800;color:#fff;background:${cc};border-radius:7px;padding:2px 8px;font-size:11.5px">N°${ri+1}</span>
+                    ${critPill(r.criticite)}
+                    <span style="flex:1;min-width:120px;font-size:13.5px;font-weight:600;color:var(--ink);line-height:1.4">${esc(r.libelle||'')}</span>
+                    ${r.date_limite?`<span style="color:var(--muted);font-size:12px;white-space:nowrap">${fmtDate(r.date_limite)}</span>`:''}
                   </div>
-                </div></div>`).join('')}
+                  <div data-rbody="${r.id}" style="display:${rOpen?'block':'none'};padding:0 14px 14px">
+                    ${r.localisation?`<div style="font-size:12.5px;color:var(--muted);margin-bottom:8px">📍 ${esc(r.localisation)}</div>`:''}
+                    <label style="font-size:11.5px;color:var(--muted);font-weight:600;display:block;margin-bottom:3px">Observations / remarques (suivi…)</label>
+                    <textarea id="obs-${r.id}" onclick="event.stopPropagation()" onblur="if(this.value!==this.defaultValue)saveReserveObs('${r.id}',this.value,this)" placeholder="Écrire un suivi, une remarque…" style="width:100%;box-sizing:border-box;min-height:46px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--ink);font:inherit;font-size:12.5px;resize:vertical">${esc(r.observations||'')}</textarea>
+                    <div style="display:flex;align-items:center;gap:10px;margin-top:5px">
+                      <button class="btn sm primary" onclick="event.stopPropagation();saveReserveObs('${r.id}',document.getElementById('obs-${r.id}').value,document.getElementById('obs-${r.id}'),this)">Enregistrer</button>
+                      <span style="font-size:11px;color:var(--muted-2)">Enregistré aussi automatiquement quand vous cliquez ailleurs.</span>
+                      <button class="btn sm" style="margin-left:auto" onclick="event.stopPropagation();navigate('/reserves')">Voir le dossier complet →</button>
+                    </div>
+                  </div></div>`;
+              }).join('')}
             </div></div>`;
         }).join('') : '<div class="empty" style="padding:24px">'+I.chk+'<h3>Aucune réserve</h3><p>Aucune levée de réserve sur ce périmètre.</p></div>'}
       </div></div></div>`;
@@ -3404,7 +3414,7 @@ window.sendConformiteToPresta=async function(clientId){
   if(!alias){ toast("Pas d'adresse de réception pour ce client.",'err'); return; }
   let prests=[];
   try{ const {data}=await sb.from('prestataires').select('id,nom,categorie,email_rapports').order('nom'); prests=data||[]; }catch(e){}
-  const opts=prests.map(p=>`<option value="${p.id}" data-mail="${esc(p.email_rapports||'')}">${esc(p.nom)}${p.categorie==='bureau_de_controle'?' (bureau de contrôle)':''}${p.email_rapports?'':' — sans email'}</option>`).join('');
+  const opts=prests.map(p=>{ const email=prestContactInfo(p).email; return `<option value="${p.id}" data-mail="${esc(email||'')}">${esc(p.nom)}${p.categorie==='bureau_de_controle'?' (bureau de contrôle)':''}${email?'':' — sans email'}</option>`; }).join('');
   openModal(`<div class="modal-head"><h2>Communiquer l'adresse à un prestataire</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
     <div class="modal-body">
       <div class="fld"><label>Adresse de réception (de ${esc(cl.raison_sociale)})</label><div style="font-size:14px;font-weight:700;color:var(--primary);word-break:break-all">${esc(alias)}</div></div>
@@ -9253,22 +9263,22 @@ window.trvRenderSynth=function(tabs,res){
   // Regrouper par client
   const byClient={};
   Object.entries(byErp).forEach(([erp,b])=>{ (byClient[b.client]=byClient[b.client]||[]).push([erp,b]); });
-  host.innerHTML='<div class="card" style="padding:0;overflow:hidden">'+Object.entries(byClient).map(([cid,list])=>{
+  host.innerHTML='<div class="card" style="padding:10px 4px;overflow:hidden">'+Object.entries(byClient).map(([cid,list])=>{
     const rows=list.sort((a,b)=>a[1].t-b[1].t).reverse().map(([erp,b])=>{
       const taux=b.t?Math.round(b.l/b.t*100):0;
-      return `<div onclick="trvSetF('erp','${esc(erp)}')" style="display:flex;align-items:center;gap:8px 10px;padding:10px 14px;cursor:pointer;flex-wrap:wrap;border-top:1px solid var(--line)" onmouseover="this.style.background='rgba(26,68,173,.04)'" onmouseout="this.style.background=''">
-        <span style="flex:1 1 150px;min-width:0;font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(erpName(erp))}</span>
-        <span style="flex:0 0 auto;font-size:11px;color:var(--muted)">${b.tabs} tabl. · ${b.t} obs.</span>
-        <span style="flex:1 1 90px;min-width:70px"><span style="display:block;background:#e2e8f0;border-radius:99px;height:7px;overflow:hidden"><span style="display:block;height:100%;width:${taux}%;background:${taux===100?'#16a34a':taux>=50?'#d97706':'#dc2626'}"></span></span></span>
-        <span style="flex:0 0 58px;text-align:right;font-size:12px;font-weight:800;color:${taux===100?'#16a34a':'var(--ink)'}">${taux} %</span>
-        <span style="flex:0 1 auto;display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">
-          ${b.t-b.l-b.p?`<span style="background:rgba(220,38,38,.08);color:#dc2626;border-radius:6px;padding:1px 7px;font-size:10.5px;font-weight:800">${b.t-b.l-b.p} à lever</span>`:''}
-          ${b.p?`<span style="background:rgba(217,119,6,.1);color:#d97706;border-radius:6px;padding:1px 7px;font-size:10.5px;font-weight:800">${b.p} part.</span>`:''}
-          ${b.ret?`<span style="background:#dc2626;color:#fff;border-radius:6px;padding:1px 7px;font-size:10.5px;font-weight:800">${b.ret} en retard</span>`:''}
-          ${b.rec?`<span style="background:rgba(147,51,234,.1);color:#9333ea;border-radius:6px;padding:1px 7px;font-size:10.5px;font-weight:800">${b.rec} récidive${b.rec>1?'s':''}</span>`:''}
+      return `<div onclick="trvJumpToClient('${esc(cid)}')" style="display:flex;align-items:center;gap:7px 9px;padding:5px 12px;cursor:pointer;flex-wrap:wrap;border-radius:7px" onmouseover="this.style.background='rgba(26,68,173,.05)'" onmouseout="this.style.background=''">
+        <span style="flex:1 1 140px;min-width:0;font-size:11.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)">${esc(erpName(erp))}</span>
+        <span style="flex:0 0 auto;font-size:10.5px;color:var(--muted)">${b.tabs} tabl. · ${b.t} obs.</span>
+        <span style="flex:1 1 70px;min-width:50px;max-width:90px"><span style="display:block;background:#e2e8f0;border-radius:99px;height:5px;overflow:hidden"><span style="display:block;height:100%;width:${taux}%;background:${taux===100?'#16a34a':taux>=50?'#d97706':'#dc2626'}"></span></span></span>
+        <span style="flex:0 0 40px;text-align:right;font-size:11px;font-weight:800;color:${taux===100?'#16a34a':'var(--ink)'}">${taux}%</span>
+        <span style="flex:0 1 auto;display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">
+          ${b.t-b.l-b.p?`<span style="background:rgba(220,38,38,.08);color:#dc2626;border-radius:5px;padding:0px 6px;font-size:9.5px;font-weight:800">${b.t-b.l-b.p} à lever</span>`:''}
+          ${b.p?`<span style="background:rgba(217,119,6,.1);color:#d97706;border-radius:5px;padding:0px 6px;font-size:9.5px;font-weight:800">${b.p} part.</span>`:''}
+          ${b.ret?`<span style="background:#dc2626;color:#fff;border-radius:5px;padding:0px 6px;font-size:9.5px;font-weight:800">${b.ret} retard</span>`:''}
+          ${b.rec?`<span style="background:rgba(147,51,234,.1);color:#9333ea;border-radius:5px;padding:0px 6px;font-size:9.5px;font-weight:800">${b.rec} récid.</span>`:''}
         </span></div>`;
     }).join('');
-    return `<div style="background:#1a44ad;color:#fff;padding:9px 14px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px">${esc(clientName(cid))}</div>${rows}`;
+    return `<div style="padding:6px 12px 2px;font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">${esc(clientName(cid))}</div>${rows}`;
   }).join('')+'</div>';
 };
 window.trvRenderList=function(tabs,res){
@@ -9285,7 +9295,8 @@ window.trvRenderList=function(tabs,res){
   if(st) st.innerHTML=(aval?stat('⏳ À valider',aval,'#d97706'):'')+stat('Tableaux',tabs.length,'#2563eb')+stat('À lever',totOuv,'#dc2626')+stat('Levées',res.length-totOuv,'#16a34a')+stat('En retard',ret,ret?'#dc2626':'#94a3b8')+stat('Récidives',rec,rec?'#9333ea':'#94a3b8')+stat('Taux de levée',taux+' %',taux===100?'#16a34a':'#d97706');
   if(!tabs.length){ box.innerHTML='<div class="card card-pad" style="color:var(--muted)">Aucun tableau pour le moment — crée le premier depuis un rapport de la GED.</div>'; return; }
   const erpOf=id=>{ const e=(state.erps||[]).find(x=>x.id===id); return e?e.nom:'Établissement'; };
-  box.innerHTML='<div style="display:flex;flex-direction:column;gap:8px">'+tabs.map(t=>{
+  const clientName=id=>{ const c=(state.clients||[]).find(x=>x.id===id); return c?(c.nom||c.raison_sociale||'Client'):'Sans client'; };
+  const card=t=>{
     const k=byTab[t.id]||{t:0,l:0,p:0};
     const done=k.t>0&&k.l===k.t;
     const av=t.statut==='a_valider';
@@ -9306,7 +9317,35 @@ window.trvRenderList=function(tabs,res){
       </div>`:''}
       <div style="font-size:11.5px;color:var(--muted);margin-top:${docNom?'3':'7'}px">${esc(erpOf(t.erp_id))} · Intervention du ${t.date_intervention?new Date(t.date_intervention+'T00:00:00').toLocaleDateString('fr-FR'):'—'} · ${k.t} observation${k.t>1?'s':''}</div>
     </div>`;
-  }).join('')+'</div>';
+  };
+  // Regroupement par client : chaque groupe s'ouvre/se ferme indépendamment des autres.
+  window._trvClosedClients=window._trvClosedClients||new Set();
+  const byClient={};
+  tabs.forEach(t=>{ (byClient[t.client_id||'__none__']=byClient[t.client_id||'__none__']||[]).push(t); });
+  const clientIds=Object.keys(byClient).sort((a,b)=>clientName(a).localeCompare(clientName(b)));
+  box.innerHTML=clientIds.map(cid=>{
+    const list=byClient[cid];
+    const closed=window._trvClosedClients.has(cid);
+    return `<div id="trv-grp-${esc(cid)}" style="margin-bottom:14px">
+      <div onclick="trvToggleClientGroup('${esc(cid)}')" style="background:#1a44ad;color:#fff;padding:9px 14px;border-radius:10px 10px ${closed?'10px 10px':'0 0'};font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;display:flex;align-items:center;gap:8px;user-select:none">
+        <span style="transition:transform .15s;transform:rotate(${closed?'0':'90'}deg);display:inline-block">›</span>
+        ${esc(clientName(cid))}
+        <span style="margin-left:auto;background:rgba(255,255,255,.22);border-radius:999px;padding:1px 9px;font-size:10.5px">${list.length} tableau${list.length>1?'x':''}</span>
+      </div>
+      <div style="display:${closed?'none':'flex'};flex-direction:column;gap:8px;padding-top:8px">${list.map(card).join('')}</div>
+    </div>`;
+  }).join('');
+};
+window.trvToggleClientGroup=function(cid){
+  window._trvClosedClients=window._trvClosedClients||new Set();
+  if(window._trvClosedClients.has(cid)) window._trvClosedClients.delete(cid); else window._trvClosedClients.add(cid);
+  trvRenderAll();
+};
+window.trvJumpToClient=function(cid){
+  window._trvClosedClients=window._trvClosedClients||new Set();
+  window._trvClosedClients.delete(cid);
+  trvRenderAll();
+  const el=document.getElementById('trv-grp-'+cid); if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
 };
 
 // ── Détail d'un tableau
@@ -9814,23 +9853,35 @@ window.gedOcrRun=async function(docId){
       // Repli : est-ce un PV de commission municipale (avis + prescriptions) plutôt qu'un rapport technique ?
       const muni=window.trvParseCommissionMunicipale(lines);
       if(muni && (muni.avis || muni.prescriptions_liste.length)){
-        prog('Création du passage…',95);
-        const {data:existP}=await sb.from('commission_passages').select('id').eq('document_id',d.id);
-        for(const p of (existP||[])) await sb.from('commission_passages').delete().eq('id',p.id);
-        const {data:passage,error:eM}=await sb.from('commission_passages').insert({
-          erp_id:d.erp_id, document_id:d.id, date_passage:muni.date_passage, avis:muni.avis,
-          prescriptions:muni.prescriptions, commentaire:muni.commentaire, created_by:'Robot OCR (navigateur)'
+        prog('Création du tableau…',95);
+        const {data:tab,error:eM}=await sb.from('tableaux_reserves').insert({
+          erp_id:d.erp_id, client_id:d.client_id||null, source:'commission',
+          organisme:'Commission de sécurité', avis:muni.avis,
+          date_intervention:muni.date_passage,
+          annee:muni.date_passage?parseInt(muni.date_passage.slice(0,4),10):null,
+          rapport_document_id:d.id, nb_obs:muni.prescriptions_liste.length,
+          statut:'a_valider', created_by:'Robot OCR (navigateur)'
         }).select().single();
-        if(eM||!passage){ closeModal(); toast('OCR impossible : '+(eM?eM.message:'insertion du passage'),'err'); return; }
-        try{ await sb.from('documents').update({trv_scan:'passage_cree'}).eq('id',d.id); }catch(_){}
-        openModal(`<div class="modal-head"><h2>🔍 Passage de commission extrait par OCR</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+        if(eM||!tab){ closeModal(); toast('OCR impossible : '+(eM?eM.message:'insertion du tableau'),'err'); return; }
+        if(muni.prescriptions_liste.length){
+          const payload=muni.prescriptions_liste.map((texte,i)=>({
+            erp_id:d.erp_id, tableau_id:tab.id, numero:i+1,
+            libelle:texte, localisation:null, code_obs:'P'+(i+1),
+            article_ref:'', recidive:false, date_premier_signalement:null,
+            etat_levee:'non_levee', statut:'detectee'
+          }));
+          const {error:eR}=await sb.from('reserves').insert(payload);
+          if(eR){ closeModal(); toast('OCR impossible : '+eR.message,'err'); return; }
+        }
+        try{ await sb.from('documents').update({trv_scan:'tableau_cree'}).eq('id',d.id); }catch(_){}
+        openModal(`<div class="modal-head"><h2>🔍 Tableau de commission extrait par OCR</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
           <div class="modal-body">
             <div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.4);border-radius:11px;padding:13px 15px;font-size:13.5px">
-              ✅ Avis <b style="color:${muni.avis==='favorable'?'#16a34a':'#dc2626'}">${muni.avis==='favorable'?'Favorable':(muni.avis==='defavorable'?'Défavorable':'non précisé')}</b>${muni.prescriptions_liste.length?` avec <b>${muni.prescriptions_liste.length} prescription(s)</b>`:' sans prescription'}${muni.date_passage?' — visite du '+esc(muni.date_passage.split('-').reverse().join('/')):''}<br>
-              <span style="font-size:12px;color:var(--muted)">Relis le commentaire généré — une lecture optique peut comporter des coquilles.</span></div>
+              ✅ Avis <b style="color:${muni.avis==='favorable'?'#16a34a':'#dc2626'}">${muni.avis==='favorable'?'Favorable':(muni.avis==='defavorable'?'Défavorable':'non précisé')}</b>${muni.prescriptions_liste.length?` — <b>${muni.prescriptions_liste.length} prescription(s)</b> ajoutée(s) comme réserves`:''}${muni.date_passage?' — visite du '+esc(muni.date_passage.split('-').reverse().join('/')):''}<br>
+              <span style="font-size:12px;color:var(--muted)">Le tableau est prêt en statut <b style="color:#d97706">⏳ À VALIDER</b> — relis les textes avant de l'envoyer au prestataire.</span></div>
           </div>
-          <div class="modal-foot"><button class="btn" onclick="closeModal()">Fermer</button>
-            <button class="btn primary" onclick="closeModal();navigate('/erps/'+'${esc(d.erp_id)}'+'?t=apercu')">Voir dans l'historique</button></div>`);
+          <div class="modal-foot"><button class="btn" onclick="closeModal()">Plus tard</button>
+            <button class="btn primary" onclick="closeModal();trvDetail('${esc(tab.id)}')">Vérifier et valider le tableau</button></div>`);
         return;
       }
       // Aucun format reconnu automatiquement — le texte lu N'EST JAMAIS PERDU : on le propose en finition manuelle (1 clic).
@@ -12445,7 +12496,7 @@ function renderPrestTable(rows, categorie){
       <th>Nom</th><th>Clients</th><th>Spécialité(s)</th><th>Email</th><th>Téléphone</th>
     </tr></thead>
     <tbody>${filtered.map(p=>{ const ci=prestContactInfo(p); return `<tr onclick='formPrest(${JSON.stringify(p).replace(/'/g,"&#39;")})' style="cursor:pointer">
-      <td><b>${esc(p.nom)}</b>${p.commentaire?`<div style="font-size:12px;color:var(--muted)">${esc(p.commentaire)}</div>`:''}</td>
+      <td><b>${esc(p.nom)}</b>${p.tel_astreinte?`<a href="tel:${esc(p.tel_astreinte)}" onclick="event.stopPropagation()" title="Astreinte : ${esc(p.tel_astreinte)}" style="display:inline-flex;align-items:center;margin-left:7px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:999px;padding:1px 8px;font-size:10.5px;font-weight:800;text-decoration:none;vertical-align:middle">Astreinte : ${esc(p.tel_astreinte)}</a>`:''}${p.commentaire?`<div style="font-size:12px;color:var(--muted)">${esc(p.commentaire)}</div>`:''}</td>
       <td style="font-size:12.5px">${(()=>{ const ids=Array.isArray(p.client_ids)&&p.client_ids.length?p.client_ids:(p.client_id?[p.client_id]:[]); if(!ids.length) return '<span style="color:var(--muted-2)">Tous</span>'; return ids.map(id=>{ const cl=state.clients.find(x=>x.id===id); return cl?`<span style="display:inline-block;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:2px 7px;margin:1px 2px;font-size:11.5px">${esc(cl.raison_sociale)}</span>`:''; }).join(''); })()}</td>
       <td style="font-size:13px">${esc(p.type)||'—'}</td>
       <td style="font-size:13px">${ci.email?`<a href="mailto:${esc(ci.email)}" onclick="event.stopPropagation()" style="color:var(--primary)">${esc(ci.email)}</a>`:'—'}${ci.from?`<div style="font-size:11px;color:var(--muted)">👤 ${esc(ci.from)}</div>`:''}</td>
@@ -12541,6 +12592,29 @@ async function formPrest(p){
     </div>
 
 
+
+    <!-- Numéros d'urgence — mis en avant, visibles au premier coup d'œil -->
+    <div style="margin-top:6px">
+      <div style="font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Numéros d'urgence</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+        <div style="background:linear-gradient(135deg,#fef2f2,#fff);border:1.5px solid #fecaca;border-left:4px solid #dc2626;border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:11px;font-weight:800;color:#991b1b;text-transform:uppercase;letter-spacing:.04em">Astreinte</div>
+            <input id="f_tel_astreinte" type="tel" value="${esc(p.tel_astreinte)}" placeholder="Aucun numéro renseigné"
+              style="border:none;background:none;padding:2px 0 0;font-size:18px;font-weight:800;color:#7f1d1d;width:100%;font-family:inherit">
+          </div>
+          ${p.tel_astreinte?`<a href="tel:${esc(p.tel_astreinte)}" title="Appeler" style="flex:0 0 auto;background:#dc2626;color:#fff;border-radius:8px;padding:7px 14px;text-decoration:none;font-size:12.5px;font-weight:700">Appeler</a>`:''}
+        </div>
+        <div style="background:linear-gradient(135deg,#fff7ed,#fff);border:1.5px solid #fed7aa;border-left:4px solid #ea580c;border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:11px;font-weight:800;color:#9a3412;text-transform:uppercase;letter-spacing:.04em">Dépannage</div>
+            <input id="f_tel_depannage" type="tel" value="${esc(p.tel_depannage)}" placeholder="Aucun numéro renseigné"
+              style="border:none;background:none;padding:2px 0 0;font-size:18px;font-weight:800;color:#7c2d12;width:100%;font-family:inherit">
+          </div>
+          ${p.tel_depannage?`<a href="tel:${esc(p.tel_depannage)}" title="Appeler" style="flex:0 0 auto;background:#ea580c;color:#fff;border-radius:8px;padding:7px 14px;text-decoration:none;font-size:12.5px;font-weight:700">Appeler</a>`:''}
+        </div>
+      </div>
+    </div>
 
     <!-- Contacts en accordéon -->
     <div style="margin-top:6px">
@@ -12729,6 +12803,8 @@ async function formPrest(p){
       type: types.join(', ')||null,
       affaires:[...document.querySelectorAll('#f_affaires_list .f-aff-row')].map(r=>({erp_id:r.querySelector('.aff-erp').value||null,numero:r.querySelector('.aff-num').value.trim()||null})).filter(a=>a.erp_id||a.numero),
       commentaire:$('#f_com').value||null,
+      tel_astreinte:$('#f_tel_astreinte').value.trim()||null,
+      tel_depannage:$('#f_tel_depannage').value.trim()||null,
       contacts: Object.keys(contacts).length ? contacts : null,
       has_contrat: document.querySelector('input[name="rb_contrat"]:checked')?.value==='oui'||false,
       has_avenant: document.querySelector('input[name="rb_avenant"]:checked')?.value==='oui'||false,
