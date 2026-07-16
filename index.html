@@ -2604,6 +2604,7 @@ function renderApp(){
       <nav class="nav" id="nav">${navLink(NAV[0].link)}
       <div class="qa"><div class="qa-t">Accès rapide</div><div class="qa-grid">
         <button type="button" class="qa-tile" onclick="quickSmsModal()">${NI.sms}<span>SMS</span></button>
+        <button type="button" class="qa-tile" onclick="qaEmailModal()">${NI.inbox}<span>Email + fiche</span></button>
         <button type="button" class="qa-tile" onclick="pvForm({})">${NI.pv}<span>PV réception</span></button>
         <button type="button" class="qa-tile" onclick="arModal()">${NI.key}<span>Générer accès</span></button>
         <button type="button" class="qa-tile" onclick="navigate('/agenda')">${NI.cal}<span>Agenda</span></button>
@@ -5316,13 +5317,12 @@ async function formInter(erpId,it){
 
   // Bouton demande par SMS au prestataire
   const btnSms=$('#btn_sms_inter');
-  if(btnSms) btnSms.onclick=()=>{
+  if(btnSms) btnSms.onclick=async()=>{
     const prestId=$('#f_prest').value;
     if(!prestId){toast('Sélectionne un prestataire d\'abord','err');return;}
     const p=(window._interPrestLookup||{})[prestId];
     if(!p){toast('Prestataire introuvable','err');return;}
     const phones=getPhones(p);
-    if(!phones.length){toast('Aucun numéro mobile pour ce prestataire','info');return;}
     const erpId2=$('#f_erp').value;
     const erpObj=(window._interErpList||[]).find(x=>x.id===erpId2)||{};
     const erpNom=erpObj.nom||erpId2;
@@ -5330,9 +5330,21 @@ async function formInter(erpId,it){
     const typeLabel={preventive:'Préventive',corrective:'Corrective',travaux:'Travaux',visite:'Visite',commission_securite:'Commission de sécurité'}[typeInter]||typeInter;
     const datePrevue=$('#f_date').value;
     const dateStr=datePrevue?new Date(datePrevue).toLocaleDateString('fr-FR'):'à définir';
+    // Contacts du client de l'ERP (décochés par défaut) pour choisir le contact associé
+    const recips=phones.slice();
+    try{
+      if(erpObj.client_id){
+        const {data:cts}=await sb.from('client_contacts').select('*').eq('client_id',erpObj.client_id).order('nom');
+        (cts||[]).forEach(c=>{
+          const m=_cleanMobile(c.mobile||'')||_cleanMobile(c.telephone||'');
+          if(m && !recips.find(r=>r.phone===m)) recips.push({phone:m,label:'Client — '+([c.prenom,c.nom].filter(Boolean).join(' ')||c.fonction||'Contact'),checked:false});
+        });
+      }
+    }catch(_){}
+    if(!recips.length){toast('Aucun numéro mobile pour ce prestataire ou ce client','info');return;}
     smsComposerOpen({
       title:'SMS — '+(p.nom||'Prestataire'),
-      recipients:phones,
+      recipients:recips,
       defaultMessage:'PREVA Conseils : demande d\'intervention ('+typeLabel+') — '+erpNom+' — date souhaitee : '+dateStr+'. Merci de nous confirmer votre disponibilite.',
       context:{origine:'intervention',intervention_id:it.id||null,erp_id:erpId2,prestataire_id:prestId}
     });
@@ -5448,6 +5460,8 @@ async function formInter(erpId,it){
               <option value="">— aucun —</option>
             </select>
           </div>
+          <!-- Joindre la fiche d'identité -->
+          <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:12.5px;color:#1e293b;cursor:pointer;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:9px 12px"><input type="checkbox" id="esel_fiche" style="accent-color:#2563eb;width:15px;height:15px;flex:0 0 auto">📎 Joindre la fiche d'identité de l'établissement (PDF — coordonnées et contacts du client)</label>
           <!-- Commentaire modifiable -->
           <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px">Commentaire <span style="font-weight:400;color:#94a3b8">(optionnel — modifiable)</span></label>
           <textarea id="esel_comment" rows="3" placeholder="Ajouter un commentaire…" onkeydown="event.stopPropagation()"
@@ -5514,6 +5528,7 @@ async function formInter(erpId,it){
         const selOpt=eselContactSel.options[eselContactSel.selectedIndex];
         contactSurPlace=selOpt.textContent||'';
       }
+      const joindreFiche=!!document.getElementById('esel_fiche')?.checked;
       selOverlay.remove();
       const html=`<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">
         <div style="background:#1e3a5f;padding:20px 24px;border-radius:8px 8px 0 0">
@@ -5538,7 +5553,17 @@ async function formInter(erpId,it){
       const subject=`Demande d'intervention — ${erpNom}${domaineInter?' — '+domaineInter:''}`;
       btnEmail.disabled=true; btnEmail.textContent='Envoi…';
       try{
-        const {error}=await sb.functions.invoke('send-client-email',{body:{to:emailTo,subject,html}});
+        let attachments=null;
+        if(joindreFiche){
+          const erpObjF=(window._interErpList||[]).find(x=>x.id===erpId2)||{};
+          if(erpObjF.client_id){
+            btnEmail.textContent='Fiche…';
+            const b=await ficheIdAuto(erpObjF.client_id, erpId2||null);
+            attachments=[{filename:b.fname, content:b.doc.output('datauristring').split(',')[1], contentType:'application/pdf'}];
+            btnEmail.textContent='Envoi…';
+          } else { toast("Fiche non jointe : client introuvable pour cet ERP",'err'); }
+        }
+        const {error}=await sb.functions.invoke('send-client-email',{body:attachments?{to:emailTo,subject,html,attachments}:{to:emailTo,subject,html}});
         if(error) throw error;
         toast('Demande envoyée à '+emailTo,'ok');
         btnEmail.textContent='✓ Envoyé';
@@ -9022,6 +9047,22 @@ function qsContactsOf(p){
   l.forEach(c=>{ if(c&&c.mobile){ const m=String(c.mobile).replace(/[\s.]/g,''); if(!out.find(x=>x.v===m)) out.push({label:c.nom||'Contact',v:m}); } });
   return out;
 }
+window.qaEmailModal=function(){
+  const copts='<option value="">— Choisir un client —</option>'+(state.clients||[]).map(c=>`<option value="${c.id}">${esc(c.raison_sociale)}</option>`).join('');
+  openModal(`<div class="modal-head"><h2>Email — fiche d'identité</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <div class="fld" style="margin:0"><label>Client</label><select id="qae_client" onchange="qaEmailErp()">${copts}</select></div>
+      <div class="fld" style="margin:0"><label>Établissement <span style="font-weight:400;color:var(--muted)">(optionnel)</span></label><select id="qae_erp"><option value="">— Entité juridique seule —</option></select></div>
+      <p style="font-size:12px;color:var(--muted);margin:0">Étape suivante : contacts à faire figurer sur la fiche, destinataires (contacts d'un prestataire ou emails libres) et message — la fiche PDF est jointe automatiquement.</p>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" onclick="(()=>{const c=document.getElementById('qae_client').value;if(!c){toast('Choisis un client','err');return;}const e=document.getElementById('qae_erp').value;ficheIdModal(c,e);})()">Continuer →</button></div>`);
+};
+window.qaEmailErp=function(){
+  const cid=document.getElementById('qae_client').value;
+  const sel=document.getElementById('qae_erp'); if(!sel) return;
+  sel.innerHTML='<option value="">— Entité juridique seule —</option>'+(state.erps||[]).filter(e=>e.client_id===cid).map(e=>`<option value="${e.id}">${esc(e.nom)}</option>`).join('');
+};
 window.quickSmsModal=async function(){
   if(!window._prestCache || !window._prestCache.length){
     try{ const {data,error}=await sb.from('prestataires').select('*').order('nom'); if(error) throw error; window._prestCache=data||[]; }
@@ -9035,6 +9076,7 @@ window.quickSmsModal=async function(){
     +(prests.length?`<optgroup label="Prestataires">${prests.map(opt).join('')}</optgroup>`:'')
     +(bureaux.length?`<optgroup label="Bureaux de contrôle">${bureaux.map(opt).join('')}</optgroup>`:'');
   const topts='<option value="">— Message libre (sans modèle) —</option>'+QS_TPL.map((t,i)=>`<option value="${i}">${esc(t.n)}</option>`).join('');
+  const copts='<option value="">— Choisir un client —</option>'+(state.clients||[]).map(c=>`<option value="${c.id}">${esc(c.raison_sociale)}</option>`).join('');
   const now=new Date(Date.now()+3*60000); now.setSeconds(0,0);
   const pad=x=>String(x).padStart(2,'0');
   const dt=now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate())+'T'+pad(now.getHours())+':'+pad(now.getMinutes());
@@ -9048,6 +9090,9 @@ window.quickSmsModal=async function(){
       <div class="fld" style="margin:0"><label>Destinataires — contacts d'un prestataire <span style="font-weight:400;color:var(--muted)">(tu peux enchaîner plusieurs prestataires, les coches s'additionnent)</span></label>
         <select id="qs_prest" onchange="qsPrestChange()">${popts}</select>
         <div id="qs_list" style="display:flex;flex-direction:column;gap:6px;max-height:132px;overflow:auto;padding:2px;margin-top:8px"></div></div>
+      <div class="fld" style="margin:0"><label>Destinataires — contacts d'un client <span style="font-weight:400;color:var(--muted)">(les coches s'additionnent aussi)</span></label>
+        <select id="qs_client" onchange="qsClientChange()">${copts}</select>
+        <div id="qs_clist" style="display:flex;flex-direction:column;gap:6px;max-height:132px;overflow:auto;padding:2px;margin-top:8px"></div></div>
       <div class="fld" style="margin:0"><label>Sélection <span id="qs_seln" style="font-weight:400;color:var(--muted)">(0)</span></label>
         <div id="qs_selected" style="display:flex;flex-wrap:wrap;gap:6px"><span style="font-size:12px;color:var(--muted)">Aucun contact sélectionné pour l'instant.</span></div></div>
       <div class="fld" style="margin:0"><label>Autres numéros <span style="font-weight:400;color:var(--muted)">(séparés par des virgules)</span></label>
@@ -9081,6 +9126,29 @@ window.qsPrestChange=function(){
       <span style="display:block;font-size:12px;color:#2563eb">${esc(x.v)}</span></span></label>`;
   }).join('')
   :'<div style="font-size:12px;color:var(--muted);padding:4px 2px">Aucun mobile en fiche pour ce prestataire — utilise « Autres numéros ».</div>';
+};
+window.qsClientChange=async function(){
+  const cid=document.getElementById('qs_client').value;
+  const host=document.getElementById('qs_clist'); if(!host) return;
+  if(!cid){ host.innerHTML=''; return; }
+  host.innerHTML='<div style="font-size:12px;color:var(--muted);padding:4px 2px">Chargement…</div>';
+  let cts=[];
+  try{ const {data}=await sb.from('client_contacts').select('*').eq('client_id',cid).order('nom'); cts=data||[]; }catch(_){ cts=[]; }
+  const cName=(state.clients||[]).find(x=>x.id===cid)?.raison_sociale||'Client';
+  const list=[];
+  cts.forEach(c=>{
+    const m=_cleanMobile(c.mobile||'')||_cleanMobile(c.telephone||'');
+    if(m) list.push({v:m,label:([c.prenom,c.nom].filter(Boolean).join(' ')||'Contact')+(c.fonction?' · '+c.fonction:'')});
+  });
+  host.innerHTML=list.length?list.map(x=>{
+    const on=!!window._qsSel[x.v];
+    return `<label data-pvchip style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:2px solid ${on?'#2563eb':'var(--line)'};border-radius:10px;cursor:pointer;background:${on?'rgba(37,99,235,.06)':'var(--surface)'};transition:border-color .12s,background .12s;user-select:none">
+      <input type="checkbox" value="${esc(x.v)}" data-label="${esc(x.label)}" data-prest="${esc(cName)}"${on?' checked':''} onchange="qsToggle(this)" style="accent-color:#2563eb;width:16px;height:16px;flex:0 0 auto">
+      <span style="width:28px;height:28px;border-radius:8px;background:rgba(22,163,74,.1);display:grid;place-items:center;font-size:13px;flex:0 0 auto">🏢</span>
+      <span style="min-width:0"><span style="display:block;font-size:12.5px;font-weight:600;color:var(--ink)">${esc(x.label)}</span>
+      <span style="display:block;font-size:12px;color:#16a34a">${esc(x.v)}</span></span></label>`;
+  }).join('')
+  :'<div style="font-size:12px;color:var(--muted);padding:4px 2px">Aucun mobile en fiche pour ce client — utilise « Autres numéros ».</div>';
 };
 window.qsToggle=function(inp){
   if(inp.checked) window._qsSel[inp.value]={label:inp.dataset.label,prest:inp.dataset.prest};
@@ -10604,6 +10672,20 @@ window.ficheIdBuild=function(){
   let factId=''; document.getElementsByName('fi_fact').forEach?document.getElementsByName('fi_fact').forEach(r=>{if(r.checked)factId=r.value;}):null;
   if(!factId){ const rs=document.querySelectorAll('input[name="fi_fact"]'); rs.forEach(r=>{ if(r.checked) factId=r.value; }); }
   const fact=factId?(D.contacts||[]).find(c=>c.id===factId):null;
+  return ficheIdRender(cl,erp,chosen,fact);
+};
+// Génère la fiche d'identité sans interface : tous les contacts, contact facturation auto-détecté
+window.ficheIdAuto=async function(clientId,erpId){
+  const [{data:cl},{data:contacts}]=await Promise.all([
+    sb.from('clients').select('*').eq('id',clientId).maybeSingle(),
+    sb.from('client_contacts').select('*').eq('client_id',clientId).order('nom')
+  ]);
+  if(!cl) throw new Error('Client introuvable');
+  const erp=erpId?(state.erps||[]).find(e=>e.id===erpId):null;
+  const fact=(contacts||[]).find(c=>/factur/i.test(c.role_suivi||'')||/factur/i.test(c.fonction||''))||null;
+  return ficheIdRender(cl,erp,contacts||[],fact);
+};
+window.ficheIdRender=function(cl,erp,chosen,fact){
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({unit:'mm',format:'a4'});
   const W=210,M=16,CW=W-2*M;
