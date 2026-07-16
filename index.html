@@ -5330,21 +5330,23 @@ async function formInter(erpId,it){
     const typeLabel={preventive:'Préventive',corrective:'Corrective',travaux:'Travaux',visite:'Visite',commission_securite:'Commission de sécurité'}[typeInter]||typeInter;
     const datePrevue=$('#f_date').value;
     const dateStr=datePrevue?new Date(datePrevue).toLocaleDateString('fr-FR'):'à définir';
-    // Contacts du client de l'ERP (décochés par défaut) pour choisir le contact associé
-    const recips=phones.slice();
+    // Contacts du client de l'ERP : proposés pour être MENTIONNÉS dans le message (pas destinataires)
+    let clientContacts=[];
     try{
       if(erpObj.client_id){
         const {data:cts}=await sb.from('client_contacts').select('*').eq('client_id',erpObj.client_id).order('nom');
-        (cts||[]).forEach(c=>{
-          const m=_cleanMobile(c.mobile||'')||_cleanMobile(c.telephone||'');
-          if(m && !recips.find(r=>r.phone===m)) recips.push({phone:m,label:'Client — '+([c.prenom,c.nom].filter(Boolean).join(' ')||c.fonction||'Contact'),checked:false});
-        });
+        clientContacts=(cts||[]).map(c=>{
+          const tel=c.mobile||c.telephone||'';
+          const nom=[c.prenom,c.nom].filter(Boolean).join(' ')||c.fonction||'Contact';
+          return tel?{nom:nom+(c.fonction?' ('+c.fonction+')':''),tel}:null;
+        }).filter(Boolean);
       }
     }catch(_){}
-    if(!recips.length){toast('Aucun numéro mobile pour ce prestataire ou ce client','info');return;}
+    if(!phones.length){toast('Aucun numéro mobile pour ce prestataire','info');return;}
     smsComposerOpen({
       title:'SMS — '+(p.nom||'Prestataire'),
-      recipients:recips,
+      recipients:phones,
+      clientContacts,
       defaultMessage:'PREVA Conseils : demande d\'intervention ('+typeLabel+') — '+erpNom+' — date souhaitee : '+dateStr+'. Merci de nous confirmer votre disponibilite.',
       context:{origine:'intervention',intervention_id:it.id||null,erp_id:erpId2,prestataire_id:prestId}
     });
@@ -9090,7 +9092,7 @@ window.quickSmsModal=async function(){
       <div class="fld" style="margin:0"><label>Destinataires — contacts d'un prestataire <span style="font-weight:400;color:var(--muted)">(tu peux enchaîner plusieurs prestataires, les coches s'additionnent)</span></label>
         <select id="qs_prest" onchange="qsPrestChange()">${popts}</select>
         <div id="qs_list" style="display:flex;flex-direction:column;gap:6px;max-height:132px;overflow:auto;padding:2px;margin-top:8px"></div></div>
-      <div class="fld" style="margin:0"><label>Destinataires — contacts d'un client <span style="font-weight:400;color:var(--muted)">(les coches s'additionnent aussi)</span></label>
+      <div class="fld" style="margin:0"><label>Contact client à mentionner dans le message <span style="font-weight:400;color:var(--muted)">(il ne reçoit pas le SMS — ses coordonnées sont insérées dans le texte)</span></label>
         <select id="qs_client" onchange="qsClientChange()">${copts}</select>
         <div id="qs_clist" style="display:flex;flex-direction:column;gap:6px;max-height:132px;overflow:auto;padding:2px;margin-top:8px"></div></div>
       <div class="fld" style="margin:0"><label>Sélection <span id="qs_seln" style="font-weight:400;color:var(--muted)">(0)</span></label>
@@ -9134,21 +9136,29 @@ window.qsClientChange=async function(){
   host.innerHTML='<div style="font-size:12px;color:var(--muted);padding:4px 2px">Chargement…</div>';
   let cts=[];
   try{ const {data}=await sb.from('client_contacts').select('*').eq('client_id',cid).order('nom'); cts=data||[]; }catch(_){ cts=[]; }
-  const cName=(state.clients||[]).find(x=>x.id===cid)?.raison_sociale||'Client';
   const list=[];
   cts.forEach(c=>{
-    const m=_cleanMobile(c.mobile||'')||_cleanMobile(c.telephone||'');
-    if(m) list.push({v:m,label:([c.prenom,c.nom].filter(Boolean).join(' ')||'Contact')+(c.fonction?' · '+c.fonction:'')});
+    const tel=c.mobile||c.telephone||'';
+    if(tel) list.push({tel,label:([c.prenom,c.nom].filter(Boolean).join(' ')||'Contact')+(c.fonction?' ('+c.fonction+')':'')});
   });
-  host.innerHTML=list.length?list.map(x=>{
-    const on=!!window._qsSel[x.v];
-    return `<label data-pvchip style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:2px solid ${on?'#2563eb':'var(--line)'};border-radius:10px;cursor:pointer;background:${on?'rgba(37,99,235,.06)':'var(--surface)'};transition:border-color .12s,background .12s;user-select:none">
-      <input type="checkbox" value="${esc(x.v)}" data-label="${esc(x.label)}" data-prest="${esc(cName)}"${on?' checked':''} onchange="qsToggle(this)" style="accent-color:#2563eb;width:16px;height:16px;flex:0 0 auto">
+  window._qsClientContacts=list;
+  host.innerHTML=list.length?list.map((x,i)=>
+    `<button type="button" onclick="qsMentionContact(${i})" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:2px solid var(--line);border-radius:10px;cursor:pointer;background:var(--surface);font-family:inherit;text-align:left;width:100%">
       <span style="width:28px;height:28px;border-radius:8px;background:rgba(22,163,74,.1);display:grid;place-items:center;font-size:13px;flex:0 0 auto">🏢</span>
-      <span style="min-width:0"><span style="display:block;font-size:12.5px;font-weight:600;color:var(--ink)">${esc(x.label)}</span>
-      <span style="display:block;font-size:12px;color:#16a34a">${esc(x.v)}</span></span></label>`;
-  }).join('')
-  :'<div style="font-size:12px;color:var(--muted);padding:4px 2px">Aucun mobile en fiche pour ce client — utilise « Autres numéros ».</div>';
+      <span style="min-width:0;flex:1"><span style="display:block;font-size:12.5px;font-weight:600;color:var(--ink)">${esc(x.label)}</span>
+      <span style="display:block;font-size:12px;color:#16a34a">${esc(x.tel)}</span></span>
+      <span style="font-size:11px;font-weight:700;color:#16a34a;flex:0 0 auto">＋ dans le message</span></button>`
+  ).join('')
+  :'<div style="font-size:12px;color:var(--muted);padding:4px 2px">Aucun numéro en fiche pour ce client.</div>';
+};
+window.qsMentionContact=function(i){
+  const c=(window._qsClientContacts||[])[i]; if(!c) return;
+  const ta=document.getElementById('qs_msg'); if(!ta) return;
+  let body=ta.value.replace(/\n?Contact sur place : [^\n]*/g,'').replace(/\s+$/,'');
+  body+=(body?'\n':'')+'Contact sur place : '+c.label+' — '+c.tel;
+  ta.value=body;
+  const cnt=document.getElementById('qs_cnt'); if(cnt) cnt.textContent=ta.value.length;
+  toast('Contact ajouté dans le message','ok');
 };
 window.qsToggle=function(inp){
   if(inp.checked) window._qsSel[inp.value]={label:inp.dataset.label,prest:inp.dataset.prest};
@@ -11627,6 +11637,7 @@ async function smsComposerOpen(opts){
   opts=opts||{};
   const title=opts.title||'Envoyer un SMS';
   const recipients=opts.recipients||[];
+  const clientContacts=opts.clientContacts||[];
   const defaultMessage=opts.defaultMessage||'';
   const context=opts.context||{};
   const templates=await _smsLoadTemplates();
@@ -11648,6 +11659,11 @@ async function smsComposerOpen(opts){
           <button class="btn sm" id="sms-rcp-add">Ajouter</button>
         </div>
       </div>
+      ${clientContacts.length?`<div><label class="lb">Contact sur place à mentionner <span style="font-weight:400;color:var(--muted)">(inséré dans le message — ne reçoit pas le SMS)</span></label>
+        <select id="sms-client-contact" onchange="smsInsertClientContact(this)" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-size:13px;background:var(--surface)">
+          <option value="">— aucun —</option>
+          ${clientContacts.map((c,i)=>`<option value="${i}">${esc(c.nom)} — ${esc(c.tel)}</option>`).join('')}
+        </select></div>`:''}
       <div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
           <label class="lb" style="margin:0;flex:1">Message</label>
@@ -11674,6 +11690,7 @@ async function smsComposerOpen(opts){
 
   window._smsMode='now';
   window._smsContext=context;
+  window._smsClientContacts=clientContacts;
   smsSetMode('now');
 
   const cc=document.getElementById('sms-char-count');
@@ -11698,6 +11715,15 @@ async function smsComposerOpen(opts){
   document.getElementById('sms-send-btn').onclick=smsComposerSubmit;
 }
 window.smsComposerOpen=smsComposerOpen;
+window.smsInsertClientContact=function(sel){
+  const ta=document.getElementById('sms-body'); if(!ta) return;
+  const list=window._smsClientContacts||[];
+  const c=sel.value===''?null:list[+sel.value];
+  let body=ta.value.replace(/\n?Contact sur place : [^\n]*/g,'').replace(/\s+$/,'');
+  if(c) body+=(body?'\n':'')+'Contact sur place : '+c.nom+' — '+c.tel;
+  ta.value=body;
+  ta.dispatchEvent(new Event('input'));
+};
 
 function smsSetMode(mode){
   window._smsMode=mode;
