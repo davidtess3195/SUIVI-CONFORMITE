@@ -7922,7 +7922,7 @@ async function viewDocuments(c){
         Glissez-déposez ici vos documents (rapports, PV, plans, attestations…)</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
         <input id="ged_search" oninput="gedRenderList()" placeholder="Rechercher un document, un client, un ERP…" style="flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)">
-        <select id="ged_rub" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Toutes les rubriques</option><option value="Commission de sécurité">Commission de sécurité</option><option value="Bureau de contrôle">Bureau de contrôle</option><option value="Maintenance">Maintenance</option><option value="Compte rendu">Compte rendu</option><option value="Rapport">Rapport</option><option value="Devis">Devis</option><option value="Devis signé">Devis signé</option><option value="Facture">Facture</option><option value="Bon d'intervention">Bon d'intervention</option><option value="PV de réception">PV de réception</option><option value="Courrier mairie">Courrier mairie</option><option value="Mail">Mail</option><option value="Plans">Plans</option><option value="DOE">DOE</option><option value="Sécurité">Sécurité</option><option value="Autres">Autres</option></select>
+        <select id="ged_rub" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Toutes les rubriques</option><option value="Commission de sécurité">Commission de sécurité</option><option value="Bureau de contrôle">Bureau de contrôle</option><option value="Maintenance préventive">Maintenance préventive</option><option value="Maintenance corrective">Maintenance corrective</option><option value="Maintenance">Maintenance</option><option value="Compte rendu">Compte rendu</option><option value="Rapport">Rapport</option><option value="Devis">Devis</option><option value="Devis signé">Devis signé</option><option value="Facture">Facture</option><option value="Bon d'intervention">Bon d'intervention</option><option value="PV de réception">PV de réception</option><option value="Courrier mairie">Courrier mairie</option><option value="Mail">Mail</option><option value="Plans">Plans</option><option value="DOE">DOE</option><option value="Sécurité">Sécurité</option><option value="Autres">Autres</option></select>
         <select id="ged_prest" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Tous les prestataires</option>${(prestData||[]).map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select>
       </div>
       <div class="ged-grid">
@@ -8155,7 +8155,8 @@ async function previewDoc(path,name,bucket){
   } else {
     viewer=`<div style="padding:34px 20px;text-align:center;color:var(--muted)">Aperçu non disponible pour ce type de fichier.<br>Utilisez « Ouvrir dans un onglet » ou « Télécharger ».</div>`;
   }
-  const pj=esc(path).replace(/'/g,"\\'"); const nj=esc(name||'document').replace(/'/g,"\\'"); const bj=esc(bucket).replace(/'/g,"\\'");
+  const jsq=v=>esc(String(v==null?'':v).replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
+  const pj=jsq(path); const nj=jsq(name||'document'); const bj=jsq(bucket);
   openModal(`<div class="modal-head"><h2 style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:78%">${esc(name||'Document')}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
     <div class="modal-body" style="padding-top:8px">${viewer}</div>
     <div class="modal-foot" style="flex-wrap:wrap"><button class="btn ghost" onclick="closeModal()">Fermer</button>
@@ -8184,7 +8185,8 @@ async function previewRapport(path,name){
   } else {
     viewer=`<div style="padding:34px 20px;text-align:center;color:var(--muted)">Aperçu non disponible pour ce type de fichier.<br>Utilisez « Ouvrir dans un onglet » ou « Télécharger ».</div>`;
   }
-  const pj=esc(path).replace(/'/g,"\\'"); const nj=esc(name||'rapport').replace(/'/g,"\\'");
+  const jsq=v=>esc(String(v==null?'':v).replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
+  const pj=jsq(path); const nj=jsq(name||'rapport');
   openModal(`<div class="modal-head"><h2 style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:78%">${esc(name||'Rapport')}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
     <div class="modal-body" style="padding-top:8px">${viewer}</div>
     <div class="modal-foot" style="flex-wrap:wrap"><button class="btn ghost" onclick="closeModal()">Fermer</button>
@@ -8380,6 +8382,8 @@ function gedRenderList(){
     if(t==="bon d'intervention"||t==='bon intervention'||t.indexOf("bon d'intervention")>=0) return "Bon d'intervention";
     if(t==='pv commission') return 'Commission de sécurité';
     if(t==='rvat'||t.indexOf('contrôle')>=0||t.indexOf('controle')>=0||t.indexOf('vérif')>=0||t.indexOf('verif')>=0||t==='bureau de contrôle') return 'Bureau de contrôle';
+    if(t==='maintenance préventive'||t==='maintenance preventive') return 'Maintenance préventive';
+    if(t==='maintenance corrective') return 'Maintenance corrective';
     if(t.indexOf('maintenance')>=0) return 'Maintenance';
     if(t==='consignes de sécurité'||t==='consignes de securite'||t==='plan de prévention'||t==='plan de prevention'||t==='permis de feu') return 'Sécurité';
     if(t==='compte rendu') return 'Compte rendu';
@@ -8407,8 +8411,8 @@ function gedRenderList(){
     const docs=byClient[cid];
     const open = searching || window._gedOpen.has(cid);
     const byType={}; docs.forEach(d=>{ const t=d.type||'Autre'; (byType[t]=byType[t]||[]).push(d); });
-    const CAT_ORDER=['Commission de sécurité','Bureau de contrôle','Maintenance','Compte rendu','Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Courrier mairie','Mail','Plans','DOE','Sécurité','Autres'];
-    const CAT_ICON={'Commission de sécurité':'⚖️','Bureau de contrôle':'🔎','Maintenance':'🔧','Compte rendu':'📝','Rapport':'📋','Devis':'📝','Devis signé':'✍️','Facture':'🧾',"Bon d'intervention":'🛠️','PV de réception':'🤝','Courrier mairie':'🏛️','Mail':'📧','Plans':'🗺️','DOE':'📐','Sécurité':'🛟','Autres':'📄'};
+    const CAT_ORDER=['Commission de sécurité','Bureau de contrôle','Maintenance préventive','Maintenance corrective','Maintenance','Compte rendu','Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Courrier mairie','Mail','Plans','DOE','Sécurité','Autres'];
+    const CAT_ICON={'Commission de sécurité':'⚖️','Bureau de contrôle':'🔎','Maintenance préventive':'🗓️','Maintenance corrective':'🔧','Maintenance':'🔧','Compte rendu':'📝','Rapport':'📋','Devis':'📝','Devis signé':'✍️','Facture':'🧾',"Bon d'intervention":'🛠️','PV de réception':'🤝','Courrier mairie':'🏛️','Mail':'📧','Plans':'🗺️','DOE':'📐','Sécurité':'🛟','Autres':'📄'};
     const catOf=(type)=>{ const t=(type||'').toLowerCase();
       if(t==='devis signé'||t==='devis signe') return 'Devis signé';
       if(t==='devis') return 'Devis';
@@ -8416,6 +8420,8 @@ function gedRenderList(){
       if(t==="bon d'intervention"||t==='bon intervention'||t.indexOf("bon d'intervention")>=0) return "Bon d'intervention";
       if(t==='pv commission') return 'Commission de sécurité';
       if(t==='rvat'||t.indexOf('contrôle')>=0||t.indexOf('controle')>=0||t.indexOf('vérif')>=0||t.indexOf('verif')>=0||t==='bureau de contrôle') return 'Bureau de contrôle';
+      if(t==='maintenance préventive'||t==='maintenance preventive') return 'Maintenance préventive';
+      if(t==='maintenance corrective') return 'Maintenance corrective';
       if(t.indexOf('maintenance')>=0) return 'Maintenance';
       if(t==='consignes de sécurité'||t==='consignes de securite'||t==='plan de prévention'||t==='plan de prevention'||t==='permis de feu') return 'Sécurité';
       if(t==='compte rendu') return 'Compte rendu';
@@ -8436,8 +8442,9 @@ function gedRenderList(){
       const isRap=isEmail||!!(d.tags && d.tags.indexOf('source:rapports')>=0);
       const bk=isRap?'rapports':'documents';
       const dcat=(d.categorie||'rapport');
-      const nmJs=esc(d.nom_original||'doc').replace(/'/g,"\\'");
-      const pathJs=esc(d.fichier_path||'').replace(/'/g,"\\'");
+      const jsq=v=>esc(String(v==null?'':v).replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
+      const nmJs=jsq(d.nom_original||'doc');
+      const pathJs=jsq(d.fichier_path||'');
       return `<div style="border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--surface)">
         <div style="font-size:13px;font-weight:600;color:var(--ink);overflow-wrap:anywhere;word-break:break-word">${esc(d.nom_original||'Document')}${avisBadge(d.avis)}${dcat==='pv_reception'?(()=>{const s=(d.tags||'').indexOf('signe')>=0;const m=s?['PV signé ✓','#16a34a']:['Copie attente de signature','#d97706'];return `<span style="background:${m[1]};color:#fff;font-size:10px;font-weight:600;padding:1px 7px;border-radius:999px;margin-left:6px;white-space:nowrap">${m[0]}</span>`;})():''}${isRap&&dcat!=='pv_reception'?(()=>{const m=({rapport:['Rapport reçu','#0891b2'],devis:['Devis reçu','#d97706'],devis_signe:['Devis signé','#16a34a'],facture:['Facture reçue','#16a34a'],bon_intervention:["Bon d'intervention reçu",'#7c3aed'],mail:['Mail reçu','#0ea5e9'],autre:['Reçu','#64748b']})[dcat]||['Reçu','#0891b2'];return `<span style="background:${m[1]};color:#fff;font-size:10px;font-weight:600;padding:1px 7px;border-radius:999px;margin-left:6px;white-space:nowrap">${m[0]}</span>`;})():''}${(d.type && d.type.toLowerCase()!==catOf(d.type).toLowerCase())?`<span style="font-size:11px;color:var(--muted);margin-left:6px">${esc(d.type)}</span>`:''}</div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:7px">
