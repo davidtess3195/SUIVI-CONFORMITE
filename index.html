@@ -3413,14 +3413,27 @@ window.sendConformiteToPresta=async function(clientId){
   if(!alias){ try{ const {data}=await sb.from('clients').select('email_conformite,raison_sociale').eq('id',clientId).maybeSingle(); alias=data?.email_conformite; }catch(e){} }
   if(!alias){ toast("Pas d'adresse de réception pour ce client.",'err'); return; }
   let prests=[];
-  try{ const {data}=await sb.from('prestataires').select('id,nom,categorie,email_rapports').order('nom'); prests=data||[]; }catch(e){}
-  const opts=prests.map(p=>{ const email=prestContactInfo(p).email; return `<option value="${p.id}" data-mail="${esc(email||'')}">${esc(p.nom)}${p.categorie==='bureau_de_controle'?' (bureau de contrôle)':''}${email?'':' — sans email'}</option>`; }).join('');
+  try{ const {data}=await sb.from('prestataires').select('id,nom,categorie,email_rapports,contacts').order('nom'); prests=data||[]; }catch(e){}
+  const ROLE_LBL={charge_affaire:"Chargé d'affaire",planning:'Planning',sav:'Service après-vente',technicien_1:'Technicien 1',technicien_2:'Technicien 2',technicien_3:'Technicien 3'};
+  const allEmails=p=>{
+    const out=[]; const seen=new Set();
+    const add=(email,label)=>{ if(!email) return; const e=email.trim(); if(!e||seen.has(e.toLowerCase())) return; seen.add(e.toLowerCase()); out.push({email:e,label}); };
+    add(p.email_rapports,'Email rapports (enregistré)');
+    const ct=p.contacts||{};
+    Object.keys(ROLE_LBL).forEach(k=>{ if(ct[k]&&ct[k].email) add(ct[k].email, ROLE_LBL[k]+(ct[k].nom?' — '+ct[k].nom:'')); });
+    if(Array.isArray(ct.autres)) ct.autres.forEach(a=>{ if(a&&a.email) add(a.email, (a.intitule||'Autre')+(a.nom?' — '+a.nom:'')); });
+    return out;
+  };
+  window._cfPrestEmails={}; prests.forEach(p=>{ window._cfPrestEmails[p.id]=allEmails(p); });
+  const opts=prests.map(p=>{ const emails=window._cfPrestEmails[p.id]; return `<option value="${p.id}">${esc(p.nom)}${p.categorie==='bureau_de_controle'?' (bureau de contrôle)':''}${emails.length?'':' — sans email'}</option>`; }).join('');
   openModal(`<div class="modal-head"><h2>Communiquer l'adresse à un prestataire</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
     <div class="modal-body">
       <div class="fld"><label>Adresse de réception (de ${esc(cl.raison_sociale)})</label><div style="font-size:14px;font-weight:700;color:var(--primary);word-break:break-all">${esc(alias)}</div></div>
       <div class="fld"><label>Prestataire / bureau de contrôle <span class="req">*</span></label>
         <select id="cf_presta" onchange="cfPrestaPick()">${prests.length?'<option value="">— choisir —</option>'+opts:'<option value="">Aucun prestataire</option>'}</select></div>
-      <div class="fld"><label>Email du destinataire <span class="req">*</span></label><input id="cf_mail" type="email" placeholder="contact@prestataire.fr"></div>
+      <div class="fld" id="cf_mail_choice_wrap" style="display:none"><label>Adresse email <span class="req">*</span></label>
+        <div id="cf_mail_choice" style="display:flex;flex-wrap:wrap;gap:8px"></div></div>
+      <div class="fld"><label id="cf_mail_label">Email du destinataire <span class="req">*</span></label><input id="cf_mail" type="email" placeholder="contact@prestataire.fr"></div>
       <div class="fld"><label>Message</label><textarea id="cf_msg" rows="5" style="resize:vertical">Bonjour,
 
 Merci d'adresser désormais l'ensemble de vos rapports et comptes rendus concernant l'établissement « ${cl.raison_sociale} » à l'adresse suivante :
@@ -3448,8 +3461,32 @@ PREVA CONSEILS</textarea></div>
 };
 window.cfPrestaPick=function(){
   const sel=document.getElementById('cf_presta'); const mail=document.getElementById('cf_mail');
-  if(!sel||!mail) return; const opt=sel.options[sel.selectedIndex];
-  const m=opt?opt.getAttribute('data-mail'):''; if(m) mail.value=m;
+  const wrap=document.getElementById('cf_mail_choice_wrap'); const choice=document.getElementById('cf_mail_choice');
+  const lbl=document.getElementById('cf_mail_label');
+  if(!sel||!mail) return;
+  const emails=(window._cfPrestEmails||{})[sel.value]||[];
+  if(emails.length>1){
+    // Plusieurs adresses connues : on les propose toutes en puces (même style que le choix des contacts techniciens), l'utilisateur choisit lui-même.
+    const pill=(val,label,on)=>`<label style="display:inline-flex;align-items:center;gap:6px;border:1.5px solid ${on?'#2563eb':'var(--line)'};background:${on?'rgba(37,99,235,.07)':'var(--surface)'};border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;user-select:none">
+      <input type="radio" name="cf_mail_radio" value="${esc(val)}"${on?' checked':''} onchange="cfMailChoicePick(this)" style="accent-color:#2563eb;width:14px;height:14px">✉️ <b>${esc(label)}</b></label>`;
+    choice.innerHTML=emails.map((e,i)=>pill(e.email, e.label+' — '+e.email, i===0)).join('')+pill('__autre__','Autre adresse…',false);
+    wrap.style.display=''; mail.value=emails[0].email;
+    lbl.textContent='Email du destinataire (confirmer / ajuster)';
+  } else {
+    wrap.style.display='none'; choice.innerHTML='';
+    mail.value=emails.length?emails[0].email:'';
+    lbl.innerHTML='Email du destinataire <span class="req">*</span>';
+  }
+};
+window.cfMailChoicePick=function(radio){
+  const mail=document.getElementById('cf_mail');
+  document.querySelectorAll('#cf_mail_choice label').forEach(l=>{
+    const on=l.querySelector('input').checked;
+    l.style.borderColor=on?'#2563eb':'var(--line)'; l.style.background=on?'rgba(37,99,235,.07)':'var(--surface)';
+  });
+  if(!radio||!mail) return;
+  mail.value = radio.value==='__autre__' ? '' : radio.value;
+  if(radio.value==='__autre__') mail.focus();
 };
 window.clientDeleteModal=async function(clientId,clientNom){
   openModal(`<div class="modal-head"><h2>🗑 Supprimer — ${esc(clientNom)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
@@ -8232,18 +8269,18 @@ function formDoc(prefiles){
   openModal(`<div class="modal-head"><h2>Déposer ${files&&files.length>1?files.length+' documents':'un document'}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
   <div class="modal-body">
     <div class="row2">
-      <div class="fld"><label>Client <span class="req">*</span></label><select id="f_client" onchange="docFormErpOpts()"><option value="">— choisir —</option>${clientOpts}</select></div>
-      <div class="fld"><label>ERP <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel)</span></label><select id="f_erp"><option value="">— (optionnel) —</option></select></div>
+      <div class="fld"><label>Client <span class="req">*</span></label><select id="f_client" onchange="docFormErpOpts();docLotOpts()"><option value="">— choisir —</option>${clientOpts}</select></div>
+      <div class="fld"><label>ERP <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel)</span></label><select id="f_erp" onchange="docLotOpts()"><option value="">— (optionnel) —</option></select></div>
     </div>
     <div class="row2"><div class="fld"><label>Type</label><select id="f_type" onchange="docTypeChange()">${GED_TYPES.map(t=>`<option>${esc(t)}</option>`).join('')}</select></div>
-      <div class="fld"><label>Lot</label><input id="f_lot" placeholder="SSI, Électricité…"></div></div>
+      <div class="fld"><label>Lot</label><select id="f_lot_sel" onchange="docLotChange()"><option value="">— choisir —</option><option value="__autre__">✏️ Autre (préciser)…</option></select><input id="f_lot" placeholder="Préciser le lot (SSI, Électricité…)" style="margin-top:6px;display:none"></div></div>
     <div class="row2"><div class="fld"><label>Prestataire <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel)</span></label><select id="f_prest"><option value="">— (optionnel) —</option>${(window._gedPrest||[]).map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select></div>
       <div class="fld"><label>Date du document <span style="color:var(--muted-2);font-weight:400;font-size:11px">(date réelle, ex. date de la commission)</span></label><input id="f_date" type="date" value="${new Date().toISOString().slice(0,10)}"></div></div>
     <div class="fld" id="f_avis_zone" style="display:none"><label>Avis de la commission</label><select id="f_avis"><option value="">— non précisé —</option><option>Favorable</option><option>Favorable avec prescriptions</option><option>Défavorable</option><option>Avis différé</option></select></div>
     ${fileField}
   </div>
   <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">Déposer</button></div>`);
-  docFormErpOpts(preErp?preErp.id:''); docTypeChange();
+  docFormErpOpts(preErp?preErp.id:''); docTypeChange(); docLotOpts();
   // Suggestion automatique du prestataire à partir du nom du/des fichier(s) déposé(s)
   if(files&&files.length&&window._gedPrest&&window._gedPrest.length){
     const hay=files.map(f=>f.name).join(' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
@@ -8260,7 +8297,7 @@ function formDoc(prefiles){
     const type=$('#f_type').value;
     const date_document=$('#f_date')?.value||null;
     const avis=((type==='PV commission'||type==='RVAT') && $('#f_avis'))?($('#f_avis').value||null):null;
-    const lot=$('#f_lot').value||null;
+    const lotSelEl=$('#f_lot_sel'); const lot=(lotSelEl&&lotSelEl.value&&lotSelEl.value!=='__autre__')?lotSelEl.value:(($('#f_lot').value||'').trim()||null);
     const prestataire_id=$('#f_prest')?.value||null;
     try{
       let i=0;
@@ -8292,6 +8329,30 @@ window.docFormErpOpts=function(preErpId){
   const cid=$('#f_client')?.value; const sel=$('#f_erp'); if(!sel)return;
   const erps=state.erps.filter(e=>e.client_id===cid);
   sel.innerHTML=`<option value="">— (optionnel) —</option>`+erps.map(e=>`<option value="${e.id}"${e.id===preErpId?' selected':''}>${esc(e.nom)}</option>`).join('');
+};
+window.docLotChange=function(){
+  const sel=$('#f_lot_sel'), inp=$('#f_lot'); if(!sel||!inp)return;
+  if(sel.value==='__autre__'){ inp.style.display='block'; try{inp.focus();}catch(_){} }
+  else inp.style.display='none';
+};
+window.docLotOpts=async function(){
+  const sel=$('#f_lot_sel'); if(!sel)return;
+  const erpId=$('#f_erp')?.value||'';
+  const manual=sel.value==='__autre__' ? (($('#f_lot')?.value)||'') : '';
+  const cur=(sel.value && sel.value!=='__autre__')?sel.value:'';
+  let domaines=[];
+  if(erpId){
+    try{
+      const {data:od}=await sb.from('obligations').select('domaine,libelle').eq('erp_id',erpId).eq('statut','applicable').order('domaine');
+      domaines=[...new Set((od||[]).map(o=>o.domaine||o.libelle).filter(Boolean))];
+    }catch(_){ domaines=[]; }
+  }
+  sel.innerHTML='<option value="">— choisir —</option>'
+    +(domaines.length?'<optgroup label="📋 Plan de maintenance ERP">'+domaines.map(d=>`<option value="${esc(d)}"${d===cur?' selected':''}>${esc(d)}</option>`).join('')+'</optgroup>':'')
+    +'<option value="__autre__">✏️ Autre (préciser)…</option>';
+  if(cur&&!domaines.includes(cur)){ sel.value='__autre__'; const inp=$('#f_lot'); if(inp)inp.value=cur; }
+  else if(manual){ sel.value='__autre__'; const inp=$('#f_lot'); if(inp)inp.value=manual; }
+  docLotChange();
 };
 window.docTypeChange=function(){
   const t=$('#f_type')?.value; const z=document.getElementById('f_avis_zone');
@@ -8380,7 +8441,7 @@ function gedRenderList(){
       return `<div style="border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--surface)">
         <div style="font-size:13px;font-weight:600;color:var(--ink);overflow-wrap:anywhere;word-break:break-word">${esc(d.nom_original||'Document')}${avisBadge(d.avis)}${dcat==='pv_reception'?(()=>{const s=(d.tags||'').indexOf('signe')>=0;const m=s?['PV signé ✓','#16a34a']:['Copie attente de signature','#d97706'];return `<span style="background:${m[1]};color:#fff;font-size:10px;font-weight:600;padding:1px 7px;border-radius:999px;margin-left:6px;white-space:nowrap">${m[0]}</span>`;})():''}${isRap&&dcat!=='pv_reception'?(()=>{const m=({rapport:['Rapport reçu','#0891b2'],devis:['Devis reçu','#d97706'],devis_signe:['Devis signé','#16a34a'],facture:['Facture reçue','#16a34a'],bon_intervention:["Bon d'intervention reçu",'#7c3aed'],mail:['Mail reçu','#0ea5e9'],autre:['Reçu','#64748b']})[dcat]||['Reçu','#0891b2'];return `<span style="background:${m[1]};color:#fff;font-size:10px;font-weight:600;padding:1px 7px;border-radius:999px;margin-left:6px;white-space:nowrap">${m[0]}</span>`;})():''}${(d.type && d.type.toLowerCase()!==catOf(d.type).toLowerCase())?`<span style="font-size:11px;color:var(--muted);margin-left:6px">${esc(d.type)}</span>`:''}</div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:7px">
-          <span style="font-size:12px;color:var(--muted)">${d.erp_id?esc(erpName(d.erp_id)):(d.emetteur?esc(d.emetteur):'—')}${d.lot?' · '+esc(d.lot):''}</span>
+          <span style="font-size:12px;color:var(--muted)">${d.erp_id?esc(erpName(d.erp_id)):(d.emetteur?esc(d.emetteur):'—')}</span>${d.lot?`<span style="font-size:11px;font-weight:700;color:#1d4ed8;background:#e8eefe;border:1px solid #c7d7fe;border-radius:999px;padding:2px 9px;white-space:nowrap">${esc(d.lot)}</span>`:''}
           ${d.prestataire_id?`<span style="font-size:12px;color:var(--muted)">${esc(prestName(d.prestataire_id))}</span>`:''}
           ${d.source_devis_id?(()=>{const dv=(window._gedAllDocs||[]).find(x=>x.id===d.source_devis_id);return dv?`<span style="font-size:12px;color:var(--muted);cursor:pointer;text-decoration:underline dotted" title="Ouvrir le devis rattaché" onclick="event.stopPropagation();gedEditDoc('${dv.id}')">${esc((dv.nom_original||'Devis').replace(/\.[a-zA-Z0-9]+$/,'').slice(0,40))}</span>`:'';})():''}
           <span style="font-size:12px;color:var(--muted)">${fmtDate(docDate(d))}</span>
