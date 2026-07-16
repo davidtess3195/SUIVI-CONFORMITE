@@ -8441,7 +8441,7 @@ function gedRenderList(){
       return `<div style="border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--surface)">
         <div style="font-size:13px;font-weight:600;color:var(--ink);overflow-wrap:anywhere;word-break:break-word">${esc(d.nom_original||'Document')}${avisBadge(d.avis)}${dcat==='pv_reception'?(()=>{const s=(d.tags||'').indexOf('signe')>=0;const m=s?['PV signé ✓','#16a34a']:['Copie attente de signature','#d97706'];return `<span style="background:${m[1]};color:#fff;font-size:10px;font-weight:600;padding:1px 7px;border-radius:999px;margin-left:6px;white-space:nowrap">${m[0]}</span>`;})():''}${isRap&&dcat!=='pv_reception'?(()=>{const m=({rapport:['Rapport reçu','#0891b2'],devis:['Devis reçu','#d97706'],devis_signe:['Devis signé','#16a34a'],facture:['Facture reçue','#16a34a'],bon_intervention:["Bon d'intervention reçu",'#7c3aed'],mail:['Mail reçu','#0ea5e9'],autre:['Reçu','#64748b']})[dcat]||['Reçu','#0891b2'];return `<span style="background:${m[1]};color:#fff;font-size:10px;font-weight:600;padding:1px 7px;border-radius:999px;margin-left:6px;white-space:nowrap">${m[0]}</span>`;})():''}${(d.type && d.type.toLowerCase()!==catOf(d.type).toLowerCase())?`<span style="font-size:11px;color:var(--muted);margin-left:6px">${esc(d.type)}</span>`:''}</div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:7px">
-          <span style="font-size:12px;color:var(--muted)">${d.erp_id?esc(erpName(d.erp_id)):(d.emetteur?esc(d.emetteur):'—')}</span>${d.lot?`<span style="font-size:11px;font-weight:700;color:#1d4ed8;background:#e8eefe;border:1px solid #c7d7fe;border-radius:999px;padding:2px 9px;white-space:nowrap">${esc(d.lot)}</span>`:''}
+          <span style="font-size:12px;color:var(--muted)">${d.erp_id?esc(erpName(d.erp_id)):(d.emetteur?esc(d.emetteur):'—')}</span>${d.lot?`<span onclick="event.stopPropagation();gedEditDoc('${d.id}')" title="Cliquer pour modifier le lot" style="font-size:11px;font-weight:700;color:#1d4ed8;background:#e8eefe;border:1px solid #c7d7fe;border-radius:999px;padding:2px 9px;white-space:nowrap;cursor:pointer">${esc(d.lot)}</span>`:`<span onclick="event.stopPropagation();gedEditDoc('${d.id}')" title="Attribuer un lot" style="font-size:11px;font-weight:700;color:var(--muted);background:var(--surface-2);border:1px dashed var(--muted-2);border-radius:999px;padding:2px 9px;white-space:nowrap;cursor:pointer">+ Lot</span>`}
           ${d.prestataire_id?`<span style="font-size:12px;color:var(--muted)">${esc(prestName(d.prestataire_id))}</span>`:''}
           ${d.source_devis_id?(()=>{const dv=(window._gedAllDocs||[]).find(x=>x.id===d.source_devis_id);return dv?`<span style="font-size:12px;color:var(--muted);cursor:pointer;text-decoration:underline dotted" title="Ouvrir le devis rattaché" onclick="event.stopPropagation();gedEditDoc('${dv.id}')">${esc((dv.nom_original||'Devis').replace(/\.[a-zA-Z0-9]+$/,'').slice(0,40))}</span>`:'';})():''}
           <span style="font-size:12px;color:var(--muted)">${fmtDate(docDate(d))}</span>
@@ -11193,11 +11193,15 @@ function gedEditDoc(id){
       </div>
       <div class="row2">
         <div class="fld"><label>Type précis</label><select id="ged_edit_type">${typeOpts}</select></div>
-        <div class="fld"><label>Établissement / ERP</label><select id="ged_edit_erp">${erpOpts}</select></div>
+        <div class="fld"><label>Établissement / ERP</label><select id="ged_edit_erp" onchange="gedEditLotOpts()">${erpOpts}</select></div>
       </div>
       <div class="row2">
         <div class="fld"><label>Prestataire</label><select id="ged_edit_prest">${prestOpts}</select></div>
         <div class="fld"><label>Date du document</label><input id="ged_edit_date" type="date" value="${d.date_document||''}"></div>
+      </div>
+      <div class="row2">
+        <div class="fld"><label>Lot</label><select id="ged_edit_lot_sel" onchange="gedEditLotChange()"><option value="">— aucun —</option><option value="__autre__">✏️ Autre (préciser)…</option></select><input id="ged_edit_lot" placeholder="Préciser le lot (SSI, Électricité…)" style="margin-top:6px;display:none"></div>
+        <div class="fld"></div>
       </div>
       ${d.email_corps?`<details style="border:1px solid var(--line);border-radius:10px;background:var(--surface-2);overflow:hidden">
         <summary style="padding:10px 12px;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink);user-select:none">📧 Message d'origine${d.email_date?` — ${fmtDate(d.email_date)}`:''}</summary>
@@ -11211,6 +11215,7 @@ function gedEditDoc(id){
     <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
       <button class="btn primary" id="ged_edit_save">Enregistrer</button></div>`);
 
+  gedEditLotOpts(d.lot||'');
   document.getElementById('ged_edit_save').onclick=async()=>{
     const btn=document.getElementById('ged_edit_save'); btn.disabled=true; btn.textContent='Enregistrement…';
     const newBase=(document.getElementById('ged_edit_name').value||'').trim();
@@ -11225,6 +11230,7 @@ function gedEditDoc(id){
         erp_id:document.getElementById('ged_edit_erp').value||null,
         prestataire_id:document.getElementById('ged_edit_prest').value||null,
         date_document:document.getElementById('ged_edit_date').value||null,
+        lot:(()=>{const s=document.getElementById('ged_edit_lot_sel');const v=s?s.value:'';return (v&&v!=='__autre__')?(v||null):(((document.getElementById('ged_edit_lot')||{}).value||'').trim()||null);})(),
         statut:'classe'
       }).eq('id',id);
       if(error) throw error;
@@ -11234,6 +11240,33 @@ function gedEditDoc(id){
   };
 }
 window.gedEditDoc=gedEditDoc;
+window.gedEditLotChange=function(){
+  const sel=document.getElementById('ged_edit_lot_sel'), inp=document.getElementById('ged_edit_lot');
+  if(!sel||!inp)return;
+  if(sel.value==='__autre__'){ inp.style.display='block'; try{inp.focus();}catch(_){} }
+  else inp.style.display='none';
+};
+window.gedEditLotOpts=async function(cur){
+  const sel=document.getElementById('ged_edit_lot_sel'); if(!sel)return;
+  if(cur===undefined){
+    cur=(sel.value&&sel.value!=='__autre__')?sel.value:((document.getElementById('ged_edit_lot')||{}).value||'');
+  }
+  cur=cur||'';
+  const erpId=(document.getElementById('ged_edit_erp')||{}).value||'';
+  let domaines=[];
+  if(erpId){
+    try{
+      const {data:od}=await sb.from('obligations').select('domaine,libelle').eq('erp_id',erpId).eq('statut','applicable').order('domaine');
+      domaines=[...new Set((od||[]).map(o=>o.domaine||o.libelle).filter(Boolean))];
+    }catch(_){ domaines=[]; }
+  }
+  sel.innerHTML='<option value="">— aucun —</option>'
+    +(domaines.length?'<optgroup label="📋 Plan de maintenance ERP">'+domaines.map(d=>`<option value="${esc(d)}"${d===cur?' selected':''}>${esc(d)}</option>`).join('')+'</optgroup>':'')
+    +'<option value="__autre__">✏️ Autre (préciser)…</option>';
+  const inp=document.getElementById('ged_edit_lot');
+  if(cur&&!domaines.includes(cur)){ sel.value='__autre__'; if(inp)inp.value=cur; }
+  gedEditLotChange();
+};
 window.delDoc=async function(id){
   const d=(window._gedAllDocs||[]).find(x=>x.id===id); if(!d) return;
   if(!confirm('Supprimer définitivement « '+(d.nom_original||'ce document')+' » ?\nCette action est irréversible.')) return;
