@@ -994,6 +994,19 @@ function _demoBlocked(){
   return b;
 }
 function _setupDemoProxy(){
+  // Bloquer les appels aux fonctions Edge (SMS, e-mails, PV…) en mode démo
+  if(!window._demoFetchWrapped){
+    window._demoFetchWrapped=true;
+    const _origFetch=window.fetch.bind(window);
+    window.fetch=function(url,opts){
+      const u=(typeof url==='string')?url:(url&&url.url)||'';
+      if(state.demo && u.includes('/functions/v1/')){
+        _demoBlocked();
+        return Promise.resolve(new Response(JSON.stringify({error:'Mode démonstration — action non disponible'}),{status:403,headers:{'Content-Type':'application/json'}}));
+      }
+      return _origFetch(url,opts);
+    };
+  }
   const _origFrom=sb.from.bind(sb);
   sb.from=function(table){
     if(!state.demo) return _origFrom(table);
@@ -1045,6 +1058,15 @@ async function boot(){
     });
     return;
   }
+  if(hashNow.startsWith('/levees/')){
+    loadCfg(); initSb();
+    renderLeveesPublic(decodeURIComponent(hashNow.split('/')[2]||''));
+    window.addEventListener('hashchange',()=>{
+      const h=location.hash.replace(/^#/,'')||'/';
+      if(h.startsWith('/levees/')) renderLeveesPublic(h.split('/')[2]);
+    });
+    return;
+  }
   if(!loadCfg() || !initSb()){ renderConfig(); return; }
   const { data } = await sb.auth.getSession();
   if(data.session){ state.user=data.session.user; await afterLogin(); }
@@ -1059,6 +1081,14 @@ async function afterLogin(){
   try{
     const { data:prof } = await sb.from('profiles').select('*').eq('id',state.user.id).single();
     state.profile = prof || {nom:state.user.email,role:'consultant',email:state.user.email};
+    // DEMO MODE — bloquer si l'accès démo est expiré
+    if(state.profile?.is_demo && state.profile?.demo_expires_at && new Date(state.profile.demo_expires_at) < new Date()){
+      await sb.auth.signOut();
+      state.user=null; state.profile=null;
+      renderAuth('login');
+      setTimeout(()=>toast('Accès démonstration expiré — contactez PREVA CONSEILS pour prolonger','err'),300);
+      return;
+    }
     // DEMO MODE — activer si is_demo=true sur le profil
     if(state.profile?.is_demo){
       state.demo=true;
@@ -1089,6 +1119,7 @@ function renderRoute(){
   const hash = location.hash.replace(/^#/,'')||'/';
   // Route publique QR
   if(hash.startsWith('/qr/')){ renderQrPublic(hash.split('/')[2]); return; }
+  if(hash.startsWith('/levees/')){ renderLeveesPublic(hash.split('/')[2]); return; }
   // Route publique confirmation CS
   if(hash.startsWith('/cs-confirm')){ renderCsConfirm(); return; }
   // Route admin dédiée
@@ -1154,7 +1185,7 @@ function renderConfig(){
 ===================================================================== */
 function renderAuth(mode){
   // Route publique QR : ne jamais écraser la page rapports par l'écran de connexion (course au chargement)
-  if(((location.hash||'').replace('#','')).startsWith('/qr/')){ try{ renderRoute(); }catch(_){} return; }
+  if(/^\/(qr|levees)\//.test((location.hash||'').replace('#',''))){ try{ renderRoute(); }catch(_){} return; }
   const forms = {
     login:`<div style="width:100%;border-radius:12px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,.14);border:1px solid #e2e8f0;margin-bottom:20px"><svg viewBox="0 0 420 264" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:auto">
           <rect width="420" height="264" fill="#f4f6fa"/>
@@ -1750,7 +1781,7 @@ async function viewAdmin(c){
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
           <h2 style="font-size:16px;margin:0">Utilisateurs (${users?.length||0})</h2>
           <button class="btn sm primary" onclick="openUserWizard()">✨ Programmer un utilisateur</button>
-          <button class="btn sm" onclick="formCreateDemo()" style="background:#f59e0b;color:#fff;border:none">🎭 Créer accès démo</button>
+          <button class="btn sm" onclick="formCreateDemo()" style="background:#f59e0b;color:#fff;border:none">Créer accès démo</button>
         </div>
         <div style="display:flex;flex-direction:column;gap:8px">
           ${(users||[]).map((u)=>`<div style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:9px;background:var(--surface-2)">
@@ -1762,7 +1793,8 @@ async function viewAdmin(c){
               <div style="font-size:11.5px;color:var(--muted)">${esc(u.email)}</div>
             </div>
             <div style="display:flex;gap:6px;align-items:center">
-              ${u.is_demo?`<span class="pill moy" style="background:#fef3c7;color:#92400e">🎭 Démo</span>`:''}
+              ${u.is_demo?`<span class="pill moy" style="background:#fef3c7;color:#92400e">Démo${u.demo_expires_at?` · ${new Date(u.demo_expires_at)<new Date()?'expirée':'exp. '+new Date(u.demo_expires_at).toLocaleDateString('fr-FR')}`:' · illimitée'}</span>
+              <button class="btn sm" title="Gérer l'expiration de la démo" onclick="formDemoExpiry('${u.id}','${esc(u.email)}','${u.demo_expires_at||''}')">Expiration</button>`:''}
               ${statusPill(u.role,{admin:['','Admin','crit'],consultant:['','Consultant','int'],exploitant:['','Exploitant','ok'],prestataire:['','Prestataire','moy'],lecture:['','Lecture','inf']})}
               ${statusPill(u.statut,{actif:['','Actif','ok'],suspendu:['','Suspendu','moy'],desactive:['','Désactivé','inf']})}
               <button class="btn sm" onclick="formEditUser('${u.id}','${esc(u.nom||'')}','${u.role}','${u.statut}')">✏️</button>
@@ -2161,7 +2193,7 @@ window.formEditUser=formEditUser;
    ===================================================================== */
 function formCreateDemo(){
   openModal(`
-    <div class="modal-head"><h3>🎭 Créer un accès démonstration</h3></div>
+    <div class="modal-head"><h3>Créer un accès démonstration</h3></div>
     <div class="modal-body" style="padding:20px">
       <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px 14px;font-size:13px;color:#92400e;margin-bottom:18px;line-height:1.5">
         Ce compte aura accès à une version démo de l'application avec des données fictives réalistes.<br>
@@ -2176,10 +2208,18 @@ function formCreateDemo(){
       <div class="fld"><label>Nom affiché (optionnel)</label>
         <input id="demo_nom" placeholder="Ex: Prospect Dupont" autocomplete="off">
       </div>
+      <div class="fld"><label>Durée de validité</label>
+        <select id="demo_duree">
+          <option value="7" selected>7 jours</option>
+          <option value="14">14 jours</option>
+          <option value="30">30 jours</option>
+          <option value="">Illimité</option>
+        </select>
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Annuler</button>
-      <button class="btn primary" onclick="doCreateDemo()" style="background:#f59e0b;border-color:#f59e0b">🎭 Créer le compte démo</button>
+      <button class="btn primary" onclick="doCreateDemo()" style="background:#f59e0b;border-color:#f59e0b">Créer le compte démo</button>
     </div>
   `);
 }
@@ -2189,18 +2229,30 @@ async function doCreateDemo(){
   const email=(document.getElementById('demo_email')?.value||'').trim();
   const pass=document.getElementById('demo_pass')?.value||'';
   const nom=(document.getElementById('demo_nom')?.value||'').trim()||'Compte Démonstration';
+  const duree_jours=document.getElementById('demo_duree')?.value||'';
   if(!email||pass.length<8){ toast('Email et mot de passe (8 car. min) requis','err'); return; }
   const btn=document.querySelector('#overlay .modal .btn.primary, .modal .btn.primary');
   if(btn){ btn.disabled=true; btn.textContent='Création…'; }
   try{
     // Utiliser l'Edge Function avec service role (bypass confirmation email)
-    const {data:{session}}=await sb.auth.getSession();
-    const token=session?.access_token;
-    const res=await fetch(`https://twjvloctrjqcokuuxghc.supabase.co/functions/v1/create-demo-user`,{
+    // Session fraîche obligatoire : après une déconnexion/reconnexion, le jeton en mémoire
+    // peut appartenir à une session révoquée (erreur 401 côté serveur).
+    const callFn=async(token)=>fetch(`https://twjvloctrjqcokuuxghc.supabase.co/functions/v1/create-demo-user`,{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-      body:JSON.stringify({email,password:pass,nom})
+      body:JSON.stringify({email,password:pass,nom,duree_jours})
     });
+    let {data:{session}}=await sb.auth.getSession();
+    if(!session){ const r=await sb.auth.refreshSession(); session=r?.data?.session; }
+    if(!session) throw new Error('Session expirée — déconnectez-vous puis reconnectez-vous.');
+    let res=await callFn(session.access_token);
+    if(res.status===401){
+      // Jeton périmé ou session révoquée : on rafraîchit et on retente une fois
+      const r=await sb.auth.refreshSession();
+      const s2=r?.data?.session;
+      if(s2) res=await callFn(s2.access_token);
+    }
+    if(res.status===401) throw new Error('Session invalide — rechargez la page (F5) puis reconnectez-vous.');
     const result=await res.json();
     if(!res.ok||result.error) throw new Error(result.error||'Erreur serveur');
     _modalDirty=false;
@@ -2210,10 +2262,49 @@ async function doCreateDemo(){
     viewAdmin(document.getElementById('content'));
   }catch(e){
     toast(e.message,'err');
-    if(btn){ btn.disabled=false; btn.textContent='🎭 Créer le compte démo'; }
+    if(btn){ btn.disabled=false; btn.textContent='Créer le compte démo'; }
   }
 }
 window.doCreateDemo=doCreateDemo;
+
+function formDemoExpiry(id,email,current){
+  const cur = current ? new Date(current) : null;
+  const expired = cur && cur < new Date();
+  openModal(`
+    <div class="modal-head"><h3>Expiration de l'accès démo</h3></div>
+    <div class="modal-body" style="padding:20px">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:14px">Compte : <b>${esc(email)}</b></div>
+      <div style="background:${expired?'#fee2e2':'#f0f9ff'};border:1px solid ${expired?'#fca5a5':'#bae6fd'};border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:18px">
+        ${cur ? (expired?`Démo <b>expirée</b> depuis le ${cur.toLocaleDateString('fr-FR')} — connexion bloquée.`:`Valide jusqu'au <b>${cur.toLocaleDateString('fr-FR')} ${cur.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</b>.`) : `Durée <b>illimitée</b> actuellement.`}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button class="btn" onclick="doDemoExpiry('${id}',7)">Prolonger 7 jours</button>
+        <button class="btn" onclick="doDemoExpiry('${id}',14)">Prolonger 14 jours</button>
+        <button class="btn" onclick="doDemoExpiry('${id}',30)">Prolonger 30 jours</button>
+        <button class="btn" onclick="doDemoExpiry('${id}','illimite')">Rendre illimitée</button>
+      </div>
+      <button class="btn" style="width:100%;margin-top:10px;background:#dc2626;color:#fff;border:none" onclick="doDemoExpiry('${id}','bloquer')">Bloquer immédiatement</button>
+    </div>
+    <div class="modal-actions"><button class="btn" onclick="closeModal()">Fermer</button></div>
+  `);
+}
+window.formDemoExpiry=formDemoExpiry;
+
+async function doDemoExpiry(id,action){
+  let val, lib;
+  if(action==='bloquer'){ val=new Date().toISOString(); lib='bloquée immédiatement'; }
+  else if(action==='illimite'){ val=null; lib='rendue illimitée'; }
+  else { val=new Date(Date.now()+action*24*3600*1000).toISOString(); lib=`prolongée de ${action} jours`; }
+  try{
+    const {error}=await sb.from('profiles').update({demo_expires_at:val}).eq('id',id);
+    if(error) throw error;
+    await sb.from('audit_log').insert({user_id:state.user?.id,user_label:state.profile?.nom||'Admin',action:'demo_expiry_updated',entite:'profiles',entite_id:id,details:{action:String(action),expires_at:val}});
+    _modalDirty=false; closeModal();
+    toast(`Démo ${lib}`,'ok');
+    viewAdmin(document.getElementById('content'));
+  }catch(e){ toast(e.message,'err'); }
+}
+window.doDemoExpiry=doDemoExpiry;
 
 
 
@@ -2578,7 +2669,7 @@ const NI={
  keyl:NICON('<rect x="3" y="10" width="18" height="11" rx="2"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/><path d="M12 15v2"/>'),
  gear:NICON('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/>'),
 };
-const NAV = [
+function getNAV(){ return [
   {link:['/','Tableau de bord',NI.dash]},
   {sec:'etab',   titre:'Établissement',          ic:NI.etab,      items:[['/clients','Clients',NI.clients],['/erps','ERP',NI.erp],['/plan-maintenance','Plan de maintenance',NI.plan]]},
   {sec:'sitdeg', titre:'Situation dégradée',     ic:NI.alert,     items:[['/photos','Photos et vidéos',NI.cam],['/compte-rendu','Compte rendu',NI.cr]]},
@@ -2587,17 +2678,18 @@ const NAV = [
   {sec:'ged',    titre:'Gestion documentaire',   ic:NI.folderO,   items:[['/documents','Documents (GED)',NI.folder],['/rapports','Rapports reçus',NI.inbox],['/contrats','Contrats de maintenance',NI.contrat]]},
   {link:['/preparation-cs','Commission de sécurité',NI.landmark]},
   {sec:'admin',  titre:'Administration',         ic:NI.gear,      items: state.profile?.role==='admin' ? [['/admin','Tableau de bord admin',NI.gauge],['/parametres','Paramètres & email',NI.gear]] : [['/parametres','Paramètres & email',NI.gear]]},
-];
+];}
 const NAV_BADGES={'/photos':'badge-photos','/rapports':'badge-rapports','/verifications':'badge-verif','/pointage':'badge-pointage'};
 function navLink(it){ const p=it[0],l=it[1],ic=it[2];
   const b=NAV_BADGES[p]?`<span class="badge" id="${NAV_BADGES[p]}" style="display:none">0</span>`:'';
   return `<a href="#${p}" data-base="${p}">${ic}<span>${l}</span>${b}</a>`; }
 
 function renderApp(){
+  const NAV = getNAV();
   const initials=(state.profile?.nom||'?').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase();
   $('#root').innerHTML=`<div id="app">
     ${state.demo?`<div id="demo-banner" style="position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,#f59e0b,#d97706);color:#fff;text-align:center;font-size:13px;font-weight:600;padding:7px 16px;letter-spacing:.02em;box-shadow:0 2px 8px rgba(0,0,0,.15)">
-      🎭 MODE DÉMONSTRATION — Données fictives · Lecture seule · <span style="font-weight:400;opacity:.9">Votre version complète sera configurée sur mesure</span>
+      MODE DÉMONSTRATION — Données fictives · Lecture seule · <span style="font-weight:400;opacity:.9">Votre version complète sera configurée sur mesure</span>
     </div>`:''}
     <aside class="sidebar" id="sidebar" style="${state.demo?'top:38px;height:calc(100vh - 38px)':''}">
       <div style="height:14px"></div>
@@ -9497,11 +9589,13 @@ window.trvJumpToClient=function(cid){
 // ── Détail d'un tableau
 window.trvDetail=async function(id){
   try{
-    const [{data:t},{data:rows}]=await Promise.all([
+    const [{data:t},{data:rows},{data:_prests}]=await Promise.all([
       sb.from('tableaux_reserves').select('*').eq('id',id).maybeSingle(),
-      sb.from('reserves').select('*').eq('tableau_id',id).order('numero')
+      sb.from('reserves').select('*').eq('tableau_id',id).order('numero'),
+      sb.from('prestataires').select('id,nom').order('nom')
     ]);
     if(!t) return;
+    const pNm=x=>{const p=(_prests||[]).find(q=>q.id===x);return p?p.nom:'';};
     let doc=null;
     if(t.rapport_document_id){
       try{ const {data:d}=await sb.from('documents').select('id,nom_original,type,fichier_path,tags,date_document').eq('id',t.rapport_document_id).maybeSingle(); doc=d||null; }catch(_){}
@@ -9532,7 +9626,7 @@ window.trvDetail=async function(id){
             <button title="Modifier (réservé à vous)" onclick="trvEditRes('${esc(r.id)}','${esc(t.id)}')" style="background:none;border:1px solid var(--line);border-radius:6px;cursor:pointer;padding:2px 8px;font-size:11px">✏</button>
           </div>
           <div style="font-size:12.5px">${esc(r.libelle||'')}</div>
-          <div style="font-size:10.5px;color:var(--muted);margin-top:4px">${esc(r.code_obs||'')} · 1er signalement : ${r.date_premier_signalement?new Date(r.date_premier_signalement+'T00:00:00').toLocaleDateString('fr-FR'):'—'} · ${esc(r.article_ref||'')}${r.signature_nom?' · signé par '+esc(r.signature_nom):''}</div>
+          <div style="font-size:10.5px;color:var(--muted);margin-top:4px">${esc(r.code_obs||'')} · 1er signalement : ${r.date_premier_signalement?new Date(r.date_premier_signalement+'T00:00:00').toLocaleDateString('fr-FR'):'—'} · ${esc(r.article_ref||'')}${r.prestataire_id?' · <b style="color:#1a44ad">'+esc(pNm(r.prestataire_id))+'</b>':' · <span style="color:#d97706;font-weight:700">à affecter</span>'}${r.date_limite?' · échéance '+new Date(r.date_limite+'T00:00:00').toLocaleDateString('fr-FR'):''}${r.signature_nom?' · signé par '+esc(r.signature_nom):''}</div>
         </div>`).join('')}
         <button class="btn sm" style="align-self:flex-start" onclick="trvAddRes('${esc(t.id)}','${esc(t.erp_id)}',${rows.length?Math.max.apply(null,rows.map(x=>x.numero||0)):0})">＋ Ajouter une observation</button>
       </div>
@@ -9541,6 +9635,7 @@ window.trvDetail=async function(id){
         ?`<button class="btn" style="color:#dc2626;border-color:rgba(220,38,38,.4)" onclick="trvSupprimerTab('${esc(t.id)}','${esc(t.rapport_document_id||'')}')">Supprimer (fausse détection)</button>
           <button class="btn primary" onclick="trvValiderTab('${esc(t.id)}')">✓ Valider le tableau</button>`
         :`<button class="btn" onclick="closeModal()">Fermer</button>
+        <button class="btn" style="border-color:rgba(26,68,173,.45);color:#1a44ad" onclick="trvAffect('${esc(t.id)}')">Répartir aux prestataires…</button>
         <button class="btn" onclick="trvPdf('${esc(t.id)}')">📄 PDF récapitulatif</button>
         <button class="btn" onclick="trvSmsModal('${esc(t.id)}')">📱 Envoyer par SMS…</button>
         <button class="btn primary" onclick="trvSendCur()">✍ Envoyer au technicien…</button>`}</div>`);
@@ -10586,6 +10681,325 @@ window.qrSignSubmit=async function(rid){
     qrTablRender(window.__qrTabl);
     toast(p.etat==='levee'?'Levée signée ✓':'Levée partielle signée','ok');
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='✍ Valider la signature'; }
+};
+
+/* ═══ RÉPARTITION DES RÉSERVES PAR PRESTATAIRE + NOTIFICATION (levées signées) ═══ */
+function _levToken(){const a=new Uint8Array(24);crypto.getRandomValues(a);return Array.from(a,b=>b.toString(16).padStart(2,'0')).join('');}
+function _levSuggest(libelle,prests){
+  const groupes=[['désenfum','desenfum'],['baes','éclairage de sécurité','eclairage de securite','bloc'],['électr','electr','prise','armoire'],['extincteur','ria','colonne sèche','colonne seche'],['ssi','alarme','détect','detect','déclencheur','declencheur'],['gaz','chauffer','chaudière','chaudiere'],['ascenseur','monte-'],['porte coupe-feu','coupe-feu','coupe feu','ferme-porte'],['cuisine','hotte','extraction']];
+  const l=(libelle||'').toLowerCase();
+  for(const g of groupes){
+    if(g.some(k=>l.includes(k))){
+      const p=(prests||[]).find(p=>{const t=((p.nom||'')+' '+(p.domaines||'')+' '+(p.categorie||'')).toLowerCase();return g.some(k=>t.includes(k));});
+      if(p) return p.id;
+    }
+  }
+  return '';
+}
+window.trvAffect=async function(tabId){
+  closeModal();
+  try{
+    const [{data:t},{data:rows},{data:prests}]=await Promise.all([
+      sb.from('tableaux_reserves').select('*').eq('id',tabId).maybeSingle(),
+      sb.from('reserves').select('id,numero,libelle,localisation,prestataire_id,date_limite,etat_levee').eq('tableau_id',tabId).order('numero'),
+      sb.from('prestataires').select('id,nom,categorie,domaines,email_rapports,telephone,contacts').eq('statut','actif').order('nom')
+    ]);
+    if(!t){toast('Tableau introuvable','err');return;}
+    window._affPrests=prests||[]; window._affRows=(rows||[]).map(r=>r.id);
+    window._affOrig={}; (rows||[]).forEach(r=>{window._affOrig[r.id]={p:r.prestataire_id||'',d:r.date_limite||''};});
+    const opts=sel=>'<option value="">— Prestataire —</option>'+(prests||[]).map(p=>`<option value="${p.id}"${sel===p.id?' selected':''}>${esc(p.nom)}</option>`).join('');
+    openModal(`<div class="modal-head"><h2>Répartir les réserves aux prestataires</h2><button class="x" onclick="trvDetail('${esc(tabId)}')">${I.x}</button></div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+        <div style="background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.25);border-radius:10px;padding:9px 12px;font-size:12.5px">
+          Affecte chaque observation au prestataire chargé des travaux, avec une date cible. Les lignes sans prestataire sont pré-remplies par suggestion (corps de métier détecté) — vérifie avant d'enregistrer.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:8px 10px">
+          <span style="font-size:12px;font-weight:700">Sélection :</span>
+          <select id="affb_p" style="flex:1;min-width:160px">${opts('')}</select>
+          <input id="affb_d" type="date" style="width:140px">
+          <button class="btn sm" onclick="trvAffBulk()">Appliquer aux lignes cochées</button>
+          <button class="btn sm" onclick="document.querySelectorAll('.affck').forEach(c=>c.checked=true)">Tout cocher</button>
+        </div>
+        ${(rows||[]).map(r=>{
+          const sug=!r.prestataire_id?_levSuggest(r.libelle,prests):'';
+          return `<div style="border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;gap:9px;align-items:center;flex-wrap:wrap${r.etat_levee==='levee'?';opacity:.55':''}">
+            <input type="checkbox" class="affck" data-rid="${esc(r.id)}" style="width:15px;height:15px;accent-color:#1a44ad;flex:0 0 auto">
+            <b style="font-size:12px;flex:0 0 auto">N°${r.numero||'—'}</b>
+            <span style="flex:1 1 220px;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.libelle||'')}">${esc((r.libelle||'').slice(0,110))}</span>
+            <select id="aff_p_${esc(r.id)}" style="flex:0 1 190px;min-width:150px;font-size:12px${sug?';border-color:#d97706;background:rgba(217,119,6,.05)':''}" title="${sug?'Suggestion automatique — à vérifier':''}">${opts(r.prestataire_id||sug)}</select>
+            <input id="aff_d_${esc(r.id)}" type="date" value="${esc(r.date_limite||'')}" style="flex:0 0 132px;font-size:12px">
+          </div>`;}).join('')}
+      </div>
+      <div class="modal-foot">
+        <button class="btn" onclick="trvDetail('${esc(tabId)}')">Annuler</button>
+        <button class="btn" onclick="trvAffSave('${esc(tabId)}',false)">Enregistrer</button>
+        <button class="btn primary" onclick="trvAffSave('${esc(tabId)}',true)">Enregistrer et notifier…</button></div>`);
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+window.trvAffBulk=function(){
+  const p=document.getElementById('affb_p').value, d=document.getElementById('affb_d').value;
+  document.querySelectorAll('.affck:checked').forEach(c=>{
+    const rid=c.dataset.rid;
+    if(p){const s=document.getElementById('aff_p_'+rid); if(s){s.value=p; s.style.borderColor=''; s.style.background='';}}
+    if(d){const i=document.getElementById('aff_d_'+rid); if(i) i.value=d;}
+  });
+};
+window.trvAffSave=async function(tabId,thenNotify){
+  try{
+    let n=0;
+    for(const rid of (window._affRows||[])){
+      const s=document.getElementById('aff_p_'+rid), i=document.getElementById('aff_d_'+rid);
+      if(!s||!i) continue;
+      const p=s.value||null, d=i.value||null, o=window._affOrig[rid]||{};
+      if((p||'')!==(o.p||'')||(d||'')!==(o.d||'')){
+        const {error}=await sb.from('reserves').update({prestataire_id:p,date_limite:d}).eq('id',rid);
+        if(error) throw error; n++;
+      }
+    }
+    toast(n?n+' affectation(s) enregistrée(s)':'Aucune modification','ok');
+    if(thenNotify) trvNotifPrest(tabId); else trvDetail(tabId);
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+window.trvNotifPrest=async function(tabId){
+  closeModal();
+  try{
+    const [{data:t},{data:rows}]=await Promise.all([
+      sb.from('tableaux_reserves').select('*').eq('id',tabId).maybeSingle(),
+      sb.from('reserves').select('id,numero,libelle,prestataire_id,date_limite,etat_levee').eq('tableau_id',tabId).not('prestataire_id','is',null)
+    ]);
+    const prests=window._affPrests&&window._affPrests.length?window._affPrests:((await sb.from('prestataires').select('id,nom,email_rapports,telephone,contacts')).data||[]);
+    const erp=(state.erps||[]).find(x=>x.id===t.erp_id)||{};
+    const grp={};
+    (rows||[]).forEach(r=>{ if(r.etat_levee==='levee') return; (grp[r.prestataire_id]=grp[r.prestataire_id]||[]).push(r); });
+    const pids=Object.keys(grp);
+    if(!pids.length){toast('Aucune réserve affectée à notifier','err');trvDetail(tabId);return;}
+    window._npGrp=grp; window._npTab=t;
+    openModal(`<div class="modal-head"><h2>Notifier les prestataires</h2><button class="x" onclick="trvDetail('${esc(tabId)}')">${I.x}</button></div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+        <div style="background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.25);border-radius:10px;padding:9px 12px;font-size:12.5px">
+          Chaque prestataire recevra un <b>lien personnel</b> ne montrant que <b>ses</b> réserves, où il joint ses justificatifs et <b>signe chaque levée</b>. Tout se rassemble ensuite dans ce tableau.</div>
+        <div id="np_form" style="display:flex;flex-direction:column;gap:10px">
+        <div class="fld" style="margin:0;max-width:220px"><label>Validité des liens</label>
+          <select id="np_val"><option value="168">7 jours</option><option value="336">14 jours</option><option value="720" selected>30 jours</option><option value="2160">90 jours</option></select></div>
+        ${pids.map(pid=>{
+          const p=prests.find(x=>x.id===pid)||{nom:'?'};
+          let email=p.email_rapports||''; let mob=p.telephone||'';
+          try{const cs=Array.isArray(p.contacts)?p.contacts:[]; if(!email){const c=cs.find(c=>c.email); if(c) email=c.email;} if(!mob){const c=cs.find(c=>c.mobile||c.telephone); if(c) mob=c.mobile||c.telephone;}}catch(_){}
+          return `<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:7px">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="font-size:13px">${esc(p.nom)}</b>
+              <span style="font-size:11.5px;color:var(--muted)">${grp[pid].length} réserve(s) : ${grp[pid].map(r=>'N°'+(r.numero||'?')).join(', ')}</span></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <label style="flex:1;min-width:200px;font-size:11px;color:var(--muted);font-weight:700">E-mail<br><input id="np_e_${esc(pid)}" value="${esc(email)}" placeholder="email du prestataire" style="width:100%;box-sizing:border-box;margin-top:2px"></label>
+              <label style="flex:0 0 170px;font-size:11px;color:var(--muted);font-weight:700">Mobile (SMS)<br><input id="np_m_${esc(pid)}" value="${esc(mob)}" placeholder="06 XX XX XX XX" style="width:100%;box-sizing:border-box;margin-top:2px"></label>
+            </div></div>`;}).join('')}
+        </div>
+        <div id="np_result"></div>
+      </div>
+      <div class="modal-foot" id="np_foot">
+        <button class="btn" onclick="trvDetail('${esc(tabId)}')">Annuler</button>
+        <button class="btn primary" id="np_go" onclick="trvNotifPrestGo('${esc(tabId)}')">Créer les accès et notifier</button></div>`);
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+window.trvNotifPrestGo=async function(tabId){
+  const btn=document.getElementById('np_go'); btn.disabled=true; btn.textContent='Envoi…';
+  try{
+    const t=window._npTab, grp=window._npGrp||{};
+    const erp=(state.erps||[]).find(x=>x.id===t.erp_id)||{};
+    const hours=parseInt(document.getElementById('np_val').value,10)||720;
+    const exp=new Date(Date.now()+hours*3600*1000);
+    const who=state.profile?.nom||state.user?.email||'';
+    const results=[];
+    for(const pid of Object.keys(grp)){
+      const email=(document.getElementById('np_e_'+pid)?.value||'').trim();
+      const mob=(document.getElementById('np_m_'+pid)?.value||'').replace(/[\s.]/g,'');
+      const p=(window._affPrests||[]).find(x=>x.id===pid)||{nom:''};
+      const token=_levToken();
+      const {error:e1}=await sb.from('acces_levees').insert({token,tableau_id:t.id,erp_id:t.erp_id,client_id:t.client_id,prestataire_id:pid,destinataire:[email,mob].filter(Boolean).join(', ')||null,expires_at:exp.toISOString(),actif:true,created_by:who,notified_at:new Date().toISOString()});
+      if(e1) throw e1;
+      const link='https://conformite-securite.fr/#/levees/'+token;
+      const nb=grp[pid].length;
+      let sentE=false, sentS=false;
+      if(email){
+        try{
+          const html='<p>Bonjour,</p><p>Dans le cadre du suivi de conformité de l\'établissement <b>'+esc(erp.nom||'')+'</b>, <b>'+nb+' réserve(s)</b> vous sont affectées pour levée ('+(t.organisme||'organisme de contrôle')+').</p><p>Accédez à votre espace pour consulter le détail, joindre vos justificatifs et <b>signer chaque levée</b> :</p><p><a href="'+link+'">'+link+'</a></p><p>Lien valable jusqu\'au '+exp.toLocaleDateString('fr-FR')+'.</p><p>Cordialement,<br>PREVA CONSEILS — conformite-securite.fr</p>';
+          const {data,error}=await sb.functions.invoke('send-client-email',{body:{to:[email],subject:'Levées de réserves à signer — '+(erp.nom||'établissement'),html}});
+          sentE=!error&&data&&data.ok;
+        }catch(_){}
+      }
+      if(mob&&/^(\+33|0)[67]\d{8}$/.test(mob)){
+        try{
+          const msg='PREVA Conseils — '+nb+' réserve(s) à lever et signer : '+(erp.nom||'')+'.\nVotre lien personnel :\n'+link+'\nValable jusqu\'au '+exp.toLocaleDateString('fr-FR')+'.';
+          const {data,error}=await sb.functions.invoke('send-sms',{body:{to:[mob],message:msg}});
+          sentS=!error&&data&&data.ok;
+        }catch(_){}
+      }
+      results.push({nom:p.nom||'Prestataire',nb,link,sentE,sentS,email,mob});
+    }
+    try{ await sb.from('audit_log').insert({user_id:state.user?.id,user_label:who,action:'levees_notifiees',entite:'tableaux_reserves',entite_id:t.id,details:{prestataires:results.map(r=>({nom:r.nom,nb:r.nb,email:r.sentE,sms:r.sentS}))}}); }catch(_){}
+    document.getElementById('np_form').style.display='none';
+    document.getElementById('np_result').innerHTML='<div style="display:flex;flex-direction:column;gap:8px">'+results.map(r=>
+      `<div style="border:1px solid var(--line);border-radius:10px;padding:9px 12px">
+        <b style="font-size:13px">${esc(r.nom)}</b> — ${r.nb} réserve(s) · ${r.sentE?'e-mail envoyé':(r.email?'e-mail non parti':'pas d\'e-mail')} · ${r.sentS?'SMS envoyé':(r.mob?'SMS non parti':'pas de SMS')}
+        <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
+          <input readonly value="${esc(r.link)}" style="flex:1;min-width:0;font-size:11.5px" onclick="this.select()">
+          <button class="btn sm" onclick="navigator.clipboard.writeText('${esc(r.link)}');toast('Lien copié','ok')">Copier</button>
+        </div></div>`).join('')+'</div>';
+    document.getElementById('np_foot').innerHTML='<button class="btn primary" onclick="trvDetail(\''+tabId+'\')">Terminé</button>';
+    toast('Accès prestataires créés','ok');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Créer les accès et notifier'; }
+};
+
+/* ═══ PAGE PUBLIQUE PRESTATAIRE — LEVÉES DE RÉSERVES (lien à jeton) ═══ */
+async function renderLeveesPublic(token){
+  document.title='Levées de réserves — PREVA';
+  const root=document.getElementById('root')||document.body;
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;color:#334155;font-size:14px">Chargement…</div>';
+  try{
+    if(!sb){ loadCfg(); initSb(); }
+    const {data,error}=await sb.functions.invoke('levees-prestataire',{body:{token,get:true}});
+    if(error||!data||!data.ok){
+      const code=(data&&data.error)||'lien_invalide';
+      root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px">'
+        +'<div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:28px;max-width:420px;text-align:center;box-shadow:0 10px 30px rgba(15,23,42,.08)">'
+        +'<div style="font-size:17px;font-weight:800;color:#0f172a;margin-bottom:8px">'+(code==='lien_expire'?'Lien expiré':'Lien invalide')+'</div>'
+        +'<div style="font-size:13px;color:#64748b;line-height:1.5">'+(code==='lien_expire'?'La validité de cet accès est dépassée. Contactez PREVA CONSEILS pour obtenir un nouveau lien.':'Ce lien n\'est pas ou plus valide. Vérifiez l\'adresse reçue ou contactez PREVA CONSEILS.')+'</div>'
+        +'<div style="font-size:11.5px;color:#94a3b8;margin-top:14px">contact@conformite-securite.fr</div></div></div>';
+      return;
+    }
+    window.__levTok=token; window.__levData=data;
+    levRender();
+  }catch(e){
+    root.innerHTML='<div style="min-height:100vh;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;color:#64748b">Erreur de chargement — réessayez.</div>';
+  }
+}
+window.renderLeveesPublic=renderLeveesPublic;
+function levFmtD(d){ return d?new Date(String(d).slice(0,10)+'T00:00:00').toLocaleDateString('fr-FR'):'—'; }
+function levRender(){
+  const d=window.__levData||{}; const rows=d.reserves||[];
+  const done=rows.filter(r=>r.etat_levee==='levee').length;
+  const root=document.getElementById('root')||document.body;
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;font-family:Inter,system-ui,sans-serif;padding-bottom:40px">'
+    +'<div style="background:#0e1b2e;color:#fff;padding:16px 18px">'
+      +'<div style="font-weight:800;letter-spacing:1.5px;font-size:14px">CONFORMITÉ SÉCURITÉ</div>'
+      +'<div style="font-size:12px;color:#b4c4e6;margin-top:2px">Levées de réserves — espace prestataire</div></div>'
+    +'<div style="max-width:640px;margin:0 auto;padding:14px 14px 0">'
+      +'<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-bottom:12px">'
+        +'<div style="font-weight:800;font-size:15px;color:#0f172a">'+esc((d.erp&&d.erp.nom)||'Établissement')+'</div>'
+        +'<div style="font-size:12px;color:#64748b;margin-top:2px">'+esc((d.tableau&&d.tableau.organisme)||'')+((d.tableau&&d.tableau.date_intervention)?' · intervention du '+levFmtD(d.tableau.date_intervention):'')+'</div>'
+        +'<div style="font-size:12px;color:#64748b">Prestataire : <b style="color:#1a44ad">'+esc(d.prestataire||'')+'</b>'+(d.expires_at?' · accès valable jusqu\'au '+levFmtD(d.expires_at):'')+'</div>'
+        +'<div style="margin-top:10px;background:#f0f4fc;border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:700;color:#1a44ad">'+done+'/'+rows.length+' levée(s) signée(s)</div>'
+        +'<div style="font-size:11.5px;color:#94a3b8;margin-top:8px;line-height:1.45">Pour chaque réserve : joignez votre justificatif (attestation, facture, photo) puis signez la levée au doigt. Une levée signée est définitive.</div>'
+      +'</div>'
+      +rows.map(r=>{
+        const signed=r.etat_levee==='levee';
+        const chip=signed?'<span style="color:#16a34a;font-weight:800;font-size:11.5px">✓ Signée le '+levFmtD(r.date_realisation)+'</span>'
+          :(r.etat_levee==='partielle'?'<span style="color:#d97706;font-weight:800;font-size:11.5px">◐ Partielle</span>'
+          :'<span style="color:#dc2626;font-weight:800;font-size:11.5px">À lever</span>');
+        return '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:13px 15px;margin-bottom:10px'+(signed?';opacity:.75':'')+'">'
+          +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:5px">'
+            +'<b style="font-size:13px;color:#0f172a">N°'+(r.numero||'—')+'</b>'
+            +(r.recidive?'<span style="background:rgba(220,38,38,.1);color:#dc2626;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:800">RÉCIDIVE</span>':'')
+            +'<span style="font-size:11px;color:#64748b">'+esc(r.localisation||'')+'</span>'
+            +'<span style="flex:1"></span>'+chip+'</div>'
+          +'<div style="font-size:13px;color:#1e293b;line-height:1.45">'+esc(r.libelle||'')+'</div>'
+          +'<div style="font-size:10.5px;color:#94a3b8;margin-top:5px">'+esc(r.code_obs||'')+(r.article_ref?' · '+esc(r.article_ref):'')+(r.date_limite?' · <b style="color:#d97706">échéance '+levFmtD(r.date_limite)+'</b>':'')+(signed&&r.signature_nom?' · signé par '+esc(r.signature_nom):'')+'</div>'
+          +'<div style="font-size:11.5px;color:'+(r.document_nom?'#16a34a':'#94a3b8')+';margin-top:6px">'+(r.document_nom?'Justificatif : '+esc(r.document_nom):'Aucun justificatif joint')+'</div>'
+          +(!signed?'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
+            +'<button onclick="levJustif(\''+r.id+'\')" style="flex:1;min-width:150px;border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:9px;padding:10px;font-weight:700;font-size:12.5px;cursor:pointer">Joindre un justificatif</button>'
+            +'<button onclick="levSign(\''+r.id+'\')" style="flex:1.3;min-width:170px;border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px;font-weight:800;font-size:12.5px;cursor:pointer">Signer la levée</button></div>':'')
+        +'</div>';
+      }).join('')
+      +'<div style="text-align:center;font-size:11px;color:#94a3b8;margin-top:16px">PREVA CONSEILS — conformite-securite.fr — contact@conformite-securite.fr</div>'
+    +'</div></div>';
+}
+window.levJustif=function(rid){
+  const inp=document.createElement('input');
+  inp.type='file'; inp.accept='image/*,application/pdf';
+  inp.onchange=async()=>{
+    const f=inp.files&&inp.files[0]; if(!f) return;
+    if(f.size>6*1024*1024){ toast('Fichier trop lourd (6 Mo max)','err'); return; }
+    toast('Envoi du justificatif…','ok');
+    try{
+      const b64=await new Promise((res,rej)=>{ const rd=new FileReader(); rd.onload=()=>res(String(rd.result).split(',')[1]||''); rd.onerror=()=>rej(new Error('lecture impossible')); rd.readAsDataURL(f); });
+      const {data,error}=await sb.functions.invoke('levees-prestataire',{body:{token:window.__levTok,justif:{reserve_id:rid,filename:f.name,content_type:f.type||'application/octet-stream',content_base64:b64}}});
+      if(error||!data||!data.ok) throw (error||new Error((data&&data.error)||'échec'));
+      const r=(window.__levData.reserves||[]).find(x=>x.id===rid); if(r) r.document_nom=data.document_nom;
+      levRender(); toast('Justificatif joint','ok');
+    }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+  };
+  inp.click();
+};
+window.levSign=function(rid){
+  const today=new Date().toISOString().slice(0,10);
+  let lastNom=''; try{ lastNom=localStorage.getItem('lev_sign_nom')||''; }catch(_){}
+  const ov=document.createElement('div');
+  ov.id='lev-sign';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:grid;place-items:center;padding:14px';
+  ov.innerHTML='<div style="background:#fff;border-radius:14px;max-width:460px;width:100%;padding:18px;font-family:Inter,system-ui,sans-serif;max-height:92vh;overflow-y:auto">'
+    +'<div style="font-weight:800;font-size:15px;color:#0f172a;margin-bottom:10px">Signer la levée</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:10px">'
+      +'<button id="lv_et_l" onclick="window._levEt=\'levee\';levSignEt()" style="flex:1;border:2px solid #16a34a;background:rgba(22,163,74,.1);color:#16a34a;border-radius:10px;padding:10px;font-weight:800;font-size:13px;cursor:pointer">✓ Levée</button>'
+      +'<button id="lv_et_p" onclick="window._levEt=\'partielle\';levSignEt()" style="flex:1;border:2px solid #e2e8f0;background:#fff;color:#d97706;border-radius:10px;padding:10px;font-weight:800;font-size:13px;cursor:pointer">◐ Partielle</button></div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">'
+      +'<label style="flex:1;min-width:130px;font-size:11px;color:#64748b;font-weight:700">Date de réalisation<br><input id="lv_date" type="date" value="'+today+'" style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:8px;padding:8px;font-size:13px;margin-top:3px"></label>'
+      +'<label style="flex:1.4;min-width:150px;font-size:11px;color:#64748b;font-weight:700">Nom et prénom du signataire<br><input id="lv_nom" value="'+esc(lastNom)+'" placeholder="Prénom NOM" style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:8px;padding:8px;font-size:13px;margin-top:3px"></label></div>'
+    +'<div style="font-size:11px;color:#64748b;font-weight:700;margin-bottom:3px">Signature <span style="font-weight:500">(au doigt, dans le cadre)</span></div>'
+    +'<canvas id="lv_canvas" style="width:100%;height:150px;border:2px dashed #cbd5e1;border-radius:10px;background:#fff;touch-action:none;display:block"></canvas>'
+    +'<button onclick="levSignClear()" style="margin-top:5px;background:none;border:1px solid #e2e8f0;border-radius:7px;color:#64748b;font-size:11.5px;padding:4px 10px;cursor:pointer">Effacer</button>'
+    +'<div style="display:flex;gap:8px;margin-top:12px">'
+      +'<button onclick="document.getElementById(\'lev-sign\').remove()" style="flex:1;border:1px solid #e2e8f0;background:#fff;color:#334155;border-radius:10px;padding:12px;font-weight:700;font-size:13.5px;cursor:pointer">Annuler</button>'
+      +'<button id="lv_ok" onclick="levSignSubmit(\''+rid+'\')" style="flex:1.5;border:none;background:#1a44ad;color:#fff;border-radius:10px;padding:12px;font-weight:800;font-size:13.5px;cursor:pointer">Valider la signature</button></div>'
+    +'</div>';
+  document.body.appendChild(ov);
+  window._levEt='levee'; levSignEt(); levSignInit();
+};
+window.levSignEt=function(){
+  const l=document.getElementById('lv_et_l'), p=document.getElementById('lv_et_p');
+  if(!l||!p) return;
+  const on=(el,col,bg)=>{ el.style.border='2px solid '+col; el.style.background=bg; };
+  const off=el=>{ el.style.border='2px solid #e2e8f0'; el.style.background='#fff'; };
+  if(window._levEt==='levee'){ on(l,'#16a34a','rgba(22,163,74,.1)'); off(p); } else { on(p,'#d97706','rgba(217,119,6,.1)'); off(l); }
+};
+window.levSignInit=function(){
+  const c=document.getElementById('lv_canvas'); if(!c) return;
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const w=c.clientWidth||300, hgt=150;
+  c.width=w*dpr; c.height=hgt*dpr;
+  const ctx=c.getContext&&c.getContext('2d');
+  window._levSig={ctx,dpr,strokes:0,drawing:false};
+  if(!ctx) return;
+  ctx.scale(dpr,dpr); ctx.lineWidth=2.4; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#0f172a';
+  const pos=e=>{ const rct=c.getBoundingClientRect(); return {x:e.clientX-rct.left,y:e.clientY-rct.top}; };
+  c.addEventListener('pointerdown',e=>{ e.preventDefault(); c.setPointerCapture&&c.setPointerCapture(e.pointerId); const p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); window._levSig.drawing=true; });
+  c.addEventListener('pointermove',e=>{ if(!window._levSig.drawing) return; e.preventDefault(); const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); window._levSig.strokes++; });
+  const up=()=>{ window._levSig.drawing=false; };
+  c.addEventListener('pointerup',up); c.addEventListener('pointercancel',up);
+};
+window.levSignClear=function(){
+  const c=document.getElementById('lv_canvas'); const s=window._levSig;
+  if(c&&s&&s.ctx){ s.ctx.clearRect(0,0,c.width,c.height); s.strokes=0; }
+};
+window.levSignSubmit=async function(rid){
+  const nom=(document.getElementById('lv_nom').value||'').trim();
+  const dt=document.getElementById('lv_date').value;
+  if(!nom){ toast('Indique le nom du signataire','err'); return; }
+  if(!dt){ toast('Indique la date de réalisation','err'); return; }
+  if(!window._levSig||window._levSig.strokes<6){ toast('Signe dans le cadre avant de valider','err'); return; }
+  let sig='';
+  try{ sig=document.getElementById('lv_canvas').toDataURL('image/png'); }catch(e){ toast('Signature illisible, réessaie','err'); return; }
+  const btn=document.getElementById('lv_ok'); btn.disabled=true; btn.textContent='Enregistrement…';
+  try{
+    const {data,error}=await sb.functions.invoke('levees-prestataire',{body:{token:window.__levTok,lever:{reserve_id:rid,etat:window._levEt||'levee',date_realisation:dt,signature_nom:nom,signature_data:sig}}});
+    if(error||!data||!data.ok) throw (error||new Error((data&&data.error)||'échec'));
+    try{ localStorage.setItem('lev_sign_nom',nom); }catch(_){}
+    const ov=document.getElementById('lev-sign'); if(ov) ov.remove();
+    const r=(window.__levData.reserves||[]).find(x=>x.id===rid);
+    if(r){ r.etat_levee=window._levEt||'levee'; r.date_realisation=dt; r.signature_nom=nom; }
+    levRender();
+    toast((window._levEt==='partielle')?'Levée partielle signée':'Levée signée','ok');
+  }catch(e){
+    const msg=(e.message||e)==='levee_verrouillee'?'Cette levée est déjà signée et verrouillée':'Erreur : '+(e.message||e);
+    toast(msg,'err'); btn.disabled=false; btn.textContent='Valider la signature';
+  }
 };
 
 window.trvNotify=async function(erpNom,nb,org){
