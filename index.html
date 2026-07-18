@@ -10709,24 +10709,43 @@ window.trvAffect=async function(tabId){
     window._affOrig={}; (rows||[]).forEach(r=>{window._affOrig[r.id]={p:r.prestataire_id||'',d:r.date_limite||''};});
     const opts=sel=>'<option value="">— Prestataire —</option>'+(prests||[]).map(p=>`<option value="${p.id}"${sel===p.id?' selected':''}>${esc(p.nom)}</option>`).join('');
     openModal(`<div class="modal-head"><h2>Répartir les réserves aux prestataires</h2><button class="x" onclick="trvDetail('${esc(tabId)}')">${I.x}</button></div>
-      <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
-        <div style="background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.25);border-radius:10px;padding:9px 12px;font-size:12.5px">
-          Affecte chaque observation au prestataire chargé des travaux, avec une date cible. Les lignes sans prestataire sont pré-remplies par suggestion (corps de métier détecté) — vérifie avant d'enregistrer.</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:8px 10px">
-          <span style="font-size:12px;font-weight:700">Sélection :</span>
-          <select id="affb_p" style="flex:1;min-width:160px">${opts('')}</select>
-          <input id="affb_d" type="date" style="width:140px">
-          <button class="btn sm" onclick="trvAffBulk()">Appliquer aux lignes cochées</button>
-          <button class="btn sm" onclick="document.querySelectorAll('.affck').forEach(c=>c.checked=true)">Tout cocher</button>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+        <div style="background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.22);border-radius:10px;padding:10px 14px;font-size:12.5px;line-height:1.5">
+          Affecte chaque observation au prestataire chargé des travaux, avec une date cible.
+          Les lignes marquées <span style="background:rgba(217,119,6,.12);color:#b45309;border-radius:5px;padding:1px 6px;font-size:11px;font-weight:700">suggestion</span> sont pré-remplies par détection du corps de métier — vérifie avant d'enregistrer.</div>
+        <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px">
+          <div style="font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Affectation groupée</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;align-items:end">
+            <label style="font-size:11px;font-weight:700;color:var(--muted)">Prestataire<br>
+              <select id="affb_p" style="width:100%;box-sizing:border-box;margin-top:3px;height:36px">${opts('')}</select></label>
+            <label style="font-size:11px;font-weight:700;color:var(--muted)">Date cible<br>
+              <input id="affb_d" type="date" style="width:100%;box-sizing:border-box;margin-top:3px;height:36px"></label>
+            <div style="display:flex;gap:8px">
+              <button class="btn sm" style="flex:1;height:36px;justify-content:center" onclick="trvAffBulk()">Appliquer</button>
+              <button class="btn sm" style="height:36px" onclick="const a=[...document.querySelectorAll('.affck')];const all=a.every(c=>c.checked);a.forEach(c=>c.checked=!all)">Tout cocher</button>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:7px">Coche des lignes ci-dessous, puis applique le prestataire et la date à toute la sélection.</div>
         </div>
         ${(rows||[]).map(r=>{
           const sug=!r.prestataire_id?_levSuggest(r.libelle,prests):'';
-          return `<div style="border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;gap:9px;align-items:center;flex-wrap:wrap${r.etat_levee==='levee'?';opacity:.55':''}">
-            <input type="checkbox" class="affck" data-rid="${esc(r.id)}" style="width:15px;height:15px;accent-color:#1a44ad;flex:0 0 auto">
-            <b style="font-size:12px;flex:0 0 auto">N°${r.numero||'—'}</b>
-            <span style="flex:1 1 220px;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.libelle||'')}">${esc((r.libelle||'').slice(0,110))}</span>
-            <select id="aff_p_${esc(r.id)}" style="flex:0 1 190px;min-width:150px;font-size:12px${sug?';border-color:#d97706;background:rgba(217,119,6,.05)':''}" title="${sug?'Suggestion automatique — à vérifier':''}">${opts(r.prestataire_id||sug)}</select>
-            <input id="aff_d_${esc(r.id)}" type="date" value="${esc(r.date_limite||'')}" style="flex:0 0 132px;font-size:12px">
+          const signed=r.etat_levee==='levee';
+          return `<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden${signed?';opacity:.55':''}">
+            <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;background:var(--surface-2);border-bottom:1px solid var(--line);cursor:${signed?'default':'pointer'}">
+              <input type="checkbox" class="affck" data-rid="${esc(r.id)}" ${signed?'disabled':''} style="width:16px;height:16px;accent-color:#1a44ad;flex:0 0 auto;margin-top:2px">
+              <span style="flex:0 0 auto;background:#1a44ad;color:#fff;border-radius:7px;padding:2px 9px;font-size:11px;font-weight:800;margin-top:1px">N°${r.numero||'—'}</span>
+              <span style="flex:1;min-width:0">
+                <span style="display:block;font-size:12.5px;font-weight:600;line-height:1.4">${esc(r.libelle||'')}</span>
+                ${r.localisation?`<span style="display:block;font-size:11px;color:var(--muted);margin-top:1px">${esc(r.localisation)}</span>`:''}
+              </span>
+              ${signed?'<span style="flex:0 0 auto;color:#16a34a;font-weight:800;font-size:11px;margin-top:2px">Signée</span>':''}
+            </label>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;padding:10px 14px">
+              <label style="font-size:11px;font-weight:700;color:var(--muted)">Prestataire${sug?' <span style="background:rgba(217,119,6,.12);color:#b45309;border-radius:5px;padding:1px 6px;font-weight:700">suggestion</span>':''}<br>
+                <select id="aff_p_${esc(r.id)}" ${signed?'disabled':''} style="width:100%;box-sizing:border-box;margin-top:3px;height:36px${sug?';border-color:#d97706;background:rgba(217,119,6,.04)':''}">${opts(r.prestataire_id||sug)}</select></label>
+              <label style="font-size:11px;font-weight:700;color:var(--muted)">Date cible<br>
+                <input id="aff_d_${esc(r.id)}" type="date" ${signed?'disabled':''} value="${esc(r.date_limite||'')}" style="width:100%;box-sizing:border-box;margin-top:3px;height:36px"></label>
+            </div>
           </div>`;}).join('')}
       </div>
       <div class="modal-foot">
@@ -10776,7 +10795,7 @@ window.trvNotifPrest=async function(tabId){
     openModal(`<div class="modal-head"><h2>Notifier les prestataires</h2><button class="x" onclick="trvDetail('${esc(tabId)}')">${I.x}</button></div>
       <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
         <div style="background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.25);border-radius:10px;padding:9px 12px;font-size:12.5px">
-          Chaque prestataire recevra un <b>lien personnel</b> ne montrant que <b>ses</b> réserves, où il joint ses justificatifs et <b>signe chaque levée</b>. Tout se rassemble ensuite dans ce tableau.</div>
+          Chaque prestataire recevra un <b>lien personnel</b> ne montrant que <b>ses</b> réserves, où il <b>signe chaque levée</b>. Tout se rassemble ensuite dans ce tableau.</div>
         <div id="np_form" style="display:flex;flex-direction:column;gap:10px">
         <div class="fld" style="margin:0;max-width:220px"><label>Validité des liens</label>
           <select id="np_val"><option value="168">7 jours</option><option value="336">14 jours</option><option value="720" selected>30 jours</option><option value="2160">90 jours</option></select></div>
@@ -10820,7 +10839,7 @@ window.trvNotifPrestGo=async function(tabId){
       let sentE=false, sentS=false;
       if(email){
         try{
-          const html='<p>Bonjour,</p><p>Dans le cadre du suivi de conformité de l\'établissement <b>'+esc(erp.nom||'')+'</b>, <b>'+nb+' réserve(s)</b> vous sont affectées pour levée ('+(t.organisme||'organisme de contrôle')+').</p><p>Accédez à votre espace pour consulter le détail, joindre vos justificatifs et <b>signer chaque levée</b> :</p><p><a href="'+link+'">'+link+'</a></p><p>Lien valable jusqu\'au '+exp.toLocaleDateString('fr-FR')+'.</p><p>Cordialement,<br>PREVA CONSEILS — conformite-securite.fr</p>';
+          const html='<p>Bonjour,</p><p>Dans le cadre du suivi de conformité de l\'établissement <b>'+esc(erp.nom||'')+'</b>, <b>'+nb+' réserve(s)</b> vous sont affectées pour levée ('+(t.organisme||'organisme de contrôle')+').</p><p>Accédez à votre espace pour consulter le détail et <b>signer chaque levée</b> :</p><p><a href="'+link+'">'+link+'</a></p><p>Lien valable jusqu\'au '+exp.toLocaleDateString('fr-FR')+'.</p><p>Cordialement,<br>PREVA CONSEILS — conformite-securite.fr</p>';
           const {data,error}=await sb.functions.invoke('send-client-email',{body:{to:[email],subject:'Levées de réserves à signer — '+(erp.nom||'établissement'),html}});
           sentE=!error&&data&&data.ok;
         }catch(_){}
@@ -10887,7 +10906,7 @@ function levRender(){
         +'<div style="font-size:12px;color:#64748b;margin-top:2px">'+esc((d.tableau&&d.tableau.organisme)||'')+((d.tableau&&d.tableau.date_intervention)?' · intervention du '+levFmtD(d.tableau.date_intervention):'')+'</div>'
         +'<div style="font-size:12px;color:#64748b">Prestataire : <b style="color:#1a44ad">'+esc(d.prestataire||'')+'</b>'+(d.expires_at?' · accès valable jusqu\'au '+levFmtD(d.expires_at):'')+'</div>'
         +'<div style="margin-top:10px;background:#f0f4fc;border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:700;color:#1a44ad">'+done+'/'+rows.length+' levée(s) signée(s)</div>'
-        +'<div style="font-size:11.5px;color:#94a3b8;margin-top:8px;line-height:1.45">Pour chaque réserve : joignez votre justificatif (attestation, facture, photo) puis signez la levée au doigt. Une levée signée est définitive.</div>'
+        +'<div style="font-size:11.5px;color:#94a3b8;margin-top:8px;line-height:1.45">Pour chaque réserve réalisée, signez la levée au doigt. Une levée signée est définitive.</div>'
       +'</div>'
       +rows.map(r=>{
         const signed=r.etat_levee==='levee';
@@ -10902,32 +10921,13 @@ function levRender(){
             +'<span style="flex:1"></span>'+chip+'</div>'
           +'<div style="font-size:13px;color:#1e293b;line-height:1.45">'+esc(r.libelle||'')+'</div>'
           +'<div style="font-size:10.5px;color:#94a3b8;margin-top:5px">'+esc(r.code_obs||'')+(r.article_ref?' · '+esc(r.article_ref):'')+(r.date_limite?' · <b style="color:#d97706">échéance '+levFmtD(r.date_limite)+'</b>':'')+(signed&&r.signature_nom?' · signé par '+esc(r.signature_nom):'')+'</div>'
-          +'<div style="font-size:11.5px;color:'+(r.document_nom?'#16a34a':'#94a3b8')+';margin-top:6px">'+(r.document_nom?'Justificatif : '+esc(r.document_nom):'Aucun justificatif joint')+'</div>'
           +(!signed?'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'
-            +'<button onclick="levJustif(\''+r.id+'\')" style="flex:1;min-width:150px;border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:9px;padding:10px;font-weight:700;font-size:12.5px;cursor:pointer">Joindre un justificatif</button>'
-            +'<button onclick="levSign(\''+r.id+'\')" style="flex:1.3;min-width:170px;border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px;font-weight:800;font-size:12.5px;cursor:pointer">Signer la levée</button></div>':'')
+            +'<button onclick="levSign(\''+r.id+'\')" style="flex:1;min-width:170px;border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px;font-weight:800;font-size:12.5px;cursor:pointer">Signer la levée</button></div>':'')
         +'</div>';
       }).join('')
       +'<div style="text-align:center;font-size:11px;color:#94a3b8;margin-top:16px">PREVA CONSEILS — conformite-securite.fr — contact@conformite-securite.fr</div>'
     +'</div></div>';
 }
-window.levJustif=function(rid){
-  const inp=document.createElement('input');
-  inp.type='file'; inp.accept='image/*,application/pdf';
-  inp.onchange=async()=>{
-    const f=inp.files&&inp.files[0]; if(!f) return;
-    if(f.size>6*1024*1024){ toast('Fichier trop lourd (6 Mo max)','err'); return; }
-    toast('Envoi du justificatif…','ok');
-    try{
-      const b64=await new Promise((res,rej)=>{ const rd=new FileReader(); rd.onload=()=>res(String(rd.result).split(',')[1]||''); rd.onerror=()=>rej(new Error('lecture impossible')); rd.readAsDataURL(f); });
-      const {data,error}=await sb.functions.invoke('levees-prestataire',{body:{token:window.__levTok,justif:{reserve_id:rid,filename:f.name,content_type:f.type||'application/octet-stream',content_base64:b64}}});
-      if(error||!data||!data.ok) throw (error||new Error((data&&data.error)||'échec'));
-      const r=(window.__levData.reserves||[]).find(x=>x.id===rid); if(r) r.document_nom=data.document_nom;
-      levRender(); toast('Justificatif joint','ok');
-    }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
-  };
-  inp.click();
-};
 window.levSign=function(rid){
   const today=new Date().toISOString().slice(0,10);
   let lastNom=''; try{ lastNom=localStorage.getItem('lev_sign_nom')||''; }catch(_){}
