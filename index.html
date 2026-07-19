@@ -1097,6 +1097,7 @@ async function afterLogin(){
       _setupDemoProxy();
     }
     await loadScope();
+    if(state.profile?.role==='agent'){ renderAgentApp(); return; }
     if(!location.hash || location.hash==='#/login') location.hash='#/';
     renderApp();
   }catch(e){ console.error(e); toast('Erreur de chargement du profil','err'); renderAuth('login'); }
@@ -2344,6 +2345,130 @@ function openUserWizard(){
   setTimeout(()=>ov.classList.add('on'),10);
   renderWizStep();
 }
+
+/* ═══ VUE TERRAIN — PERSONNEL D'ÉTABLISSEMENT (rôle agent) ═══ */
+async function renderAgentApp(){
+  document.title='SUIVI-CONFORMITÉ — Terrain';
+  const root=document.getElementById('root')||document.body;
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;color:#64748b">Chargement…</div>';
+  try{
+    // Son établissement (rattachement user_erps)
+    const {data:ue}=await sb.from('user_erps').select('erp_id').eq('user_id',state.user.id).limit(1);
+    const erpId=ue&&ue[0]&&ue[0].erp_id;
+    if(!erpId){
+      root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:26px;max-width:400px;text-align:center"><b style="font-size:15px;color:#0f172a">Aucun établissement rattaché</b><p style="font-size:13px;color:#64748b;margin-top:8px;line-height:1.5">Votre compte n\'est rattaché à aucun établissement. Contactez PREVA CONSEILS pour finaliser votre accès.</p><button onclick="agLogout()" style="margin-top:14px;border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:9px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Se déconnecter</button></div></div>';
+      return;
+    }
+    const today=new Date().toISOString().slice(0,10);
+    const in7=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
+    const [{data:erp},{data:pres},{data:itv}]=await Promise.all([
+      sb.from('erps').select('id,nom,adresse,ville').eq('id',erpId).maybeSingle(),
+      sb.from('pointages').select('id,heure_arrivee,heure_depart,nb_intervenants,nom,prenom,societe,mission,created_at').eq('erp_id',erpId).gte('heure_arrivee',today).order('heure_arrivee',{ascending:false}).limit(30),
+      sb.from('interventions').select('id,objet,domaine,date_prevue,statut,prestataire_id').eq('erp_id',erpId).eq('statut','programmee').gte('date_prevue',today).lte('date_prevue',in7).order('date_prevue')
+    ]);
+    const {data:prests}=await sb.from('prestataires').select('id,nom');
+    window._agCtx={erpId,erp:erp||{},pres:pres||[],itv:itv||[],prests:prests||[]};
+    agRender();
+  }catch(e){
+    root.innerHTML='<div style="min-height:100vh;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;color:#64748b">Erreur de chargement — <a style="color:#1a44ad;cursor:pointer" onclick="renderAgentApp()">réessayer</a></div>';
+  }
+}
+window.renderAgentApp=renderAgentApp;
+function agFmtH(d){ if(!d) return ''; const x=new Date(d); return isNaN(+x)?'':x.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }
+function agRender(){
+  const c=window._agCtx||{}; const erp=c.erp||{};
+  const surSite=(c.pres||[]).filter(p=>!p.heure_depart);
+  const partis=(c.pres||[]).filter(p=>p.heure_depart);
+  const pNom=id=>{const p=(c.prests||[]).find(x=>x.id===id);return p?p.nom:'';};
+  const root=document.getElementById('root')||document.body;
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;font-family:Inter,system-ui,sans-serif;padding-bottom:96px">'
+    +'<div style="background:#0e1b2e;color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;gap:10px">'
+      +'<div style="min-width:0"><div style="font-weight:800;letter-spacing:1.2px;font-size:12px">CONFORMITÉ SÉCURITÉ — TERRAIN</div>'
+      +'<div style="font-size:12.5px;color:#b4c4e6;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(erp.nom||'')+'</div></div>'
+      +'<button onclick="agLogout()" style="flex:0 0 auto;border:1px solid rgba(255,255,255,.3);background:none;color:#fff;border-radius:8px;padding:6px 11px;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">Quitter</button></div>'
+    +'<div style="max-width:560px;margin:0 auto;padding:14px">'
+      +'<div style="font-size:12px;color:#64748b;margin:2px 0 10px">Bonjour '+esc(state.profile?.nom||'')+(state.profile?.fonction?' · '+esc(state.profile.fonction):'')+'</div>'
+      // Prestataires sur site
+      +'<div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;margin-bottom:12px">'
+        +'<div style="font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#8494ab;margin-bottom:9px">Prestataires sur site — '+surSite.length+'</div>'
+        +(surSite.length?surSite.map(p=>'<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid #f1f5f9">'
+          +'<span style="width:9px;height:9px;border-radius:50%;background:#16a34a;flex:0 0 auto"></span>'
+          +'<div style="min-width:0;flex:1"><b style="font-size:13.5px">'+esc(p.societe||((p.prenom||'')+' '+(p.nom||'')).trim()||'Intervenant')+'</b>'
+          +'<div style="font-size:11.5px;color:#64748b">'+esc(p.mission||'')+(p.nb_intervenants>1?' · '+p.nb_intervenants+' intervenants':'')+'</div></div>'
+          +'<span style="font-size:12px;font-weight:700;color:#16a34a">Arrivé '+agFmtH(p.heure_arrivee)+'</span></div>').join('')
+        :'<div style="font-size:13px;color:#8494ab;padding:4px 0">Personne sur site actuellement.</div>')
+        +(partis.length?'<div style="font-size:11px;color:#a4aebd;margin-top:9px">'+partis.map(p=>esc(p.societe||((p.prenom||'')+' '+(p.nom||'')).trim()||'?')+' (parti '+agFmtH(p.heure_depart)+')').join(' · ')+'</div>':'')
+      +'</div>'
+      // Interventions à venir (7 jours)
+      +'<div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:14px 16px;margin-bottom:12px">'
+        +'<div style="font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#8494ab;margin-bottom:9px">Interventions prévues — 7 jours</div>'
+        +((c.itv||[]).length?(c.itv||[]).map(i=>{
+          const d=new Date(i.date_prevue+'T00:00:00');
+          const isToday=i.date_prevue===new Date().toISOString().slice(0,10);
+          return '<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid #f1f5f9">'
+          +'<span style="flex:0 0 auto;background:'+(isToday?'#1a44ad':'#eef1f6')+';color:'+(isToday?'#fff':'#475569')+';border-radius:8px;padding:4px 9px;font-size:11px;font-weight:800">'+(isToday?"Aujourd'hui":d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric'}))+'</span>'
+          +'<div style="min-width:0"><b style="font-size:13px">'+esc(i.objet||i.domaine||'—')+'</b>'
+          +'<div style="font-size:11.5px;color:#64748b">'+esc(pNom(i.prestataire_id)||'Prestataire non renseigné')+'</div></div></div>';}).join('')
+        :'<div style="font-size:13px;color:#8494ab;padding:4px 0">Aucune intervention prévue cette semaine.</div>')
+      +'</div>'
+      +'<div style="text-align:center;font-size:11px;color:#a4aebd;margin-top:6px">Tirez la page ou <a style="color:#1a44ad;cursor:pointer;font-weight:700" onclick="renderAgentApp()">actualisez</a></div>'
+    +'</div>'
+    // Bouton signalement fixe
+    +'<div style="position:fixed;left:0;right:0;bottom:0;padding:12px 14px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(transparent,#eef1f6 40%)">'
+      +'<button onclick="agSignal()" style="display:block;width:100%;max-width:560px;margin:0 auto;border:none;background:#c0392b;color:#fff;border-radius:13px;padding:15px;font-weight:800;font-size:15px;font-family:inherit;cursor:pointer;box-shadow:0 6px 18px rgba(192,57,43,.35)">Signaler une urgence — photo</button>'
+    +'</div></div>';
+}
+window.agLogout=async function(){ try{ await sb.auth.signOut(); }catch(_){} location.hash=''; location.reload(); };
+window.agSignal=function(){
+  const inp=document.createElement('input');
+  inp.type='file'; inp.accept='image/*'; inp.capture='environment';
+  inp.onchange=()=>{ const f=inp.files&&inp.files[0]; if(f) agSignalForm(f); };
+  inp.click();
+};
+window.agSignalForm=function(file){
+  const url=URL.createObjectURL(file);
+  const ov=document.createElement('div'); ov.id='ag-sig';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9999;display:grid;place-items:end center;padding:0';
+  ov.innerHTML='<div style="background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:560px;padding:18px;font-family:Inter,system-ui,sans-serif;max-height:92vh;overflow-y:auto">'
+    +'<div style="font-weight:800;font-size:15px;color:#0f172a;margin-bottom:10px">Signaler une urgence</div>'
+    +'<img src="'+url+'" style="width:100%;max-height:200px;object-fit:cover;border-radius:10px;border:1px solid #e2e8f0">'
+    +'<label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-top:12px"><span style="display:block;margin-bottom:4px">Où ? <span style="font-weight:500">(étage, local…)</span></span>'
+    +'<input id="ag_loc" placeholder="Ex : 2e étage — couloir nord" style="display:block;width:100%;box-sizing:border-box;border:1px solid #d6dce6;border-radius:9px;padding:10px;font-size:14px;font-family:inherit"></label>'
+    +'<label style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-top:10px"><span style="display:block;margin-bottom:4px">Que se passe-t-il ?</span>'
+    +'<textarea id="ag_txt" placeholder="Décrivez le problème…" style="display:block;width:100%;box-sizing:border-box;border:1px solid #d6dce6;border-radius:9px;padding:10px;font-size:14px;font-family:inherit;min-height:70px"></textarea></label>'
+    +'<div style="display:flex;gap:8px;margin-top:9px" id="ag_urg">'
+      +['critique','important','normal'].map((u,x)=>'<button data-u="'+u+'" onclick="window._agU=\''+u+'\';document.querySelectorAll(\'#ag_urg button\').forEach(b=>b.style.opacity=b.dataset.u===\''+u+'\'?1:.45)" style="flex:1;border:none;border-radius:9px;padding:10px;font-weight:800;font-size:12.5px;font-family:inherit;cursor:pointer;color:#fff;opacity:'+(x===0?1:.45)+';background:'+(u==='critique'?'#c0392b':u==='important'?'#d97706':'#64748b')+'">'+u.charAt(0).toUpperCase()+u.slice(1)+'</button>').join('')
+    +'</div>'
+    +'<div style="display:flex;gap:8px;margin-top:14px">'
+      +'<button onclick="document.getElementById(\'ag-sig\').remove()" style="flex:1;border:1px solid #e2e8f0;background:#fff;color:#334155;border-radius:11px;padding:13px;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer">Annuler</button>'
+      +'<button id="ag_go" style="flex:1.6;border:none;background:#c0392b;color:#fff;border-radius:11px;padding:13px;font-weight:800;font-size:14px;font-family:inherit;cursor:pointer">Envoyer le signalement</button></div>'
+    +'</div>';
+  document.body.appendChild(ov);
+  window._agU='critique';
+  document.getElementById('ag_go').onclick=async()=>{
+    const btn=document.getElementById('ag_go'); btn.disabled=true; btn.textContent='Envoi…';
+    try{
+      const c=window._agCtx||{};
+      const safe=(file.name||'photo.jpg').replace(/[^A-Za-z0-9._-]+/g,'_');
+      const path=c.erpId+'/urgences/'+Date.now()+'_'+safe;
+      const {error:ue}=await sb.storage.from('urgent-photos').upload(path,file,{contentType:file.type||'image/jpeg'});
+      if(ue) throw ue;
+      const {error:ie}=await sb.from('photos_urgentes').insert({
+        erp_id:c.erpId, photo_path:path,
+        commentaire:(document.getElementById('ag_txt')?.value||'').trim()||null,
+        localisation:(document.getElementById('ag_loc')?.value||'').trim()||null,
+        niveau_urgence:window._agU||'critique', statut:'nouvelle',
+        date_photo:new Date().toISOString(),
+        mission:'Signalement — '+(state.profile?.nom||'')+(state.profile?.fonction?' ('+state.profile.fonction+')':'')
+      });
+      if(ie) throw ie;
+      try{ await sb.from('audit_log').insert({user_id:state.user?.id,user_label:state.profile?.nom||'Agent',action:'signalement_agent',entite:'photos_urgentes',details:{erp_id:c.erpId,urgence:window._agU}}); }catch(_){}
+      document.getElementById('ag-sig').remove();
+      toast('Signalement envoyé — merci','ok');
+    }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Envoyer le signalement'; }
+  };
+};
+
 window.openUserWizard=openUserWizard;
 
 function closeWiz(){
@@ -2411,11 +2536,21 @@ function getStepContent(){
             <span class="pill int" style="font-size:11px">Consultant</span>
           </div>
         </div>
+        <div class="mode-card${WIZ.data.mode==='terrain'?' selected':''}" onclick="selectMode('terrain')">
+          <div class="ic" style="background:#fff7ed">🦺</div>
+          <h3>Personnel d'établissement</h3>
+          <p>Agent sur le terrain : suit les prestataires de son établissement et signale les urgences.</p>
+          <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:5px;justify-content:center">
+            <span class="pill" style="font-size:11px;background:#ffedd5;color:#c2410c">Agent</span>
+          </div>
+        </div>
       </div>
       ${WIZ.data.mode?`<div style="margin-top:18px;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:13px 15px;font-size:13px;color:var(--muted);display:flex;gap:10px;align-items:flex-start">
         <span style="font-size:18px;flex:0 0 auto">${WIZ.data.mode==='accompagne'?'💡':'⚡'}</span>
         <span>${WIZ.data.mode==='accompagne'
           ?'Nous lui assignerons un périmètre précis. Il pourra voir et modifier uniquement les clients et ERP que vous lui confierez.'
+          :WIZ.data.mode==='terrain'
+          ?'Il accédera à une vue simplifiée sur mobile, limitée à son établissement : prestataires du jour, arrivées et départs, photo d\'urgence.'
           :'Il aura accès à toutes les fonctionnalités. Idéal pour un gestionnaire qui pilote ses ERP en totale indépendance.'}</span>
       </div>`:''}`;
 
@@ -2433,12 +2568,17 @@ function getStepContent(){
       </div>
       <div class="row2">
         <div class="fld"><label>Téléphone</label><input id="wi_tel" type="tel" value="${esc(WIZ.data.telephone)}" placeholder="06 00 00 00 00"></div>
-        <div class="fld"><label>Rôle</label>
+        ${WIZ.data.mode==='terrain'?`<div class="fld"><label>Fonction</label>
+          <select id="wi_fonction">
+            ${['Agent de maintenance','Responsable','Chef d\'équipe','Agent SSIAP'].map(
+              f=>`<option value="${f}"${WIZ.data.fonction===f?' selected':''}>${f}</option>`).join('')}
+          </select>
+        </div>`:`<div class="fld"><label>Rôle</label>
           <select id="wi_role">
             ${[['consultant','Consultant'],['exploitant','Exploitant'],['prestataire','Prestataire'],['lecture','Lecture seule'],['admin','Administrateur']].map(
               ([v,l])=>`<option value="${v}"${WIZ.data.role===v?' selected':''}>${l}</option>`).join('')}
           </select>
-        </div>
+        </div>`}
       </div>
       <div style="margin-top:8px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:11px 14px;font-size:12.5px;color:#92400e;display:flex;gap:8px">
         <span>💡</span><span>Un email d'invitation sera envoyé. L'utilisateur choisira son mot de passe à la première connexion.</span>
@@ -2456,6 +2596,18 @@ function getStepContent(){
           <div class="wiz-erp-chip${WIZ.data.erps.includes(e.id)?' on':''}" onclick="toggleWizErp('${e.id}')">
             ${WIZ.data.erps.includes(e.id)?'✓ ':''} ${esc(e.code_erp)} — ${esc(e.nom)}
           </div>`).join('');
+      if(WIZ.data.mode==='terrain'){
+        const erpChipsT = state.erps.map(e=>`
+          <div class="wiz-erp-chip${WIZ.data.erps.includes(e.id)?' on':''}" onclick="WIZ.data.erps=WIZ.data.erps.includes('${e.id}')?[]:['${e.id}'];WIZ.data.clients=[];renderWizBody()">
+            ${WIZ.data.erps.includes(e.id)?'✓ ':''} ${esc(e.code_erp)} — ${esc(e.nom)}
+          </div>`).join('');
+        return `
+        <h2 style="font-size:20px;margin-bottom:6px">Dans quel établissement travaille-t-il ?</h2>
+        <p style="color:var(--muted);font-size:14px;margin-bottom:22px">Un agent est rattaché à <b>un seul établissement</b> : il ne verra que celui-ci.</p>
+        <div class="fld"><label>Établissement <span class="req">*</span></label>
+          <div style="margin-top:6px">${erpChipsT||'<span style="color:var(--muted-2);font-size:13px">Aucun établissement créé pour l\'instant.</span>'}</div>
+        </div>`;
+      }
       return `
       <h2 style="font-size:20px;margin-bottom:6px">Quel périmètre lui confier ?</h2>
       <p style="color:var(--muted);font-size:14px;margin-bottom:22px">Sélectionnez les clients et ERP auxquels il aura accès. <b>Cette étape est optionnelle</b> — vous pourrez affiner le périmètre à tout moment depuis la fiche utilisateur.</p>
@@ -2498,8 +2650,8 @@ function getStepContent(){
 
     /* ── Étape 5 : RÉCAP + INVITATION ───────────────────── */
     case 5:
-      const modeLabel = WIZ.data.mode==='autonome'?'🚀 Pleine autonomie':'🤝 Avec l\'équipe';
-      const roleLabel = {consultant:'Consultant',exploitant:'Exploitant',prestataire:'Prestataire',lecture:'Lecture seule',admin:'Administrateur'}[WIZ.data.role]||WIZ.data.role;
+      const modeLabel = WIZ.data.mode==='autonome'?'🚀 Pleine autonomie':WIZ.data.mode==='terrain'?'🦺 Personnel d\'établissement':'🤝 Avec l\'équipe';
+      const roleLabel = WIZ.data.mode==='terrain'?('Agent — '+(WIZ.data.fonction||'')):({consultant:'Consultant',exploitant:'Exploitant',prestataire:'Prestataire',lecture:'Lecture seule',admin:'Administrateur'}[WIZ.data.role]||WIZ.data.role);
       const notifOn = Object.entries(WIZ.data.notifs).filter(([,v])=>v).map(([k])=>({photos:'Photos urgentes',echeances:'Rappels échéances',reserves:'Réserves critiques',hebdo:'Résumé hebdo'}[k])).join(', ')||'Aucune';
       const clientsLabel = WIZ.data.clients.length?WIZ.data.clients.map(id=>state.clients.find(c=>c.id===id)?.code_client||id).join(', '):'Aucun (à définir plus tard)';
       const erpsLabel = WIZ.data.erps.length?WIZ.data.erps.length+' ERP sélectionné(s)':'Tous les ERP du périmètre';
@@ -2532,7 +2684,7 @@ function getStepContent(){
 
 function bindStepEvents(){
   // Auto-save des champs texte
-  ['wi_prenom','wi_nom','wi_email','wi_tel','wi_role'].forEach(id=>{
+  ['wi_prenom','wi_nom','wi_email','wi_tel','wi_role','wi_fonction'].forEach(id=>{
     const el=document.getElementById(id); if(!el) return;
     el.addEventListener('input',()=>{
       if(id==='wi_prenom') WIZ.data.prenom=el.value;
@@ -2540,6 +2692,7 @@ function bindStepEvents(){
       if(id==='wi_email')  WIZ.data.email=el.value;
       if(id==='wi_tel')    WIZ.data.telephone=el.value;
       if(id==='wi_role')   WIZ.data.role=el.value;
+      if(id==='wi_fonction') WIZ.data.fonction=el.value;
     });
   });
 }
@@ -2559,7 +2712,7 @@ function renderWizFoot(){
     </button>`;
 }
 
-function selectMode(m){ WIZ.data.mode=m; if(m==='autonome') WIZ.data.role='admin'; else WIZ.data.role='consultant'; renderWizBody(); renderWizFoot(); }
+function selectMode(m){ WIZ.data.mode=m; if(m==='autonome') WIZ.data.role='admin'; else if(m==='terrain'){ WIZ.data.role='agent'; WIZ.data.fonction=WIZ.data.fonction||'Agent de maintenance'; } else WIZ.data.role='consultant'; renderWizBody(); renderWizFoot(); }
 window.selectMode=selectMode;
 
 function toggleWizClient(id){ const i=WIZ.data.clients.indexOf(id); if(i>=0) WIZ.data.clients.splice(i,1); else WIZ.data.clients.push(id); renderWizBody(); }
@@ -2597,13 +2750,14 @@ window.wizNext=wizNext;
 
 async function wizFinish(){
   if(!WIZ.data.email){ toast('L\'adresse email est requise','err'); WIZ.step=2; renderWizStep(); return; }
+  if(WIZ.data.mode==='terrain'&&!WIZ.data.erps.length){ toast('Choisissez l\'établissement de l\'agent','err'); WIZ.step=3; renderWizStep(); return; }
   const btn=document.querySelector('#wiz-foot .btn.primary'); if(btn){btn.disabled=true;btn.textContent='Envoi…';}
   try{
     // Créer le compte Supabase
     const {data,error}=await sb.auth.signUp({
       email:WIZ.data.email,
       password: Math.random().toString(36).slice(2)+'Aa1!',
-      options:{data:{nom:(WIZ.data.prenom+' '+WIZ.data.nom).trim(), role:WIZ.data.role}}
+      options:{data:{nom:(WIZ.data.prenom+' '+WIZ.data.nom).trim(), role:WIZ.data.role, fonction:WIZ.data.mode==='terrain'?(WIZ.data.fonction||''):''}}
     });
     if(error) throw error;
 
@@ -6298,8 +6452,8 @@ window.fselify=function(sel,label){
   sel.parentNode.insertBefore(wrap,sel);
   wrap.appendChild(sel); sel.style.display='none';
   const val=wrap.querySelector('.fs-val');
-  const sync=()=>{ val.textContent=sel.options[sel.selectedIndex]?.textContent||'—'; };
-  sync(); sel.addEventListener('change',sync);
+  const sync=()=>{ val.textContent=sel.options[sel.selectedIndex]?.textContent||sel.options[0]?.textContent||'—'; };
+  sync(); sel.addEventListener('change',sync); sel.addEventListener('change_sync',sync);
   wrap.addEventListener('click',ev=>{
     if(ev.target.closest('.fs-panel')) return;
     const old=document.getElementById('fs_panel');
@@ -9631,14 +9785,14 @@ window.trvDetail=async function(id){
         <button class="btn sm" style="align-self:flex-start" onclick="trvAddRes('${esc(t.id)}','${esc(t.erp_id)}',${rows.length?Math.max.apply(null,rows.map(x=>x.numero||0)):0})">＋ Ajouter une observation</button>
       </div>
       ${t.statut==='a_valider'?`<div style="margin:0 18px;background:rgba(217,119,6,.09);border:1px solid rgba(217,119,6,.45);border-radius:10px;padding:9px 12px;font-size:12.5px">🤖 <b>Tableau préparé automatiquement</b> à la réception du rapport — vérifie les observations ci-dessus, puis valide (ou supprime s'il s'agit d'une fausse détection).</div>`:''}
-      <div class="modal-foot">${t.statut==='a_valider'
+      <div class="modal-foot" style="flex-wrap:wrap;gap:8px;row-gap:8px">${t.statut==='a_valider'
         ?`<button class="btn" style="color:#dc2626;border-color:rgba(220,38,38,.4)" onclick="trvSupprimerTab('${esc(t.id)}','${esc(t.rapport_document_id||'')}')">Supprimer (fausse détection)</button>
           <button class="btn primary" onclick="trvValiderTab('${esc(t.id)}')">✓ Valider le tableau</button>`
-        :`<button class="btn" onclick="closeModal()">Fermer</button>
-        <button class="btn" style="border-color:rgba(26,68,173,.45);color:#1a44ad" onclick="trvAffect('${esc(t.id)}')">Répartir aux prestataires…</button>
-        <button class="btn" onclick="trvPdf('${esc(t.id)}')">📄 PDF récapitulatif</button>
-        <button class="btn" onclick="trvSmsModal('${esc(t.id)}')">📱 Envoyer par SMS…</button>
-        <button class="btn primary" onclick="trvSendCur()">✍ Envoyer au technicien…</button>`}</div>`);
+        :`<button class="btn" style="margin-right:auto" onclick="closeModal()">Fermer</button>
+        <button class="btn" style="white-space:nowrap" onclick="trvPdf('${esc(t.id)}')">📄 PDF</button>
+        <button class="btn" style="white-space:nowrap" onclick="trvSmsModal('${esc(t.id)}')">📱 SMS…</button>
+        <button class="btn" style="white-space:nowrap" onclick="trvSendCur()">✍ Technicien…</button>
+        <button class="btn primary" style="white-space:nowrap" onclick="trvAffect('${esc(t.id)}')">Répartir aux prestataires…</button>`}</div>`);
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
 };
 
@@ -10716,10 +10870,10 @@ window.trvAffect=async function(tabId){
         <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px">
           <div style="font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Affectation groupée</div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;align-items:end">
-            <label style="font-size:11px;font-weight:700;color:var(--muted)">Prestataire<br>
-              <select id="affb_p" style="width:100%;box-sizing:border-box;margin-top:3px;height:36px">${opts('')}</select></label>
-            <label style="font-size:11px;font-weight:700;color:var(--muted)">Date cible<br>
-              <input id="affb_d" type="date" style="width:100%;box-sizing:border-box;margin-top:3px;height:36px"></label>
+            <label style="display:block;font-size:11px;font-weight:700;color:var(--muted)"><span style="display:block;margin-bottom:4px">Prestataire</span>
+              <select id="affb_p" style="display:block;width:100%;box-sizing:border-box;height:36px">${opts('')}</select></label>
+            <label style="display:block;font-size:11px;font-weight:700;color:var(--muted)"><span style="display:block;margin-bottom:4px">Date cible</span>
+              <input id="affb_d" type="date" style="display:block;width:100%;box-sizing:border-box;height:36px"></label>
             <div style="display:flex;gap:8px">
               <button class="btn sm" style="flex:1;height:36px;justify-content:center" onclick="trvAffBulk()">Appliquer</button>
               <button class="btn sm" style="height:36px" onclick="const a=[...document.querySelectorAll('.affck')];const all=a.every(c=>c.checked);a.forEach(c=>c.checked=!all)">Tout cocher</button>
@@ -10730,8 +10884,8 @@ window.trvAffect=async function(tabId){
         ${(rows||[]).map(r=>{
           const sug=!r.prestataire_id?_levSuggest(r.libelle,prests):'';
           const signed=r.etat_levee==='levee';
-          return `<div style="border:1px solid var(--line);border-radius:12px;overflow:hidden${signed?';opacity:.55':''}">
-            <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;background:var(--surface-2);border-bottom:1px solid var(--line);cursor:${signed?'default':'pointer'}">
+          return `<div style="border:1px solid var(--line);border-radius:12px${signed?';opacity:.55':''}">
+            <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;background:var(--surface-2);border-bottom:1px solid var(--line);border-radius:11px 11px 0 0;cursor:${signed?'default':'pointer'}">
               <input type="checkbox" class="affck" data-rid="${esc(r.id)}" ${signed?'disabled':''} style="width:16px;height:16px;accent-color:#1a44ad;flex:0 0 auto;margin-top:2px">
               <span style="flex:0 0 auto;background:#1a44ad;color:#fff;border-radius:7px;padding:2px 9px;font-size:11px;font-weight:800;margin-top:1px">N°${r.numero||'—'}</span>
               <span style="flex:1;min-width:0">
@@ -10740,11 +10894,11 @@ window.trvAffect=async function(tabId){
               </span>
               ${signed?'<span style="flex:0 0 auto;color:#16a34a;font-weight:800;font-size:11px;margin-top:2px">Signée</span>':''}
             </label>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;padding:10px 14px">
-              <label style="font-size:11px;font-weight:700;color:var(--muted)">Prestataire${sug?' <span style="background:rgba(217,119,6,.12);color:#b45309;border-radius:5px;padding:1px 6px;font-weight:700">suggestion</span>':''}<br>
-                <select id="aff_p_${esc(r.id)}" ${signed?'disabled':''} style="width:100%;box-sizing:border-box;margin-top:3px;height:36px${sug?';border-color:#d97706;background:rgba(217,119,6,.04)':''}">${opts(r.prestataire_id||sug)}</select></label>
-              <label style="font-size:11px;font-weight:700;color:var(--muted)">Date cible<br>
-                <input id="aff_d_${esc(r.id)}" type="date" ${signed?'disabled':''} value="${esc(r.date_limite||'')}" style="width:100%;box-sizing:border-box;margin-top:3px;height:36px"></label>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;padding:12px 14px 14px">
+              <label style="display:block;font-size:11px;font-weight:700;color:var(--muted)"><span style="display:block;margin-bottom:4px">Prestataire${sug?' <span style="background:rgba(217,119,6,.12);color:#b45309;border-radius:5px;padding:1px 6px;font-weight:700">suggestion</span>':''}</span>
+                <select id="aff_p_${esc(r.id)}" ${signed?'disabled':''} style="display:block;width:100%;box-sizing:border-box;height:36px${sug?';border-color:#d97706;background:rgba(217,119,6,.04)':''}">${opts(r.prestataire_id||sug)}</select></label>
+              <label style="display:block;font-size:11px;font-weight:700;color:var(--muted)"><span style="display:block;margin-bottom:4px">Date cible</span>
+                <input id="aff_d_${esc(r.id)}" type="date" ${signed?'disabled':''} value="${esc(r.date_limite||'')}" style="display:block;width:100%;box-sizing:border-box;height:36px"></label>
             </div>
           </div>`;}).join('')}
       </div>
@@ -14303,32 +14457,37 @@ function viewVerifications(content){
   const EDGE=SUPA_URL+'/functions/v1';
   if(!document.getElementById('vstyle')){
     const s=document.createElement('style');s.id='vstyle';
-    s.textContent='.verif-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}.verif-tab{padding:7px 15px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:#f1f5f9;color:#475569;transition:.15s}.verif-tab:hover{background:#e2e8f0}.verif-tab.active[data-tab=repondre]{background:#f97316;color:#fff}.verif-tab.active[data-tab=sans_reponse]{background:#ef4444;color:#fff}.verif-tab.active[data-tab=a_programmer]{background:#6366f1;color:#fff}.verif-tab.active[data-tab=programmee]{background:#22c55e;color:#fff}.verif-tab.active[data-tab=reglages]{background:#64748b;color:#fff}.verif-tab.active[data-tab=obligations]{background:#0891b2;color:#fff}.vbadge{background:rgba(0,0,0,.18);border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px}.vcard{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)}.vcardtitle{font-weight:600;color:#1e293b;font-size:14px}.vcardsub{color:#64748b;font-size:12px;margin-top:2px}.vcardmeta{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.vpill{background:#f1f5f9;color:#475569;border-radius:12px;padding:2px 9px;font-size:11px;font-weight:500}.vpill.red{background:#fee2e2;color:#dc2626}.vpill.orange{background:#ffedd5;color:#ea580c}.vpill.green{background:#dcfce7;color:#16a34a}.vpill.blue{background:#dbeafe;color:#2563eb}.vreply{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-top:10px;font-size:12px;color:#475569;font-family:monospace;white-space:pre-wrap;max-height:80px;overflow-y:auto}.vactions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}.vbtn{padding:6px 14px;border-radius:6px;font-size:13px;font-weight:600;border:none;cursor:pointer;transition:opacity .15s}.vbtn:hover{opacity:.85}.vbtn.g{background:#22c55e;color:#fff}.vbtn.o{background:#f97316;color:#fff}.vbtn.r{background:#ef4444;color:#fff}.vbtn.b{background:#3b82f6;color:#fff}.vbtn.p{background:#8b5cf6;color:#fff}.vbtn.s{background:#94a3b8;color:#fff}.vempty{text-align:center;padding:32px;color:#94a3b8;font-size:14px}.valert{display:flex;align-items:center;gap:12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#991b1b}.vsettings{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:640px){.vsettings{grid-template-columns:1fr}}.vsgrp{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px}.vsgrp label{display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px}.vsgrp input{width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:6px 8px;font-size:13px;color:#1e293b;box-sizing:border-box}.vtog{width:44px;height:24px;background:#e2e8f0;border-radius:12px;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;display:inline-block}.vtog.on{background:#22c55e}.vtog::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:transform .2s}.vtog.on::after{transform:translateX(20px)}.vdinput{border:1px solid #cbd5e1;border-radius:6px;padding:5px 8px;font-size:13px;color:#1e293b}';
+    s.textContent='.vtabs{display:flex;gap:2px;border-bottom:2px solid #e6eaf1;margin-bottom:16px;overflow-x:auto;scrollbar-width:none}.vtabs::-webkit-scrollbar{display:none}.verif-tab{position:relative;display:flex;align-items:center;gap:7px;padding:10px 14px 12px;border:none;background:none;font-family:inherit;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;white-space:nowrap;transition:color .15s}.verif-tab:hover{color:#1e293b}.verif-tab::after{content:"";position:absolute;left:10px;right:10px;bottom:-2px;height:2.5px;border-radius:2px;background:transparent;transition:background .15s}.verif-tab.active{color:#0f172a}.verif-tab.active[data-tab=traiter]::after{background:#ea580c}.verif-tab.active[data-tab=traiter] .vbadge{background:#ffedd5;color:#c2410c}.vsec{font-size:10.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:#8494ab;margin:18px 0 8px;display:flex;align-items:center;gap:8px}.vsec:first-child{margin-top:2px}.vsec::after{content:"";flex:1;height:1px;background:#e6eaf1}.verif-tab.active[data-tab=repondre]::after{background:#ea580c}.verif-tab.active[data-tab=sans_reponse]::after{background:#dc2626}.verif-tab.active[data-tab=a_programmer]::after{background:#4f46e5}.verif-tab.active[data-tab=programmee]::after{background:#16a34a}.verif-tab.active[data-tab=obligations]::after{background:#0e7490}.verif-tab.active[data-tab=reglages]::after{background:#475569}.vbadge{min-width:20px;text-align:center;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;background:#eef1f6;color:#475569}.verif-tab.active[data-tab=repondre] .vbadge{background:#ffedd5;color:#c2410c}.verif-tab.active[data-tab=sans_reponse] .vbadge{background:#fee2e2;color:#b91c1c}.verif-tab.active[data-tab=a_programmer] .vbadge{background:#e0e7ff;color:#4338ca}.verif-tab.active[data-tab=programmee] .vbadge{background:#dcfce7;color:#15803d}.verif-tab.active[data-tab=obligations] .vbadge{background:#cffafe;color:#0e7490}'
+    +'.vcard{position:relative;background:#fff;border:1px solid #e6eaf1;border-left-width:3px;border-radius:12px;padding:15px 18px;margin-bottom:10px;animation:vin .22s ease both}.vcard--repondre{border-left-color:#ea580c}.vcard--sans_reponse{border-left-color:#dc2626}.vcard--a_programmer{border-left-color:#4f46e5}.vcard--a_reprogrammer{border-left-color:#b45309}.vcard--programmee{border-left-color:#16a34a}@keyframes vin{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.vcard{animation:none}.verif-tab,.verif-tab::after{transition:none}}'
+    +'.vc-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.vcardtitle{font-weight:700;color:#0f172a;font-size:14.5px;line-height:1.35}.vcardsub{color:#64748b;font-size:12.5px;margin-top:3px}.vcardsub a{color:#1a44ad;text-decoration:none}.vcardsub a:hover{text-decoration:underline}'
+    +'.vdl{flex:0 0 auto;border-radius:8px;padding:4px 11px;font-size:12px;font-weight:800;letter-spacing:.2px}.vdl.red{background:#fee2e2;color:#b91c1c}.vdl.orange{background:#ffedd5;color:#c2410c}.vdl.blue{background:#dbeafe;color:#1d4ed8}.vdl.green{background:#dcfce7;color:#15803d}'
+    +'.vcardmeta{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;align-items:center}.vpill{background:#f4f6fa;color:#475569;border-radius:7px;padding:2.5px 9px;font-size:11px;font-weight:600}.vpill.red{background:#fee2e2;color:#b91c1c}.vpill.orange{background:#ffedd5;color:#c2410c}.vpill.green{background:#dcfce7;color:#15803d}.vpill.blue{background:#dbeafe;color:#1d4ed8}.vref{margin-left:auto;font-size:10.5px;color:#a4aebd}'
+    +'.vreply{margin-top:11px;border-left:3px solid #cdd6e4;background:#f8fafc;border-radius:0 9px 9px 0;padding:9px 13px}.vreply .lbl{font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#8494ab;margin-bottom:4px}.vreply .txt{font-size:12.5px;color:#334155;white-space:pre-wrap;max-height:88px;overflow-y:auto;line-height:1.5}'
+    +'.vactions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}.vactions .lbl{font-size:12px;color:#64748b;font-weight:600}.vbtn{height:34px;display:inline-flex;align-items:center;padding:0 15px;border-radius:9px;font-size:12.5px;font-weight:700;font-family:inherit;border:1px solid transparent;cursor:pointer;transition:filter .12s,background .12s}.vbtn:hover{filter:brightness(.96)}.vbtn:focus-visible{outline:2px solid #1a44ad;outline-offset:2px}.vbtn.g{background:#16a34a;color:#fff}.vbtn.o{background:#ea580c;color:#fff}.vbtn.b{background:#1a44ad;color:#fff}.vbtn.p{background:#6d28d9;color:#fff}.vbtn.r{background:#fff;color:#b91c1c;border-color:#f3c1c1}.vbtn.r:hover{background:#fef2f2}.vbtn.s{background:#fff;color:#475569;border-color:#d6dce6}.vbtn.s:hover{background:#f6f8fb}'
+    +'.vdinput{height:34px;border:1px solid #d6dce6;border-radius:9px;padding:0 10px;font-size:13px;font-family:inherit;color:#1e293b}.vdinput:focus-visible{outline:2px solid #1a44ad;outline-offset:1px}'
+    +'.vempty{text-align:center;padding:44px 20px;color:#8494ab;font-size:13.5px}.vempty b{display:block;font-size:15px;color:#475569;margin-bottom:4px}'
+    +'.vtoday{display:flex;align-items:center;gap:14px;background:#f2f5fc;border:1px solid #d5dff3;border-radius:12px;padding:11px 16px;margin-bottom:14px}.vtoday .n{font-size:22px;font-weight:800;color:#1a44ad;line-height:1}.vtoday .t{font-size:13px;color:#334155;line-height:1.4}.vtoday .t b{color:#0f172a}'
+    +'.vfiltbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}.vfiltbar .lbl{font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#8494ab}'
+    +'.vsettings{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:640px){.vsettings{grid-template-columns:1fr}.vc-top{flex-direction:column}.vdl{align-self:flex-start}}.vsgrp{background:#f8fafc;border:1px solid #e6eaf1;border-radius:10px;padding:14px}.vsgrp label{display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:6px}.vsgrp input{width:100%;border:1px solid #d6dce6;border-radius:8px;padding:7px 9px;font-size:13px;color:#1e293b;box-sizing:border-box}.vtog{width:44px;height:24px;background:#e2e8f0;border-radius:12px;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;display:inline-block}.vtog.on{background:#16a34a}.vtog::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:transform .2s}.vtog.on::after{transform:translateX(20px)}';
     document.head.appendChild(s);
   }
-  let vtab='repondre',vd={repondre:[],sans_reponse:[],a_programmer:[],programmee:[]},vcfg={},verp={},vpr={};
+  let vtab='traiter',vd={repondre:[],sans_reponse:[],a_programmer:[],programmee:[]},vcfg={},verp={},vpr={};
   let vfiltClient='',vfiltErp='';
   content.innerHTML=`
-    <div class="page-head"><div class="t"><h1>🔧 Vérifications &amp; Relances</h1><p style="color:var(--muted);font-size:13.5px;margin-top:3px">Demandes prestataires · Confirmations · Relances automatiques</p></div><div class="actions"><button class="btn" onclick="verifRefresh()">↻ Actualiser</button></div></div>
-    <div id="valert" class="valert" style="display:none"><span style="font-size:18px">⚠️</span><span id="valerttxt"></span></div>
-    <div class="verif-tabs">
-      <button class="verif-tab active" data-tab="repondre" onclick="verifSetTab('repondre')">À répondre <span class="vbadge" id="bvr">0</span></button>
-      <button class="verif-tab" data-tab="sans_reponse" onclick="verifSetTab('sans_reponse')">Sans réponse <span class="vbadge" id="bvs">0</span></button>
-      <button class="verif-tab" data-tab="a_programmer" onclick="verifSetTab('a_programmer')">À programmer <span class="vbadge" id="bvap">0</span></button>
+    <div class="page-head"><div class="t"><h1>Vérifications &amp; relances</h1><p style="color:var(--muted);font-size:13.5px;margin-top:3px">Le suivi de vos demandes aux prestataires, de l'envoi à la réalisation.</p></div><div class="actions"><button class="btn" onclick="verifRefresh()">Actualiser</button></div></div>
+    <div id="valert" class="vtoday" style="display:none"><span class="n" id="valertn">0</span><span class="t" id="valerttxt"></span></div>
+    <div class="vtabs">
+      <button class="verif-tab active" data-tab="traiter" onclick="verifSetTab('traiter')">À traiter <span class="vbadge" id="bvt">0</span></button>
       <button class="verif-tab" data-tab="programmee" onclick="verifSetTab('programmee')">Programmées <span class="vbadge" id="bvp">0</span></button>
-      <button class="verif-tab" data-tab="obligations" onclick="verifSetTab('obligations')">Obligations <span class="vbadge" id="bvobl">0</span></button>
+      <button class="verif-tab" data-tab="obligations" onclick="verifSetTab('obligations')">Toutes les vérifications <span class="vbadge" id="bvobl">0</span></button>
       <button class="verif-tab" data-tab="reglages" onclick="verifSetTab('reglages')">Réglages</button>
     </div>
-    <div id="vglobal_filters" style="display:none;margin-bottom:10px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <select id="vfilt_client" onchange="vFiltClientChange()" style="border:1px solid #cbd5e1;border-radius:6px;padding:6px 10px;font-size:13px;color:#1e293b">
-          <option value="">— Tous les clients —</option>
-        </select>
-        <select id="vfilt_erp" onchange="vFiltErpChange()" style="border:1px solid #cbd5e1;border-radius:6px;padding:6px 10px;font-size:13px;color:#1e293b">
-          <option value="">— Tous les ERP —</option>
-        </select>
-        <span id="vfilt_info" style="font-size:12px;color:#64748b"></span>
-      </div>
+    <div id="vglobal_filters" class="vfiltbar" style="display:none">
+      <span class="lbl">Affiner</span>
+      <select id="vfilt_client" onchange="vFiltClientChange()"><option value="">— Tous les clients —</option></select>
+      <select id="vfilt_erp" onchange="vFiltErpChange()"><option value="">— Tous les établissements —</option></select>
+      <button class="btn sm" id="vfilt_reset" style="display:none" onclick="vFiltReset()">Réinitialiser</button>
+      <span id="vfilt_info" style="font-size:12px;color:#8494ab"></span>
     </div>
     <div id="vcontent"><div style="text-align:center;padding:32px;color:#94a3b8">Chargement…</div></div>`;
   async function vtok(){const {data}=await sb.auth.getSession();return data?.session?.access_token||ANON_KEY;}
@@ -14338,160 +14497,262 @@ function viewVerifications(content){
   function vfd(d){if(!d)return'—';const x=new Date(d);return isNaN(+x)?d:x.toLocaleDateString('fr-FR');}
   function vdl(d){if(!d)return null;return Math.round((new Date(d)-new Date())/86400000);}
   function ptom(p){const s=(p||'').toLowerCase();if(/hebdo/.test(s))return 0.25;if(/mensuel|1 mois/.test(s))return 1;if(/trimestr|3 mois/.test(s))return 3;if(/semestr|6 mois/.test(s))return 6;if(/annuel|1 an/.test(s))return 12;if(/2 ans/.test(s))return 24;if(/3 ans/.test(s))return 36;return null;}
+  function vFiltApply(list){return (list||[]).filter(i=>vfiltErp?i.erp_id===vfiltErp:(vfiltClient?(((verp[i.erp_id]||{}).client_id)===vfiltClient):true));}
+  function vUpdateBadges(){
+    const on=!!(vfiltClient||vfiltErp);
+    const cnt=k=>on?vFiltApply(vd[k]).length:(vd[k]||[]).length;
+    const totT=(vd.repondre||[]).length+(vd.sans_reponse||[]).length+(vd.a_programmer||[]).length+(vd.a_reprogrammer||[]).length;
+    const pairs=[['bvt',cnt('repondre')+cnt('sans_reponse')+cnt('a_programmer')+cnt('a_reprogrammer'),totT],
+                 ['bvp',cnt('programmee'),(vd.programmee||[]).length],
+                 ['bvobl',cnt('obligations'),(vd.obligations||[]).length]];
+    pairs.forEach(([bid,val,tot])=>{
+      const el=document.getElementById(bid); if(!el) return;
+      el.textContent=val;
+      el.title=on?'Avec le filtre actif — '+tot+' au total':'';
+    });
+  }
   async function vload(){
     const[e,p]=await Promise.all([vapi('erps?select=id,nom,client_id'),vapi('prestataires?select=id,nom,email_rapports,telephone,contacts')]);
     (e||[]).forEach(x=>verp[x.id]=x);(p||[]).forEach(x=>vpr[x.id]=x);
-    const[r1,r2,r3,r4,c]=await Promise.all([
+    const[r1,r2,r3,r4,r5,c]=await Promise.all([
       vapi('interventions?select=*&reponse_a_traiter=eq.true&statut=eq.demandee&order=reponse_recue_at.desc'),
       vapi('interventions?select=*&statut=eq.sans_reponse&order=updated_at.desc'),
       vapi('interventions?select=*&statut=eq.a_programmer&order=created_at.desc'),
       vapi('interventions?select=*&statut=eq.programmee&order=date_prevue.asc'),
+      vapi('interventions?select=*&statut=eq.a_reprogrammer&order=updated_at.desc'),
       vapi('verif_config?select=*&id=eq.1').then(a=>a[0]||{})
     ]);
-    vd={repondre:r1||[],sans_reponse:r2||[],a_programmer:r3||[],programmee:r4||[]};vcfg=c;
-    [['repondre','bvr'],['sans_reponse','bvs'],['a_programmer','bvap'],['programmee','bvp']].forEach(([k,bid])=>{const el=document.getElementById(bid);if(el)el.textContent=vd[k].length;});
+    vd={repondre:r1||[],sans_reponse:r2||[],a_programmer:r3||[],programmee:r4||[],a_reprogrammer:r5||[]};vcfg=c;
     const oblRaw=await vapi('obligations?select=*,erps(nom),prestataires(nom,email_rapports)&statut=eq.applicable&order=prochaine_echeance.asc');
     vd.obligations=oblRaw||[];
-    const oblEl=document.getElementById('bvobl');if(oblEl)oblEl.textContent=vd.obligations.length;
-    const tot=vd.repondre.length+vd.sans_reponse.length;
+    vUpdateBadges();
+    const tot=vd.repondre.length+vd.sans_reponse.length+vd.a_programmer.length+vd.a_reprogrammer.length;
     const nb=document.getElementById('badge-verif');if(nb){nb.textContent=tot;nb.style.display=tot?'':'none';}
     const mnb=document.getElementById('mob-badge-verif');if(mnb){mnb.textContent=tot;mnb.style.display=tot?'grid':'none';}
-    const al=document.getElementById('valert'),alt=document.getElementById('valerttxt');
-    if(al&&alt){if(tot>0){al.style.display='flex';alt.textContent=tot+' action(s) : '+(vd.repondre.length?vd.repondre.length+' réponse(s) prestataire':'')+((vd.repondre.length&&vd.sans_reponse.length)?' · ':'')+( vd.sans_reponse.length?vd.sans_reponse.length+' sans réponse':'');}else al.style.display='none';}
+    const al=document.getElementById('valert'),alt=document.getElementById('valerttxt'),aln=document.getElementById('valertn');
+    if(al&&alt){
+      if(tot>0){
+        al.style.display='flex'; if(aln) aln.textContent=tot;
+        const parts=[];
+        if(vd.repondre.length) parts.push('<b>'+vd.repondre.length+' réponse(s) prestataire</b> à confirmer');
+        if(vd.sans_reponse.length) parts.push('<b>'+vd.sans_reponse.length+' demande(s)</b> sans réponse à relancer');
+        if(vd.a_programmer.length) parts.push('<b>'+vd.a_programmer.length+' date(s)</b> à saisir');
+        if(vd.a_reprogrammer.length) parts.push('<b>'+vd.a_reprogrammer.length+' intervention(s)</b> à reprogrammer');
+        alt.innerHTML='À traiter aujourd\'hui : '+parts.join(', ').replace(/,([^,]*)$/,' et$1')+'.';
+      } else al.style.display='none';
+    }
     // Peuple la barre de filtres globale
-    const clients=(state?.clients||[]).slice().sort((a,b)=>(a.raison_sociale||'').localeCompare(b.raison_sociale||''));
+    let clients=(state?.clients||[]).slice();
+    if(!clients.length){ clients=(await vapi('clients?select=id,raison_sociale&order=raison_sociale'))||[]; }
+    clients.sort((a,b)=>(a.raison_sociale||'').localeCompare(b.raison_sociale||''));
+    window._vClients=clients;
     const clientSel=document.getElementById('vfilt_client');
-    if(clientSel) clientSel.innerHTML='<option value="">— Tous les clients —</option>'+clients.map(c=>`<option value="${c.id}">${esc(c.raison_sociale)}</option>`).join('');
+    if(clientSel){ clientSel.innerHTML='<option value="">— Tous les clients —</option>'+clients.map(c=>`<option value="${c.id}">${esc(c.raison_sociale)}</option>`).join(''); clientSel.value=vfiltClient; clientSel.dispatchEvent(new Event('change_sync')); }
+    vFiltFillErps();
     const gfilt=document.getElementById('vglobal_filters');
-    if(gfilt) gfilt.style.display='block';
+    if(gfilt) gfilt.style.display='flex';
   }
   function vrender(){
     const el=document.getElementById('vcontent');if(!el)return;
-    if(vtab==='reglages'){el.innerHTML=vrsettings();return;}
-    if(vtab==='obligations'){el.innerHTML=vrobligations();vRenderObligContent();return;}
+    if(vtab==='reglages'){vUpdateBadges();el.innerHTML=vrsettings();return;}
+    if(vtab==='obligations'){vUpdateBadges();el.innerHTML=vrobligations();vRenderObligContent();return;}
+    vUpdateBadges();
+    if(vtab==='traiter'){
+      const urg=i=>{const d=vdl(i.date_prevue||i.prochaine_echeance);return d===null?9999:d;};
+      const secs=[
+        ['Réponses à confirmer','repondre'],
+        ['Prestataires à relancer','sans_reponse'],
+        ['Dates à saisir','a_programmer'],
+        ['À reprogrammer','a_reprogrammer']
+      ].map(([lbl,k])=>({lbl,k,items:vFiltApply(vd[k]).sort((a,b)=>urg(a)-urg(b))}));
+      const totalT=(vd.repondre||[]).length+(vd.sans_reponse||[]).length+(vd.a_programmer||[]).length+(vd.a_reprogrammer||[]).length;
+      const shown=secs.reduce((s,x)=>s+x.items.length,0);
+      const info=document.getElementById('vfilt_info');
+      if(info) info.textContent=(vfiltClient||vfiltErp)?shown+' élément(s) affiché(s) sur '+totalT:'';
+      if(!shown){
+        el.innerHTML='<div class="vempty">'+((vfiltClient||vfiltErp)&&totalT?'<b>Rien à traiter pour cette sélection</b><a style="cursor:pointer;color:#1a44ad;font-weight:700" onclick="vFiltReset()">Afficher tout</a>':'<b>Rien à traiter</b>Les réponses de prestataires, relances et dates à saisir apparaîtront ici.')+'</div>';
+        return;
+      }
+      el.innerHTML=secs.filter(s=>s.items.length).map(s=>
+        '<div class="vsec">'+s.lbl+' ('+s.items.length+')</div>'+s.items.map(i=>vrcard(i,s.k)).join('')
+      ).join('');
+      return;
+    }
     let items=vd[vtab]||[];
-    if(vfiltErp) items=items.filter(i=>i.erp_id===vfiltErp);
-    else if(vfiltClient) items=items.filter(i=>(verp[i.erp_id]||{}).client_id===vfiltClient);
-    if(!items.length){el.innerHTML='<div class="vempty">✓ Aucun élément pour cette sélection</div>';return;}
+    const total=items.length;
+    items=vFiltApply(items);
+    const info=document.getElementById('vfilt_info');
+    if(info) info.textContent=(vfiltClient||vfiltErp)?items.length+' élément(s) affiché(s) sur '+total:'';
+    const emptyLbl={repondre:['Aucune réponse en attente','Les réponses de vos prestataires apparaîtront ici, prêtes à confirmer.'],sans_reponse:['Aucune demande sans réponse','Tous vos prestataires ont répondu — rien à relancer.'],a_programmer:['Rien à programmer',''],programmee:['Aucune intervention programmée','Les interventions confirmées avec une date apparaîtront ici.']}[vtab]||['Aucun élément',''];
+    if(!items.length){el.innerHTML='<div class="vempty">'+((vfiltClient||vfiltErp)&&total?'<b>Aucun élément pour cette sélection</b>Ce client ou cet établissement n\'a rien dans cette liste. <a style="cursor:pointer;color:#1a44ad;font-weight:700" onclick="vFiltReset()">Afficher tout</a>':'<b>'+emptyLbl[0]+'</b>'+emptyLbl[1])+'</div>';return;}
     el.innerHTML=items.map(i=>vrcard(i,vtab)).join('');
   }
+  function vstatutLbl(s){return ({demandee:'Demande envoyée',sans_reponse:'Sans réponse',a_programmer:'À programmer',programmee:'Programmée',realisee:'Réalisée'})[s]||s||'—';}
   function vrcard(i,tab){
     const e=verp[i.erp_id]||{},pr=vpr[i.prestataire_id]||{};
     const dl=vdl(i.date_prevue||i.prochaine_echeance);
     const dc=dl===null?'':dl<0?'red':dl<=7?'orange':dl<=30?'blue':'green';
-    const dl2=dl===null?'':dl<0?Math.abs(dl)+'j retard':dl===0?"Aujourd'hui":'J-'+dl;
+    const dl2=dl===null?'':dl<0?'Retard de '+Math.abs(dl)+' j':dl===0?"Aujourd'hui":'Dans '+dl+' j';
     let act='';
     if(tab==='repondre'){
-      act=`<div class="vreply">${(i.reponse_extrait||'Corps non disponible').substring(0,300).replace(/</g,'&lt;')}</div>
-      <div class="vactions"><span style="font-size:12px;color:#64748b">Date :</span>
+      act=`<div class="vreply"><div class="lbl">Réponse du prestataire</div><div class="txt">${(i.reponse_extrait||'Corps du message non disponible').substring(0,300).replace(/</g,'&lt;')}</div></div>
+      <div class="vactions"><span class="lbl">Date proposée :</span>
       <input type="date" class="vdinput" id="vd-${i.id}" value="${i.date_proposee||''}">
-      <button class="vbtn g" onclick="verifConfirmer('${i.id}')">✓ Confirmer</button>
-      <button class="vbtn s" onclick="verifReporter('${i.id}')">⏸ Reporter</button>
-      <button class="vbtn s" onclick="verifSmsRappel('${i.id}','${tab}')">💬 SMS</button></div>`;
+      <button class="vbtn g" onclick="verifConfirmer('${i.id}')">Confirmer la date</button>
+      <button class="vbtn s" onclick="verifReporter('${i.id}')">Reporter</button>
+      <button class="vbtn s" onclick="verifSmsRappel('${i.id}','${tab}')">Envoyer un SMS</button></div>`;
     }else if(tab==='sans_reponse'){
-      act=`<div class="vactions"><button class="vbtn o" onclick="verifRelancerManuel('${i.id}','${i.email_to||''}')">📧 Relancer</button><button class="vbtn s" onclick="verifProgrammerTel('${i.id}')">📞 Par tél</button>
-      <button class="vbtn s" onclick="verifSmsRappel('${i.id}','${tab}')">💬 SMS</button></div>`;
+      act=`<div class="vactions"><button class="vbtn o" onclick="verifRelancerManuel('${i.id}','${i.email_to||''}')">Relancer par e-mail</button>
+      <button class="vbtn s" onclick="verifProgrammerTel('${i.id}')">Programmer par téléphone</button>
+      <button class="vbtn s" onclick="verifSmsRappel('${i.id}','${tab}')">Envoyer un SMS</button></div>`;
+    }else if(tab==='a_programmer'){
+      act=`<div class="vactions"><span class="lbl">Date convenue :</span>
+      <input type="date" class="vdinput" id="vd-${i.id}" value="${i.date_prevue||''}">
+      <button class="vbtn b" onclick="verifSaisirDate('${i.id}')">Enregistrer la date</button></div>`;
+    }else if(tab==='a_reprogrammer'){
+      act=`${i.motif_annulation?`<div class="vreply"><div class="lbl">Motif</div><div class="txt">${esc(i.motif_annulation)}</div></div>`:''}
+      <div class="vactions"><span class="lbl">Nouvelle date :</span>
+      <input type="date" class="vdinput" id="vd-${i.id}" value="">
+      <button class="vbtn b" onclick="verifSaisirDate('${i.id}')">Reprogrammer</button>
+      <button class="vbtn s" onclick="verifSmsRappel('${i.id}','${tab}')">Envoyer un SMS</button></div>`;
     }else if(tab==='programmee'){
-      act=`<div class="vactions"><button class="vbtn g" onclick="verifRealise('${i.id}','${i.obligation_id||''}')">✅ Réalisé</button><button class="vbtn r" onclick="verifNonRealise('${i.id}')">❌ Non réalisé</button></div>`;
+      act=`<div class="vactions"><button class="vbtn g" onclick="verifRealise('${i.id}','${i.obligation_id||''}')">Marquer comme réalisée</button>
+      <button class="vbtn r" onclick="verifNonRealise('${i.id}')">Non réalisée</button></div>`;
     }
-    return `<div class="vcard" id="vc-${i.id}">
-      <div style="display:flex;justify-content:space-between;gap:8px">
-        <div><div class="vcardtitle">${esc(i.objet||i.domaine||'—')}</div>
-        <div class="vcardsub">${esc(e.nom||'—')} · ${esc(pr.nom||'—')}${i.email_to?' · <a href="mailto:'+esc(i.email_to)+'" style="color:#3b82f6">'+esc(i.email_to)+'</a>':''}</div></div>
-        <div style="text-align:right;font-size:11px;color:#94a3b8">Ref: ${i.ref_token||'—'}${i.nb_relances?'<br>'+i.nb_relances+' relance(s)':''}</div>
+    return `<div class="vcard vcard--${tab}" id="vc-${i.id}">
+      <div class="vc-top">
+        <div style="min-width:0">
+          <div class="vcardtitle">${esc(i.objet||i.domaine||'—')}</div>
+          <div class="vcardsub">${esc(e.nom||'—')} · ${esc(pr.nom||'Prestataire non renseigné')}${i.email_to?' · <a href="mailto:'+esc(i.email_to)+'">'+esc(i.email_to)+'</a>':''}</div>
+        </div>
+        ${dl2?`<span class="vdl ${dc}">${dl2}</span>`:''}
       </div>
       <div class="vcardmeta">
-        ${dl2?`<span class="vpill ${dc}">${dl2}</span>`:''}
-        ${i.date_prevue?`<span class="vpill">📅 ${vfd(i.date_prevue)}</span>`:''}
-        ${i.date_proposee?`<span class="vpill orange">💬 ${vfd(i.date_proposee)}</span>`:''}
-        ${i.reponse_recue_at?`<span class="vpill blue">📩 ${vfd(i.reponse_recue_at)}</span>`:''}
-        <span class="vpill">${i.statut||'—'}</span>
+        <span class="vpill">${vstatutLbl(i.statut)}</span>
+        ${i.date_prevue?`<span class="vpill">Prévue le ${vfd(i.date_prevue)}</span>`:''}
+        ${i.date_proposee?`<span class="vpill orange">Proposée : ${vfd(i.date_proposee)}</span>`:''}
+        ${i.reponse_recue_at?`<span class="vpill blue">Réponse reçue le ${vfd(i.reponse_recue_at)}</span>`:''}
+        ${i.nb_relances?`<span class="vpill">${i.nb_relances} relance(s)</span>`:''}
+        ${i.ref_token?`<span class="vref">Réf ${esc(i.ref_token)}</span>`:''}
       </div>${act}</div>`;
   }
   function vrsettings(){
     const dry=!!vcfg.dry_run;
-    return `<div class="vsettings">
-      <div class="vsgrp"><label>Mode dry-run</label>
-        <div style="display:flex;align-items:center;gap:10px"><span class="vtog ${dry?'on':''}" onclick="verifToggleDry()"></span>
-        <span style="font-size:13px;color:#475569">${dry?'🟡 Simulation — aucun mail':'🟢 Production — mails réels'}</span></div>
-        ${dry?'<div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:8px;font-size:12px;color:#92400e;margin-top:8px">⚠️ Mode simulation actif</div>':''}
+    return `<div style="max-width:720px">
+      <div class="vcard" style="border-left-color:${dry?'#d97706':'#16a34a'}">
+        <div class="vc-top"><div style="min-width:0">
+          <div class="vcardtitle">Envoi des e-mails automatiques</div>
+          <div class="vcardsub">${dry?'Mode simulation : le système prépare les demandes et relances mais n\'envoie aucun e-mail réel.':'Mode production : les demandes et relances partent réellement aux prestataires.'}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex:0 0 auto">
+          <span style="font-size:12.5px;font-weight:700;color:${dry?'#b45309':'#15803d'}">${dry?'Simulation':'Production'}</span>
+          <span class="vtog ${dry?'':'on'}" role="switch" aria-checked="${!dry}" onclick="verifToggleDry()"></span>
+        </div></div>
       </div>
-      <div class="vsgrp"><label>Délai avant 1ère demande (j)</label><input type="number" id="vcl" value="${vcfg.lead_days||60}" min="7" max="180"></div>
-      <div class="vsgrp"><label>Intervalle relances (j)</label><input type="number" id="vcr" value="${vcfg.relance_interval_days||7}" min="1" max="30"></div>
-      <div class="vsgrp"><label>Max relances auto</label><input type="number" id="vcm" value="${vcfg.max_relances||2}" min="1" max="5"></div>
-      <div class="vsgrp" style="grid-column:1/-1"><label>Email notification</label><input type="email" id="vce" value="${vcfg.notif_email||''}"></div>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
-      <button class="btn primary" onclick="verifSaveSettings()">💾 Enregistrer</button>
-      <button class="btn" style="background:#8b5cf6;color:#fff;border-color:#8b5cf6" onclick="verifRunNow()">▶ Lancer maintenant</button>
+      <div class="vsettings" style="margin-top:4px">
+        <div class="vsgrp"><label>Première demande au prestataire</label>
+          <div style="display:flex;align-items:center;gap:8px"><input type="number" id="vcl" value="${vcfg.lead_days||60}" min="7" max="180" style="width:80px"><span style="font-size:12.5px;color:#64748b">jours avant l'échéance</span></div></div>
+        <div class="vsgrp"><label>Relance si pas de réponse</label>
+          <div style="display:flex;align-items:center;gap:8px"><input type="number" id="vcr" value="${vcfg.relance_interval_days||7}" min="1" max="30" style="width:80px"><span style="font-size:12.5px;color:#64748b">jours entre chaque relance</span></div></div>
+        <div class="vsgrp"><label>Nombre maximum de relances automatiques</label>
+          <div style="display:flex;align-items:center;gap:8px"><input type="number" id="vcm" value="${vcfg.max_relances||2}" min="1" max="5" style="width:80px"><span style="font-size:12.5px;color:#64748b">au-delà, la demande passe en « Sans réponse »</span></div></div>
+        <div class="vsgrp"><label>Adresse recevant les notifications</label><input type="email" id="vce" value="${vcfg.notif_email||''}" placeholder="vous@exemple.fr"></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
+        <button class="vbtn b" onclick="verifSaveSettings()">Enregistrer les réglages</button>
+        <button class="vbtn s" onclick="verifRunNow()">Lancer un cycle maintenant</button>
+      </div>
     </div>`;
   }
 
+  window.vFiltFillErps=function(){
+    const erpSel=document.getElementById('vfilt_erp'); if(!erpSel) return;
+    const erps=Object.values(verp).filter(e=>!vfiltClient||e.client_id===vfiltClient).sort((a,b)=>(a.nom||'').localeCompare(b.nom||''));
+    erpSel.innerHTML='<option value="">— Tous les établissements —</option>'+erps.map(e=>`<option value="${e.id}">${esc(e.nom)}</option>`).join('');
+    erpSel.value=vfiltErp&&erps.some(e=>e.id===vfiltErp)?vfiltErp:'';
+    if(erpSel.value!==vfiltErp) vfiltErp=erpSel.value;
+    erpSel.dispatchEvent(new Event('change_sync'));
+  };
+  window.vFiltUI=function(){
+    const rst=document.getElementById('vfilt_reset');
+    if(rst) rst.style.display=(vfiltClient||vfiltErp)?'':'none';
+  };
   window.vFiltClientChange=function(){
     vfiltClient=document.getElementById('vfilt_client')?.value||'';
     vfiltErp='';
-    const erpSel=document.getElementById('vfilt_erp');
-    if(erpSel){
-      const erps=Object.values(verp).filter(e=>!vfiltClient||e.client_id===vfiltClient).sort((a,b)=>(a.nom||'').localeCompare(b.nom||''));
-      erpSel.innerHTML='<option value="">— Tous les ERP —</option>'+erps.map(e=>`<option value="${e.id}">${esc(e.nom)}</option>`).join('');
-    }
-    vrender();
+    vFiltFillErps(); vFiltUI(); vrender();
   };
   window.vFiltErpChange=function(){
     vfiltErp=document.getElementById('vfilt_erp')?.value||'';
-    vrender();
+    // Choisir un établissement cale automatiquement son client
+    if(vfiltErp){
+      const cid=(verp[vfiltErp]||{}).client_id||'';
+      if(cid&&cid!==vfiltClient){
+        vfiltClient=cid;
+        const cs=document.getElementById('vfilt_client');
+        if(cs){ cs.value=cid; cs.dispatchEvent(new Event('change_sync')); }
+        vFiltFillErps();
+      }
+    }
+    vFiltUI(); vrender();
+  };
+  window.vFiltReset=function(){
+    vfiltClient=''; vfiltErp='';
+    const cs=document.getElementById('vfilt_client');
+    if(cs){ cs.value=''; cs.dispatchEvent(new Event('change_sync')); }
+    vFiltFillErps(); vFiltUI(); vrender();
   };
   function vRenderObligContent(){
     const box=document.getElementById('vobl_list'); if(!box) return;
     const obls=vd.obligations||[];
-    const filtered=obls.filter(o=>{
-      const erp=verp[o.erp_id]||{};
-      if(vfiltErp && o.erp_id!==vfiltErp) return false;
-      if(vfiltClient && erp.client_id!==vfiltClient) return false;
-      return true;
-    });
-    if(!filtered.length){box.innerHTML='<div class="vempty">Aucune vérification pour cette sélection</div>';return;}
+    const filtered=vFiltApply(obls);
+    const info=document.getElementById('vfilt_info');
+    if(info) info.textContent=(vfiltClient||vfiltErp)?filtered.length+' vérification(s) affichée(s) sur '+obls.length:'';
+    if(!filtered.length){box.innerHTML='<div class="vempty">'+((vfiltClient||vfiltErp)&&obls.length?'<b>Aucune vérification pour cette sélection</b><a style="cursor:pointer;color:#1a44ad;font-weight:700" onclick="vFiltReset()">Afficher tout</a>':'<b>Aucune vérification obligatoire enregistrée</b>Les vérifications périodiques de vos établissements apparaîtront ici.')+'</div>';return;}
+    const critLbl={critique:'Critique',majeur:'Majeur',moyen:'Moyen',faible:'Faible',info:'Info'};
     box.innerHTML=filtered.map(o=>{
       const erp=verp[o.erp_id]||{};const pr=o.prestataires||{};
       const today=new Date();
       const dl=o.prochaine_echeance?Math.round((new Date(o.prochaine_echeance)-today)/86400000):null;
       const dc=dl===null?'':dl<0?'red':dl<=30?'orange':dl<=90?'blue':'green';
-      const dlabel=dl===null?'':dl<0?Math.abs(dl)+'j dépassé':dl===0?"Aujourd'hui":'J-'+dl;
+      const dlabel=dl===null?'':dl<0?'Dépassée de '+Math.abs(dl)+' j':dl===0?"Aujourd'hui":'Dans '+dl+' j';
       const isCommission=(o.domaine||'').toLowerCase().includes('commission');
       const periodiciteSelector=isCommission?`
-        <div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
-          <span style="font-size:12px;color:#0369a1;font-weight:600">⏱ Périodicité :</span>
-          <select onchange="verifUpdatePeriodicite('${o.id}',this.value)" style="border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px;font-size:13px;background:#fff;color:#1e293b">
+        <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap">
+          <span style="font-size:12px;color:#475569;font-weight:600">Périodicité :</span>
+          <select onchange="verifUpdatePeriodicite('${o.id}',this.value)" class="vdinput" style="height:32px">
             <option value="triennale" ${(o.periodicite||'')==='triennale'?'selected':''}>3 ans</option>
             <option value="quinquennale" ${(o.periodicite||'')==='quinquennale'?'selected':''}>5 ans</option>
           </select>
-          <span style="font-size:11px;color:#64748b">(selon catégorie ERP)</span>
+          <span style="font-size:11px;color:#8494ab">selon la catégorie de l'établissement</span>
         </div>`:'';
       const today_iso=new Date().toISOString().slice(0,10);
       const default_date=o.prochaine_echeance||today_iso;
       const programmerForm=`
-        <div id="pf-${o.id}" style="display:none;margin-top:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px">
-          <div style="font-size:12px;font-weight:600;color:#166534;margin-bottom:8px">📅 Programmer l'intervention</div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <input type="date" id="pd-${o.id}" value="${default_date}" style="border:1px solid #cbd5e1;border-radius:6px;padding:6px 10px;font-size:14px;color:#1e293b">
-            <button class="vbtn g" onclick="verifProgrammerObligation('${o.id}','${o.erp_id}','${esc(o.libelle||o.domaine||'')}','${o.prestataire_id||''}','${(o.prestataires&&o.prestataires.email_rapports)||''}')">✅ Confirmer</button>
-            <button class="vbtn s" onclick="document.getElementById('pf-${o.id}').style.display='none'">✕ Annuler</button>
+        <div id="pf-${o.id}" style="display:none;margin-top:12px;border:1px solid #d6e8dc;background:#f4faf6;border-radius:10px;padding:12px 14px">
+          <div style="font-size:12px;font-weight:700;color:#166534;margin-bottom:8px">Programmer l'intervention</div>
+          <div class="vactions" style="margin-top:0">
+            <input type="date" id="pd-${o.id}" value="${default_date}" class="vdinput">
+            <button class="vbtn g" onclick="verifProgrammerObligation('${o.id}','${o.erp_id}','${esc(o.libelle||o.domaine||'')}','${o.prestataire_id||''}','${(o.prestataires&&o.prestataires.email_rapports)||''}')">Confirmer la date</button>
+            <button class="vbtn s" onclick="document.getElementById('pf-${o.id}').style.display='none'">Annuler</button>
           </div>
         </div>`;
-      return `<div class="vcard" id="vc-obl-${o.id}">
-        <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
-          <div>
+      return `<div class="vcard" style="border-left-color:#0e7490" id="vc-obl-${o.id}">
+        <div class="vc-top">
+          <div style="min-width:0">
             <div class="vcardtitle">${esc(o.libelle||o.domaine||'—')}</div>
-            <div class="vcardsub">${esc(erp.nom||'—')}${pr.nom?' · '+esc(pr.nom):''}</div>
+            <div class="vcardsub">${esc(erp.nom||'—')}${pr.nom?' · '+esc(pr.nom):' · Prestataire non renseigné'}</div>
           </div>
-          <button class="vbtn b" onclick="document.getElementById('pf-${o.id}').style.display=document.getElementById('pf-${o.id}').style.display==='none'?'block':'none'" style="flex-shrink:0">📅 Programmer</button>
+          <div style="display:flex;gap:8px;align-items:center;flex:0 0 auto">
+            ${dlabel?`<span class="vdl ${dc}">${dlabel}</span>`:''}
+            <button class="vbtn b" onclick="document.getElementById('pf-${o.id}').style.display=document.getElementById('pf-${o.id}').style.display==='none'?'block':'none'">Programmer</button>
+          </div>
         </div>
         <div class="vcardmeta">
-          ${dlabel?`<span class="vpill ${dc}">${dlabel}</span>`:''}
-          ${o.prochaine_echeance?`<span class="vpill">📅 ${vfd(o.prochaine_echeance)}</span>`:''}
+          ${o.prochaine_echeance?`<span class="vpill">Échéance le ${vfd(o.prochaine_echeance)}</span>`:''}
           ${!isCommission&&o.periodicite?`<span class="vpill">${esc(o.periodicite)}</span>`:''}
-          ${o.criticite?`<span class="vpill ${o.criticite==='critique'?'red':o.criticite==='majeur'?'orange':'blue'}">${esc(o.criticite)}</span>`:''}
-          ${o.derniere_verif?`<span class="vpill green">✓ Dernière vérif ${vfd(o.derniere_verif)}</span>`:'<span class="vpill">Jamais vérifiée</span>'}
+          ${o.criticite?`<span class="vpill ${o.criticite==='critique'?'red':o.criticite==='majeur'?'orange':'blue'}">${critLbl[o.criticite]||esc(o.criticite)}</span>`:''}
+          ${o.derniere_verif?`<span class="vpill green">Dernière vérification le ${vfd(o.derniere_verif)}</span>`:'<span class="vpill red">Jamais vérifiée</span>'}
         </div>
         ${periodiciteSelector}
         ${programmerForm}
@@ -14568,8 +14829,15 @@ function viewVerifications(content){
     toast('RDV confirmé — mail envoyé','ok');await verifRefresh();
   };
   window.verifReporter=async function(id){await vpatch('interventions',id,{reponse_a_traiter:false,statut:'a_reprogrammer'});toast('Reporté','ok');await verifRefresh();};
+  window.verifSaisirDate=async function(id){
+    const dv=document.getElementById('vd-'+id)?.value;
+    if(!dv){toast('Saisir une date','err');return;}
+    await vpatch('interventions',id,{statut:'programmee',date_prevue:dv});
+    toast('Intervention programmée le '+new Date(dv).toLocaleDateString('fr-FR'),'ok');
+    await verifRefresh();
+  };
   window.verifSmsRappel=async function(id,tab){
-    const src=tab==='repondre'?vd.repondre:vd.sans_reponse;
+    const src=vd[tab]||vd.sans_reponse;
     const i=(src||[]).find(x=>x.id===id); if(!i){ toast('Élément introuvable','err'); return; }
     const e=verp[i.erp_id]||{}, pr=vpr[i.prestataire_id]||{};
     const phones=getPhones(pr);
@@ -14598,20 +14866,74 @@ function viewVerifications(content){
     await vpatch('interventions',id,{statut:'programmee',date_prevue:iso,reponse_a_traiter:false,commentaire:'Programmé par téléphone'});
     toast('Programmé','ok');await verifRefresh();
   };
-  window.verifRealise=async function(id,oblId){
-    if(!confirm('Marquer comme réalisée ?'))return;
-    await vpatch('interventions',id,{statut:'realisee'});
-    if(oblId){const obl=await vapi('obligations?select=periodicite&id=eq.'+oblId).then(a=>a[0]);
-      if(obl?.periodicite){const m=ptom(obl.periodicite);if(m){const nd=new Date();nd.setMonth(nd.getMonth()+m);const ni=nd.toISOString().slice(0,10);
-        const tok2=await vtok();await fetch(SUPA_URL+'/rest/v1/obligations?id=eq.'+oblId,{method:'PATCH',headers:{apikey:ANON_KEY,'Authorization':'Bearer '+tok2,'Content-Type':'application/json'},body:JSON.stringify({derniere_verif:new Date().toISOString().slice(0,10),prochaine_echeance:ni})});
-      }}
-    }
-    toast('Réalisée ✓','ok');await verifRefresh();
+  window.verifRealise=function(id,oblId){
+    const i=(vd.programmee||[]).find(x=>x.id===id)||{};
+    const def=i.date_prevue||new Date().toISOString().slice(0,10);
+    openModal(`<div class="modal-head"><h3>Intervention réalisée</h3></div>
+      <div class="modal-body" style="padding:18px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:13px;color:var(--muted)">${esc(i.objet||i.domaine||'')} — ${esc((verp[i.erp_id]||{}).nom||'')}</div>
+        <label style="display:block;font-size:12px;font-weight:700;color:var(--muted)"><span style="display:block;margin-bottom:4px">Réalisée le</span>
+          <input type="date" id="vr_date" value="${def}" class="vdinput" style="display:block"></label>
+        <label style="display:block;font-size:12px;font-weight:700;color:var(--muted)"><span style="display:block;margin-bottom:4px">Rapport de vérification <span style="font-weight:500">(optionnel — sera classé dans les documents)</span></span>
+          <input type="file" id="vr_file" accept="application/pdf,image/*" style="display:block;font-size:12.5px"></label>
+        <div style="font-size:11.5px;color:#8494ab">La prochaine échéance de la vérification sera recalculée à partir de la date de réalisation.</div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" onclick="closeModal()">Annuler</button>
+        <button class="btn primary" id="vr_go" onclick="verifRealiseGo('${id}','${oblId||''}')">Confirmer la réalisation</button></div>`);
   };
-  window.verifNonRealise=async function(id){
-    const r=prompt('Raison :')||'Non précisée';
-    await vpatch('interventions',id,{statut:'a_reprogrammer',motif_annulation:r,reponse_a_traiter:false});
-    toast('Non réalisé','ok');await verifRefresh();
+  window.verifRealiseGo=async function(id,oblId){
+    const btn=document.getElementById('vr_go'); btn.disabled=true; btn.textContent='Enregistrement…';
+    try{
+      const dr=document.getElementById('vr_date')?.value||new Date().toISOString().slice(0,10);
+      const f=document.getElementById('vr_file')?.files?.[0]||null;
+      const i=(vd.programmee||[]).find(x=>x.id===id)||{};
+      await vpatch('interventions',id,{statut:'realisee',date_realisation:dr});
+      // Recalcul de l'échéance de la vérification à partir de la date réelle
+      if(oblId){
+        const obl=await vapi('obligations?select=periodicite&id=eq.'+oblId).then(a=>a[0]);
+        if(obl?.periodicite){const m=ptom(obl.periodicite);if(m){
+          const nd=new Date(dr+'T00:00:00');nd.setMonth(nd.getMonth()+m);
+          const tok2=await vtok();
+          await fetch(SUPA_URL+'/rest/v1/obligations?id=eq.'+oblId,{method:'PATCH',headers:{apikey:ANON_KEY,'Authorization':'Bearer '+tok2,'Content-Type':'application/json'},body:JSON.stringify({derniere_verif:dr,prochaine_echeance:nd.toISOString().slice(0,10)})});
+        }}
+      }
+      // Rapport joint → stockage + GED
+      if(f){
+        const erp=verp[i.erp_id]||{};
+        const safe=(f.name||'rapport.pdf').replace(/[^A-Za-z0-9À-ÿ._-]+/g,'_');
+        const path=(erp.client_id||'divers')+'/'+(i.erp_id||'divers')+'/rapports/'+Date.now()+'_'+safe;
+        const {error:ue}=await sb.storage.from('documents').upload(path,f,{contentType:f.type||undefined});
+        if(ue) throw ue;
+        await sb.from('documents').insert({erp_id:i.erp_id||null,client_id:erp.client_id||null,prestataire_id:i.prestataire_id||null,type:'Rapport de vérification',date_document:dr,fichier_path:path,nom_original:f.name});
+      }
+      _modalDirty=false; closeModal();
+      toast('Intervention réalisée le '+new Date(dr+'T00:00:00').toLocaleDateString('fr-FR')+(f?' — rapport classé':''),'ok');
+      await verifRefresh();
+    }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Confirmer la réalisation'; }
+  };
+  window.verifNonRealise=function(id){
+    const i=(vd.programmee||[]).find(x=>x.id===id)||{};
+    openModal(`<div class="modal-head"><h3>Intervention non réalisée</h3></div>
+      <div class="modal-body" style="padding:18px;display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:13px;color:var(--muted)">${esc(i.objet||i.domaine||'')} — ${esc((verp[i.erp_id]||{}).nom||'')}</div>
+        <div style="font-size:12px;font-weight:700;color:var(--muted)">Pourquoi l'intervention n'a-t-elle pas eu lieu ?</div>
+        ${['Prestataire absent ou annulation de sa part','Report d\'un commun accord','Problème d\'accès au site ou à l\'installation','Autre motif'].map((m,x)=>`
+          <label style="display:flex;gap:9px;align-items:center;font-size:13px;cursor:pointer">
+            <input type="radio" name="vnr_m" value="${m}" ${x===0?'checked':''} style="accent-color:#1a44ad"> ${m}</label>`).join('')}
+        <input id="vnr_txt" placeholder="Précision (optionnel)" style="margin-top:2px">
+        <div style="font-size:11.5px;color:#8494ab">L'intervention passera dans « À traiter → À reprogrammer » avec ce motif.</div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" onclick="closeModal()">Annuler</button>
+        <button class="btn primary" onclick="verifNonRealiseGo('${id}')">Enregistrer</button></div>`);
+  };
+  window.verifNonRealiseGo=async function(id){
+    const m=document.querySelector('input[name=vnr_m]:checked')?.value||'Non précisé';
+    const t=(document.getElementById('vnr_txt')?.value||'').trim();
+    await vpatch('interventions',id,{statut:'a_reprogrammer',motif_annulation:t?m+' — '+t:m,reponse_a_traiter:false});
+    _modalDirty=false; closeModal();
+    toast('Intervention à reprogrammer','ok');await verifRefresh();
   };
   verifRefresh();
 }
