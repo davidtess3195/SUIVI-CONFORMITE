@@ -2350,10 +2350,26 @@ function openUserWizard(){
 async function renderAgentApp(){
   document.title='SUIVI-CONFORMITÉ — Terrain';
   const root=document.getElementById('root')||document.body;
-  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;color:#64748b">Chargement…</div>';
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd;margin-left:8px"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v3</span></div>';
+  const step=t=>{const e=document.getElementById('ag-step');if(e)e.textContent=t;};
+  // Chien de garde : si pour une raison quelconque le chargement n'aboutit pas en 15 s,
+  // la vue s'affiche de force avec ce qui est disponible.
+  if(window._agWatch) clearTimeout(window._agWatch);
+  window._agWatch=setTimeout(()=>{
+    if(document.getElementById('ag-load')){
+      window._agErr=(window._agErr||[]); window._agErr.push('chargement interrompu (délai global)');
+      window._agCtx=window._agCtx||{erpId:null,erp:{nom:'Mon établissement'},pres:[],itv:[],prests:[]};
+      try{ agRender(); }catch(e){ console.error(e); }
+    }
+  },15000);
+  // Chaque requête est bornée à 10 s : plus jamais de chargement infini
+  const tmo=(p,lbl)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('délai dépassé — '+lbl)),10000))]);
+  const safe=async(p,lbl,def)=>{ try{ const r=await tmo(p,lbl); if(r&&r.error) throw r.error; return (r&&r.data)!==undefined?r.data:def; }catch(e){ console.warn('vue terrain —',lbl,e); window._agErr=(window._agErr||[]); window._agErr.push(lbl+' : '+(e.message||e)); return def; } };
+  window._agErr=[];
   try{
     // Son établissement (rattachement user_erps)
-    const {data:ue}=await sb.from('user_erps').select('erp_id').eq('user_id',state.user.id).limit(1);
+    step('rattachement');
+    const ue=await safe(sb.from('user_erps').select('erp_id').eq('user_id',state.user.id).limit(1),'rattachement',[]);
     const erpId=ue&&ue[0]&&ue[0].erp_id;
     if(!erpId){
       root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:26px;max-width:400px;text-align:center"><b style="font-size:15px;color:#0f172a">Aucun établissement rattaché</b><p style="font-size:13px;color:#64748b;margin-top:8px;line-height:1.5">Votre compte n\'est rattaché à aucun établissement. Contactez PREVA CONSEILS pour finaliser votre accès.</p><button onclick="agLogout()" style="margin-top:14px;border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:9px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Se déconnecter</button></div></div>';
@@ -2361,16 +2377,19 @@ async function renderAgentApp(){
     }
     const today=new Date().toISOString().slice(0,10);
     const in7=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
-    const [{data:erp},{data:pres},{data:itv}]=await Promise.all([
-      sb.from('erps').select('id,nom,adresse,ville').eq('id',erpId).maybeSingle(),
-      sb.from('pointages').select('id,heure_arrivee,heure_depart,nb_intervenants,nom,prenom,societe,mission,created_at').eq('erp_id',erpId).gte('heure_arrivee',today).order('heure_arrivee',{ascending:false}).limit(30),
-      sb.from('interventions').select('id,objet,domaine,date_prevue,statut,prestataire_id').eq('erp_id',erpId).eq('statut','programmee').gte('date_prevue',today).lte('date_prevue',in7).order('date_prevue')
-    ]);
-    const {data:prests}=await sb.from('prestataires').select('id,nom');
-    window._agCtx={erpId,erp:erp||{},pres:pres||[],itv:itv||[],prests:prests||[]};
+    step('établissement');
+    const erp=await safe(sb.from('erps').select('id,nom,adresse,ville').eq('id',erpId).maybeSingle(),'établissement',null);
+    step('pointages');
+    const pres=await safe(sb.from('pointages').select('id,heure_arrivee,heure_depart,nb_intervenants,nom,prenom,societe,mission,created_at').eq('erp_id',erpId).gte('heure_arrivee',today).order('heure_arrivee',{ascending:false}).limit(30),'pointages',[]);
+    step('interventions');
+    const itv=await safe(sb.from('interventions').select('id,objet,domaine,date_prevue,statut,prestataire_id').eq('erp_id',erpId).eq('statut','programmee').gte('date_prevue',today).lte('date_prevue',in7).order('date_prevue'),'interventions',[]);
+    step('prestataires');
+    const pids=[...new Set((itv||[]).map(i=>i.prestataire_id).filter(Boolean))];
+    const prests=pids.length?await safe(sb.from('prestataires').select('id,nom').in('id',pids),'prestataires',[]):[];
+    window._agCtx={erpId,erp:erp||{nom:'Mon établissement'},pres:pres||[],itv:itv||[],prests:prests||[]};
     agRender();
   }catch(e){
-    root.innerHTML='<div style="min-height:100vh;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;color:#64748b">Erreur de chargement — <a style="color:#1a44ad;cursor:pointer" onclick="renderAgentApp()">réessayer</a></div>';
+    root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:420px"><b style="font-size:14px;color:#0f172a">Erreur de chargement</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><button onclick="renderAgentApp()" style="margin-top:14px;border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button></div></div>';
   }
 }
 window.renderAgentApp=renderAgentApp;
@@ -2411,6 +2430,7 @@ function agRender(){
           +'<div style="font-size:11.5px;color:#64748b">'+esc(pNom(i.prestataire_id)||'Prestataire non renseigné')+'</div></div></div>';}).join('')
         :'<div style="font-size:13px;color:#8494ab;padding:4px 0">Aucune intervention prévue cette semaine.</div>')
       +'</div>'
+      +((window._agErr&&window._agErr.length)?'<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:8px 12px;font-size:11px;color:#9a3412;margin-top:4px">Données partielles : '+window._agErr.map(x=>String(x).replace(/</g,'&lt;')).join(' · ')+'</div>':'')
       +'<div style="text-align:center;font-size:11px;color:#a4aebd;margin-top:6px">Tirez la page ou <a style="color:#1a44ad;cursor:pointer;font-weight:700" onclick="renderAgentApp()">actualisez</a></div>'
     +'</div>'
     // Bouton signalement fixe
