@@ -2346,61 +2346,92 @@ function openUserWizard(){
   renderWizStep();
 }
 
-/* ═══ VUE TERRAIN — PERSONNEL D'ÉTABLISSEMENT (rôle agent) ═══ */
+/* ═══ VUE TERRAIN — PERSONNEL D'ÉTABLISSEMENT (rôle agent) ═══
+   v6 : lecture des données par API REST directe (fetch + AbortController).
+   Aucune dépendance au client supabase-js pour les lectures : son verrou
+   interne de session pouvait suspendre toutes les requêtes au démarrage. */
+function agToken(){
+  // Jeton d'accès lu directement dans le localStorage (clé standard supabase-js v2)
+  try{
+    const raw=localStorage.getItem('sb-twjvloctrjqcokuuxghc-auth-token');
+    if(raw){ const j=JSON.parse(raw); if(j&&j.access_token) return {token:j.access_token, uid:j.user&&j.user.id}; }
+  }catch(e){}
+  return {token:null, uid:null};
+}
+async function agGet(path, lbl, ms){
+  // GET REST brut, borné : impossible de rester suspendu
+  const ctl=new AbortController();
+  const t=setTimeout(()=>ctl.abort(), ms||8000);
+  try{
+    const tk=agToken();
+    const r=await fetch(SUPABASE_URL+'/rest/v1/'+path,{
+      headers:{ apikey:SUPABASE_ANON_KEY, Authorization:'Bearer '+(tk.token||SUPABASE_ANON_KEY) },
+      signal:ctl.signal
+    });
+    clearTimeout(t);
+    if(!r.ok){ const tx=await r.text().catch(()=>String(r.status)); throw new Error(lbl+' : HTTP '+r.status+' '+tx.slice(0,120)); }
+    return await r.json();
+  }catch(e){
+    clearTimeout(t);
+    if(e.name==='AbortError') throw new Error(lbl+' : délai dépassé (8 s)');
+    throw e;
+  }
+}
 async function renderAgentApp(){
+  // Garde anti-réentrance : ignorer les rappels pendant un chargement en cours
+  if(window._agBusy && Date.now()-window._agBusy<15000){ console.warn('[terrain] appel ignoré (déjà en cours)'); return; }
+  window._agBusy=Date.now();
+  console.log('[terrain] v6 — démarrage', new Date().toISOString());
   document.title='SUIVI-CONFORMITÉ — Terrain';
   const root=document.getElementById('root')||document.body;
-  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v5</span></div>';
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v6</span></div>';
   setTimeout(()=>{ const l=document.getElementById('ag-load'); if(l&&!document.getElementById('ag-diag-link')) l.insertAdjacentHTML('beforeend','<a id="ag-diag-link" onclick="agDiag()" style="color:#1a44ad;font-weight:700;font-size:13px;cursor:pointer">Lancer le diagnostic</a>'); },6000);
-  const step=t=>{const e=document.getElementById('ag-step');if(e)e.textContent=t;};
-  const fail=(phase,e)=>{ root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:440px"><b style="font-size:14px;color:#0f172a">Erreur ('+phase+')</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><div style="display:flex;gap:8px;margin-top:14px"><button onclick="renderAgentApp()" style="border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button><button onclick="agDiag()" style="border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Diagnostic</button></div></div></div>'; };
+  const step=t=>{ console.log('[terrain] étape :',t); const e=document.getElementById('ag-step'); if(e)e.textContent=t; };
+  const fail=(phase,e)=>{ window._agBusy=0; console.error('[terrain] échec',phase,e); root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:440px"><b style="font-size:14px;color:#0f172a">Erreur ('+phase+')</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><div style="display:flex;gap:8px;margin-top:14px"><button onclick="window._agBusy=0;renderAgentApp()" style="border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button><button onclick="agDiag()" style="border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Diagnostic</button></div></div></div>'; };
   window._agErr=[];
-  let erpId, erp, pres, itv, prests;
-  // Timeout par requête : plus jamais de chargement infini silencieux.
-  const tmo=(p,lbl,ms=9000)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('délai dépassé — '+lbl)),ms))]);
-  // Chien de garde global : si rien n'aboutit en 20 s, on affiche la vue avec ce qu'on a.
+  // Chien de garde absolu : au bout de 20 s la vue s'affiche avec ce qui est disponible
   if(window._agWatch) clearTimeout(window._agWatch);
   window._agWatch=setTimeout(()=>{
     if(document.getElementById('ag-load')){
+      console.warn('[terrain] chien de garde 20 s — affichage forcé');
       window._agErr=(window._agErr||[]); window._agErr.push('chargement interrompu (délai global)');
       window._agCtx=window._agCtx||{erpId:null,erp:{nom:'Mon établissement'},pres:[],itv:[],prests:[]};
+      window._agBusy=0;
       try{ agRender(); }catch(e){ console.error(e); }
     }
   },20000);
+  let erpId, erp, pres, itv, prests;
+  const soft=async(fn,lbl,def)=>{ try{ return await fn(); }catch(e){ window._agErr.push(String(e.message||e)); console.warn('[terrain]',lbl,e); return def; } };
   try{
     step('session');
-    // 1) Identifiant déjà en mémoire (afterLogin) — aucun appel réseau nécessaire.
-    let uid=state.user&&state.user.id;
-    // 2) Sinon, session locale (lecture localStorage, quasi instantanée).
-    if(!uid){ try{ const s=await tmo(sb.auth.getSession(),'session locale',5000); uid=s&&s.data&&s.data.session&&s.data.session.user&&s.data.session.user.id; }catch(e){ window._agErr.push('session locale : '+(e.message||e)); } }
-    // 3) Dernier recours seulement : getUser (appel réseau), borné à 6 s.
-    if(!uid){ try{ const g=await tmo(sb.auth.getUser(),'session serveur',6000); uid=g&&g.data&&g.data.user&&g.data.user.id; }catch(e){ window._agErr.push('session serveur : '+(e.message||e)); } }
+    const tk=agToken();
+    const uid=(state.user&&state.user.id)||tk.uid;
     if(!uid) throw new Error('session introuvable — reconnectez-vous');
     step('rattachement');
-    const rUe=await tmo(sb.from('user_erps').select('erp_id').eq('user_id',uid).limit(1),'rattachement');
-    if(rUe.error) throw rUe.error;
-    erpId=rUe.data&&rUe.data[0]&&rUe.data[0].erp_id;
+    const ue=await agGet('user_erps?select=erp_id&user_id=eq.'+encodeURIComponent(uid)+'&limit=1','rattachement');
+    erpId=ue&&ue[0]&&ue[0].erp_id;
     if(!erpId){
+      window._agBusy=0;
       root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:26px;max-width:400px;text-align:center"><b style="font-size:15px;color:#0f172a">Aucun établissement rattaché</b><p style="font-size:13px;color:#64748b;margin-top:8px;line-height:1.5">Votre compte n\'est rattaché à aucun établissement. Contactez PREVA CONSEILS pour finaliser votre accès.</p><button onclick="agLogout()" style="margin-top:14px;border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:9px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Se déconnecter</button></div></div>';
       return;
     }
     const today=new Date().toISOString().slice(0,10);
     const in7=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
-    // Requêtes non critiques : timeout + dégradation gracieuse (la vue s'affiche quand même).
-    const safe=async(p,lbl,def)=>{ try{ const r=await tmo(p,lbl); if(r&&r.error){ window._agErr.push(lbl+' : '+r.error.message); return def; } return (r&&r.data)!==undefined&&r.data!==null?r.data:def; }catch(e){ window._agErr.push(lbl+' : '+(e.message||e)); return def; } };
     step('établissement');
-    erp=await safe(sb.from('erps').select('id,nom,adresse,ville').eq('id',erpId).maybeSingle(),'établissement',{nom:'Mon établissement'});
+    erp=await soft(async()=>{ const r=await agGet('erps?select=id,nom,adresse,ville&id=eq.'+erpId,'établissement'); return (r&&r[0])||{nom:'Mon établissement'}; },'établissement',{nom:'Mon établissement'});
     step('pointages');
-    pres=await safe(sb.from('pointages').select('id,heure_arrivee,heure_depart,nb_intervenants,nom,prenom,societe,mission,created_at').eq('erp_id',erpId).gte('heure_arrivee',today).order('heure_arrivee',{ascending:false}).limit(30),'pointages',[]);
+    pres=await soft(()=>agGet('pointages?select=id,heure_arrivee,heure_depart,nb_intervenants,nom,prenom,societe,mission,created_at&erp_id=eq.'+erpId+'&heure_arrivee=gte.'+today+'&order=heure_arrivee.desc&limit=30','pointages'),'pointages',[]);
     step('interventions');
-    itv=await safe(sb.from('interventions').select('id,objet,domaine,date_prevue,statut,prestataire_id').eq('erp_id',erpId).eq('statut','programmee').gte('date_prevue',today).lte('date_prevue',in7).order('date_prevue'),'interventions',[]);
+    itv=await soft(()=>agGet('interventions?select=id,objet,domaine,date_prevue,statut,prestataire_id&erp_id=eq.'+erpId+'&statut=eq.programmee&date_prevue=gte.'+today+'&date_prevue=lte.'+in7+'&order=date_prevue','interventions'),'interventions',[]);
     step('prestataires');
-    const pids=[...new Set(itv.map(i=>i.prestataire_id).filter(Boolean))];
-    prests=pids.length?await safe(sb.from('prestataires').select('id,nom').in('id',pids),'prestataires',[]):[];
+    const pids=[...new Set((itv||[]).map(i=>i.prestataire_id).filter(Boolean))];
+    prests=pids.length?await soft(()=>agGet('prestataires?select=id,nom&id=in.('+pids.join(',')+')','prestataires'),'prestataires',[]):[];
   }catch(e){ if(window._agWatch) clearTimeout(window._agWatch); fail('chargement — '+((document.getElementById('ag-step')||{}).textContent||''),e); return; }
   if(window._agWatch) clearTimeout(window._agWatch);
+  window._agBusy=0;
   try{
     window._agCtx={erpId,erp,pres,itv,prests};
+    console.log('[terrain] v6 — rendu OK');
     agRender();
   }catch(e){ fail('affichage',e); }
 }
