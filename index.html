@@ -2350,27 +2350,21 @@ function openUserWizard(){
 async function renderAgentApp(){
   document.title='SUIVI-CONFORMITÉ — Terrain';
   const root=document.getElementById('root')||document.body;
-  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd;margin-left:8px"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v3</span></div>';
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v4</span></div>';
+  setTimeout(()=>{ const l=document.getElementById('ag-load'); if(l&&!document.getElementById('ag-diag-link')) l.insertAdjacentHTML('beforeend','<a id="ag-diag-link" onclick="agDiag()" style="color:#1a44ad;font-weight:700;font-size:13px;cursor:pointer">Lancer le diagnostic</a>'); },6000);
   const step=t=>{const e=document.getElementById('ag-step');if(e)e.textContent=t;};
-  // Chien de garde : si pour une raison quelconque le chargement n'aboutit pas en 15 s,
-  // la vue s'affiche de force avec ce qui est disponible.
-  if(window._agWatch) clearTimeout(window._agWatch);
-  window._agWatch=setTimeout(()=>{
-    if(document.getElementById('ag-load')){
-      window._agErr=(window._agErr||[]); window._agErr.push('chargement interrompu (délai global)');
-      window._agCtx=window._agCtx||{erpId:null,erp:{nom:'Mon établissement'},pres:[],itv:[],prests:[]};
-      try{ agRender(); }catch(e){ console.error(e); }
-    }
-  },15000);
-  // Chaque requête est bornée à 10 s : plus jamais de chargement infini
-  const tmo=(p,lbl)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('délai dépassé — '+lbl)),10000))]);
-  const safe=async(p,lbl,def)=>{ try{ const r=await tmo(p,lbl); if(r&&r.error) throw r.error; return (r&&r.data)!==undefined?r.data:def; }catch(e){ console.warn('vue terrain —',lbl,e); window._agErr=(window._agErr||[]); window._agErr.push(lbl+' : '+(e.message||e)); return def; } };
+  const fail=(phase,e)=>{ root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:440px"><b style="font-size:14px;color:#0f172a">Erreur ('+phase+')</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><div style="display:flex;gap:8px;margin-top:14px"><button onclick="renderAgentApp()" style="border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button><button onclick="agDiag()" style="border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Diagnostic</button></div></div></div>'; };
   window._agErr=[];
+  let erpId, erp, pres, itv, prests;
   try{
-    // Son établissement (rattachement user_erps)
+    step('session');
+    const g=await sb.auth.getUser();
+    const uid=(g&&g.data&&g.data.user&&g.data.user.id)||(state.user&&state.user.id);
+    if(!uid) throw new Error('session introuvable — reconnectez-vous');
     step('rattachement');
-    const ue=await safe(sb.from('user_erps').select('erp_id').eq('user_id',state.user.id).limit(1),'rattachement',[]);
-    const erpId=ue&&ue[0]&&ue[0].erp_id;
+    const rUe=await sb.from('user_erps').select('erp_id').eq('user_id',uid).limit(1);
+    if(rUe.error) throw rUe.error;
+    erpId=rUe.data&&rUe.data[0]&&rUe.data[0].erp_id;
     if(!erpId){
       root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:26px;max-width:400px;text-align:center"><b style="font-size:15px;color:#0f172a">Aucun établissement rattaché</b><p style="font-size:13px;color:#64748b;margin-top:8px;line-height:1.5">Votre compte n\'est rattaché à aucun établissement. Contactez PREVA CONSEILS pour finaliser votre accès.</p><button onclick="agLogout()" style="margin-top:14px;border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:9px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Se déconnecter</button></div></div>';
       return;
@@ -2378,19 +2372,27 @@ async function renderAgentApp(){
     const today=new Date().toISOString().slice(0,10);
     const in7=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
     step('établissement');
-    const erp=await safe(sb.from('erps').select('id,nom,adresse,ville').eq('id',erpId).maybeSingle(),'établissement',null);
+    const rErp=await sb.from('erps').select('id,nom,adresse,ville').eq('id',erpId).maybeSingle();
+    erp=(rErp&&rErp.data)||{nom:'Mon établissement'};
     step('pointages');
-    const pres=await safe(sb.from('pointages').select('id,heure_arrivee,heure_depart,nb_intervenants,nom,prenom,societe,mission,created_at').eq('erp_id',erpId).gte('heure_arrivee',today).order('heure_arrivee',{ascending:false}).limit(30),'pointages',[]);
+    const rP=await sb.from('pointages').select('id,heure_arrivee,heure_depart,nb_intervenants,nom,prenom,societe,mission,created_at').eq('erp_id',erpId).gte('heure_arrivee',today).order('heure_arrivee',{ascending:false}).limit(30);
+    if(rP.error) window._agErr.push('pointages : '+rP.error.message);
+    pres=(rP&&rP.data)||[];
     step('interventions');
-    const itv=await safe(sb.from('interventions').select('id,objet,domaine,date_prevue,statut,prestataire_id').eq('erp_id',erpId).eq('statut','programmee').gte('date_prevue',today).lte('date_prevue',in7).order('date_prevue'),'interventions',[]);
+    const rI=await sb.from('interventions').select('id,objet,domaine,date_prevue,statut,prestataire_id').eq('erp_id',erpId).eq('statut','programmee').gte('date_prevue',today).lte('date_prevue',in7).order('date_prevue');
+    if(rI.error) window._agErr.push('interventions : '+rI.error.message);
+    itv=(rI&&rI.data)||[];
     step('prestataires');
-    const pids=[...new Set((itv||[]).map(i=>i.prestataire_id).filter(Boolean))];
-    const prests=pids.length?await safe(sb.from('prestataires').select('id,nom').in('id',pids),'prestataires',[]):[];
-    window._agCtx={erpId,erp:erp||{nom:'Mon établissement'},pres:pres||[],itv:itv||[],prests:prests||[]};
+    const pids=[...new Set(itv.map(i=>i.prestataire_id).filter(Boolean))];
+    if(pids.length){
+      const rPr=await sb.from('prestataires').select('id,nom').in('id',pids);
+      prests=(rPr&&rPr.data)||[];
+    } else prests=[];
+  }catch(e){ fail('chargement — '+((document.getElementById('ag-step')||{}).textContent||''),e); return; }
+  try{
+    window._agCtx={erpId,erp,pres,itv,prests};
     agRender();
-  }catch(e){
-    root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:420px"><b style="font-size:14px;color:#0f172a">Erreur de chargement</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><button onclick="renderAgentApp()" style="margin-top:14px;border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button></div></div>';
-  }
+  }catch(e){ fail('affichage',e); }
 }
 window.renderAgentApp=renderAgentApp;
 function agFmtH(d){ if(!d) return ''; const x=new Date(d); return isNaN(+x)?'':x.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }
@@ -2438,6 +2440,46 @@ function agRender(){
       +'<button onclick="agSignal()" style="display:block;width:100%;max-width:560px;margin:0 auto;border:none;background:#c0392b;color:#fff;border-radius:13px;padding:15px;font-weight:800;font-size:15px;font-family:inherit;cursor:pointer;box-shadow:0 6px 18px rgba(192,57,43,.35)">Signaler une urgence — photo</button>'
     +'</div></div>';
 }
+window.agDiag=async function(){
+  if(window._agWatch) clearTimeout(window._agWatch);
+  const root=document.getElementById('root')||document.body;
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;font-family:Inter,system-ui,sans-serif;padding:16px"><div style="max-width:560px;margin:0 auto"><b style="font-size:15px;color:#0f172a">Diagnostic de la vue terrain — v3</b><div id="dg" style="margin-top:12px;display:flex;flex-direction:column;gap:6px"></div><button onclick="renderAgentApp()" style="margin-top:16px;border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Relancer la vue</button></div></div>';
+  const dg=document.getElementById('dg');
+  const line=(lbl,st,ms,detail)=>{ dg.insertAdjacentHTML('beforeend',
+    '<div style="background:#fff;border:1px solid '+(st==='OK'?'#d6e8dc':st==='EN COURS'?'#e2e8f0':'#f3c1c1')+';border-radius:9px;padding:8px 12px;font-size:12.5px;display:flex;gap:8px;align-items:baseline">'
+    +'<b style="color:'+(st==='OK'?'#15803d':st==='EN COURS'?'#64748b':'#b91c1c')+';flex:0 0 74px">'+st+'</b>'
+    +'<span style="flex:1">'+lbl+'</span><span style="color:#8494ab;font-size:11px">'+(ms!=null?ms+' ms':'')+'</span>'
+    +(detail?'<div style="flex-basis:100%;color:#9a3412;font-size:11px;word-break:break-word">'+String(detail).replace(/</g,'&lt;')+'</div>':'')+'</div>'); };
+  const run=async(lbl,fn)=>{
+    line(lbl,'EN COURS',null,null);
+    const t0=Date.now();
+    try{
+      const r=await Promise.race([fn(),new Promise((_,rej)=>setTimeout(()=>rej(new Error('TIMEOUT 12 s — la requête ne répond pas')),12000))]);
+      if(r&&r.error) throw r.error;
+      const n=Array.isArray(r&&r.data)?r.data.length:(r&&r.data?1:0);
+      dg.lastElementChild.remove(); line(lbl+' — '+n+' ligne(s)','OK',Date.now()-t0,null);
+      return r&&r.data;
+    }catch(e){
+      dg.lastElementChild.remove(); line(lbl,'ERREUR',Date.now()-t0,e.message||e);
+      return null;
+    }
+  };
+  await run('1. Session (jeton valide ?)',()=>sb.auth.getUser().then(r=>({data:r.data&&r.data.user?[r.data.user]:[],error:r.error})));
+  await run('2. Mon profil',()=>sb.from('profiles').select('id,role,fonction').eq('id',state.user.id));
+  const ue=await run('3. Mon rattachement (user_erps)',()=>sb.from('user_erps').select('erp_id').eq('user_id',state.user.id));
+  const erpId=ue&&ue[0]&&ue[0].erp_id;
+  if(erpId){
+    const today=new Date().toISOString().slice(0,10);
+    await run('4. Mon établissement',()=>sb.from('erps').select('id,nom').eq('id',erpId).maybeSingle());
+    await run('5. Pointages du jour',()=>sb.from('pointages').select('id').eq('erp_id',erpId).gte('heure_arrivee',today).limit(30));
+    await run('6. Interventions à 7 jours',()=>sb.from('interventions').select('id,prestataire_id').eq('erp_id',erpId).eq('statut','programmee').gte('date_prevue',today).limit(30));
+    await run('7. Prestataires (liste complète — ancienne requête)',()=>sb.from('prestataires').select('id,nom'));
+    await run('8. Prestataires (ciblés — nouvelle requête)',()=>sb.from('prestataires').select('id,nom').limit(3));
+  } else {
+    line('4-8. Ignorés','ERREUR',null,'aucun établissement rattaché lisible');
+  }
+  dg.insertAdjacentHTML('beforeend','<div style="font-size:11.5px;color:#64748b;margin-top:6px">Envoyez une capture de cet écran à PREVA CONSEILS.</div>');
+};
 window.agLogout=async function(){ try{ await sb.auth.signOut(); }catch(_){} location.hash=''; location.reload(); };
 window.agSignal=function(){
   const inp=document.createElement('input');
