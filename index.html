@@ -2350,19 +2350,34 @@ function openUserWizard(){
 async function renderAgentApp(){
   document.title='SUIVI-CONFORMITÉ — Terrain';
   const root=document.getElementById('root')||document.body;
-  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v4</span></div>';
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v5</span></div>';
   setTimeout(()=>{ const l=document.getElementById('ag-load'); if(l&&!document.getElementById('ag-diag-link')) l.insertAdjacentHTML('beforeend','<a id="ag-diag-link" onclick="agDiag()" style="color:#1a44ad;font-weight:700;font-size:13px;cursor:pointer">Lancer le diagnostic</a>'); },6000);
   const step=t=>{const e=document.getElementById('ag-step');if(e)e.textContent=t;};
   const fail=(phase,e)=>{ root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:440px"><b style="font-size:14px;color:#0f172a">Erreur ('+phase+')</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><div style="display:flex;gap:8px;margin-top:14px"><button onclick="renderAgentApp()" style="border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button><button onclick="agDiag()" style="border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Diagnostic</button></div></div></div>'; };
   window._agErr=[];
   let erpId, erp, pres, itv, prests;
+  // Timeout par requête : plus jamais de chargement infini silencieux.
+  const tmo=(p,lbl,ms=9000)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('délai dépassé — '+lbl)),ms))]);
+  // Chien de garde global : si rien n'aboutit en 20 s, on affiche la vue avec ce qu'on a.
+  if(window._agWatch) clearTimeout(window._agWatch);
+  window._agWatch=setTimeout(()=>{
+    if(document.getElementById('ag-load')){
+      window._agErr=(window._agErr||[]); window._agErr.push('chargement interrompu (délai global)');
+      window._agCtx=window._agCtx||{erpId:null,erp:{nom:'Mon établissement'},pres:[],itv:[],prests:[]};
+      try{ agRender(); }catch(e){ console.error(e); }
+    }
+  },20000);
   try{
     step('session');
-    const g=await sb.auth.getUser();
-    const uid=(g&&g.data&&g.data.user&&g.data.user.id)||(state.user&&state.user.id);
+    // 1) Identifiant déjà en mémoire (afterLogin) — aucun appel réseau nécessaire.
+    let uid=state.user&&state.user.id;
+    // 2) Sinon, session locale (lecture localStorage, quasi instantanée).
+    if(!uid){ try{ const s=await tmo(sb.auth.getSession(),'session locale',5000); uid=s&&s.data&&s.data.session&&s.data.session.user&&s.data.session.user.id; }catch(e){ window._agErr.push('session locale : '+(e.message||e)); } }
+    // 3) Dernier recours seulement : getUser (appel réseau), borné à 6 s.
+    if(!uid){ try{ const g=await tmo(sb.auth.getUser(),'session serveur',6000); uid=g&&g.data&&g.data.user&&g.data.user.id; }catch(e){ window._agErr.push('session serveur : '+(e.message||e)); } }
     if(!uid) throw new Error('session introuvable — reconnectez-vous');
     step('rattachement');
-    const rUe=await sb.from('user_erps').select('erp_id').eq('user_id',uid).limit(1);
+    const rUe=await tmo(sb.from('user_erps').select('erp_id').eq('user_id',uid).limit(1),'rattachement');
     if(rUe.error) throw rUe.error;
     erpId=rUe.data&&rUe.data[0]&&rUe.data[0].erp_id;
     if(!erpId){
@@ -2371,24 +2386,19 @@ async function renderAgentApp(){
     }
     const today=new Date().toISOString().slice(0,10);
     const in7=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
+    // Requêtes non critiques : timeout + dégradation gracieuse (la vue s'affiche quand même).
+    const safe=async(p,lbl,def)=>{ try{ const r=await tmo(p,lbl); if(r&&r.error){ window._agErr.push(lbl+' : '+r.error.message); return def; } return (r&&r.data)!==undefined&&r.data!==null?r.data:def; }catch(e){ window._agErr.push(lbl+' : '+(e.message||e)); return def; } };
     step('établissement');
-    const rErp=await sb.from('erps').select('id,nom,adresse,ville').eq('id',erpId).maybeSingle();
-    erp=(rErp&&rErp.data)||{nom:'Mon établissement'};
+    erp=await safe(sb.from('erps').select('id,nom,adresse,ville').eq('id',erpId).maybeSingle(),'établissement',{nom:'Mon établissement'});
     step('pointages');
-    const rP=await sb.from('pointages').select('id,heure_arrivee,heure_depart,nb_intervenants,nom,prenom,societe,mission,created_at').eq('erp_id',erpId).gte('heure_arrivee',today).order('heure_arrivee',{ascending:false}).limit(30);
-    if(rP.error) window._agErr.push('pointages : '+rP.error.message);
-    pres=(rP&&rP.data)||[];
+    pres=await safe(sb.from('pointages').select('id,heure_arrivee,heure_depart,nb_intervenants,nom,prenom,societe,mission,created_at').eq('erp_id',erpId).gte('heure_arrivee',today).order('heure_arrivee',{ascending:false}).limit(30),'pointages',[]);
     step('interventions');
-    const rI=await sb.from('interventions').select('id,objet,domaine,date_prevue,statut,prestataire_id').eq('erp_id',erpId).eq('statut','programmee').gte('date_prevue',today).lte('date_prevue',in7).order('date_prevue');
-    if(rI.error) window._agErr.push('interventions : '+rI.error.message);
-    itv=(rI&&rI.data)||[];
+    itv=await safe(sb.from('interventions').select('id,objet,domaine,date_prevue,statut,prestataire_id').eq('erp_id',erpId).eq('statut','programmee').gte('date_prevue',today).lte('date_prevue',in7).order('date_prevue'),'interventions',[]);
     step('prestataires');
     const pids=[...new Set(itv.map(i=>i.prestataire_id).filter(Boolean))];
-    if(pids.length){
-      const rPr=await sb.from('prestataires').select('id,nom').in('id',pids);
-      prests=(rPr&&rPr.data)||[];
-    } else prests=[];
-  }catch(e){ fail('chargement — '+((document.getElementById('ag-step')||{}).textContent||''),e); return; }
+    prests=pids.length?await safe(sb.from('prestataires').select('id,nom').in('id',pids),'prestataires',[]):[];
+  }catch(e){ if(window._agWatch) clearTimeout(window._agWatch); fail('chargement — '+((document.getElementById('ag-step')||{}).textContent||''),e); return; }
+  if(window._agWatch) clearTimeout(window._agWatch);
   try{
     window._agCtx={erpId,erp,pres,itv,prests};
     agRender();
