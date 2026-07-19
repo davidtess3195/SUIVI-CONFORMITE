@@ -667,7 +667,10 @@ function isLocalUrl(url){
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
-  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // lock: fn=>fn() désactive le verrou navigator.locks de supabase-js.
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { lock: (_name, _timeout, fn) => fn() }
+  });
   return true;
 }
 
@@ -1068,8 +1071,15 @@ async function boot(){
     return;
   }
   if(!loadCfg() || !initSb()){ renderConfig(); return; }
-  const { data } = await sb.auth.getSession();
-  if(data.session){ state.user=data.session.user; await afterLogin(); }
+  const _tmoB=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);
+  let _sess=null;
+  try{ const { data } = await _tmoB(sb.auth.getSession(),4000); _sess=data&&data.session; }
+  catch(e){
+    console.warn('[boot] getSession bloqué — lecture directe du localStorage');
+    try{ const raw=localStorage.getItem('sb-twjvloctrjqcokuuxghc-auth-token');
+         if(raw){ const j=JSON.parse(raw); if(j&&j.access_token&&j.user) _sess={user:j.user,access_token:j.access_token}; } }catch(_){}
+  }
+  if(_sess){ state.user=_sess.user; await afterLogin(); }
   else renderAuth('login');
   sb.auth.onAuthStateChange((_e,session)=>{
     if(_e==='PASSWORD_RECOVERY'){ renderAuth('newpass'); return; }
@@ -1079,7 +1089,18 @@ async function boot(){
 
 async function afterLogin(){
   try{
-    const { data:prof } = await sb.from('profiles').select('*').eq('id',state.user.id).single();
+    const _tmoA=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);
+    let prof=null;
+    try{ const r = await _tmoA(sb.from('profiles').select('*').eq('id',state.user.id).single(),6000); prof=r&&r.data; }
+    catch(e){
+      console.warn('[boot] profil via client bloqué — repli REST direct');
+      try{
+        const ctl=new AbortController(); setTimeout(()=>ctl.abort(),6000);
+        const tk=(function(){ try{ const raw=localStorage.getItem('sb-twjvloctrjqcokuuxghc-auth-token'); if(raw){ const j=JSON.parse(raw); return j&&j.access_token; } }catch(_){ } return null; })();
+        const rr=await fetch(SUPABASE_URL+'/rest/v1/profiles?select=*&id=eq.'+encodeURIComponent(state.user.id),{headers:{apikey:SUPABASE_ANON_KEY,Authorization:'Bearer '+(tk||SUPABASE_ANON_KEY)},signal:ctl.signal});
+        if(rr.ok){ const arr=await rr.json(); prof=arr&&arr[0]; }
+      }catch(_){}
+    }
     state.profile = prof || {nom:state.user.email,role:'consultant',email:state.user.email};
     // DEMO MODE — bloquer si l'accès démo est expiré
     if(state.profile?.is_demo && state.profile?.demo_expires_at && new Date(state.profile.demo_expires_at) < new Date()){
@@ -1096,7 +1117,8 @@ async function afterLogin(){
       state.profile.nom=state.profile.nom||'Compte Démonstration';
       _setupDemoProxy();
     }
-    await loadScope();
+    try{ await _tmoA(loadScope(),8000); }
+    catch(e){ console.warn('[boot] loadScope bloqué — poursuite avec listes vides'); state.clients=state.clients||[]; state.erps=state.erps||[]; }
     if(state.profile?.role==='agent'){ renderAgentApp(); return; }
     if(!location.hash || location.hash==='#/login') location.hash='#/';
     renderApp();
@@ -2381,10 +2403,10 @@ async function renderAgentApp(){
   // Garde anti-réentrance : ignorer les rappels pendant un chargement en cours
   if(window._agBusy && Date.now()-window._agBusy<15000){ console.warn('[terrain] appel ignoré (déjà en cours)'); return; }
   window._agBusy=Date.now();
-  console.log('[terrain] v6 — démarrage', new Date().toISOString());
+  console.log('[terrain] v8 — démarrage', new Date().toISOString());
   document.title='SUIVI-CONFORMITÉ — Terrain';
   const root=document.getElementById('root')||document.body;
-  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v6</span></div>';
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v8</span></div>';
   setTimeout(()=>{ const l=document.getElementById('ag-load'); if(l&&!document.getElementById('ag-diag-link')) l.insertAdjacentHTML('beforeend','<a id="ag-diag-link" onclick="agDiag()" style="color:#1a44ad;font-weight:700;font-size:13px;cursor:pointer">Lancer le diagnostic</a>'); },6000);
   const step=t=>{ console.log('[terrain] étape :',t); const e=document.getElementById('ag-step'); if(e)e.textContent=t; };
   const fail=(phase,e)=>{ window._agBusy=0; console.error('[terrain] échec',phase,e); root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:440px"><b style="font-size:14px;color:#0f172a">Erreur ('+phase+')</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><div style="display:flex;gap:8px;margin-top:14px"><button onclick="window._agBusy=0;renderAgentApp()" style="border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button><button onclick="agDiag()" style="border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Diagnostic</button></div></div></div>'; };
@@ -2397,7 +2419,7 @@ async function renderAgentApp(){
       window._agErr=(window._agErr||[]); window._agErr.push('chargement interrompu (délai global)');
       window._agCtx=window._agCtx||{erpId:null,erp:{nom:'Mon établissement'},pres:[],itv:[],prests:[]};
       window._agBusy=0;
-      try{ agRender(); }catch(e){ console.error(e); }
+      try{ agTerrainRender(); }catch(e){ console.error(e); }
     }
   },20000);
   let erpId, erp, pres, itv, prests;
@@ -2431,13 +2453,13 @@ async function renderAgentApp(){
   window._agBusy=0;
   try{
     window._agCtx={erpId,erp,pres,itv,prests};
-    console.log('[terrain] v6 — rendu OK');
-    agRender();
+    console.log('[terrain] v8 — rendu OK');
+    agTerrainRender();
   }catch(e){ fail('affichage',e); }
 }
 window.renderAgentApp=renderAgentApp;
 function agFmtH(d){ if(!d) return ''; const x=new Date(d); return isNaN(+x)?'':x.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }
-function agRender(){
+function agTerrainRender(){
   const c=window._agCtx||{}; const erp=c.erp||{};
   const surSite=(c.pres||[]).filter(p=>!p.heure_depart);
   const partis=(c.pres||[]).filter(p=>p.heure_depart);
