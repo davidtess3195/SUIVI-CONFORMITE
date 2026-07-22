@@ -91,6 +91,13 @@ h1,h2,h3{font-family:var(--fd);font-weight:600;letter-spacing:-.01em}
 .conv-chip{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:#4f46e5;background:#eef2ff;border:1px solid #c7d2fe;border-radius:99px;padding:2px 9px 2px 7px;flex:0 0 auto}
 .conv-chip svg{width:11px;height:11px}
 .cal-more{font-size:10.5px;font-weight:700;color:#2563eb}
+.sortseg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--surface)}
+.sortseg button{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--muted);background:transparent;border:none;padding:7px 13px;cursor:pointer;font-family:inherit;transition:.12s}
+.sortseg button+button{border-left:1px solid var(--line)}
+.sortseg button svg{width:15px;height:15px;flex:0 0 auto}
+.sortseg button:hover{background:var(--surface-2);color:var(--ink)}
+.sortseg button.on{background:var(--primary);color:#fff}
+.sortseg button.on:hover{background:var(--primary);color:#fff}
 @media(max-width:840px){.cal-cell{min-height:64px}.cal-pill{display:none}.cal-cell .nb{font-size:10px;font-weight:800;color:#fff;background:#2563eb;border-radius:99px;padding:1px 6px;align-self:flex-start}}
 .qa{padding:8px 12px 2px}
 .qa-t{display:flex;align-items:center;gap:10px;justify-content:center;font-size:11.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#fff;margin:2px 0 10px;text-align:center}
@@ -2410,7 +2417,7 @@ async function renderAgentApp(){
   console.log('[terrain] v8 — démarrage', new Date().toISOString());
   document.title='SUIVI-CONFORMITÉ — Terrain';
   const root=document.getElementById('root')||document.body;
-  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v12</span></div>';
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v13</span></div>';
   setTimeout(()=>{ const l=document.getElementById('ag-load'); if(l&&!document.getElementById('ag-diag-link')) l.insertAdjacentHTML('beforeend','<a id="ag-diag-link" onclick="agDiag()" style="color:#1a44ad;font-weight:700;font-size:13px;cursor:pointer">Lancer le diagnostic</a>'); },6000);
   const step=t=>{ console.log('[terrain] étape :',t); const e=document.getElementById('ag-step'); if(e)e.textContent=t; };
   const fail=(phase,e)=>{ window._agBusy=0; console.error('[terrain] échec',phase,e); root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:440px"><b style="font-size:14px;color:#0f172a">Erreur ('+phase+')</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><div style="display:flex;gap:8px;margin-top:14px"><button onclick="window._agBusy=0;renderAgentApp()" style="border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button><button onclick="agDiag()" style="border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Diagnostic</button></div></div></div>'; };
@@ -4216,19 +4223,41 @@ function cvPickSujet(val){
 window.cvPickSujet=cvPickSujet;
 
 async function viewConversations(c){
+  if(window._convSort===undefined) window._convSort='desc'; // desc = plus récent d'abord (défaut)
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Conversations</h1><p>Mémo synthétique de vos échanges (appels, réunions) avec suivi des actions.</p></div>
     <div class="actions"><button class="btn primary" onclick="formConversation()">${I.plus} Nouvelle conversation</button></div></div>
+    <div style="display:flex;align-items:center;gap:10px;margin:0 0 16px;flex-wrap:wrap">
+      <span style="font-size:12.5px;color:var(--muted);font-weight:600">Trier par date</span>
+      <div class="sortseg" role="group" aria-label="Trier par date">
+        <button id="cvsort-desc" onclick="convSetSort('desc')" title="Plus récentes en premier" aria-pressed="${window._convSort==='desc'}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h11M3 12h7M3 18h4"/><path d="M17 8l3-3 3 3M20 5v14"/></svg>
+          Plus récentes
+        </button>
+        <button id="cvsort-asc" onclick="convSetSort('asc')" title="Plus anciennes en premier" aria-pressed="${window._convSort==='asc'}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h4M3 12h7M3 18h11"/><path d="M17 16l3 3 3-3M20 19V5"/></svg>
+          Plus anciennes
+        </button>
+      </div>
+    </div>
     <div id="conv-list">${loadingBlock()}</div>`;
   await loadConversations();
 }
+window.convSetSort=function(dir){
+  if(window._convSort===dir) return;
+  window._convSort=dir;
+  ['asc','desc'].forEach(d=>{ const b=document.getElementById('cvsort-'+d); if(b){ b.classList.toggle('on',d===dir); b.setAttribute('aria-pressed', String(d===dir)); }});
+  loadConversations();
+};
 window.viewConversations=viewConversations;
 
 async function loadConversations(){
   const box=document.getElementById('conv-list'); if(!box) return;
   let rows=[];
-  try{ const r=await sb.from('conversations').select('*').order('date_conv',{ascending:false}).order('created_at',{ascending:false}); rows=r.data||[]; }
+  const asc=(window._convSort==='asc');
+  try{ const r=await sb.from('conversations').select('*').order('date_conv',{ascending:asc,nullsFirst:false}).order('created_at',{ascending:asc}); rows=r.data||[]; }
   catch(e){ box.innerHTML=errBlock(e); return; }
   window._convCache=rows;
+  ['asc','desc'].forEach(d=>{ const b=document.getElementById('cvsort-'+d); if(b) b.classList.toggle('on', d===(window._convSort||'desc')); });
   // Compter les photos/vidéos associées à chaque conversation
   let mediaMap={};
   try{
@@ -4242,7 +4271,7 @@ async function loadConversations(){
   let html='';
   if(recent.length){
     html+=`<div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:0 0 10px">Dernières conversations</div>
-      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:14px;margin-bottom:24px">${recent.map(cv=>convCard(cv,clientNm)).join('')}</div>`;
+      <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:24px">${recent.map(cv=>convCard(cv,clientNm)).join('')}</div>`;
   }
   if(rest.length){
     window._convAccOpen=window._convAccOpen||new Set();
