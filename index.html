@@ -85,7 +85,11 @@ h1,h2,h3{font-family:var(--fd);font-weight:600;letter-spacing:-.01em}
 .cal-cell.today{border-color:#2563eb;border-width:2px}
 .cal-cell .d{font-size:11.5px;font-weight:700;color:var(--muted)}
 .cal-cell.today .d{color:#2563eb}
-.cal-pill{font-size:10.5px;font-weight:600;color:#fff;border-radius:6px;padding:2px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-pill{font-size:10.5px;font-weight:600;color:#fff;border-radius:6px;padding:2px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-flex;align-items:center;gap:3px}
+.cal-pill.conv{background:linear-gradient(135deg,#2563eb,#4f46e5)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.28)}
+.cal-pill .cbadge{font-size:8.5px;line-height:1}
+.conv-chip{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:#4f46e5;background:#eef2ff;border:1px solid #c7d2fe;border-radius:99px;padding:2px 9px 2px 7px;flex:0 0 auto}
+.conv-chip svg{width:11px;height:11px}
 .cal-more{font-size:10.5px;font-weight:700;color:#2563eb}
 @media(max-width:840px){.cal-cell{min-height:64px}.cal-pill{display:none}.cal-cell .nb{font-size:10px;font-weight:800;color:#fff;background:#2563eb;border-radius:99px;padding:1px 6px;align-self:flex-start}}
 .qa{padding:8px 12px 2px}
@@ -2406,7 +2410,7 @@ async function renderAgentApp(){
   console.log('[terrain] v8 — démarrage', new Date().toISOString());
   document.title='SUIVI-CONFORMITÉ — Terrain';
   const root=document.getElementById('root')||document.body;
-  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v9</span></div>';
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v12</span></div>';
   setTimeout(()=>{ const l=document.getElementById('ag-load'); if(l&&!document.getElementById('ag-diag-link')) l.insertAdjacentHTML('beforeend','<a id="ag-diag-link" onclick="agDiag()" style="color:#1a44ad;font-weight:700;font-size:13px;cursor:pointer">Lancer le diagnostic</a>'); },6000);
   const step=t=>{ console.log('[terrain] étape :',t); const e=document.getElementById('ag-step'); if(e)e.textContent=t; };
   const fail=(phase,e)=>{ window._agBusy=0; console.error('[terrain] échec',phase,e); root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:440px"><b style="font-size:14px;color:#0f172a">Erreur ('+phase+')</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><div style="display:flex;gap:8px;margin-top:14px"><button onclick="window._agBusy=0;renderAgentApp()" style="border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button><button onclick="agDiag()" style="border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Diagnostic</button></div></div></div>'; };
@@ -4556,8 +4560,18 @@ async function saveConversation(id, interventionId){
       const updInt={ date_prevue: payload.action_date||payload.date_conv||null, objet: payload.action||'Suivi conversation' };
       if(targetErp) updInt.erp_id=targetErp;
       try{ await sb.from('interventions').update(updInt).eq('id', interventionId); }catch(_){}
-    } else if(agendaCb && agendaCb.checked && !agendaCb.disabled && payload.action){
-      await convCreateAgenda(convId, payload);
+    } else if(agendaCb && agendaCb.checked && !agendaCb.disabled){
+      // L'intitulé de l'agenda = action si renseignée, sinon le sujet de la conversation.
+      const intitule = payload.action || payload.sujet;
+      if(intitule){
+        await convCreateAgenda(convId, {...payload, action:intitule});
+      } else {
+        // Ni action ni sujet : on ne crée pas d'entrée muette, mais on prévient clairement.
+        _modalDirty=false; closeModal();
+        toast("Conversation enregistrée. Pour l'ajouter à l'agenda, renseignez l'action à entreprendre ou le sujet.", 'err');
+        if(location.hash.includes('/conversations')) loadConversations();
+        return;
+      }
     }
     // Lire les photos cochées AVANT de fermer la fenêtre
     let _cvChecked=[], _cvUnchecked=[];
@@ -4590,8 +4604,9 @@ async function convCreateAgenda(convId, p){
 
 async function convToAgenda(convId){
   const cv=(window._convCache||[]).find(x=>x.id===convId); if(!cv) return;
-  if(!cv.action){ toast("Renseignez d'abord une action (via Modifier).",'err'); return; }
-  await convCreateAgenda(convId, cv);
+  const intitule = cv.action || cv.sujet;
+  if(!intitule){ toast("Renseignez d'abord une action ou un sujet (via Modifier).",'err'); return; }
+  await convCreateAgenda(convId, {...cv, action:intitule});
   loadConversations();
 }
 window.convToAgenda=convToAgenda;
@@ -11612,7 +11627,8 @@ window.AG_TYPES={
   inter:{label:'Interventions prévues',color:'#2563eb'},
   reslim:{label:'Réserves — date limite',color:'#dc2626'},
   resrdv:{label:'Réserves — rendez-vous',color:'#7c3aed'},
-  sms:{label:'SMS programmés',color:'#0d9488'}
+  sms:{label:'SMS programmés',color:'#0d9488'},
+  conv:{label:'Issu d\'une conversation',color:'#4f46e5'}
 };
 window._agDate=null; window._agSpan=1; window._agOff={}; window._agEvents={};
 function agIso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
@@ -11645,12 +11661,14 @@ window.viewAgenda=async function(c){
     const erpName=id=>{ const e=(state.erps||[]).find(x=>x.id===id); return e?e.nom:''; };
     const [ob,it,rs,sm]=await Promise.all([
       erpIds.length?sb.from('obligations').select('libelle,domaine,erp_id,prochaine_echeance').in('erp_id',erpIds).gte('prochaine_echeance',sIso).lte('prochaine_echeance',eIso):{data:[]},
-      erpIds.length?sb.from('interventions').select('objet,domaine,type,statut,erp_id,date_prevue').in('erp_id',erpIds).gte('date_prevue',sIso).lte('date_prevue',eIso):{data:[]},
+      erpIds.length?sb.from('interventions').select('objet,domaine,type,statut,erp_id,date_prevue,commentaire').in('erp_id',erpIds).gte('date_prevue',sIso).lte('date_prevue',eIso):{data:[]},
       erpIds.length?sb.from('reserves').select('libelle,statut,erp_id,date_limite,rdv_date').in('erp_id',erpIds).or('and(date_limite.gte.'+sIso+',date_limite.lte.'+eIso+'),and(rdv_date.gte.'+sIso+',rdv_date.lte.'+eIso+')'):{data:[]},
       sb.from('sms_scheduled').select('destinataire,message,send_at,statut').eq('statut','pending').gte('send_at',sIso).lte('send_at',eIso+'T23:59:59Z')
     ]);
     (ob.data||[]).forEach(o=>push(o.prochaine_echeance,'verif',(o.libelle||o.domaine||'Vérification')+' — '+erpName(o.erp_id),'/verifications'));
-    (it.data||[]).forEach(i=>{ if(!/^annul/i.test(i.statut||'')) push(i.date_prevue,'inter',(i.objet||i.domaine||i.type||'Intervention')+' — '+erpName(i.erp_id),'/interventions'); });
+    (it.data||[]).forEach(i=>{ if(/^annul/i.test(i.statut||'')) return;
+      const fromConv=/issu d.une conversation/i.test(i.commentaire||'');
+      push(i.date_prevue, fromConv?'conv':'inter', (i.objet||i.domaine||i.type||'Intervention')+' — '+erpName(i.erp_id), '/conversations'.replace('/conversations', fromConv?'/conversations':'/interventions')); });
     (rs.data||[]).forEach(r=>{ const done=/lev/i.test(r.statut||'');
       if(!done && r.date_limite) push(r.date_limite,'reslim','Limite : '+(r.libelle||'réserve')+' — '+erpName(r.erp_id),'/reserves');
       if(r.rdv_date) push(r.rdv_date,'resrdv','RDV : '+(r.libelle||'réserve')+' — '+erpName(r.erp_id),'/reserves'); });
@@ -11681,7 +11699,7 @@ window.agRender=function(){
       html+=`<div class="cal-cell${out?' out':''}${iso===today?' today':''}" onclick="agDay('${iso}')">
         <span class="d">${d.getDate()}</span>
         ${list.length?`<span class="nb" style="display:none">${list.length}</span>`:''}
-        ${list.slice(0,3).map(x=>`<span class="cal-pill" style="background:${AG_TYPES[x.type].color}">${esc(x.label)}</span>`).join('')}
+        ${list.slice(0,3).map(x=>`<span class="cal-pill${x.type==='conv'?' conv':''}" style="background:${AG_TYPES[x.type].color}">${x.type==='conv'?'<span class="cbadge">💬</span>':''}${esc(x.label)}</span>`).join('')}
         ${list.length>3?`<span class="cal-more">+${list.length-3} autres</span>`:''}
       </div>`;
     }
@@ -11705,9 +11723,10 @@ window.agDay=function(iso){
   const dl=new Date(iso+'T00:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   openModal(`<div class="modal-head"><h2 style="text-transform:capitalize">${dl}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
     <div class="modal-body" style="display:flex;flex-direction:column;gap:8px">
-      ${list.length?list.map(x=>`<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+      ${list.length?list.map(x=>`<div style="display:flex;align-items:center;gap:10px;border:1px solid ${x.type==='conv'?'#c7d2fe':'var(--line)'};border-radius:10px;padding:10px 12px;${x.type==='conv'?'background:linear-gradient(135deg,#f5f7ff,#eef2ff)':''}">
         <span style="width:10px;height:10px;border-radius:99px;background:${AG_TYPES[x.type].color};flex:0 0 auto"></span>
         <span style="flex:1;min-width:0;font-size:13px">${esc(x.label)}</span>
+        ${x.type==='conv'?'<span class="conv-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Conversation</span>':''}
         ${x.route?`<button class="btn" style="flex:0 0 auto" onclick="closeModal();navigate('${x.route}')">Ouvrir</button>`:''}
       </div>`).join(''):'<div style="color:var(--muted);font-size:13px;text-align:center;padding:14px 0">Rien de prévu ce jour.</div>'}
       <button class="btn primary" style="margin-top:6px" onclick="closeModal();formInter(null,{date_prevue:'${iso}'})">＋ Programmer une intervention ce jour</button>
@@ -13483,7 +13502,10 @@ async function formPrest(p){
         <div class="fld" style="margin-bottom:10px"><label>Ville</label><input id="f_ville" value="${esc(p.ville||'')}" placeholder="Paris"></div>
         <div class="fld" style="margin-bottom:10px"><label>Téléphone</label><input id="f_telephone" type="tel" value="${esc(p.telephone||'')}" placeholder="01 23 45 67 89"></div>
         <div class="fld" style="margin-bottom:10px"><label>Email</label><input id="f_email" type="email" value="${esc(p.email_rapports||'')}" placeholder="contact@entreprise.fr"></div>
-        <div class="fld" style="margin-bottom:0;grid-column:1/-1"><label>SIRET</label><input id="f_siret" value="${esc(p.siret||'')}" placeholder="123 456 789 00012" inputmode="numeric"></div>
+        <div class="fld" style="margin-bottom:10px"><label>SIRET</label><input id="f_siret" value="${esc(p.siret||'')}" placeholder="123 456 789 00012" inputmode="numeric"></div>
+        <div class="fld" style="margin-bottom:10px"><label>SIREN</label><input id="f_siren" value="${esc(p.siren||'')}" placeholder="123 456 789" inputmode="numeric"></div>
+        <div class="fld" style="margin-bottom:10px"><label>Code APE</label><input id="f_ape" value="${esc(p.code_ape||'')}" placeholder="4321A"></div>
+        <div class="fld" style="margin-bottom:0"><label>N° TVA intracommunautaire</label><input id="f_tva" value="${esc(p.tva_intra||'')}" placeholder="FR 12 345678901"></div>
       </div>
     </div>
 
@@ -13726,6 +13748,9 @@ async function formPrest(p){
       telephone:$('#f_telephone')?.value.trim()||null,
       email_rapports:$('#f_email')?.value.trim()||null,
       siret:$('#f_siret')?.value.trim()||null,
+      siren:$('#f_siren')?.value.trim()||null,
+      code_ape:$('#f_ape')?.value.trim()||null,
+      tva_intra:$('#f_tva')?.value.trim()||null,
       contacts: Object.keys(contacts).length ? contacts : null,
       has_contrat: document.querySelector('input[name="rb_contrat"]:checked')?.value==='oui'||false,
       has_avenant: document.querySelector('input[name="rb_avenant"]:checked')?.value==='oui'||false,
