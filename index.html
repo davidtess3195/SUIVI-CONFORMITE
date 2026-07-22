@@ -2417,7 +2417,7 @@ async function renderAgentApp(){
   console.log('[terrain] v8 — démarrage', new Date().toISOString());
   document.title='SUIVI-CONFORMITÉ — Terrain';
   const root=document.getElementById('root')||document.body;
-  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v14</span></div>';
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v16</span></div>';
   setTimeout(()=>{ const l=document.getElementById('ag-load'); if(l&&!document.getElementById('ag-diag-link')) l.insertAdjacentHTML('beforeend','<a id="ag-diag-link" onclick="agDiag()" style="color:#1a44ad;font-weight:700;font-size:13px;cursor:pointer">Lancer le diagnostic</a>'); },6000);
   const step=t=>{ console.log('[terrain] étape :',t); const e=document.getElementById('ag-step'); if(e)e.textContent=t; };
   const fail=(phase,e)=>{ window._agBusy=0; console.error('[terrain] échec',phase,e); root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:440px"><b style="font-size:14px;color:#0f172a">Erreur ('+phase+')</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><div style="display:flex;gap:8px;margin-top:14px"><button onclick="window._agBusy=0;renderAgentApp()" style="border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button><button onclick="agDiag()" style="border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Diagnostic</button></div></div></div>'; };
@@ -14764,7 +14764,7 @@ function viewVerifications(content){
     vFiltFillErps();
     const gfilt=document.getElementById('vglobal_filters');
     if(gfilt) gfilt.style.display='flex';
-    const seg=document.querySelector('#vglobal_filters .sortseg'); if(seg) seg.style.display=['repondre','sans_reponse','a_programmer','programmee'].includes(vtab)?'inline-flex':'none';
+    const seg=document.querySelector('#vglobal_filters .sortseg'); if(seg) seg.style.display=['traiter','repondre','sans_reponse','a_programmer','programmee'].includes(vtab)?'inline-flex':'none';
   }
   function vrender(){
     const el=document.getElementById('vcontent');if(!el)return;
@@ -14772,24 +14772,21 @@ function viewVerifications(content){
     if(vtab==='obligations'){vUpdateBadges();el.innerHTML=vrobligations();vRenderObligContent();return;}
     vUpdateBadges();
     if(vtab==='traiter'){
-      const urg=i=>{const d=vdl(i.date_prevue||i.prochaine_echeance);return d===null?9999:d;};
-      const secs=[
-        ['Réponses à confirmer','repondre'],
-        ['Prestataires à relancer','sans_reponse'],
-        ['Dates à saisir','a_programmer'],
-        ['À reprogrammer','a_reprogrammer']
-      ].map(([lbl,k])=>({lbl,k,items:vFiltApply(vd[k]).sort((a,b)=>urg(a)-urg(b))}));
+      // Option B : une seule liste chronologique à plat (toutes les demandes à traiter mélangées), triée par date.
       const totalT=(vd.repondre||[]).length+(vd.sans_reponse||[]).length+(vd.a_programmer||[]).length+(vd.a_reprogrammer||[]).length;
-      const shown=secs.reduce((s,x)=>s+x.items.length,0);
+      // Garder l'onglet d'origine de chaque carte pour son style et ses actions.
+      let flat=[];
+      ['repondre','sans_reponse','a_programmer','a_reprogrammer'].forEach(k=>{ (vd[k]||[]).forEach(i=>flat.push({item:i,srcTab:k})); });
+      flat=flat.filter(x=>vFiltApply([x.item]).length);
+      flat=flat.sort((a,b)=>{ const ka=vSortKey(a.item),kb=vSortKey(b.item); if(ka===kb) return 0; return vsort==='asc'?(ka<kb?-1:1):(ka<kb?1:-1); });
+      const shown=flat.length;
       const info=document.getElementById('vfilt_info');
       if(info) info.textContent=(vfiltClient||vfiltErp)?shown+' élément(s) affiché(s) sur '+totalT:'';
       if(!shown){
         el.innerHTML='<div class="vempty">'+((vfiltClient||vfiltErp)&&totalT?'<b>Rien à traiter pour cette sélection</b><a style="cursor:pointer;color:#1a44ad;font-weight:700" onclick="vFiltReset()">Afficher tout</a>':'<b>Rien à traiter</b>Les réponses de prestataires, relances et dates à saisir apparaîtront ici.')+'</div>';
         return;
       }
-      el.innerHTML=secs.filter(s=>s.items.length).map(s=>
-        '<div class="vsec">'+s.lbl+' ('+s.items.length+')</div>'+s.items.map(i=>vrcard(i,s.k)).join('')
-      ).join('');
+      el.innerHTML=flat.map(x=>vrcard(x.item,x.srcTab)).join('');
       return;
     }
     let items=vd[vtab]||[];
@@ -15020,7 +15017,7 @@ function viewVerifications(content){
 
   window.verifRefresh=async function(){const el=document.getElementById('vcontent');if(el)el.innerHTML='<div style="text-align:center;padding:32px;color:#94a3b8">Chargement…</div>';await vload();vrender();};
   window.verifSetTab=function(tab){vtab=tab;document.querySelectorAll('.verif-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
-    const seg=document.querySelector('#vglobal_filters .sortseg'); if(seg) seg.style.display=['repondre','sans_reponse','a_programmer','programmee'].includes(tab)?'inline-flex':'none';
+    const seg=document.querySelector('#vglobal_filters .sortseg'); if(seg) seg.style.display=['traiter','repondre','sans_reponse','a_programmer','programmee'].includes(tab)?'inline-flex':'none';
     vrender();};
   window.verifToggleDry=function(){vcfg.dry_run=!vcfg.dry_run;vrender();};
   window.verifSaveSettings=async function(){
