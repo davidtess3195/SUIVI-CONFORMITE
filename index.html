@@ -2406,7 +2406,7 @@ async function renderAgentApp(){
   console.log('[terrain] v8 — démarrage', new Date().toISOString());
   document.title='SUIVI-CONFORMITÉ — Terrain';
   const root=document.getElementById('root')||document.body;
-  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v8</span></div>';
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v9</span></div>';
   setTimeout(()=>{ const l=document.getElementById('ag-load'); if(l&&!document.getElementById('ag-diag-link')) l.insertAdjacentHTML('beforeend','<a id="ag-diag-link" onclick="agDiag()" style="color:#1a44ad;font-weight:700;font-size:13px;cursor:pointer">Lancer le diagnostic</a>'); },6000);
   const step=t=>{ console.log('[terrain] étape :',t); const e=document.getElementById('ag-step'); if(e)e.textContent=t; };
   const fail=(phase,e)=>{ window._agBusy=0; console.error('[terrain] échec',phase,e); root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:440px"><b style="font-size:14px;color:#0f172a">Erreur ('+phase+')</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><div style="display:flex;gap:8px;margin-top:14px"><button onclick="window._agBusy=0;renderAgentApp()" style="border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button><button onclick="agDiag()" style="border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Diagnostic</button></div></div></div>'; };
@@ -13474,6 +13474,19 @@ async function formPrest(p){
 
     <div class="fld"><label>Raison sociale <span class="req">*</span></label><input id="f_nom" value="${esc(p.nom||'')}"></div>
 
+    <!-- Coordonnées -->
+    <div style="margin-bottom:6px">
+      <div style="font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Coordonnées</div>
+      <div class="row2">
+        <div class="fld" style="margin-bottom:10px;grid-column:1/-1"><label>Adresse</label><input id="f_adresse" value="${esc(p.adresse||'')}" placeholder="12 rue de la République"></div>
+        <div class="fld" style="margin-bottom:10px"><label>Code postal</label><input id="f_code_postal" value="${esc(p.code_postal||'')}" placeholder="75001" inputmode="numeric"></div>
+        <div class="fld" style="margin-bottom:10px"><label>Ville</label><input id="f_ville" value="${esc(p.ville||'')}" placeholder="Paris"></div>
+        <div class="fld" style="margin-bottom:10px"><label>Téléphone</label><input id="f_telephone" type="tel" value="${esc(p.telephone||'')}" placeholder="01 23 45 67 89"></div>
+        <div class="fld" style="margin-bottom:10px"><label>Email</label><input id="f_email" type="email" value="${esc(p.email_rapports||'')}" placeholder="contact@entreprise.fr"></div>
+        <div class="fld" style="margin-bottom:0;grid-column:1/-1"><label>SIRET</label><input id="f_siret" value="${esc(p.siret||'')}" placeholder="123 456 789 00012" inputmode="numeric"></div>
+      </div>
+    </div>
+
     <div class="fld"><label>Clients rattachés <span style="color:var(--muted-2);font-weight:400;font-size:11px">(laisser vide = commun à tous)</span></label>
       <div id="f_pclient_list" style="display:flex;flex-direction:column;gap:6px;margin-top:6px;max-height:200px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface-2)">
         ${(()=>{ const sel=Array.isArray(p.client_ids)&&p.client_ids.length?p.client_ids:(p.client_id?[p.client_id]:[]); return state.clients.map(cl=>`<label style="display:flex;align-items:center;gap:9px;font-size:13px;cursor:pointer;padding:3px 0"><input type="checkbox" name="f_pclient_cb" value="${cl.id}"${sel.includes(cl.id)?' checked':''} style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer;flex:0 0 auto"> ${esc(cl.raison_sociale)}</label>`).join(''); })()}
@@ -13707,6 +13720,12 @@ async function formPrest(p){
       commentaire:$('#f_com').value||null,
       tel_astreinte:$('#f_tel_astreinte').value.trim()||null,
       tel_depannage:$('#f_tel_depannage').value.trim()||null,
+      adresse:$('#f_adresse')?.value.trim()||null,
+      ville:$('#f_ville')?.value.trim()||null,
+      code_postal:$('#f_code_postal')?.value.trim()||null,
+      telephone:$('#f_telephone')?.value.trim()||null,
+      email_rapports:$('#f_email')?.value.trim()||null,
+      siret:$('#f_siret')?.value.trim()||null,
       contacts: Object.keys(contacts).length ? contacts : null,
       has_contrat: document.querySelector('input[name="rb_contrat"]:checked')?.value==='oui'||false,
       has_avenant: document.querySelector('input[name="rb_avenant"]:checked')?.value==='oui'||false,
