@@ -2417,7 +2417,7 @@ async function renderAgentApp(){
   console.log('[terrain] v8 — démarrage', new Date().toISOString());
   document.title='SUIVI-CONFORMITÉ — Terrain';
   const root=document.getElementById('root')||document.body;
-  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v13</span></div>';
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v14</span></div>';
   setTimeout(()=>{ const l=document.getElementById('ag-load'); if(l&&!document.getElementById('ag-diag-link')) l.insertAdjacentHTML('beforeend','<a id="ag-diag-link" onclick="agDiag()" style="color:#1a44ad;font-weight:700;font-size:13px;cursor:pointer">Lancer le diagnostic</a>'); },6000);
   const step=t=>{ console.log('[terrain] étape :',t); const e=document.getElementById('ag-step'); if(e)e.textContent=t; };
   const fail=(phase,e)=>{ window._agBusy=0; console.error('[terrain] échec',phase,e); root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:440px"><b style="font-size:14px;color:#0f172a">Erreur ('+phase+')</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><div style="display:flex;gap:8px;margin-top:14px"><button onclick="window._agBusy=0;renderAgentApp()" style="border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button><button onclick="agDiag()" style="border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Diagnostic</button></div></div></div>'; };
@@ -14670,6 +14670,11 @@ function viewVerifications(content){
     document.head.appendChild(s);
   }
   let vtab='traiter',vd={repondre:[],sans_reponse:[],a_programmer:[],programmee:[]},vcfg={},verp={},vpr={};
+  let vsort='desc'; // desc = plus récentes d'abord (défaut)
+  window.vSetSort=function(dir){ if(vsort===dir) return; vsort=dir; ['asc','desc'].forEach(d=>{const b=document.getElementById('vsort-'+d); if(b){b.classList.toggle('on',d===dir);b.setAttribute('aria-pressed',String(d===dir));}}); vrender(); };
+  // Date de référence pour le tri selon l'onglet
+  const vSortKey=(i,tab)=> i.date_prevue || i.reponse_recue_at || i.updated_at || i.created_at || '';
+  function vApplySort(items){ const arr=items.slice(); arr.sort((a,b)=>{ const ka=vSortKey(a),kb=vSortKey(b); if(ka===kb) return 0; return vsort==='asc' ? (ka<kb?-1:1) : (ka<kb?1:-1); }); return arr; }
   let vfiltClient='',vfiltErp='';
   content.innerHTML=`
     <div class="page-head"><div class="t"><h1>Vérifications &amp; relances</h1><p style="color:var(--muted);font-size:13.5px;margin-top:3px">Le suivi de vos demandes aux prestataires, de l'envoi à la réalisation.</p></div><div class="actions"><button class="btn" onclick="verifRefresh()">Actualiser</button></div></div>
@@ -14685,6 +14690,16 @@ function viewVerifications(content){
       <select id="vfilt_client" onchange="vFiltClientChange()"><option value="">— Tous les clients —</option></select>
       <select id="vfilt_erp" onchange="vFiltErpChange()"><option value="">— Tous les établissements —</option></select>
       <button class="btn sm" id="vfilt_reset" style="display:none" onclick="vFiltReset()">Réinitialiser</button>
+      <div class="sortseg" role="group" aria-label="Trier par date" style="margin-left:auto">
+        <button id="vsort-desc" onclick="vSetSort('desc')" title="Plus récentes en premier" aria-pressed="true" class="on">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h11M3 12h7M3 18h4"/><path d="M17 8l3-3 3 3M20 5v14"/></svg>
+          Plus récentes
+        </button>
+        <button id="vsort-asc" onclick="vSetSort('asc')" title="Plus anciennes en premier" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h4M3 12h7M3 18h11"/><path d="M17 16l3 3 3-3M20 19V5"/></svg>
+          Plus anciennes
+        </button>
+      </div>
       <span id="vfilt_info" style="font-size:12px;color:#8494ab"></span>
     </div>
     <div id="vcontent"><div style="text-align:center;padding:32px;color:#94a3b8">Chargement…</div></div>`;
@@ -14749,6 +14764,7 @@ function viewVerifications(content){
     vFiltFillErps();
     const gfilt=document.getElementById('vglobal_filters');
     if(gfilt) gfilt.style.display='flex';
+    const seg=document.querySelector('#vglobal_filters .sortseg'); if(seg) seg.style.display=['repondre','sans_reponse','a_programmer','programmee'].includes(vtab)?'inline-flex':'none';
   }
   function vrender(){
     const el=document.getElementById('vcontent');if(!el)return;
@@ -14778,7 +14794,7 @@ function viewVerifications(content){
     }
     let items=vd[vtab]||[];
     const total=items.length;
-    items=vFiltApply(items);
+    items=vApplySort(vFiltApply(items));
     const info=document.getElementById('vfilt_info');
     if(info) info.textContent=(vfiltClient||vfiltErp)?items.length+' élément(s) affiché(s) sur '+total:'';
     const emptyLbl={repondre:['Aucune réponse en attente','Les réponses de vos prestataires apparaîtront ici, prêtes à confirmer.'],sans_reponse:['Aucune demande sans réponse','Tous vos prestataires ont répondu — rien à relancer.'],a_programmer:['Rien à programmer',''],programmee:['Aucune intervention programmée','Les interventions confirmées avec une date apparaîtront ici.']}[vtab]||['Aucun élément',''];
@@ -15003,7 +15019,9 @@ function viewVerifications(content){
   };
 
   window.verifRefresh=async function(){const el=document.getElementById('vcontent');if(el)el.innerHTML='<div style="text-align:center;padding:32px;color:#94a3b8">Chargement…</div>';await vload();vrender();};
-  window.verifSetTab=function(tab){vtab=tab;document.querySelectorAll('.verif-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));vrender();};
+  window.verifSetTab=function(tab){vtab=tab;document.querySelectorAll('.verif-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+    const seg=document.querySelector('#vglobal_filters .sortseg'); if(seg) seg.style.display=['repondre','sans_reponse','a_programmer','programmee'].includes(tab)?'inline-flex':'none';
+    vrender();};
   window.verifToggleDry=function(){vcfg.dry_run=!vcfg.dry_run;vrender();};
   window.verifSaveSettings=async function(){
     const b={dry_run:vcfg.dry_run,lead_days:+document.getElementById('vcl').value||60,relance_interval_days:+document.getElementById('vcr').value||7,max_relances:+document.getElementById('vcm').value||2,notif_email:(document.getElementById('vce').value||'').trim()};
