@@ -2417,7 +2417,7 @@ async function renderAgentApp(){
   console.log('[terrain] v8 — démarrage', new Date().toISOString());
   document.title='SUIVI-CONFORMITÉ — Terrain';
   const root=document.getElementById('root')||document.body;
-  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v16</span></div>';
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v17</span></div>';
   setTimeout(()=>{ const l=document.getElementById('ag-load'); if(l&&!document.getElementById('ag-diag-link')) l.insertAdjacentHTML('beforeend','<a id="ag-diag-link" onclick="agDiag()" style="color:#1a44ad;font-weight:700;font-size:13px;cursor:pointer">Lancer le diagnostic</a>'); },6000);
   const step=t=>{ console.log('[terrain] étape :',t); const e=document.getElementById('ag-step'); if(e)e.textContent=t; };
   const fail=(phase,e)=>{ window._agBusy=0; console.error('[terrain] échec',phase,e); root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:440px"><b style="font-size:14px;color:#0f172a">Erreur ('+phase+')</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><div style="display:flex;gap:8px;margin-top:14px"><button onclick="window._agBusy=0;renderAgentApp()" style="border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button><button onclick="agDiag()" style="border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Diagnostic</button></div></div></div>'; };
@@ -5630,16 +5630,46 @@ function gotoClientDashboard(erpId, dateISO){
 }
 window.gotoClientDashboard=gotoClientDashboard;
 async function viewInterventions(c){
+  if(window._interSort===undefined) window._interSort='desc'; // desc = plus récentes d'abord
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Interventions</h1><p>Préventif, dépannages et travaux.</p></div>
     <div class="actions"><button class="btn primary" onclick="formInter()">${I.plus} Nouvelle intervention</button></div></div>${loadingBlock()}`;
-  try{ let q=sb.from('interventions').select('*').order('date_prevue',{ascending:false,nullsFirst:false}); q=erpFilter(q);
+  try{ let q=sb.from('interventions').select('*'); q=erpFilter(q);
     const {data}=await q;
+    window._interData=data||[];
     c.querySelector('.loading')||(c.innerHTML=c.innerHTML.split(loadingBlock())[0]);
     c.innerHTML=`<div class="page-head"><div class="t"><h1>Interventions</h1><p>${(data||[]).length} intervention(s).</p></div>
       <div class="actions"><button class="btn primary" onclick="formInter()">${I.plus} Nouvelle intervention</button></div></div>
-      ${(data&&data.length)?interTable(data):emptyBlock(I.inter,'Aucune intervention','Programmez la première vérification préventive.',`<button class="btn primary" onclick="formInter()">${I.plus} Programmer</button>`)}`;
+      ${(data&&data.length)?`<div style="display:flex;align-items:center;gap:10px;margin:0 0 16px;flex-wrap:wrap">
+        <span style="font-size:12.5px;color:var(--muted);font-weight:600">Trier par date</span>
+        <div class="sortseg" role="group" aria-label="Trier par date">
+          <button id="isort-desc" onclick="interSetSort('desc')" title="Plus récentes en premier" aria-pressed="${window._interSort==='desc'}" class="${window._interSort==='desc'?'on':''}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h11M3 12h7M3 18h4"/><path d="M17 8l3-3 3 3M20 5v14"/></svg>
+            Plus récentes
+          </button>
+          <button id="isort-asc" onclick="interSetSort('asc')" title="Plus anciennes en premier" aria-pressed="${window._interSort==='asc'}" class="${window._interSort==='asc'?'on':''}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h4M3 12h7M3 18h11"/><path d="M17 16l3 3 3-3M20 19V5"/></svg>
+            Plus anciennes
+          </button>
+        </div>
+      </div><div id="inter-list">${interTable(interSortRows(data))}</div>`:emptyBlock(I.inter,'Aucune intervention','Programmez la première vérification préventive.',`<button class="btn primary" onclick="formInter()">${I.plus} Programmer</button>`)}`;
   }catch(e){ c.innerHTML=errBlock(e); }
 }
+function interSortRows(rows){
+  const asc=(window._interSort==='asc');
+  return (rows||[]).slice().sort((a,b)=>{
+    const ka=a.date_prevue||'', kb=b.date_prevue||'';
+    // Les interventions sans date en dernier
+    if(!ka&&!kb) return 0; if(!ka) return 1; if(!kb) return -1;
+    return asc ? (ka<kb?-1:1) : (ka<kb?1:-1);
+  });
+}
+window.interSetSort=function(dir){
+  if(window._interSort===dir) return;
+  window._interSort=dir;
+  ['asc','desc'].forEach(d=>{ const b=document.getElementById('isort-'+d); if(b){ b.classList.toggle('on',d===dir); b.setAttribute('aria-pressed',String(d===dir)); }});
+  const box=document.getElementById('inter-list');
+  if(box) box.innerHTML=interTable(interSortRows(window._interData||[]));
+};
 function quickIntervention(){ formInter(); } window.quickIntervention=quickIntervention;
 function interDomChange(){ const sel=$('#f_dom_sel'), inp=$('#f_dom'); if(!sel||!inp) return; inp.style.display = sel.value==='__autre__' ? 'block' : 'none'; if(sel.value==='__autre__') inp.focus(); }
 window.interDomChange=interDomChange;
