@@ -98,6 +98,17 @@ h1,h2,h3{font-family:var(--fd);font-weight:600;letter-spacing:-.01em}
 .sortseg button:hover{background:var(--surface-2);color:var(--ink)}
 .sortseg button.on{background:var(--primary);color:#fff}
 .sortseg button.on:hover{background:var(--primary);color:#fff}
+@media(max-width:840px){
+  /* Interventions : sur mobile, la partie droite passe sous le titre et s'étale proprement */
+  .itr-row{flex-wrap:wrap;gap:8px 12px}
+  .itr-right{flex:1 1 100%;width:100%;justify-content:space-between;gap:8px;flex-wrap:wrap}
+  .itr-date{width:auto;text-align:left}
+  .itr-code{display:none}
+  .itr-stat{width:auto}
+  /* Segments de tri : plus compacts pour tenir sur petit écran */
+  .sortseg button{padding:7px 10px;font-size:12px;gap:5px}
+  .sortseg button svg{width:13px;height:13px}
+}
 @media(max-width:840px){.cal-cell{min-height:64px}.cal-pill{display:none}.cal-cell .nb{font-size:10px;font-weight:800;color:#fff;background:#2563eb;border-radius:99px;padding:1px 6px;align-self:flex-start}}
 .qa{padding:8px 12px 2px}
 .qa-t{display:flex;align-items:center;gap:10px;justify-content:center;font-size:11.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#fff;margin:2px 0 10px;text-align:center}
@@ -611,11 +622,15 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 
 /* À traiter en priorité — lecture téléphone */
 @media (max-width:640px){
-  .prio-tbl tr{display:block;padding:10px 12px;border-bottom:1px solid var(--line-2)}
-  .prio-tbl td{display:block;width:auto !important;border:none !important;padding:2px 0 !important}
-  .prio-tbl td:first-child{width:auto !important;margin-bottom:4px}
-  .prio-tbl td:last-child{text-align:left !important;font-size:12px;margin-top:2px}
-  .prio-tbl img{width:100% !important;max-width:220px;height:auto !important;display:block;margin:8px 0 0 !important}
+  /* Sélecteurs renforcés (table.tbl.prio-tbl) pour l'emporter sur la règle générique des tableaux */
+  table.tbl.prio-tbl tr{display:block;padding:10px 12px;border-bottom:1px solid var(--line-2)}
+  table.tbl.prio-tbl td{display:block !important;width:auto !important;border:none !important;padding:2px 0 !important;text-align:left !important;justify-content:flex-start !important}
+  table.tbl.prio-tbl td::before{content:none !important}
+  table.tbl.prio-tbl td:first-child{margin-bottom:5px}
+  table.tbl.prio-tbl td:last-child{font-size:12px;margin-top:3px}
+  table.tbl.prio-tbl td b{white-space:normal;overflow-wrap:anywhere}
+  /* Photo : vraie vignette compacte, sous le texte, cliquable pour agrandir */
+  .prio-tbl img{width:120px !important;height:88px !important;max-width:120px;object-fit:cover;display:block;margin:8px 0 2px !important;border-radius:9px;box-shadow:0 1px 4px rgba(0,0,0,.12)}
 }
 /* Pièces jointes des réserves — lecture téléphone */
 @media (max-width:640px){
@@ -2417,7 +2432,7 @@ async function renderAgentApp(){
   console.log('[terrain] v8 — démarrage', new Date().toISOString());
   document.title='SUIVI-CONFORMITÉ — Terrain';
   const root=document.getElementById('root')||document.body;
-  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v25</span></div>';
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v27</span></div>';
   setTimeout(()=>{ const l=document.getElementById('ag-load'); if(l&&!document.getElementById('ag-diag-link')) l.insertAdjacentHTML('beforeend','<a id="ag-diag-link" onclick="agDiag()" style="color:#1a44ad;font-weight:700;font-size:13px;cursor:pointer">Lancer le diagnostic</a>'); },6000);
   const step=t=>{ console.log('[terrain] étape :',t); const e=document.getElementById('ag-step'); if(e)e.textContent=t; };
   const fail=(phase,e)=>{ window._agBusy=0; console.error('[terrain] échec',phase,e); root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:440px"><b style="font-size:14px;color:#0f172a">Erreur ('+phase+')</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><div style="display:flex;gap:8px;margin-top:14px"><button onclick="window._agBusy=0;renderAgentApp()" style="border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button><button onclick="agDiag()" style="border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Diagnostic</button></div></div></div>'; };
@@ -5607,16 +5622,16 @@ function interTable(rows){
   return `<div style="display:flex;flex-direction:column;gap:10px">
     ${rows.map(i=>{ const dot=typeColor[i.type]||'#94a3b8';
       const data=JSON.stringify(i).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-      return `<div style="display:flex;align-items:center;gap:14px;width:100%;padding:11px 16px;border-radius:12px;border:1px solid var(--line);border-left:4px solid ${dot};background:var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.05);cursor:pointer;transition:box-shadow .15s,transform .15s" onmouseenter="this.style.boxShadow='0 6px 20px rgba(0,0,0,.1)';this.style.transform='translateY(-1px)'" onmouseleave="this.style.boxShadow='0 1px 4px rgba(0,0,0,.05)';this.style.transform=''" onclick="formInter(null,${data})">
+      return `<div class="itr-row" style="display:flex;align-items:center;gap:14px;width:100%;padding:11px 16px;border-radius:12px;border:1px solid var(--line);border-left:4px solid ${dot};background:var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.05);cursor:pointer;transition:box-shadow .15s,transform .15s" onmouseenter="this.style.boxShadow='0 6px 20px rgba(0,0,0,.1)';this.style.transform='translateY(-1px)'" onmouseleave="this.style.boxShadow='0 1px 4px rgba(0,0,0,.05)';this.style.transform=''" onclick="formInter(null,${data})">
         <span style="font-size:10.5px;font-weight:700;color:${dot};background:${dot}18;padding:3px 10px;border-radius:20px;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap">${esc(typeLabel[i.type]||i.type||'—')}</span>
         <div style="flex:1 1 200px;min-width:0">
           <div style="font-size:14px;font-weight:700;color:var(--ink);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.objet||i.domaine||'—')}</div>
           ${erpName(i.erp_id)?`<div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(erpName(i.erp_id))}</div>`:''}
         </div>
-        <div style="display:flex;align-items:center;gap:14px;flex:0 0 auto">
-          <div style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;width:96px;text-align:right">${fmtDate(i.date_prevue)||'—'}</div>
-          <span class="mono" style="font-size:11px;color:var(--muted-2);white-space:nowrap;width:120px">${i.code_int?esc(i.code_int):''}</span>
-          <span style="width:104px;display:flex;justify-content:flex-start">${statusPill(i.statut,ITST)}</span>
+        <div class="itr-right" style="display:flex;align-items:center;gap:14px;flex:0 0 auto">
+          <div class="itr-date" style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;width:96px;text-align:right">${fmtDate(i.date_prevue)||'—'}</div>
+          <span class="mono itr-code" style="font-size:11px;color:var(--muted-2);white-space:nowrap;width:120px">${i.code_int?esc(i.code_int):''}</span>
+          <span class="itr-stat" style="width:104px;display:flex;justify-content:flex-start">${statusPill(i.statut,ITST)}</span>
           <button class="btn sm" style="font-size:12px;white-space:nowrap" title="Tableau de bord" onclick="event.stopPropagation();gotoClientDashboard('${i.erp_id}','${esc(i.date_prevue||'')}')">Tableau de bord</button>
         </div>
       </div>`;
