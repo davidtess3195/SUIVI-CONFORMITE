@@ -2432,7 +2432,7 @@ async function renderAgentApp(){
   console.log('[terrain] v8 — démarrage', new Date().toISOString());
   document.title='SUIVI-CONFORMITÉ — Terrain';
   const root=document.getElementById('root')||document.body;
-  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v27</span></div>';
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v30</span></div>';
   setTimeout(()=>{ const l=document.getElementById('ag-load'); if(l&&!document.getElementById('ag-diag-link')) l.insertAdjacentHTML('beforeend','<a id="ag-diag-link" onclick="agDiag()" style="color:#1a44ad;font-weight:700;font-size:13px;cursor:pointer">Lancer le diagnostic</a>'); },6000);
   const step=t=>{ console.log('[terrain] étape :',t); const e=document.getElementById('ag-step'); if(e)e.textContent=t; };
   const fail=(phase,e)=>{ window._agBusy=0; console.error('[terrain] échec',phase,e); root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:440px"><b style="font-size:14px;color:#0f172a">Erreur ('+phase+')</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><div style="display:flex;gap:8px;margin-top:14px"><button onclick="window._agBusy=0;renderAgentApp()" style="border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button><button onclick="agDiag()" style="border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Diagnostic</button></div></div></div>'; };
@@ -3426,7 +3426,7 @@ async function viewDashboard(c){
       </div></div></div>`;
 
     c.innerHTML=`<div class="page-head"><div class="t"><h1>Tableau de bord</h1><p>Vos priorités, triées par criticité.</p></div>
-      <div class="actions"><button class="btn primary" onclick="quickIntervention()">${I.plus} Nouvelle intervention</button>
+      <div class="actions"><button class="btn primary" onclick="quickIntervention()">${I.plus} Demande d'intervention</button><button class="btn" onclick="formInter(null,null,'programmer')" title="Intervention convenue par téléphone : enregistrer directement la date">Programmer une intervention</button>
         </div></div>
       ${cfgHint()}
       <div class="kpis">${kpis.map(kpiCard).join('')}</div>
@@ -5651,7 +5651,7 @@ async function viewInterventions(c){
   // Filtre éventuel passé par le tableau de bord (ex: #/interventions?f=aprog)
   const _q=(location.hash.split('?')[1]||''); const _filtreAprog=/(^|&)f=aprog(&|$)/.test(_q);
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Interventions</h1><p>Préventif, dépannages et travaux.</p></div>
-    <div class="actions"><button class="btn primary" onclick="formInter()">${I.plus} Nouvelle intervention</button></div></div>${loadingBlock()}`;
+    <div class="actions"><button class="btn primary" onclick="formInter()">${I.plus} Demande d'intervention</button><button class="btn" onclick="formInter(null,null,'programmer')" title="Intervention convenue par téléphone : enregistrer directement la date">Programmer une intervention</button></div></div>${loadingBlock()}`;
   try{ let q=sb.from('interventions').select('*'); q=erpFilter(q);
     const {data}=await q;
     let _rows=data||[];
@@ -5659,7 +5659,7 @@ async function viewInterventions(c){
     window._interData=_rows;
     c.querySelector('.loading')||(c.innerHTML=c.innerHTML.split(loadingBlock())[0]);
     c.innerHTML=`<div class="page-head"><div class="t"><h1>Interventions</h1><p>${_rows.length} intervention(s)${_filtreAprog?' à programmer':''}.</p></div>
-      <div class="actions"><button class="btn primary" onclick="formInter()">${I.plus} Nouvelle intervention</button></div></div>
+      <div class="actions"><button class="btn primary" onclick="formInter()">${I.plus} Demande d'intervention</button><button class="btn" onclick="formInter(null,null,'programmer')" title="Intervention convenue par téléphone : enregistrer directement la date">Programmer une intervention</button></div></div>
       ${_filtreAprog?`<div style="display:flex;align-items:center;gap:10px;margin:0 0 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:11px;padding:9px 14px;flex-wrap:wrap">
         <span style="font-size:13px;color:#9a3412;font-weight:600">Affichage filtré : interventions à programmer uniquement (${_rows.length})</span>
         <button class="btn sm" style="margin-left:auto" onclick="navigate('/interventions')">Tout afficher ✕</button>
@@ -5730,8 +5730,8 @@ window.interErpChange=async function(){
   }
   domWrap.innerHTML=buildDomSel(domaines,'').html;
 };
-async function formInter(erpId,it){
-  it=it||{}; const e=erpId||it.erp_id||(state.currentErp!=='all'?state.currentErp:'');
+async function formInter(erpId,it,mode){
+  it=it||{}; const _prog=(mode==='programmer'); const e=erpId||it.erp_id||(state.currentErp!=='all'?state.currentErp:'');
   const [{data:prest},oblRes]=await Promise.all([
     sb.from('prestataires').select('id,nom,categorie,email_rapports,telephone,contacts,client_id,client_ids,affaires').order('nom'),
     e?sb.from('obligations').select('domaine,libelle').eq('erp_id',e).eq('statut','applicable').order('domaine'):Promise.resolve({data:[]})
@@ -5748,7 +5748,8 @@ async function formInter(erpId,it){
   const prestLookup={}; (prest||[]).forEach(p=>{prestLookup[p.id]=p;});
   window._interPrestLookup=prestLookup;
   window._interErpList=state.erps;
-  openModal(`<div class="modal-head"><h2>${it.id?'Intervention '+esc(it.code_int):'Nouvelle intervention'}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+  openModal(`<div class="modal-head"><h2>${it.id?'Intervention '+esc(it.code_int):(_prog?'Programmer une intervention':"Demande d'intervention")}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+  ${(!it.id&&_prog)?`<div style="margin:0 20px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:8px 12px;font-size:12.5px;color:#1e40af">Intervention convenue directement avec le prestataire (téléphone, échange verbal) — elle sera enregistrée comme <b>programmée</b> à la date choisie.</div>`:''}
   <div class="modal-body">
     <div class="fld"><label>ERP <span class="req">*</span></label><select id="f_erp"${it.id?' disabled':' onchange="interErpChange()"'}><option value="">— choisir —</option>${erpOpts}</select></div>
     <div class="fld"><label>Type</label><select id="f_type">
@@ -5756,13 +5757,14 @@ async function formInter(erpId,it){
     <div class="fld"><label>Domaine / spécialité</label><div id="f_dom_wrap">${domSelHtml}</div></div>
     <div class="fld"><label>Commentaire</label><textarea id="f_obj" rows="4" placeholder="Commentaire…" onkeydown="event.stopPropagation()" style="width:100%;border:1px solid var(--line,#e2e8f0);border-radius:6px;padding:7px 10px;font-size:14px;font-family:inherit;resize:vertical;color:var(--ink);box-sizing:border-box">${esc(it.objet||'')}</textarea></div>
     <div class="row2"><div class="fld"><label>Prestataire</label><select id="f_prest"><option value="">—</option>${prestOpts}</select></div>
-      <div class="fld"><label>Date prévue</label><input id="f_date" type="date" value="${esc(it.date_prevue)}"></div></div>
+      <div class="fld"><label>Date prévue${_prog?' <span class="req">*</span>':''}</label><input id="f_date" type="date" value="${esc(it.date_prevue)}"${_prog?' style="border-color:#2563eb;border-width:2px"':''}></div></div>
     ${it.id?`<div class="fld"><label>Statut</label><select id="f_statut">${Object.keys(ITST).map(s=>`<option value="${s}"${it.statut===s?' selected':''}>${ITST[s][1]}</option>`).join('')}</select></div>`:''}
   </div>
-  <div class="modal-foot">${it.id?'<button class="btn danger" id="del" style="margin-right:auto">Supprimer</button>':''}${it.id&&(it.type==='travaux'||it.type==='corrective')?`<button class="btn sm" title="Générer le PV de réception de travaux" onclick="pvFromInter('${it.id}')">PV réception</button>`:''}<button class="btn primary" id="btn_email_inter" style="gap:6px">Demande par email</button><button class="btn sm" id="btn_sms_inter">💬 Par SMS</button><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">${it.id?'Enregistrer':'Créer'}</button></div>`);
+  <div class="modal-foot">${it.id?'<button class="btn danger" id="del" style="margin-right:auto">Supprimer</button>':''}${it.id&&(it.type==='travaux'||it.type==='corrective')?`<button class="btn sm" title="Générer le PV de réception de travaux" onclick="pvFromInter('${it.id}')">PV réception</button>`:''}${(!it.id&&_prog)?'':`<button class="btn primary" id="btn_email_inter" style="gap:6px">Demande par email</button><button class="btn sm" id="btn_sms_inter">💬 Par SMS</button>`}<button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">${it.id?'Enregistrer':(_prog?'Programmer':'Créer')}</button></div>`);
   if(erpId){const s=$('#f_erp'); if(s)s.value=erpId;}
   $('#save').onclick=async()=>{
     const erp_id=$('#f_erp').value; if(!erp_id){toast('Sélectionne un ERP','err');return;}
+    if(_prog && !it.id && !$('#f_date').value){toast('Indiquez la date convenue avec le prestataire','err');$('#f_date').focus();return;}
     _modalDirty=false;
     const domSel=$('#f_dom_sel').value;
     const domaine = domSel==='__autre__' ? ($('#f_dom').value.trim()||null) : (domSel||null);
@@ -5770,7 +5772,7 @@ async function formInter(erpId,it){
       prestataire_id:$('#f_prest').value||null,date_prevue:$('#f_date').value||null};
     if(it.id)payload.statut=$('#f_statut').value;
     try{ if(it.id){delete payload.erp_id; await sb.from('interventions').update(payload).eq('id',it.id);}
-      else{ payload.statut=$('#f_date').value?'programmee':'a_programmer'; await sb.from('interventions').insert(payload);}
+      else{ payload.statut=(_prog||$('#f_date').value)?'programmee':'a_programmer'; await sb.from('interventions').insert(payload);}
       // Si cette intervention est liée à une vérification (obligation), synchroniser son échéance sur la nouvelle date
       if(it.id && it.obligation_id && payload.date_prevue){
         try{ await sb.from('obligations').update({prochaine_echeance:payload.date_prevue}).eq('id',it.obligation_id); }catch(_){}
