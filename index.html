@@ -2417,7 +2417,7 @@ async function renderAgentApp(){
   console.log('[terrain] v8 — démarrage', new Date().toISOString());
   document.title='SUIVI-CONFORMITÉ — Terrain';
   const root=document.getElementById('root')||document.body;
-  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v23</span></div>';
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v25</span></div>';
   setTimeout(()=>{ const l=document.getElementById('ag-load'); if(l&&!document.getElementById('ag-diag-link')) l.insertAdjacentHTML('beforeend','<a id="ag-diag-link" onclick="agDiag()" style="color:#1a44ad;font-weight:700;font-size:13px;cursor:pointer">Lancer le diagnostic</a>'); },6000);
   const step=t=>{ console.log('[terrain] étape :',t); const e=document.getElementById('ag-step'); if(e)e.textContent=t; };
   const fail=(phase,e)=>{ window._agBusy=0; console.error('[terrain] échec',phase,e); root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:440px"><b style="font-size:14px;color:#0f172a">Erreur ('+phase+')</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><div style="display:flex;gap:8px;margin-top:14px"><button onclick="window._agBusy=0;renderAgentApp()" style="border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button><button onclick="agDiag()" style="border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Diagnostic</button></div></div></div>'; };
@@ -3317,7 +3317,7 @@ async function viewDashboard(c){
     const mobBadgePhotos=document.getElementById('mob-badge-photos'); if(mobBadgePhotos){mobBadgePhotos.textContent=photoNT.length;mobBadgePhotos.style.display=photoNT.length?'grid':'none';}
 
     const kpis=[
-      ['Vérifications en retard',enRetard.length,'critique','Échéances dépassées','⏰','/interventions'],
+      ['Vérifications en retard',enRetard.length,'critique','Échéances dépassées','⏰','/verifications?f=retard'],
       ['Réserves critiques',resCrit.length,'critique','Correction immédiate','🚨','/reserves'],
       ['À programmer',aProg.length,'moyen','Interventions sans date','📅','/interventions?f=aprog'],
       ['Réserves ouvertes',resOuv.length,'majeur','En cours de levée','📋','/reserves'],
@@ -5646,7 +5646,7 @@ async function viewInterventions(c){
     c.innerHTML=`<div class="page-head"><div class="t"><h1>Interventions</h1><p>${_rows.length} intervention(s)${_filtreAprog?' à programmer':''}.</p></div>
       <div class="actions"><button class="btn primary" onclick="formInter()">${I.plus} Nouvelle intervention</button></div></div>
       ${_filtreAprog?`<div style="display:flex;align-items:center;gap:10px;margin:0 0 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:11px;padding:9px 14px;flex-wrap:wrap">
-        <span style="font-size:13px;color:#9a3412;font-weight:600">📅 Affichage filtré : interventions à programmer uniquement (${_rows.length})</span>
+        <span style="font-size:13px;color:#9a3412;font-weight:600">Affichage filtré : interventions à programmer uniquement (${_rows.length})</span>
         <button class="btn sm" style="margin-left:auto" onclick="navigate('/interventions')">Tout afficher ✕</button>
       </div>`:''}
       ${(_rows.length)?`<div style="display:flex;align-items:center;gap:10px;margin:0 0 16px;flex-wrap:wrap">
@@ -14729,6 +14729,10 @@ function viewVerifications(content){
     document.head.appendChild(s);
   }
   let vtab='traiter',vd={repondre:[],sans_reponse:[],a_programmer:[],programmee:[]},vcfg={},verp={},vpr={};
+  // Filtre "en retard" passé par le tableau de bord (#/verifications?f=retard)
+  let vfiltRetard=/(^|&)f=retard(&|$)/.test(location.hash.split('?')[1]||'');
+  if(vfiltRetard) vtab='obligations';
+  window.vClearRetard=function(){ vfiltRetard=false; vrender(); };
   let vsort='desc'; // desc = plus récentes d'abord (défaut)
   window.vSetSort=function(dir){ if(vsort===dir) return; vsort=dir; ['asc','desc'].forEach(d=>{const b=document.getElementById('vsort-'+d); if(b){b.classList.toggle('on',d===dir);b.setAttribute('aria-pressed',String(d===dir));}}); vrender(); };
   // Date de référence pour le tri selon l'onglet
@@ -14975,12 +14979,19 @@ function viewVerifications(content){
   function vRenderObligContent(){
     const box=document.getElementById('vobl_list'); if(!box) return;
     const obls=vd.obligations||[];
-    const filtered=vFiltApply(obls);
+    let filtered=vFiltApply(obls);
+    // Filtre "en retard" (échéance dépassée) venant du tableau de bord — même règle que le KPI
+    const _tj=new Date().toISOString().slice(0,10);
+    if(vfiltRetard) filtered=filtered.filter(o=>o.prochaine_echeance && o.prochaine_echeance<_tj && !['a_jour','non_applicable'].includes(o.statut));
+    const bandeauRetard = vfiltRetard?`<div style="display:flex;align-items:center;gap:10px;margin:0 0 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:11px;padding:9px 14px;flex-wrap:wrap">
+      <span style="font-size:13px;color:#991b1b;font-weight:600">Affichage filtré : vérifications en retard uniquement (${filtered.length})</span>
+      <button class="btn sm" style="margin-left:auto" onclick="vClearRetard()">Tout afficher ✕</button>
+    </div>`:'';
     const info=document.getElementById('vfilt_info');
     if(info) info.textContent=(vfiltClient||vfiltErp)?filtered.length+' vérification(s) affichée(s) sur '+obls.length:'';
-    if(!filtered.length){box.innerHTML='<div class="vempty">'+((vfiltClient||vfiltErp)&&obls.length?'<b>Aucune vérification pour cette sélection</b><a style="cursor:pointer;color:#1a44ad;font-weight:700" onclick="vFiltReset()">Afficher tout</a>':'<b>Aucune vérification obligatoire enregistrée</b>Les vérifications périodiques de vos établissements apparaîtront ici.')+'</div>';return;}
+    if(!filtered.length){box.innerHTML=bandeauRetard+'<div class="vempty">'+(vfiltRetard?'<b>Aucune vérification en retard</b>Toutes les échéances sont respectées.':((vfiltClient||vfiltErp)&&obls.length?'<b>Aucune vérification pour cette sélection</b><a style="cursor:pointer;color:#1a44ad;font-weight:700" onclick="vFiltReset()">Afficher tout</a>':'<b>Aucune vérification obligatoire enregistrée</b>Les vérifications périodiques de vos établissements apparaîtront ici.'))+'</div>';return;}
     const critLbl={critique:'Critique',majeur:'Majeur',moyen:'Moyen',faible:'Faible',info:'Info'};
-    box.innerHTML=filtered.map(o=>{
+    box.innerHTML=bandeauRetard+filtered.map(o=>{
       const erp=verp[o.erp_id]||{};const pr=o.prestataires||{};
       const today=new Date();
       const dl=o.prochaine_echeance?Math.round((new Date(o.prochaine_echeance)-today)/86400000):null;
