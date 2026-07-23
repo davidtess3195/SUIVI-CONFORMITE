@@ -2417,7 +2417,7 @@ async function renderAgentApp(){
   console.log('[terrain] v8 — démarrage', new Date().toISOString());
   document.title='SUIVI-CONFORMITÉ — Terrain';
   const root=document.getElementById('root')||document.body;
-  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v18</span></div>';
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v20</span></div>';
   setTimeout(()=>{ const l=document.getElementById('ag-load'); if(l&&!document.getElementById('ag-diag-link')) l.insertAdjacentHTML('beforeend','<a id="ag-diag-link" onclick="agDiag()" style="color:#1a44ad;font-weight:700;font-size:13px;cursor:pointer">Lancer le diagnostic</a>'); },6000);
   const step=t=>{ console.log('[terrain] étape :',t); const e=document.getElementById('ag-step'); if(e)e.textContent=t; };
   const fail=(phase,e)=>{ window._agBusy=0; console.error('[terrain] échec',phase,e); root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:440px"><b style="font-size:14px;color:#0f172a">Erreur ('+phase+')</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><div style="display:flex;gap:8px;margin-top:14px"><button onclick="window._agBusy=0;renderAgentApp()" style="border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button><button onclick="agDiag()" style="border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Diagnostic</button></div></div></div>'; };
@@ -5607,16 +5607,18 @@ function interTable(rows){
   return `<div style="display:flex;flex-direction:column;gap:10px">
     ${rows.map(i=>{ const dot=typeColor[i.type]||'#94a3b8';
       const data=JSON.stringify(i).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-      return `<div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;width:100%;padding:11px 16px;border-radius:12px;border:1px solid var(--line);border-left:4px solid ${dot};background:var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.05);cursor:pointer;transition:box-shadow .15s,transform .15s" onmouseenter="this.style.boxShadow='0 6px 20px rgba(0,0,0,.1)';this.style.transform='translateY(-1px)'" onmouseleave="this.style.boxShadow='0 1px 4px rgba(0,0,0,.05)';this.style.transform=''" onclick="formInter(null,${data})">
+      return `<div style="display:flex;align-items:center;gap:14px;width:100%;padding:11px 16px;border-radius:12px;border:1px solid var(--line);border-left:4px solid ${dot};background:var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.05);cursor:pointer;transition:box-shadow .15s,transform .15s" onmouseenter="this.style.boxShadow='0 6px 20px rgba(0,0,0,.1)';this.style.transform='translateY(-1px)'" onmouseleave="this.style.boxShadow='0 1px 4px rgba(0,0,0,.05)';this.style.transform=''" onclick="formInter(null,${data})">
         <span style="font-size:10.5px;font-weight:700;color:${dot};background:${dot}18;padding:3px 10px;border-radius:20px;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap">${esc(typeLabel[i.type]||i.type||'—')}</span>
-        <div style="flex:1 1 240px;min-width:0">
+        <div style="flex:1 1 200px;min-width:0">
           <div style="font-size:14px;font-weight:700;color:var(--ink);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.objet||i.domaine||'—')}</div>
           ${erpName(i.erp_id)?`<div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(erpName(i.erp_id))}</div>`:''}
         </div>
-        <div style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;width:96px;flex:0 0 96px;text-align:right">${fmtDate(i.date_prevue)||'—'}</div>
-        ${i.code_int?`<span class="mono" style="font-size:11px;color:var(--muted-2);white-space:nowrap;width:120px;flex:0 0 120px">${esc(i.code_int)}</span>`:`<span style="width:120px;flex:0 0 120px"></span>`}
-        ${statusPill(i.statut,ITST)}
-        <button class="btn sm" style="font-size:12px;white-space:nowrap" title="Tableau de bord" onclick="event.stopPropagation();gotoClientDashboard('${i.erp_id}','${esc(i.date_prevue||'')}')">Tableau de bord</button>
+        <div style="display:flex;align-items:center;gap:14px;flex:0 0 auto">
+          <div style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;width:96px;text-align:right">${fmtDate(i.date_prevue)||'—'}</div>
+          <span class="mono" style="font-size:11px;color:var(--muted-2);white-space:nowrap;width:120px">${i.code_int?esc(i.code_int):''}</span>
+          <span style="width:104px;display:flex;justify-content:flex-start">${statusPill(i.statut,ITST)}</span>
+          <button class="btn sm" style="font-size:12px;white-space:nowrap" title="Tableau de bord" onclick="event.stopPropagation();gotoClientDashboard('${i.erp_id}','${esc(i.date_prevue||'')}')">Tableau de bord</button>
+        </div>
       </div>`;
     }).join('')}
   </div>`;
@@ -5630,7 +5632,7 @@ function gotoClientDashboard(erpId, dateISO){
 }
 window.gotoClientDashboard=gotoClientDashboard;
 async function viewInterventions(c){
-  if(window._interSort===undefined) window._interSort='desc'; // desc = plus récentes d'abord
+  if(window._interSort===undefined) window._interSort='proches'; // à venir en premier (proche -> lointain), passées reléguées
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Interventions</h1><p>Préventif, dépannages et travaux.</p></div>
     <div class="actions"><button class="btn primary" onclick="formInter()">${I.plus} Nouvelle intervention</button></div></div>${loadingBlock()}`;
   try{ let q=sb.from('interventions').select('*'); q=erpFilter(q);
@@ -5642,31 +5644,37 @@ async function viewInterventions(c){
       ${(data&&data.length)?`<div style="display:flex;align-items:center;gap:10px;margin:0 0 16px;flex-wrap:wrap">
         <span style="font-size:12.5px;color:var(--muted);font-weight:600">Trier par date</span>
         <div class="sortseg" role="group" aria-label="Trier par date">
-          <button id="isort-desc" onclick="interSetSort('desc')" title="Plus récentes en premier" aria-pressed="${window._interSort==='desc'}" class="${window._interSort==='desc'?'on':''}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h11M3 12h7M3 18h4"/><path d="M17 8l3-3 3 3M20 5v14"/></svg>
-            Plus récentes
-          </button>
-          <button id="isort-asc" onclick="interSetSort('asc')" title="Plus anciennes en premier" aria-pressed="${window._interSort==='asc'}" class="${window._interSort==='asc'?'on':''}">
+          <button id="isort-proches" onclick="interSetSort('proches')" title="Interventions à venir, la plus proche d'abord (les passées en bas)" aria-pressed="${window._interSort==='proches'}" class="${window._interSort==='proches'?'on':''}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h4M3 12h7M3 18h11"/><path d="M17 16l3 3 3-3M20 19V5"/></svg>
-            Plus anciennes
+            Plus proches
+          </button>
+          <button id="isort-lointaines" onclick="interSetSort('lointaines')" title="Dates les plus lointaines d'abord" aria-pressed="${window._interSort==='lointaines'}" class="${window._interSort==='lointaines'?'on':''}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h11M3 12h7M3 18h4"/><path d="M17 8l3-3 3 3M20 5v14"/></svg>
+            Plus lointaines
           </button>
         </div>
       </div><div id="inter-list">${interTable(interSortRows(data))}</div>`:emptyBlock(I.inter,'Aucune intervention','Programmez la première vérification préventive.',`<button class="btn primary" onclick="formInter()">${I.plus} Programmer</button>`)}`;
   }catch(e){ c.innerHTML=errBlock(e); }
 }
 function interSortRows(rows){
-  const asc=(window._interSort==='asc');
-  return (rows||[]).slice().sort((a,b)=>{
-    const ka=a.date_prevue||'', kb=b.date_prevue||'';
-    // Les interventions sans date en dernier
-    if(!ka&&!kb) return 0; if(!ka) return 1; if(!kb) return -1;
-    return asc ? (ka<kb?-1:1) : (ka<kb?1:-1);
-  });
+  const mode=window._interSort||'proches';
+  const today=new Date().toISOString().slice(0,10);
+  const arr=(rows||[]).slice();
+  if(mode==='lointaines'){
+    // Toutes les dates, de la plus lointaine à la plus proche ; sans date en dernier.
+    return arr.sort((a,b)=>{ const ka=a.date_prevue||'',kb=b.date_prevue||''; if(!ka&&!kb)return 0; if(!ka)return 1; if(!kb)return -1; return ka<kb?1:-1; });
+  }
+  // mode 'proches' : à venir (>= aujourd'hui) triées croissant en haut ; passées reléguées en bas (plus récente d'abord) ; sans date tout en bas.
+  const futures=[], passees=[], sansDate=[];
+  arr.forEach(i=>{ const d=i.date_prevue||''; if(!d) sansDate.push(i); else if(d>=today) futures.push(i); else passees.push(i); });
+  futures.sort((a,b)=> a.date_prevue<b.date_prevue?-1:1);   // la plus proche d'aujourd'hui en premier
+  passees.sort((a,b)=> a.date_prevue<b.date_prevue?1:-1);   // la plus récemment passée en premier
+  return [...futures, ...passees, ...sansDate];
 }
 window.interSetSort=function(dir){
   if(window._interSort===dir) return;
   window._interSort=dir;
-  ['asc','desc'].forEach(d=>{ const b=document.getElementById('isort-'+d); if(b){ b.classList.toggle('on',d===dir); b.setAttribute('aria-pressed',String(d===dir)); }});
+  ['proches','lointaines'].forEach(d=>{ const b=document.getElementById('isort-'+d); if(b){ b.classList.toggle('on',d===dir); b.setAttribute('aria-pressed',String(d===dir)); }});
   const box=document.getElementById('inter-list');
   if(box) box.innerHTML=interTable(interSortRows(window._interData||[]));
 };
