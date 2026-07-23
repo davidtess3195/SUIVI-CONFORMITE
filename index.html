@@ -1751,7 +1751,7 @@ async function viewAdmin(c){
       sb.from('erps').select('id,code_erp,nom,statut,client_id,created_at'),
       sb.from('interventions').select('id,statut,type,created_at').order('created_at',{ascending:false}),
       sb.from('reserves').select('id,criticite,statut,created_at'),
-      sb.from('photos_urgentes').select('id,niveau_urgence,statut,created_at'),
+      sb.from('photos_urgentes').select('id,niveau_urgence,statut,created_at,traitement'),
       sb.from('pointages').select('id,erp_id,nb_intervenants,heure_arrivee,heure_depart,mode_saisie,created_at'),
       sb.from('documents').select('id,type,created_at'),
       sb.from('audit_log').select('id,action,entite,user_label,created_at').order('created_at',{ascending:false}).limit(20),
@@ -1880,7 +1880,7 @@ async function viewAdmin(c){
           <div class="it"><div class="k">Heures cumulées pointage</div><div class="v" style="font-size:22px;font-weight:700">${totalH.toFixed(1)} h</div></div>
           <div class="it"><div class="k">Pointages QR / manuel</div><div class="v">${(pointages||[]).filter((p)=>p.mode_saisie==='qr').length} QR · ${(pointages||[]).filter((p)=>p.mode_saisie==='manuel').length} manuel</div></div>
           <div class="it"><div class="k">Photos urgentes reçues</div><div class="v">${(photos||[]).length}</div></div>
-          <div class="it"><div class="k">Photos non traitées</div><div class="v" style="color:${(photos||[]).filter((p)=>['recue','a_traiter'].includes(p.statut)).length>0?'var(--critique)':'inherit'}">${(photos||[]).filter((p)=>['recue','a_traiter'].includes(p.statut)).length}</div></div>
+          <div class="it"><div class="k">Photos non traitées</div><div class="v" style="color:${(photos||[]).filter((p)=>['recue','a_traiter'].includes(p.statut)&&p.traitement!=='fait').length>0?'var(--critique)':'inherit'}">${(photos||[]).filter((p)=>['recue','a_traiter'].includes(p.statut)&&p.traitement!=='fait').length}</div></div>
           <div class="it"><div class="k">Documents classés</div><div class="v">${(documents||[]).length}<span style="font-size:12px;color:var(--muted);font-weight:400"> · ${fmtBytes(window._docStats?.docTotalSize||0)}</span></div></div>
           <div class="it"><div class="k">Réserves critiques</div><div class="v" style="color:var(--critique)">${(reserves||[]).filter((r)=>r.criticite==='critique'&&!['levee','cloturee','rejetee'].includes(r.statut)).length}</div></div>
         </div>
@@ -2417,7 +2417,7 @@ async function renderAgentApp(){
   console.log('[terrain] v8 — démarrage', new Date().toISOString());
   document.title='SUIVI-CONFORMITÉ — Terrain';
   const root=document.getElementById('root')||document.body;
-  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v21</span></div>';
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v23</span></div>';
   setTimeout(()=>{ const l=document.getElementById('ag-load'); if(l&&!document.getElementById('ag-diag-link')) l.insertAdjacentHTML('beforeend','<a id="ag-diag-link" onclick="agDiag()" style="color:#1a44ad;font-weight:700;font-size:13px;cursor:pointer">Lancer le diagnostic</a>'); },6000);
   const step=t=>{ console.log('[terrain] étape :',t); const e=document.getElementById('ag-step'); if(e)e.textContent=t; };
   const fail=(phase,e)=>{ window._agBusy=0; console.error('[terrain] échec',phase,e); root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:440px"><b style="font-size:14px;color:#0f172a">Erreur ('+phase+')</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><div style="display:flex;gap:8px;margin-top:14px"><button onclick="window._agBusy=0;renderAgentApp()" style="border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button><button onclick="agDiag()" style="border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Diagnostic</button></div></div></div>'; };
@@ -3312,14 +3312,14 @@ async function viewDashboard(c){
     const aRepondre = its.filter(i=>i.reponse_a_traiter);
     const resCrit = res.filter(r=>r.criticite==='critique' && !['cloturee','levee','rejetee'].includes(r.statut));
     const resOuv = res.filter(r=>!['cloturee','levee','rejetee'].includes(r.statut));
-    const photoNT = phs.filter(p=>['recue','a_traiter','vue'].includes(p.statut));
+    const photoNT = phs.filter(p=>['recue','a_traiter','vue'].includes(p.statut) && p.traitement!=='fait');
     const badge=$('#badge-photos'); if(badge){ if(photoNT.length){badge.style.display='grid';badge.textContent=photoNT.length;}else badge.style.display='none'; }
     const mobBadgePhotos=document.getElementById('mob-badge-photos'); if(mobBadgePhotos){mobBadgePhotos.textContent=photoNT.length;mobBadgePhotos.style.display=photoNT.length?'grid':'none';}
 
     const kpis=[
       ['Vérifications en retard',enRetard.length,'critique','Échéances dépassées','⏰','/interventions'],
       ['Réserves critiques',resCrit.length,'critique','Correction immédiate','🚨','/reserves'],
-      ['À programmer',aProg.length,'moyen','Interventions sans date','📅','/interventions'],
+      ['À programmer',aProg.length,'moyen','Interventions sans date','📅','/interventions?f=aprog'],
       ['Réserves ouvertes',resOuv.length,'majeur','En cours de levée','📋','/reserves'],
       ['Photos urgentes',photoNT.length,'majeur','Alertes terrain à traiter','📷','/photos'],
       ['Actions relances',(aRepondre.length+sansRep.length),'critique','Réponses & sans réponse','🔧','/verifications'],
@@ -5633,15 +5633,23 @@ function gotoClientDashboard(erpId, dateISO){
 window.gotoClientDashboard=gotoClientDashboard;
 async function viewInterventions(c){
   if(window._interSort===undefined) window._interSort='proches'; // à venir en premier (proche -> lointain), passées reléguées
+  // Filtre éventuel passé par le tableau de bord (ex: #/interventions?f=aprog)
+  const _q=(location.hash.split('?')[1]||''); const _filtreAprog=/(^|&)f=aprog(&|$)/.test(_q);
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Interventions</h1><p>Préventif, dépannages et travaux.</p></div>
     <div class="actions"><button class="btn primary" onclick="formInter()">${I.plus} Nouvelle intervention</button></div></div>${loadingBlock()}`;
   try{ let q=sb.from('interventions').select('*'); q=erpFilter(q);
     const {data}=await q;
-    window._interData=data||[];
+    let _rows=data||[];
+    if(_filtreAprog) _rows=_rows.filter(i=>['a_programmer','a_reprogrammer'].includes(i.statut));
+    window._interData=_rows;
     c.querySelector('.loading')||(c.innerHTML=c.innerHTML.split(loadingBlock())[0]);
-    c.innerHTML=`<div class="page-head"><div class="t"><h1>Interventions</h1><p>${(data||[]).length} intervention(s).</p></div>
+    c.innerHTML=`<div class="page-head"><div class="t"><h1>Interventions</h1><p>${_rows.length} intervention(s)${_filtreAprog?' à programmer':''}.</p></div>
       <div class="actions"><button class="btn primary" onclick="formInter()">${I.plus} Nouvelle intervention</button></div></div>
-      ${(data&&data.length)?`<div style="display:flex;align-items:center;gap:10px;margin:0 0 16px;flex-wrap:wrap">
+      ${_filtreAprog?`<div style="display:flex;align-items:center;gap:10px;margin:0 0 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:11px;padding:9px 14px;flex-wrap:wrap">
+        <span style="font-size:13px;color:#9a3412;font-weight:600">📅 Affichage filtré : interventions à programmer uniquement (${_rows.length})</span>
+        <button class="btn sm" style="margin-left:auto" onclick="navigate('/interventions')">Tout afficher ✕</button>
+      </div>`:''}
+      ${(_rows.length)?`<div style="display:flex;align-items:center;gap:10px;margin:0 0 16px;flex-wrap:wrap">
         <span style="font-size:12.5px;color:var(--muted);font-weight:600">Trier par date</span>
         <div class="sortseg" role="group" aria-label="Trier par date">
           <button id="isort-proches" onclick="interSetSort('proches')" title="Interventions à venir, la plus proche d'abord (les passées en bas)" aria-pressed="${window._interSort==='proches'}" class="${window._interSort==='proches'?'on':''}">
@@ -5653,7 +5661,7 @@ async function viewInterventions(c){
             Plus lointaines
           </button>
         </div>
-      </div><div id="inter-list">${interTable(interSortRows(data))}</div>`:emptyBlock(I.inter,'Aucune intervention','Programmez la première vérification préventive.',`<button class="btn primary" onclick="formInter()">${I.plus} Programmer</button>`)}`;
+      </div><div id="inter-list">${interTable(interSortRows(_rows))}</div>`:emptyBlock(I.inter,_filtreAprog?'Rien à programmer':'Aucune intervention',_filtreAprog?'Toutes les interventions ont une date prévue.':'Programmez la première vérification préventive.',`<button class="btn ${_filtreAprog?'':'primary'}" onclick="${_filtreAprog?"navigate('/interventions')":'formInter()'}">${_filtreAprog?'Voir toutes les interventions':I.plus+' Programmer'}</button>`)}`;
   }catch(e){ c.innerHTML=errBlock(e); }
 }
 function interSortRows(rows){
