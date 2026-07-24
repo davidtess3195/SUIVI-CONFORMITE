@@ -2432,7 +2432,7 @@ async function renderAgentApp(){
   console.log('[terrain] v8 — démarrage', new Date().toISOString());
   document.title='SUIVI-CONFORMITÉ — Terrain';
   const root=document.getElementById('root')||document.body;
-  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v31</span></div>';
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v33</span></div>';
   setTimeout(()=>{ const l=document.getElementById('ag-load'); if(l&&!document.getElementById('ag-diag-link')) l.insertAdjacentHTML('beforeend','<a id="ag-diag-link" onclick="agDiag()" style="color:#1a44ad;font-weight:700;font-size:13px;cursor:pointer">Lancer le diagnostic</a>'); },6000);
   const step=t=>{ console.log('[terrain] étape :',t); const e=document.getElementById('ag-step'); if(e)e.textContent=t; };
   const fail=(phase,e)=>{ window._agBusy=0; console.error('[terrain] échec',phase,e); root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:440px"><b style="font-size:14px;color:#0f172a">Erreur ('+phase+')</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><div style="display:flex;gap:8px;margin-top:14px"><button onclick="window._agBusy=0;renderAgentApp()" style="border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button><button onclick="agDiag()" style="border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Diagnostic</button></div></div></div>'; };
@@ -8780,12 +8780,15 @@ function formDoc(prefiles){
   const preErp = (state.currentErp && state.currentErp!=='all') ? state.erps.find(e=>e.id===state.currentErp) : null;
   const preClient = preErp ? preErp.client_id : '';
   const clientOpts=state.clients.map(cl=>`<option value="${cl.id}"${cl.id===preClient?' selected':''}>${esc(cl.raison_sociale)}</option>`).join('');
+  window._docDropFiles = files||null;
   const fileField = files
     ? `<div class="fld"><label>Fichier(s) à déposer <span class="req">*</span></label>
         <div style="border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--surface-2)">
-          ${files.map(f=>`<div style="display:flex;gap:8px;align-items:center;padding:3px 0;font-size:13px"><span>${f.type==='application/pdf'?'📄':(f.type&&f.type.startsWith('image/')?'🖼️':'📎')}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span><span style="color:var(--muted-2);font-size:11px;flex:0 0 auto">${(f.size/1024).toFixed(0)} Ko</span></div>`).join('')}
+          ${files.map((f,fi)=>`<div style="display:flex;gap:8px;align-items:center;padding:3px 0;font-size:13px"><span>${f.type==='application/pdf'?'📄':(f.type&&f.type.startsWith('image/')?'🖼️':'📎')}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span><span style="color:var(--muted-2);font-size:11px;flex:0 0 auto">${(f.size/1024).toFixed(0)} Ko</span><button type="button" class="btn sm" style="flex:0 0 auto;font-size:11.5px;padding:3px 9px" onclick="docPreviewFile(${fi})" title="Ouvrir le fichier pour vérification avant dépôt">👁 Visualiser</button></div>`).join('')}
         </div></div>`
-    : `<div class="fld"><label>Fichier <span class="req">*</span></label><input id="f_file" type="file"></div>`;
+    : `<div class="fld"><label>Fichier <span class="req">*</span></label>
+        <div style="display:flex;gap:8px;align-items:center"><input id="f_file" type="file" style="flex:1" onchange="docFileChosen()">
+        <button type="button" class="btn sm" id="f_file_prev" style="display:none;flex:0 0 auto" onclick="docPreviewFile(-1)" title="Ouvrir le fichier pour vérification avant dépôt">👁 Visualiser</button></div></div>`;
   openModal(`<div class="modal-head"><h2>Déposer ${files&&files.length>1?files.length+' documents':'un document'}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
   <div class="modal-body">
     <div class="row2">
@@ -8879,6 +8882,18 @@ window.docLotOpts=async function(){
   else if(cur){ sel.value=cur; }
   else if(manual){ sel.value='__autre__'; const inp=$('#f_lot'); if(inp)inp.value=manual; }
   docLotChange();
+};
+window.docFileChosen=function(){
+  const inp=$('#f_file'), b=document.getElementById('f_file_prev');
+  if(b) b.style.display=(inp&&inp.files&&inp.files.length)?'inline-flex':'none';
+};
+window.docPreviewFile=function(i){
+  const f = (i>=0) ? ((window._docDropFiles||[])[i]) : ($('#f_file')?.files?.[0]);
+  if(!f){ toast('Aucun fichier sélectionné','err'); return; }
+  const u=URL.createObjectURL(f);
+  const w=window.open(u,'_blank');
+  if(!w) toast('Autorisez les fenêtres pop-up pour visualiser','err');
+  setTimeout(()=>{ try{URL.revokeObjectURL(u);}catch(_){}} ,60000);
 };
 window.docTypeChange=function(){
   const t=$('#f_type')?.value; const z=document.getElementById('f_avis_zone');
@@ -9158,8 +9173,10 @@ async function pvForm(pre){
       <div style="font-size:11.5px;color:var(--muted)">Le document sera généré au format A4, prêt à imprimer et à faire signer sur place (cases Conforme/Non conforme, décision, réserves, signatures). Il est archivé automatiquement dans la GED, rubrique « PV de réception ».</div>
     </div>
     <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn" id="pv_prev" title="Aperçu du PV tel qu'il sera envoyé — rien n'est archivé ni envoyé">👁 Visualiser</button>
       <button class="btn primary" id="pv_gen">🖨️ Générer &amp; archiver</button></div>`);
   document.getElementById('pv_gen').onclick=pvGenerate;
+  document.getElementById('pv_prev').onclick=pvPreview;
   // Remplissage des emails/mobiles (cases à cocher) selon le prestataire sélectionné
   window.pvContactsRefresh=function(){
     const pid=document.getElementById('pv_prest')?.value;
@@ -9413,6 +9430,47 @@ function pvBuildPdf(D){
   return doc;
 }
 
+/* Collecte des champs du formulaire PV — partagée entre l'aperçu et la génération */
+function pvCollect(){
+  const erpId=document.getElementById('pv_erp').value;
+  const prestId=document.getElementById('pv_prest').value;
+  const dateVisite=document.getElementById('pv_date').value;
+  if(document.getElementById('pv_client') && !window._pvClient){toast('Sélectionne un client','err');return null;}
+  if(!erpId||!prestId||!dateVisite){toast('ERP, prestataire et date de visite sont requis','err');return null;}
+  const client=window._pvClient||{};
+  const erp=state.erps.find(e=>e.id===erpId)||{};
+  const prest=(window._pvPrests||[]).find(p=>p.id===prestId)||{};
+  const pc=pvPrestContact(prest);
+  const devisRef=document.getElementById('pv_devis_ref').value.trim();
+  const devisDate=document.getElementById('pv_devis_date').value;
+  const montant=document.getElementById('pv_montant').value.trim();
+  const objet=document.getElementById('pv_objet').value.trim();
+  const lignes=document.getElementById('pv_lignes').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const fd=s=>{ if(!s) return '—'; const d=new Date(s); return isNaN(d)?s:d.toLocaleDateString('fr-FR'); };
+  const adresseClient=[client.adresse_siege,[client.code_postal,client.ville].filter(Boolean).join(' ')].filter(Boolean).join(' — ');
+  return {erpId,prestId,dateVisite,client,erp,prest,pc,devisRef,devisDate,montant,objet,lignes,fd,adresseClient};
+}
+/* Aperçu du PV : même PDF que la génération, ouvert à l'écran — rien n'est archivé ni envoyé */
+window.pvPreview=function(){
+  const c=pvCollect(); if(!c) return;
+  const num='REC-'+new Date().getFullYear()+'-APERÇU';
+  try{
+    const pdf=pvBuildPdf({
+      num, dateStr:c.fd(c.dateVisite), devisRef:c.devisRef,
+      client:{nom:c.client.raison_sociale||'', sous:[c.adresseClient,c.client.siret?'SIRET '+c.client.siret:''].filter(Boolean).join(' · '),
+              adresse:c.adresseClient, siret:c.client.siret||'', contact:[c.client.telephone,c.client.email].filter(Boolean).join(' — ')},
+      prest:{nom:c.prest.nom||'', adresse:c.prest.adresse||'', siret:c.prest.siret||'', repr:c.pc.nom||'',
+             contact:[c.pc.tel,c.pc.email].filter(Boolean).join(' — ')},
+      erpTxt:(c.erp.nom||'')+(c.erp.code_erp?' — '+c.erp.code_erp:''),
+      devisTxt:(c.devisRef||'—')+(c.devisDate?' du '+c.fd(c.devisDate):'')+(c.montant?' — Montant : '+c.montant+' € HT':''),
+      objet:c.objet, lignes:c.lignes
+    });
+    const u=URL.createObjectURL(pdf.output('blob'));
+    const w=window.open(u,'_blank');
+    if(!w) toast('Autorisez les fenêtres pop-up pour visualiser','err');
+    setTimeout(()=>{ try{URL.revokeObjectURL(u);}catch(_){}} ,60000);
+  }catch(e){ toast(e.message||'Erreur aperçu','err'); }
+};
 async function pvGenerate(){
   const btn=document.getElementById('pv_gen');
   const erpId=document.getElementById('pv_erp').value;
