@@ -2432,7 +2432,7 @@ async function renderAgentApp(){
   console.log('[terrain] v8 — démarrage', new Date().toISOString());
   document.title='SUIVI-CONFORMITÉ — Terrain';
   const root=document.getElementById('root')||document.body;
-  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v30</span></div>';
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:Inter,system-ui,sans-serif;color:#64748b" id="ag-load">Chargement…<span id="ag-step" style="font-size:11px;color:#a4aebd"></span><span style="position:fixed;bottom:8px;right:10px;font-size:10px;color:#c3cad6">v31</span></div>';
   setTimeout(()=>{ const l=document.getElementById('ag-load'); if(l&&!document.getElementById('ag-diag-link')) l.insertAdjacentHTML('beforeend','<a id="ag-diag-link" onclick="agDiag()" style="color:#1a44ad;font-weight:700;font-size:13px;cursor:pointer">Lancer le diagnostic</a>'); },6000);
   const step=t=>{ console.log('[terrain] étape :',t); const e=document.getElementById('ag-step'); if(e)e.textContent=t; };
   const fail=(phase,e)=>{ window._agBusy=0; console.error('[terrain] échec',phase,e); root.innerHTML='<div style="min-height:100vh;background:#eef1f6;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;padding:20px"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;max-width:440px"><b style="font-size:14px;color:#0f172a">Erreur ('+phase+')</b><div style="font-size:12px;color:#b91c1c;margin-top:8px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'</div><div style="display:flex;gap:8px;margin-top:14px"><button onclick="window._agBusy=0;renderAgentApp()" style="border:none;background:#1a44ad;color:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Réessayer</button><button onclick="agDiag()" style="border:1px solid #d6dce6;background:#fff;border-radius:9px;padding:10px 16px;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer">Diagnostic</button></div></div></div>'; };
@@ -8790,12 +8790,13 @@ function formDoc(prefiles){
   <div class="modal-body">
     <div class="row2">
       <div class="fld"><label>Client <span class="req">*</span></label><select id="f_client" onchange="docFormErpOpts();docLotOpts()"><option value="">— choisir —</option>${clientOpts}</select></div>
-      <div class="fld"><label>ERP <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel)</span></label><select id="f_erp" onchange="docLotOpts()"><option value="">— (optionnel) —</option></select></div>
+      <div class="fld"><label>ERP <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel)</span></label><select id="f_erp" onchange="docLotOpts();docDateSugg()"><option value="">— (optionnel) —</option></select></div>
     </div>
     <div class="row2"><div class="fld"><label>Type</label><select id="f_type" onchange="docTypeChange()">${GED_TYPES.map(t=>`<option>${esc(t)}</option>`).join('')}</select></div>
       <div class="fld"><label>Lot</label><select id="f_lot_sel" onchange="docLotChange()"><option value="">— choisir —</option><option value="__autre__">✏️ Autre (préciser)…</option></select><input id="f_lot" placeholder="Préciser le lot (SSI, Électricité…)" style="margin-top:6px;display:none"></div></div>
-    <div class="row2"><div class="fld"><label>Prestataire <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel)</span></label><select id="f_prest"><option value="">— (optionnel) —</option>${(window._gedPrest||[]).map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select></div>
-      <div class="fld"><label>Date du document <span style="color:var(--muted-2);font-weight:400;font-size:11px">(date réelle, ex. date de la commission)</span></label><input id="f_date" type="date" value="${new Date().toISOString().slice(0,10)}"></div></div>
+    <div class="row2"><div class="fld"><label>Prestataire <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel)</span></label><select id="f_prest" onchange="docDateSugg()"><option value="">— (optionnel) —</option>${(window._gedPrest||[]).map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select></div>
+      <div class="fld"><label id="f_date_lbl">Date du document <span style="color:var(--muted-2);font-weight:400;font-size:11px">(date réelle)</span></label><input id="f_date" type="date" value="${new Date().toISOString().slice(0,10)}">
+        <div id="f_date_sugg" style="display:none;margin-top:7px"></div></div></div>
     <div class="fld" id="f_avis_zone" style="display:none"><label>Avis de la commission</label><select id="f_avis"><option value="">— non précisé —</option><option>Favorable</option><option>Favorable avec prescriptions</option><option>Défavorable</option><option>Avis différé</option></select></div>
     ${fileField}
   </div>
@@ -8867,16 +8868,48 @@ window.docLotOpts=async function(){
       domaines=[...new Set((od||[]).map(o=>o.domaine||o.libelle).filter(Boolean))];
     }catch(_){ domaines=[]; }
   }
+  const LOTS_STANDARD=['SSI / Alarme incendie','Électricité','Désenfumage','Extincteurs','BAES / Éclairage de sécurité','Portes coupe-feu','Ascenseurs','Gaz','Ventilation / VMC','Cuisine / Hotte','Moyens de secours','Groupe électrogène'];
   sel.innerHTML='<option value="">— choisir —</option>'
-    +(domaines.length?'<optgroup label="📋 Plan de maintenance ERP">'+domaines.map(d=>`<option value="${esc(d)}"${d===cur?' selected':''}>${esc(d)}</option>`).join('')+'</optgroup>':'')
+    +(domaines.length
+      ?'<optgroup label="📋 Plan de maintenance ERP">'+domaines.map(d=>`<option value="${esc(d)}"${d===cur?' selected':''}>${esc(d)}</option>`).join('')+'</optgroup>'
+      :(erpId?'<option value="" disabled>⚠ Aucun plan de maintenance pour cet ERP</option>':'')
+       +'<optgroup label="🧰 Lots courants">'+LOTS_STANDARD.map(d=>`<option value="${esc(d)}"${d===cur?' selected':''}>${esc(d)}</option>`).join('')+'</optgroup>')
     +'<option value="__autre__">✏️ Autre (préciser)…</option>';
-  if(cur&&!domaines.includes(cur)){ sel.value='__autre__'; const inp=$('#f_lot'); if(inp)inp.value=cur; }
+  if(cur&&![...sel.options].some(o=>o.value===cur)){ sel.value='__autre__'; const inp=$('#f_lot'); if(inp)inp.value=cur; }
+  else if(cur){ sel.value=cur; }
   else if(manual){ sel.value='__autre__'; const inp=$('#f_lot'); if(inp)inp.value=manual; }
   docLotChange();
 };
 window.docTypeChange=function(){
   const t=$('#f_type')?.value; const z=document.getElementById('f_avis_zone');
   if(z) z.style.display=(t==='PV commission'||t==='RVAT')?'':'none';
+  // Libellé de date adapté au type de document
+  const lbl=document.getElementById('f_date_lbl');
+  if(lbl){
+    const INTERV=['Rapport',"Bon d'intervention",'PV de réception','Maintenance préventive','Maintenance corrective','Compte rendu'];
+    const txt = t==='PV commission' ? 'Date de la commission'
+             : t==='RVAT' ? 'Date de la vérification'
+             : INTERV.includes(t) ? "Date d'intervention"
+             : 'Date du document';
+    lbl.innerHTML = txt+' <span style="color:var(--muted-2);font-weight:400;font-size:11px">(date réelle)</span>';
+  }
+};
+/* Suggestions de dates : interventions connues du prestataire sélectionné */
+window.docDateSugg=async function(){
+  const box=document.getElementById('f_date_sugg'); if(!box) return;
+  const prestId=$('#f_prest')?.value||''; const erpId=$('#f_erp')?.value||'';
+  if(!prestId){ box.style.display='none'; box.innerHTML=''; return; }
+  try{
+    let q=sb.from('interventions').select('id,objet,domaine,date_prevue').eq('prestataire_id',prestId).not('date_prevue','is',null).order('date_prevue',{ascending:false}).limit(8);
+    if(erpId) q=q.eq('erp_id',erpId);
+    const {data}=await q;
+    if(!data||!data.length){ box.style.display='none'; box.innerHTML=''; return; }
+    box.style.display='block';
+    box.innerHTML='<div style="font-size:11px;color:var(--muted);margin-bottom:5px">Interventions de ce prestataire — cliquez pour reprendre la date :</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px">'
+      +data.map(i=>`<button type="button" class="btn sm" style="font-size:11.5px;padding:4px 9px" onclick="$('#f_date').value='${i.date_prevue}';[...this.parentElement.children].forEach(b=>b.style.background='');this.style.background='#dbeafe'" title="${esc(i.objet||i.domaine||'')}">${fmtDate(i.date_prevue)} — ${esc((i.objet||i.domaine||'Intervention').slice(0,28))}</button>`).join('')
+      +'</div>';
+  }catch(_){ box.style.display='none'; }
 };
 window.gedHandleDrop=function(ev){ ev.preventDefault();
   const dz=document.getElementById('ged_drop'); if(dz){ dz.style.borderColor='var(--line)'; dz.style.background='transparent'; }
