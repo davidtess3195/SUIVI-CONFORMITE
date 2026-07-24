@@ -9264,8 +9264,9 @@ window.dpNum=s=>{ const m=String(s||'').match(/\d{1,3}(?:[ \u00a0.]\d{3})*(?:[,.
   const v=m[m.length-1].replace(/[ \u00a0]/g,'').replace(/\.(?=\d{3}\b)/g,'').replace(',','.'); const n=parseFloat(v); return isNaN(n)?null:n; };
 window.dpFmtEur=n=>n==null?'':n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2});
 
-const DP_UNITS=/^(u|un|ens|ml|m|m2|m²|m3|m³|ft|fft|forf|forfait|h|j|pce|pces|kg|l|lot|paire|jeu|kit)\.?$/i;
+const DP_UNITS=/^(u|un|en|ens|ml|m|m2|m²|m3|m³|ft|fft|forf|forfait|h|j|pce|pces|kg|l|lot|paire|jeu|kit)\.?$/i;
 const DP_NUMCELL=/^[\d\s\u00a0.,%€$]+$/;
+const DP_PRIX_RX=/\d{1,3}(?:[ \u00a0.]\d{3})*,\d{2}/; // prix français « 1 068,00 »
 // Nettoie une ligne extraite : retire les cellules de prix/quantité/unité en fin de ligne
 // et une éventuelle numérotation d'article en tête (« 1.1 », « 03 »…)
 window.dpCleanLine=function(line){
@@ -9305,6 +9306,7 @@ window.dpParse=function(lines,cfg){
   for(let i=start;i<end;i++){
     const n=N[i]; if(!n) continue;
     if(dpExclu(n,extra)) continue;
+    if(cfg.avec_prix && !DP_PRIX_RX.test(L[i])) continue;
     const c=dpCleanLine(L[i]); if(!c || c.length<3) continue;
     if(/^[\d\s\u00a0.,%€$]+$/.test(c)) continue;
     lignes.push(c);
@@ -9369,6 +9371,10 @@ window.dpDerive=function(lines,checked,objetIdx){
   const from=startIdx>=0?startIdx+1:first;
   const to=stopIdx>=0?stopIdx-1:last;
   for(let i=from;i<=to;i++){ if(!checked.has(i)){ const x=dpMark(lines[i]); if(x && x.length>=3 && !cfg.excludes.includes(x)) cfg.excludes.push(x); } }
+  // Si TOUTES les lignes cochées portent un prix (« 133,50 », « 1 068,00 »…), on retient
+  // le critère « prestation = ligne avec prix » : le profil ignorera alors les lignes
+  // descriptives sans prix des futurs devis, même inédites.
+  cfg.avec_prix=idx.every(i=>DP_PRIX_RX.test(lines[i]));
   return cfg;
 };
 
@@ -9647,22 +9653,25 @@ function pvBuildPdf(D){
 
   h2('3. PRESTATIONS EXAMINÉES');
   {
-    const cN=9,cC=22,cNC=26,cD=CW-cN-cC-cNC,lh=4.3;
-    doc.setFillColor(BG[0],BG[1],BG[2]);
-    doc.rect(ML,y,cN,7,'FD'); doc.rect(ML+cN,y,cD,7,'FD'); doc.rect(ML+cN+cD,y,cC,7,'FD'); doc.rect(ML+cN+cD+cC,y,cNC,7,'FD');
-    setF('bold',8.5,INK);
-    doc.text('N°',ML+cN/2,y+4.6,{align:'center'}); doc.text('Désignation',ML+cN+2.5,y+4.6);
-    doc.text('Conforme',ML+cN+cD+cC/2,y+4.6,{align:'center'}); doc.text('Non conforme',ML+cN+cD+cC+cNC/2,y+4.6,{align:'center'});
-    y+=7;
-    (D.lignes.length?D.lignes:['']).forEach((t,i)=>{
-      const lines=wrap(t,cD-5,8.5); const h=Math.max(8,lines.length*lh+3.4);
-      doc.rect(ML,y,cN,h); doc.rect(ML+cN,y,cD,h); doc.rect(ML+cN+cD,y,cC,h); doc.rect(ML+cN+cD+cC,y,cNC,h);
-      setF('normal',8.5,INK); doc.text(String(i+1),ML+cN/2,y+5,{align:'center'});
-      doc.text(lines,ML+cN+2.5,y+5);
-      const sq=3.6, cy=y+h/2-sq/2;
-      doc.rect(ML+cN+cD+cC/2-sq/2,cy,sq,sq); doc.rect(ML+cN+cD+cC+cNC/2-sq/2,cy,sq,sq);
-      y+=h;
+    const lh=4.3;
+    // Phrase d'introduction : le §3 définit le périmètre examiné ; la conformité
+    // se prononce en §4 (décision) et le détail des points en §5 (réserves).
+    const intro='Les travaux et prestations suivants'+(D.devisRef?', tels que définis au devis '+D.devisRef:'')+', ont été examinés contradictoirement par les parties :';
+    setF('normal',8.5,INK);
+    const introLines=wrap(intro,CW,8.5);
+    doc.text(introLines,ML,y+3); y+=introLines.length*3.6+4.5;
+    // Liste à tirets pleine largeur (le tiret d'origine du devis est normalisé)
+    const items=(D.lignes.length?D.lignes:['—']).map(t=>String(t).replace(/^[-–—•]\s*/,'').trim()||'—');
+    const wrapped=items.map(t=>wrap(t,CW-12,8.5));
+    const hBody=wrapped.reduce((s,ls)=>s+ls.length*lh+1.6,0)+4;
+    doc.rect(ML,y,CW,hBody);
+    let yy=y+5;
+    wrapped.forEach(ls=>{
+      setF('bold',8.5,INK); doc.text('\u2013',ML+3.5,yy);
+      setF('normal',8.5,INK); doc.text(ls,ML+8,yy);
+      yy+=ls.length*lh+1.6;
     });
+    y+=hBody+2;
   }
   footer();
 
@@ -9678,10 +9687,10 @@ function pvBuildPdf(D){
       doc.rect(ML,y,CW,h);
       doc.rect(ML+3,y+4,sq,sq);
       setF('bold',9,INK); doc.text(title,ML+10,y+7.2);
-      if(txt){ setF('normal',8.5,INK); doc.text(wrap(txt,CW-14,8.5),ML+10,y+12); }
-      const base=y+h-nl*7+1;
+      if(txt){ setF('normal',8.5,INK); doc.text(wrap(txt,CW-14,8.5),ML+10,y+11.5); }
+      const base=y+(txt?13:9); // sous le descriptif (ou sous le titre s'il n'y en a pas)
       setF('normal',8.5,GRY); doc.text(nl>2?'Motif :':'Observations :',ML+10,base+2);
-      for(let i=0;i<nl;i++) wline(ML+(i===0?32:10),base+3+i*7,CW-(i===0?42:20));
+      for(let i=0;i<nl;i++) wline(ML+(i===0?32:10),base+3+i*5.5,CW-(i===0?42:20));
       y+=h+3;
     };
     opt(24,'Réception SANS réserve','— les travaux sont acceptés en l\u2019état.',2);
