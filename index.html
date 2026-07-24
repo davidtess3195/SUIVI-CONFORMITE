@@ -1968,6 +1968,16 @@ async function viewAdmin(c){
       <div id="emails-clients-list"><button class="btn" onclick="loadEmailsClients()">📋 Afficher les adresses</button></div>
     </div>
 
+    <!-- Profils de devis -->
+    <div class="card card-pad" style="margin-top:16px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+        <h2 style="font-size:16px;margin:0">📄 Profils de lecture des devis</h2>
+        <button class="btn sm" style="margin-left:auto" onclick="dpAdminSection()">Actualiser</button>
+      </div>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:12px">Un profil calibré <b>par prestataire</b> (valable pour tous les clients) permet de lire ses devis <b>sans IA</b> et de pré-remplir le PV de réception de travaux : prestations, montant HT, objet. À calibrer une fois, idéalement lors du déploiement chez un client.</p>
+      <div id="dp_admin_box"></div>
+    </div>
+
     <!-- RGPD -->
     <div class="card card-pad" style="margin-top:16px">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
@@ -1983,6 +1993,7 @@ async function viewAdmin(c){
       </div>
     </div>`;
     renderFieldRanking('mois');
+    dpAdminSection();
   }catch(e){ c.innerHTML=errBlock(e); }
 }
 
@@ -9138,7 +9149,10 @@ async function pvForm(pre){
         <div class="fld"><label>Prestataire <span class="req">*</span></label><select id="pv_prest">${prestOpts}</select></div>
       </div>
       <div class="fld"><label>Devis à rattacher <span style="font-weight:400;color:var(--muted)">(pré-remplit la référence et lie les deux documents en GED)</span></label>
-        <select id="pv_devis_sel" onchange="pvDevisChange()">${devisOpts}</select></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="pv_devis_sel" onchange="pvDevisChange()" style="flex:1;min-width:0">${devisOpts}</select>
+          <button class="btn sm" id="pv_read_devis" type="button" style="white-space:nowrap;flex:0 0 auto" title="Lire le devis avec le profil calibré du prestataire et pré-remplir les prestations, le montant et l'objet" onclick="pvReadDevis()">📄 Lire le devis</button>
+        </div></div>
       <div class="row2">
         <div class="fld"><label>Référence du devis</label><input id="pv_devis_ref" value="${esc(pre.devis_ref||'')}" placeholder="ex : DV-2026-0389"></div>
         <div class="fld"><label>Date du devis</label><input id="pv_devis_date" type="date" value="${esc(pre.devis_date||'')}"></div>
@@ -9234,6 +9248,297 @@ async function pvForm(pre){
 window.pvForm=pvForm;
 
 // Sélection d'un devis à rattacher : pré-remplit référence, date, prestataire et ERP
+/* ══════════════ PROFILS DE DEVIS — lecture déterministe, sans IA ══════════════
+   Un profil par PRESTATAIRE (pas par client) : calibré une fois dans l'Administration
+   sur un devis d'exemple, puis réutilisé pour tous les devis du même prestataire.
+   Le profil mémorise (config JSON, table devis_profils) :
+   - start : le libellé de la ligne qui précède la 1re prestation (entête du tableau)
+   - stop  : le libellé de la ligne qui suit la dernière prestation (ex : Total HT)
+   - excludes : lignes intermédiaires à ignorer (sous-totaux, titres de lots…)
+   - objet : libellé de la ligne « objet des travaux » (optionnel)
+   Garde-fous : marqueur introuvable → erreur explicite + profil marqué « à recalibrer »,
+   jamais d'insertion silencieuse de bruit ; < 2 lignes détectées → rien n'est pré-rempli. */
+
+window.dpNorm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[¦]/g,' ').replace(/\s+/g,' ').trim();
+window.dpNum=s=>{ const m=String(s||'').match(/\d{1,3}(?:[ \u00a0.]\d{3})*(?:[,.]\d{2})?/g); if(!m) return null;
+  const v=m[m.length-1].replace(/[ \u00a0]/g,'').replace(/\.(?=\d{3}\b)/g,'').replace(',','.'); const n=parseFloat(v); return isNaN(n)?null:n; };
+window.dpFmtEur=n=>n==null?'':n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+const DP_UNITS=/^(u|un|ens|ml|m|m2|m²|m3|m³|ft|fft|forf|forfait|h|j|pce|pces|kg|l|lot|paire|jeu|kit)\.?$/i;
+const DP_NUMCELL=/^[\d\s\u00a0.,%€$]+$/;
+// Nettoie une ligne extraite : retire les cellules de prix/quantité/unité en fin de ligne
+// et une éventuelle numérotation d'article en tête (« 1.1 », « 03 »…)
+window.dpCleanLine=function(line){
+  let cells=String(line||'').split('¦').map(c=>c.trim()).filter(Boolean);
+  while(cells.length>1){
+    const last=cells[cells.length-1];
+    if(DP_NUMCELL.test(last)||DP_UNITS.test(last)) cells.pop(); else break;
+  }
+  if(cells.length>1 && /^\d{1,3}([.,]\d{1,3})*$/.test(cells[0])) cells.shift();
+  return cells.join(' ').replace(/\s+/g,' ').trim();
+};
+
+// Exclusions par défaut : ancrées en début de ligne pour les termes ambigus
+// (« remise » ne doit pas exclure « remise du rapport » au milieu d'une prestation)
+const DP_EXCL_STARTS=['sous-total','sous total','total ht','total h.t','total ttc','montant ht','montant h.t','tva','net a payer','eco-contribution','eco contribution','ecotaxe','eco-part','remise','acompte','validite','bon pour accord','signature','cachet','date :','devis n'];
+const DP_EXCL_CONTIENT=['conditions de reglement','mode de reglement','iban','bic ','siret','rcs ','au capital','page ','www.','@'];
+const dpExclu=(n,extra)=>DP_EXCL_STARTS.some(x=>n.startsWith(x))||DP_EXCL_CONTIENT.some(x=>n.includes(x))||(extra||[]).some(x=>x&&n.includes(x));
+
+// Applique un profil (cfg) sur des lignes extraites → {lignes, montant, objet} ou {error}
+window.dpParse=function(lines,cfg){
+  cfg=cfg||{};
+  const L=(lines||[]).filter(l=>l && l!=='⏎PAGE⏎');
+  const N=L.map(dpNorm);
+  const findIdx=(marker,from)=>{ if(!marker) return -1; const m=dpNorm(marker); if(!m) return -1;
+    for(let i=from||0;i<N.length;i++){ if(N[i].startsWith(m)||N[i].includes(m)) return i; } return -1; };
+  let start=0;
+  if(cfg.start){ const i=findIdx(cfg.start,0);
+    if(i<0) return {error:'Marqueur de début introuvable — le format du devis a probablement changé.'};
+    start=i+1; }
+  let end=L.length;
+  if(cfg.stop){ const i=findIdx(cfg.stop,start);
+    if(i<0) return {error:'Marqueur de fin introuvable — le format du devis a probablement changé.'};
+    end=i; }
+  const extra=(cfg.excludes||[]).map(dpNorm).filter(Boolean);
+  if(cfg.start){ const s=dpNorm(cfg.start); if(s) extra.push(s); } // entêtes de tableau répétés en haut de page
+  const lignes=[];
+  for(let i=start;i<end;i++){
+    const n=N[i]; if(!n) continue;
+    if(dpExclu(n,extra)) continue;
+    const c=dpCleanLine(L[i]); if(!c || c.length<3) continue;
+    if(/^[\d\s\u00a0.,%€$]+$/.test(c)) continue;
+    lignes.push(c);
+  }
+  // Montant HT : dernière ligne « Total HT » du document (hors TTC)
+  let montant=null;
+  for(let i=0;i<N.length;i++){ if(/(total|montant)\s*h\.?\s*t/.test(N[i]) && !/ttc/.test(N[i])){ const v=dpNum(L[i]); if(v!=null) montant=v; } }
+  // Objet des travaux
+  let objet='';
+  if(cfg.objet){ const i=findIdx(cfg.objet,0);
+    if(i>=0){ const raw=L[i].replace(/¦/g,' ').replace(/\s+/g,' ').trim();
+      const m=raw.match(/objet\s*[:\-]?\s*(.+)/i); objet=(m?m[1]:raw).trim(); } }
+  return {lignes,montant,objet};
+};
+
+// Télécharge un devis GED (bucket documents) et en extrait les lignes de texte
+window.dpExtractDoc=async function(doc){
+  if(!doc||!doc.fichier_path) throw new Error('Fichier du devis introuvable en GED');
+  const {data,error}=await sb.storage.from('documents').createSignedUrl(doc.fichier_path,300);
+  if(error) throw error;
+  const lines=await trvExtractLines(data.signedUrl);
+  const out=(lines||[]).filter(l=>l && l!=='⏎PAGE⏎');
+  if(!out.length) throw new Error('Aucun texte détecté dans ce PDF — document scanné ? Saisie manuelle nécessaire.');
+  return out;
+};
+
+// Déduit la config du profil à partir des lignes cochées lors de la calibration.
+// Les marqueurs sont rendus TRANSPOSABLES à d'autres devis du même prestataire :
+// on retire les montants/dates en fin de marqueur (« Total HT ¦ 4 190,00 » → « total ht »)
+// et on privilégie comme début l'entête du tableau (Désignation/Qté/PU…) plutôt
+// qu'un titre de lot propre au devis d'exemple.
+window.dpMark=s=>dpNorm(s).replace(/[\d\s\u00a0.,:%€$/-]+$/,'').trim().slice(0,40);
+const DP_HEADER_RX=/(designation|libelle|description|prestation)/;
+const DP_TOTAL_RX=/(total|montant)\s*h\.?\s*t/;
+window.dpDerive=function(lines,checked,objetIdx){
+  const idx=[...checked].sort((a,b)=>a-b);
+  if(!idx.length) return null;
+  const first=idx[0], last=idx[idx.length-1];
+  const N=lines.map(dpNorm);
+  // Début : on remonte jusqu'à 6 lignes au-dessus de la 1re cochée pour trouver
+  // l'entête du tableau ; à défaut, la ligne juste au-dessus.
+  let startIdx=first>0?first-1:-1;
+  for(let i=first-1;i>=0 && i>=first-6;i--){ if(DP_HEADER_RX.test(N[i])){ startIdx=i; break; } }
+  // Fin : on privilégie la ligne « Total HT » dans les 4 lignes qui suivent la dernière cochée.
+  let stopIdx=last<lines.length-1?last+1:-1;
+  for(let i=last+1;i<lines.length && i<=last+4;i++){ if(DP_TOTAL_RX.test(N[i])){ stopIdx=i; break; } }
+  const cfg={
+    start: startIdx>=0 ? dpMark(lines[startIdx]) : '',
+    stop:  stopIdx>=0 ? dpMark(lines[stopIdx]) : '',
+    excludes: [],
+    objet: ''
+  };
+  // Objet : si la ligne contient « xxx : … », on ne garde que le label (« objet : »)
+  // pour que le marqueur retrouve l'objet de n'importe quel devis du prestataire.
+  if(objetIdx!=null&&objetIdx>=0){
+    const raw=dpNorm(lines[objetIdx]);
+    const c=raw.indexOf(':');
+    cfg.objet=(c>0&&c<=30)?raw.slice(0,c+1).trim():dpMark(lines[objetIdx]);
+  }
+  // Exclusions : toutes les lignes non cochées entre le début et la fin (titres de lots,
+  // sous-totaux…), débarrassées de leurs montants pour rester transposables.
+  const from=startIdx>=0?startIdx+1:first;
+  const to=stopIdx>=0?stopIdx-1:last;
+  for(let i=from;i<=to;i++){ if(!checked.has(i)){ const x=dpMark(lines[i]); if(x && x.length>=3 && !cfg.excludes.includes(x)) cfg.excludes.push(x); } }
+  return cfg;
+};
+
+window.dpProfileGet=async function(prestId){
+  const {data,error}=await sb.from('devis_profils').select('*').eq('prestataire_id',prestId).maybeSingle();
+  if(error){ if(/devis_profils/i.test(error.message||'')) throw new Error('Table devis_profils absente — exécute la migration SQL (Administration).'); throw error; }
+  return data||null;
+};
+
+/* ── Bouton « Lire le devis » de la modale PV de réception ── */
+window.pvReadDevis=async function(){
+  const btn=document.getElementById('pv_read_devis');
+  const id=document.getElementById('pv_devis_sel')?.value;
+  if(!id){ toast('Choisis d\'abord un devis dans la liste','err'); return; }
+  const d=(window._pvDevisList||[]).find(x=>x.id===id);
+  if(!d){ toast('Devis introuvable','err'); return; }
+  const prestId=d.prestataire_id||document.getElementById('pv_prest')?.value;
+  if(!prestId){ toast('Sélectionne le prestataire pour retrouver son profil de lecture','err'); return; }
+  const old=btn.innerHTML; btn.disabled=true;
+  btn.innerHTML='<span class="spin" style="width:13px;height:13px;border-width:2px;display:inline-block;vertical-align:-2px"></span> Lecture…';
+  try{
+    const prof=await dpProfileGet(prestId);
+    if(!prof){
+      const pn=(window._pvPrests||[]).find(p=>p.id===prestId)?.nom||'ce prestataire';
+      toast('Aucun profil de lecture pour '+pn+' — calibre-le dans Administration → Profils de devis','err'); return;
+    }
+    let doc=d;
+    if(!doc.fichier_path){ const {data:full}=await sb.from('documents').select('id,fichier_path,nom_original').eq('id',id).maybeSingle(); if(full) doc={...d,...full}; }
+    const lines=await dpExtractDoc(doc);
+    const r=dpParse(lines,prof.config||{});
+    if(r.error){
+      toast('⚠️ '+r.error+' Recalibre le profil dans l\'Administration.','err');
+      try{ await sb.from('devis_profils').update({statut:'a_recalibrer',updated_at:new Date().toISOString()}).eq('id',prof.id); }catch(_){}
+      return;
+    }
+    if(!r.lignes||r.lignes.length<2){ toast('Moins de 2 prestations détectées — rien n\'a été pré-rempli, vérifie le profil dans l\'Administration','err'); return; }
+    const ta=document.getElementById('pv_lignes'); if(ta) ta.value=r.lignes.join('\n');
+    const mt=document.getElementById('pv_montant'); if(mt && !mt.value.trim() && r.montant!=null) mt.value=dpFmtEur(r.montant);
+    const ob=document.getElementById('pv_objet'); if(ob && !ob.value.trim() && r.objet) ob.value=r.objet;
+    toast('✅ '+r.lignes.length+' prestation(s) reprises du devis'+(r.montant!=null?' · Total HT '+dpFmtEur(r.montant)+' €':''),'ok');
+  }catch(e){ toast('Lecture impossible : '+(e.message||e),'err'); }
+  finally{ btn.disabled=false; btn.innerHTML=old; }
+};
+
+/* ── Section Administration : liste des profils + couverture ── */
+window.dpAdminSection=async function(){
+  const host=document.getElementById('dp_admin_box'); if(!host) return;
+  host.innerHTML='<div style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px"><span class="spin" style="width:16px;height:16px;border-width:2px"></span> Chargement…</div>';
+  try{
+    const [pr,pf,dd]=await Promise.all([
+      sb.from('prestataires').select('id,nom').order('nom'),
+      sb.from('devis_profils').select('*'),
+      sb.from('documents').select('id,prestataire_id').in('categorie',['devis','devis_signe'])
+    ]);
+    if(pf.error && /devis_profils/i.test(pf.error.message||'')){
+      host.innerHTML='<div style="background:rgba(217,119,6,.09);border:1px solid rgba(217,119,6,.45);border-radius:10px;padding:12px 14px;font-size:13px">⚠️ La table <b>devis_profils</b> n\'existe pas encore en base — la migration SQL doit être appliquée sur Supabase.</div>';
+      return;
+    }
+    const prests=pr.data||[], profils=pf.data||[], devisDocs=dd.data||[];
+    const byP={}; profils.forEach(p=>byP[p.prestataire_id]=p);
+    const nbDevis={}; devisDocs.forEach(d=>{ if(d.prestataire_id) nbDevis[d.prestataire_id]=(nbDevis[d.prestataire_id]||0)+1; });
+    const rows=prests.map(p=>{
+      const prof=byP[p.id];
+      const st=prof?(prof.statut==='a_recalibrer'?['⚠️ À recalibrer','#d97706']:['✅ Validé','#16a34a']):['➖ Aucun profil','#64748b'];
+      const dt=prof?new Date(prof.updated_at||prof.created_at).toLocaleDateString('fr-FR'):'';
+      const nd=nbDevis[p.id]||0;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap">
+        <div style="flex:1;min-width:140px"><b style="font-size:13px">${esc(p.nom)}</b>
+          <span style="font-size:11.5px;color:var(--muted);margin-left:8px">${nd} devis en GED</span></div>
+        <span style="font-size:12px;font-weight:600;color:${st[1]}">${st[0]}${dt?' · '+dt:''}</span>
+        <button class="btn sm" ${nd?'':'disabled title="Aucun devis de ce prestataire en GED — dépose d\'abord un devis"'} onclick="dpCalib('${p.id}')">${prof?'Recalibrer':'Calibrer'}</button>
+      </div>`;
+    }).join('');
+    const nbOk=profils.filter(p=>p.statut!=='a_recalibrer').length;
+    host.innerHTML=`<div style="font-size:12.5px;color:var(--muted);margin-bottom:6px">${nbOk} profil(s) validé(s) sur ${prests.length} prestataire(s)</div>${rows||'<div style="color:var(--muted);font-size:13px">Aucun prestataire enregistré.</div>'}`;
+  }catch(e){ host.innerHTML='<div style="color:#dc2626;font-size:13px">Erreur : '+esc(e.message||String(e))+'</div>'; }
+};
+
+/* ── Modale de calibration : cocher les prestations, tester, valider ── */
+window.dpCalib=async function(prestId,docId){
+  try{
+    const [{data:prest},{data:docs},{data:prof}]=await Promise.all([
+      sb.from('prestataires').select('id,nom').eq('id',prestId).maybeSingle(),
+      sb.from('documents').select('id,nom_original,date_document,fichier_path').eq('prestataire_id',prestId).in('categorie',['devis','devis_signe']).order('date_document',{ascending:false}).limit(50),
+      sb.from('devis_profils').select('*').eq('prestataire_id',prestId).maybeSingle()
+    ]);
+    if(!docs||!docs.length){ toast('Aucun devis de ce prestataire en GED','err'); return; }
+    const cur=(docId&&docs.find(x=>x.id===docId))?docId:docs[0].id;
+    window._dpCal={prestId,prest,docs,prof:prof||null,docId:cur,lines:[],checked:new Set(),objetIdx:-1,_cfg:null};
+    openModal(`<div class="modal-head"><h2>🛠️ Profil de devis — ${esc(prest?.nom||'')}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+        <div class="fld"><label>Devis d'exemple (depuis la GED)</label>
+          <select id="dp_doc" onchange="window._dpCal.docId=this.value;dpCalLoad()">${docs.map(x=>`<option value="${x.id}"${x.id===cur?' selected':''}>${esc((x.nom_original||'Devis').replace(/\.[a-zA-Z0-9]+$/,''))}${x.date_document?' — '+new Date(x.date_document).toLocaleDateString('fr-FR'):''}</option>`).join('')}</select></div>
+        <div style="font-size:12.5px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:9px 11px">
+          ☑️ Coche les lignes qui sont des <b>prestations</b> du devis — les marqueurs de début/fin et les exclusions (sous-totaux, titres…) sont déduits automatiquement.<br>
+          🎯 Bouton « Objet » sur la ligne qui décrit l'<b>objet des travaux</b> (optionnel). Puis <b>Tester</b> avant d'enregistrer.</div>
+        <div id="dp_lines" style="max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:10px"></div>
+        <div id="dp_test" style="display:none"></div>
+      </div>
+      <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
+        <button class="btn" id="dp_btn_test" onclick="dpCalTest()">🧪 Tester le profil</button>
+        <button class="btn primary" id="dp_btn_save" onclick="dpCalSave()" disabled title="Teste d'abord le profil">💾 Valider &amp; enregistrer</button></div>`);
+    dpCalLoad();
+  }catch(e){ toast(e.message||String(e),'err'); }
+};
+
+window.dpCalLoad=async function(){
+  const S=window._dpCal; const host=document.getElementById('dp_lines'); if(!S||!host) return;
+  host.innerHTML='<div style="display:grid;place-items:center;padding:26px"><span class="spin"></span></div>';
+  S._cfg=null; const sv=document.getElementById('dp_btn_save'); if(sv) sv.disabled=true;
+  const t=document.getElementById('dp_test'); if(t){t.style.display='none';t.innerHTML='';}
+  try{
+    const doc=S.docs.find(x=>x.id===S.docId);
+    S.lines=await dpExtractDoc(doc);
+    S.checked=new Set(); S.objetIdx=-1;
+    // Si un profil existe déjà : le rejouer sur ce devis pour pré-cocher les lignes détectées
+    if(S.prof&&S.prof.config){
+      const r=dpParse(S.lines,S.prof.config);
+      if(!r.error){ const set=new Set(r.lignes); S.lines.forEach((l,i)=>{ if(set.has(dpCleanLine(l))) S.checked.add(i); }); }
+    }
+    host.innerHTML=S.lines.map((l,i)=>{
+      const on=S.checked.has(i);
+      return `<div id="dp_row_${i}" style="display:flex;align-items:center;gap:8px;padding:5px 9px;border-bottom:1px solid var(--line);background:${on?'rgba(37,99,235,.07)':'transparent'}">
+        <input type="checkbox" ${on?'checked':''} onchange="dpCalTick(${i},this.checked)" style="accent-color:#2563eb;flex:0 0 auto">
+        <div style="flex:1;min-width:0;font-size:12px;font-family:ui-monospace,SFMono-Regular,monospace;overflow-wrap:anywhere">${esc(l)}</div>
+        <button class="btn sm" id="dp_obj_${i}" onclick="dpCalObjet(${i})" title="Cette ligne est l'objet des travaux" style="font-size:10.5px;padding:2px 7px;flex:0 0 auto${S.objetIdx===i?';background:#2563eb;color:#fff':''}">Objet</button>
+      </div>`;
+    }).join('');
+  }catch(e){ host.innerHTML='<div style="padding:14px;color:#dc2626;font-size:13px">'+esc(e.message||String(e))+'</div>'; }
+};
+
+window.dpCalTick=function(i,on){ const S=window._dpCal; if(!S) return;
+  if(on) S.checked.add(i); else S.checked.delete(i);
+  const r=document.getElementById('dp_row_'+i); if(r) r.style.background=on?'rgba(37,99,235,.07)':'transparent';
+  S._cfg=null; const sv=document.getElementById('dp_btn_save'); if(sv) sv.disabled=true; };
+
+window.dpCalObjet=function(i){ const S=window._dpCal; if(!S) return;
+  const old=S.objetIdx; S.objetIdx=(old===i?-1:i);
+  [old,i].forEach(k=>{ const b=document.getElementById('dp_obj_'+k); if(b){ const sel=S.objetIdx===k; b.style.background=sel?'#2563eb':''; b.style.color=sel?'#fff':''; } });
+  S._cfg=null; const sv=document.getElementById('dp_btn_save'); if(sv) sv.disabled=true; };
+
+window.dpCalTest=function(){
+  const S=window._dpCal; if(!S) return;
+  if(!S.checked.size){ toast('Coche au moins une ligne de prestation','err'); return; }
+  const cfg=dpDerive(S.lines,S.checked,S.objetIdx);
+  const r=dpParse(S.lines,cfg);
+  const box=document.getElementById('dp_test'); if(!box) return; box.style.display='block';
+  if(r.error){ box.innerHTML='<div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.4);border-radius:10px;padding:11px 13px;font-size:13px">❌ '+esc(r.error)+'</div>'; return; }
+  const attendu=[...S.checked].sort((a,b)=>a-b).map(i=>dpCleanLine(S.lines[i])).filter(Boolean);
+  const okMatch=r.lignes.length===attendu.length && r.lignes.every((l,i)=>l===attendu[i]);
+  S._cfg=okMatch?cfg:cfg; // la config est conservée même si ⚠️ : l'admin juge sur l'aperçu
+  box.innerHTML=`<div style="background:${okMatch?'rgba(22,163,74,.08)':'rgba(217,119,6,.09)'};border:1px solid ${okMatch?'rgba(22,163,74,.4)':'rgba(217,119,6,.45)'};border-radius:10px;padding:11px 13px;font-size:13px">
+    ${okMatch?'✅ Le profil restitue exactement les lignes cochées.':'⚠️ Résultat différent des lignes cochées ('+r.lignes.length+' obtenues / '+attendu.length+' attendues) — vérifie l\'aperçu avant d\'enregistrer.'}<br>
+    <b>Objet :</b> ${esc(r.objet||'—')} · <b>Total HT :</b> ${r.montant!=null?dpFmtEur(r.montant)+' €':'non détecté'}
+    <div style="margin-top:8px;font-family:ui-monospace,SFMono-Regular,monospace;font-size:11.5px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;max-height:150px;overflow:auto">${r.lignes.map(esc).join('<br>')}</div></div>`;
+  const sv=document.getElementById('dp_btn_save'); if(sv) sv.disabled=false;
+};
+
+window.dpCalSave=async function(){
+  const S=window._dpCal; if(!S||!S._cfg){ toast('Teste d\'abord le profil','err'); return; }
+  try{
+    const row={prestataire_id:S.prestId,config:S._cfg,statut:'valide',sample_doc_id:S.docId,
+      calibre_par:state.profile?.nom||state.profile?.email||'',updated_at:new Date().toISOString()};
+    const {error}=await sb.from('devis_profils').upsert(row,{onConflict:'prestataire_id'});
+    if(error) throw error;
+    toast('✅ Profil de devis enregistré pour '+(S.prest?.nom||'le prestataire'),'ok');
+    closeModal(); if(document.getElementById('dp_admin_box')) dpAdminSection();
+  }catch(e){ toast(e.message||String(e),'err'); }
+};
+
 window.pvDevisChange=function(){
   const id=document.getElementById('pv_devis_sel')?.value;
   const d=(window._pvDevisList||[]).find(x=>x.id===id);
