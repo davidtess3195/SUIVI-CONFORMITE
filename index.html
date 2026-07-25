@@ -9103,7 +9103,7 @@ async function pvFromDevis(docId){
   const d=(window._gedAllDocs||[]).find(x=>x.id===docId); if(!d){toast('Devis introuvable','err');return;}
   const clientId=d.client_id||state.erps.find(e=>e.id===d.erp_id)?.client_id||null;
   pvForm({client_id:clientId, erp_id:d.erp_id||null, prestataire_id:d.prestataire_id||null, devis_id:d.id,
-          devis_ref:(d.nom_original||'').replace(/\.[a-zA-Z0-9]+$/,''), devis_date:d.date_document||''});
+          devis_ref:pvSainRef((d.nom_original||'').replace(/\.[a-zA-Z0-9]+$/,'')), devis_date:d.date_document||''});
 }
 window.pvFromDevis=pvFromDevis;
 
@@ -9545,11 +9545,19 @@ window.dpCalSave=async function(){
   }catch(e){ toast(e.message||String(e),'err'); }
 };
 
+// Assainit une référence de devis issue d'un nom de fichier : dé-garble l'entrelacement
+// d'esperluettes (« &D&e&v&i&s » → « Devis ») et retire les emojis.
+window.pvSainRef=function(s){
+  let t=String(s||'');
+  const amp=(t.match(/&/g)||[]).length;
+  if(amp>=4 && amp>=t.length/3) t=t.replace(/&/g,'');
+  return t.replace(/[\uD800-\uDFFF\uFE0E\uFE0F\u200B-\u200D\u2300-\u27BF]/g,'').replace(/ {2,}/g,' ').trim();
+};
 window.pvDevisChange=function(){
   const id=document.getElementById('pv_devis_sel')?.value;
   const d=(window._pvDevisList||[]).find(x=>x.id===id);
   if(!d) return;
-  const ref=document.getElementById('pv_devis_ref'); if(ref) ref.value=(d.nom_original||'').replace(/\.[a-zA-Z0-9]+$/,'');
+  const ref=document.getElementById('pv_devis_ref'); if(ref) ref.value=pvSainRef((d.nom_original||'').replace(/\.[a-zA-Z0-9]+$/,''));
   const dt=document.getElementById('pv_devis_date'); if(dt && d.date_document) dt.value=d.date_document;
   const pr=document.getElementById('pv_prest'); if(pr && d.prestataire_id) pr.value=d.prestataire_id;
   const er=document.getElementById('pv_erp'); if(er && d.erp_id) er.value=d.erp_id;
@@ -9591,6 +9599,21 @@ function pvPrestContact(p){
 
 // ── Construction du PV de réception en PDF (jsPDF, 2 pages A4) ──
 function pvBuildPdf(D){
+  // ── Assainissement des chaînes pour Helvetica (jsPDF) ──
+  // Les emojis / caractères hors plage Latin produisent des glyphes parasites dans le
+  // PDF (« Ø>Ý », « 'þ »…). On retire aussi un éventuel entrelacement d'esperluettes
+  // (« &D&e&v&i&s ») issu d'un nom de fichier corrompu, et on normalise les espaces
+  // insécables. Appliqué à TOUTES les chaînes de D, une seule fois, à l'entrée.
+  const pvClean=s=>{
+    let t=String(s==null?'':s);
+    const amp=(t.match(/&/g)||[]).length;
+    if(amp>=4 && amp>=t.length/3) t=t.replace(/&/g,'');            // dé-garble « &D&e&v… »
+    return t
+      .replace(/[\uD800-\uDFFF\uFE0E\uFE0F\u200B-\u200D\u2190-\u21FF\u2300-\u27BF\u2B00-\u2BFF]/g,'') // emojis, flèches, dingbats, surrogates
+      .replace(/[\u00A0\u202F\u2007\u2009]/g,' ')                   // espaces insécables → espace
+      .replace(/ {2,}/g,' ').trim();
+  };
+  D=JSON.parse(JSON.stringify(D),(k,v)=>typeof v==='string'?pvClean(v):v);
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({unit:'mm',format:'a4'});
   const W=210,ML=15,CW=W-2*ML;
@@ -9660,15 +9683,15 @@ function pvBuildPdf(D){
     setF('normal',8.5,INK);
     const introLines=wrap(intro,CW,8.5);
     doc.text(introLines,ML,y+3); y+=introLines.length*3.6+4.5;
-    // Liste à tirets pleine largeur (le tiret d'origine du devis est normalisé)
+    // Lignes simples, sans puce : les libellés longs des devis arrivent parfois
+    // fragmentés sur plusieurs lignes, un tiret par fragment nuirait à la lecture.
     const items=(D.lignes.length?D.lignes:['—']).map(t=>String(t).replace(/^[-–—•]\s*/,'').trim()||'—');
-    const wrapped=items.map(t=>wrap(t,CW-12,8.5));
+    const wrapped=items.map(t=>wrap(t,CW-8,8.5));
     const hBody=wrapped.reduce((s,ls)=>s+ls.length*lh+1.6,0)+4;
     doc.rect(ML,y,CW,hBody);
     let yy=y+5;
     wrapped.forEach(ls=>{
-      setF('bold',8.5,INK); doc.text('\u2013',ML+3.5,yy);
-      setF('normal',8.5,INK); doc.text(ls,ML+8,yy);
+      setF('normal',8.5,INK); doc.text(ls,ML+3.5,yy);
       yy+=ls.length*lh+1.6;
     });
     y+=hBody+2;
