@@ -690,6 +690,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
+window.APP_BUILD='648'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -3322,12 +3323,14 @@ async function viewDashboard(c){
   const inScope = arr => state.currentClient==='all'&&state.currentErp==='all'?arr:arr.filter(x=>erpIds.includes(x.erp_id));
 
   try{
-    const [ob,re,it,ph,cv] = await Promise.all([
+    const [ob,re,it,ph,cv,dg,pn] = await Promise.all([
       sb.from('obligations').select('id,erp_id,libelle,prochaine_echeance,statut,criticite,domaine'),
       sb.from('reserves').select('id,erp_id,libelle,criticite,statut,date_limite,localisation,observations'),
       sb.from('interventions').select('id,erp_id,code_int,objet,statut,date_prevue,type,domaine,nb_relances,reponse_a_traiter,prestataire_id'),
       sb.from('photos_urgentes').select('id,erp_id,niveau_urgence,statut,commentaire,created_at,localisation,traitement,traitement_date,photo_path'),
       sb.from('conversations').select('intervention_id').not('intervention_id','is',null),
+      sb.from('documents').select('id,erp_id,client_id,prestataire_id,nom_original,date_intervention_prevue,pv_statut,source_devis_id,categorie,date_document').in('categorie',['devis_signe','pv_reception']),
+      sb.from('prestataires').select('id,nom'),
     ]);
     window._convInterIds = new Set(((cv&&cv.data)||[]).map(x=>x.intervention_id).filter(Boolean));
     const obs=inScope(ob.data||[]), res=inScope(re.data||[]), its=inScope(it.data||[]), phs=inScope(ph.data||[]);
@@ -3339,6 +3342,18 @@ async function viewDashboard(c){
     const resCrit = res.filter(r=>r.criticite==='critique' && !['cloturee','levee','rejetee'].includes(r.statut));
     const resOuv = res.filter(r=>!['cloturee','levee','rejetee'].includes(r.statut));
     const photoNT = phs.filter(p=>['recue','a_traiter','vue'].includes(p.statut) && p.traitement!=='fait');
+    // ── Pipeline PV de réception : devis signés sans PV rattaché ──
+    const scopeDoc=d=>{
+      if(state.currentErp!=='all') return d.erp_id===state.currentErp;
+      if(state.currentClient!=='all'){ return (d.erp_id&&erpIds.includes(d.erp_id))||d.client_id===state.currentClient; }
+      return true;
+    };
+    const allDg=(dg.data||[]);
+    const pvDone=new Set(allDg.filter(d=>d.categorie==='pv_reception'&&d.source_devis_id).map(d=>d.source_devis_id));
+    const devisEnCours=allDg.filter(d=>d.categorie==='devis_signe'&&d.pv_statut!=='clos'&&!pvDone.has(d.id)&&!(d.source_devis_id&&pvDone.has(d.source_devis_id))&&scopeDoc(d));
+    const pvAEtablir=devisEnCours.filter(d=>d.date_intervention_prevue&&d.date_intervention_prevue<today);
+    const pvRetard=pvAEtablir.filter(d=>(Date.now()-new Date(d.date_intervention_prevue).getTime())/864e5>7);
+    const prestNom={}; ((pn&&pn.data)||[]).forEach(p=>prestNom[p.id]=p.nom);
     const badge=$('#badge-photos'); if(badge){ if(photoNT.length){badge.style.display='grid';badge.textContent=photoNT.length;}else badge.style.display='none'; }
     const mobBadgePhotos=document.getElementById('mob-badge-photos'); if(mobBadgePhotos){mobBadgePhotos.textContent=photoNT.length;mobBadgePhotos.style.display=photoNT.length?'grid':'none';}
 
@@ -3349,6 +3364,8 @@ async function viewDashboard(c){
       ['Réserves ouvertes',resOuv.length,'majeur','En cours de levée','📋','/reserves'],
       ['Photos urgentes',photoNT.length,'majeur','Alertes terrain à traiter','📷','/photos'],
       ['Actions relances',(aRepondre.length+sansRep.length),'critique','Réponses & sans réponse','🔧','/verifications'],
+      ['Devis signés en cours',devisEnCours.length,'moyen','En attente de réception','📝','/documents'],
+      ['PV à établir',pvAEtablir.length,pvRetard.length?'critique':'majeur','Travaux réalisés, PV attendu','🧾','/documents'],
     ];
 
     const priorities = [
@@ -3368,6 +3385,30 @@ async function viewDashboard(c){
       ...sansRep.map(i=>({level:'critique',tag:'Sans réponse',label:i.objet||i.domaine||'—',id:i.id})),
     ].slice(0,8);
     if(window._dashVerifOpen===undefined) window._dashVerifOpen=true;
+    // ── Section « Réceptions de travaux à suivre » ──
+    const pvRows=devisEnCours.slice().sort((a,b)=>String(a.date_intervention_prevue||'9999').localeCompare(String(b.date_intervention_prevue||'9999'))).map(d=>{
+      const late=d.date_intervention_prevue&&d.date_intervention_prevue<today;
+      const days=late?Math.floor((Date.now()-new Date(d.date_intervention_prevue).getTime())/864e5):0;
+      const st=!d.date_intervention_prevue?['📅 Date d\'intervention à renseigner','#64748b']
+        :(late?(days>7?['🔴 PV en retard de '+days+' j','#dc2626']:['🧾 Intervention passée — PV à établir','#d97706'])
+        :['Intervention prévue le '+fmtDate(d.date_intervention_prevue),'#2563eb']);
+      return `<tr style="${days>7?'background:linear-gradient(90deg,#fef2f2,#fff);border-left:4px solid #ef4444;':''}">
+        <td><b style="font-size:13px">${esc((d.nom_original||'Devis').replace(/\.[a-zA-Z0-9]+$/,''))}</b>
+          <div style="font-size:11.5px;color:var(--muted)">${esc(prestNom[d.prestataire_id]||'Prestataire non renseigné')}</div></td>
+        <td><span style="color:${st[1]};font-weight:600;font-size:12.5px">${st[0]}</span></td>
+        <td style="text-align:right;white-space:nowrap">
+          ${!d.date_intervention_prevue?`<button class="btn sm" onclick="gedEditDoc('${d.id}')" title="Renseigner la date d'intervention prévue">📅 Date</button> `:''}
+          <button class="btn sm primary" onclick="pvFromDevis('${d.id}')" title="Ouvrir le PV de réception pré-rempli depuis ce devis">🧾 Établir le PV</button>
+        </td></tr>`;
+    }).join('');
+    const pvSection=devisEnCours.length?`<div class="card" style="overflow:hidden;margin-top:16px"><div class="card-pad" style="padding:0">
+      <div style="background:linear-gradient(135deg,#7c3aed,#7c3aedcc);color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <h2 style="font-size:16px;margin:0;color:#fff">🧾 Réceptions de travaux à suivre</h2>
+        <span style="margin-left:auto;background:rgba(255,255,255,.22);color:#fff;font-size:12px;font-weight:600;padding:2px 10px;border-radius:999px">${pvAEtablir.length} PV à établir · ${devisEnCours.length} devis signé(s) en cours</span>
+      </div>
+      <div style="padding:12px"><div class="tbl-wrap" style="border:none;box-shadow:none;border-radius:0"><table class="tbl"><tbody>${pvRows}</tbody></table></div></div>
+    </div></div>`:'';
+
     const verifSection = verifUrgents.length ? `<div class="card" style="overflow:hidden;margin-top:16px"><div class="card-pad" style="padding:0">
       <div onclick="(function(){window._dashVerifOpen=!window._dashVerifOpen;const b=document.getElementById('dash-verif-body');const ch=document.getElementById('dash-verif-chev');if(b)b.style.display=window._dashVerifOpen?'block':'none';if(ch)ch.style.transform=window._dashVerifOpen?'rotate(90deg)':'rotate(0deg)'})()" style="background:transparent;color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
         <span id="dash-verif-chev" style="transition:transform .2s;transform:rotate(${window._dashVerifOpen?'90':'0'}deg);font-size:18px;line-height:1">›</span>
@@ -3469,6 +3510,7 @@ async function viewDashboard(c){
         :`<div class="empty">${I.chk}<h3>Tout est à jour</h3><p>Aucune action critique en attente sur ce périmètre.</p></div>`}
         </div>
       </div></div>
+      ${pvSection}
       ${verifSection}
       ${resSection}
       <div class="card" style="overflow:hidden;margin-top:16px"><div class="card-pad" style="padding:0">
@@ -8812,6 +8854,13 @@ function formDoc(prefiles){
       <div class="fld"><label id="f_date_lbl">Date du document <span style="color:var(--muted-2);font-weight:400;font-size:11px">(date réelle)</span></label><input id="f_date" type="date" value="${new Date().toISOString().slice(0,10)}">
         <div id="f_date_sugg" style="display:none;margin-top:7px"></div></div></div>
     <div class="fld" id="f_avis_zone" style="display:none"><label>Avis de la commission</label><select id="f_avis"><option value="">— non précisé —</option><option>Favorable</option><option>Favorable avec prescriptions</option><option>Défavorable</option><option>Avis différé</option></select></div>
+    <div id="f_pvsuivi_zone" style="display:none;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface-2)">
+      <div style="font-size:12.5px;font-weight:600;margin-bottom:8px">🧾 Suivi du PV de réception de travaux</div>
+      <div class="row2">
+        <div class="fld" style="margin:0"><label>Date d'intervention prévue <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel — pilote le rappel PV)</span></label><input id="f_int_date" type="date"></div>
+        <div class="fld" style="margin:0;justify-content:flex-end;display:flex;flex-direction:column"><label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;margin:0;font-weight:500"><input type="checkbox" id="f_int_create" style="accent-color:#2563eb"> Créer l'intervention planifiée <span style="color:var(--muted-2);font-weight:400;font-size:11px">(nécessite date + ERP)</span></label></div>
+      </div>
+    </div>
     ${fileField}
   </div>
   <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">Déposer</button></div>`);
@@ -8834,6 +8883,10 @@ function formDoc(prefiles){
     const avis=((type==='PV commission'||type==='RVAT') && $('#f_avis'))?($('#f_avis').value||null):null;
     const lotSelEl=$('#f_lot_sel'); const lot=(lotSelEl&&lotSelEl.value&&lotSelEl.value!=='__autre__')?lotSelEl.value:(($('#f_lot').value||'').trim()||null);
     const prestataire_id=$('#f_prest')?.value||null;
+    // Suivi PV de réception (devis signés uniquement)
+    const isDevisSigne=catFromType(type)==='devis_signe';
+    const date_intervention_prevue=isDevisSigne?(($('#f_int_date')?.value)||null):null;
+    const wantInter=isDevisSigne&&date_intervention_prevue&&($('#f_int_create')?.checked);
     try{
       let i=0;
       const folder = erp_id || ('client_'+client_id);
@@ -8853,7 +8906,24 @@ function formDoc(prefiles){
         const upName=(fileToUpload && fileToUpload.name) ? fileToUpload.name : file.name;
         const path=folder+'/'+Date.now()+'_'+upName.replace(/[^\w.\-]/g,'_');
         const {error:upErr}=await sb.storage.from('documents').upload(path,fileToUpload,{contentType:(fileToUpload&&fileToUpload.type)||undefined}); if(upErr)throw upErr;
-        await sb.from('documents').insert({erp_id,client_id,prestataire_id,type,categorie:catFromType(type),lot,date_document,avis,fichier_path:path,nom_original:file.name});
+        const {data:newDoc,error:insErr}=await sb.from('documents').insert({erp_id,client_id,prestataire_id,type,categorie:catFromType(type),lot,date_document,avis,fichier_path:path,nom_original:file.name,...(isDevisSigne?{date_intervention_prevue}:{})}).select('id').single();
+        if(insErr) throw insErr;
+        if(wantInter && newDoc){
+          if(!erp_id){ toast("Intervention non créée : un ERP est nécessaire pour la planifier",'err'); }
+          else{
+            try{
+              const {data:it,error:itErr}=await sb.from('interventions').insert({
+                erp_id, prestataire_id:prestataire_id||null, type:'travaux',
+                objet:'Travaux — '+file.name.replace(/\.[a-zA-Z0-9]+$/,''),
+                date_prevue:date_intervention_prevue, statut:'programmee',
+                commentaire:'Créée automatiquement depuis le devis signé déposé en GED'
+              }).select('id').single();
+              if(itErr) throw itErr;
+              if(it) await sb.from('documents').update({intervention_id:it.id}).eq('id',newDoc.id);
+              toast('Intervention planifiée le '+fmtDate(date_intervention_prevue),'ok');
+            }catch(e2){ toast('Intervention : '+(e2.message||e2),'err'); }
+          }
+        }
       }
       _modalDirty=false; closeModal(); toast(list.length>1?`${list.length} documents déposés`:'Document déposé','ok'); renderRoute();
     }catch(e){ toast(e.message,'err'); btn.disabled=false; btn.textContent='Déposer'; }
@@ -8909,6 +8979,9 @@ window.docPreviewFile=function(i){
 window.docTypeChange=function(){
   const t=$('#f_type')?.value; const z=document.getElementById('f_avis_zone');
   if(z) z.style.display=(t==='PV commission'||t==='RVAT')?'':'none';
+  // Zone « suivi PV de réception » : uniquement pour les devis signés
+  const pz=document.getElementById('f_pvsuivi_zone');
+  if(pz) pz.style.display=(catFromType(t)==='devis_signe')?'':'none';
   // Libellé de date adapté au type de document
   const lbl=document.getElementById('f_date_lbl');
   if(lbl){
@@ -9033,7 +9106,7 @@ function gedRenderList(){
             ${(((d.tags||'').indexOf('cat:mail')>=0)||(!d.fichier_path&&d.email_corps))?`<button class="btn sm" onclick="gedViewMail('${d.id}')">Visualiser</button>`:`<button class="btn sm" onclick="previewDoc('${pathJs}','${nmJs}','${bk}')">Visualiser</button>`}
             ${(d.fichier_path&&/\.pdf$/i.test(d.nom_original||d.fichier_path||'')&&['Rapport','Bureau de contrôle',"Bon d'intervention",'PV commission'].includes(d.type))?`<button class="btn sm" title="Analyser ce rapport et préparer le tableau de levées de réserves" onclick="gedExtractRes('${d.id}')">Extraire réserves</button>`:''}
             ${['devis','devis_signe'].includes(dcat)||['devis','devis signé','devis signe'].includes((d.type||'').toLowerCase())?`<button class="btn sm" title="Générer un PV de réception de travaux à partir de ce devis" onclick="pvFromDevis('${d.id}')">PV réception</button>`:''}
-            ${dcat==='devis'&&(d.type||'').toLowerCase()==='devis'?`<button class="btn sm" title="Déposer la copie signée scannée de ce devis" onclick="devisUploadSigned('${d.id}')">Devis signé</button>`:''}
+            ${dcat==='devis'&&(d.type||'').toLowerCase()==='devis'?`<button class="btn sm" title="Déposer la copie signée scannée de ce devis" onclick="devisUploadSigned('${d.id}')">📎 Déposer le signé</button>`:''}
             ${dcat==='pv_reception'&&(d.tags||'').indexOf('signe')<0?`<button class="btn sm" title="Déposer la copie signée scannée de ce PV" onclick="pvUploadSigned('${d.id}')">PV signé</button>`:''}
             <button class="btn sm" title="Renommer / classer" onclick="gedEditDoc('${d.id}')" style="${d.statut==='classe'?'color:#16a34a;border-color:#16a34a66;font-weight:600':'color:#d97706;border-color:#d9770666;font-weight:600'}">${d.statut==='classe'?'Classé':'À classer'}</button>
             <button class="btn sm" title="Supprimer" onclick="delDoc('${d.id}')" style="color:var(--danger,#dc2626);border-color:var(--line)">Supprimer</button>
@@ -9100,7 +9173,9 @@ window.gedViewMail=gedViewMail;
    (catégorie pv_reception, rubrique "PV de réception").
    ============================================================ */
 async function pvFromDevis(docId){
-  const d=(window._gedAllDocs||[]).find(x=>x.id===docId); if(!d){toast('Devis introuvable','err');return;}
+  let d=(window._gedAllDocs||[]).find(x=>x.id===docId);
+  if(!d){ try{ const {data}=await sb.from('documents').select('*').eq('id',docId).maybeSingle(); d=data; }catch(_){} }
+  if(!d){toast('Devis introuvable','err');return;}
   const clientId=d.client_id||state.erps.find(e=>e.id===d.erp_id)?.client_id||null;
   pvForm({client_id:clientId, erp_id:d.erp_id||null, prestataire_id:d.prestataire_id||null, devis_id:d.id,
           devis_ref:pvSainRef((d.nom_original||'').replace(/\.[a-zA-Z0-9]+$/,'')), devis_date:d.date_document||''});
@@ -9124,10 +9199,14 @@ async function pvForm(pre){
   try{
     const [c,p,dv]=await Promise.all([
       pre.client_id?sb.from('clients').select('id,raison_sociale,siret,adresse_siege,code_postal,ville,telephone,email').eq('id',pre.client_id).maybeSingle():Promise.resolve({data:null}),
-      sb.from('prestataires').select('id,nom,siret,adresse,contacts').order('nom'),
+      sb.from('prestataires').select('id,nom,siret,adresse,contacts,categorie').order('nom'),
       pre.client_id?sb.from('documents').select('id,nom_original,date_document,prestataire_id,erp_id,categorie').eq('client_id',pre.client_id).in('categorie',['devis','devis_signe']).order('date_document',{ascending:false}).limit(100):Promise.resolve({data:[]})
     ]);
-    client=c.data; prests=p.data||[]; devisList=dv.data||[];
+    client=c.data; devisList=dv.data||[];
+    // ⚠️ Verrou destinataires : le PV de réception se joue entre maître d'ouvrage et
+    // ENTREPRISE — les bureaux de contrôle sont exclus d'office du sélecteur (et donc
+    // de la liste des destinataires d'envoi, qui en découle).
+    prests=(p.data||[]).filter(x=>x.categorie!=='bureau_de_controle');
   }catch(e){ toast(e.message,'err'); return; }
   window._pvPrests=prests; window._pvClient=client; window._pvDevisList=devisList;
   const devisOpt=d=>`<option value="${d.id}"${pre.devis_id===d.id?' selected':''}>${esc((d.nom_original||'Devis').replace(/\.[a-zA-Z0-9]+$/,''))}${d.categorie==='devis_signe'?' ✍️':''}${d.date_document?' — '+new Date(d.date_document).toLocaleDateString('fr-FR'):''}</option>`;
@@ -9685,7 +9764,7 @@ function pvBuildPdf(D){
     doc.text(introLines,ML,y+3); y+=introLines.length*3.6+4.5;
     // Lignes simples, sans puce : les libellés longs des devis arrivent parfois
     // fragmentés sur plusieurs lignes, un tiret par fragment nuirait à la lecture.
-    const items=(D.lignes.length?D.lignes:['—']).map(t=>String(t).replace(/^[-–—•]\s*/,'').trim()||'—');
+    const items=(D.lignes.length?D.lignes:['—']).map(t=>String(t).trim().replace(/^[-–—•·*]+\s*/,'').trim()||'—');
     const wrapped=items.map(t=>wrap(t,CW-8,8.5));
     const hBody=wrapped.reduce((s,ls)=>s+ls.length*lh+1.6,0)+4;
     doc.rect(ML,y,CW,hBody);
@@ -12482,33 +12561,62 @@ window.quickAcces=async function(){
    rubrique « Devis signé », rattachée au même client / ERP / prestataire,
    et liée au devis d'origine. */
 async function devisUploadSigned(docId){
-  const d=(window._gedAllDocs||[]).find(x=>x.id===docId); if(!d){toast('Devis introuvable','err');return;}
+  let d=(window._gedAllDocs||[]).find(x=>x.id===docId);
+  if(!d){ try{ const {data}=await sb.from('documents').select('*').eq('id',docId).maybeSingle(); d=data; }catch(_){} }
+  if(!d){toast('Devis introuvable','err');return;}
   const inp=document.createElement('input'); inp.type='file'; inp.accept='application/pdf,image/*';
-  inp.onchange=async()=>{
+  inp.onchange=()=>{
     const f=inp.files&&inp.files[0]; if(!f) return;
-    toast('Envoi du devis signé…','ok');
-    try{
-      let file=f;
-      if(f.type==='application/pdf' && f.size>300*1024 && typeof compressPdf==='function'){ try{file=await compressPdf(f);}catch(_){file=f;} }
-      else if(/^image\//i.test(f.type||'') && f.size>250*1024 && typeof compressImage==='function'){ try{file=await compressImage(f,2400,0.8);}catch(_){file=f;} }
-      const base=(d.nom_original||'Devis').replace(/\.[a-zA-Z0-9]+$/,'');
-      const ext=((f.name||'').match(/\.[a-zA-Z0-9]+$/)||['.pdf'])[0];
-      const fname=base+' - SIGNE'+ext;
-      const path=(d.erp_id||('client_'+(d.client_id||'x')))+'/'+Date.now()+'_'+fname.replace(/[^\w.\-]/g,'_');
-      const {error:ue}=await sb.storage.from('documents').upload(path,file,{contentType:f.type||undefined});
-      if(ue) throw ue;
-      const {error:ie}=await sb.from('documents').insert({
-        client_id:d.client_id||null, erp_id:d.erp_id||null, prestataire_id:d.prestataire_id||null,
-        type:'Devis signé', categorie:'devis_signe',
-        nom_original:fname, fichier_path:path,
-        date_document:new Date().toISOString().slice(0,10), statut:'classe',
-        source_devis_id:d.id,
-        tags:'source:scan;cat:devis_signe;signe;devis_origine:'+d.id
-      });
-      if(ie) throw ie;
-      toast('Devis signé archivé dans la GED','ok');
-      const c=document.getElementById('content'); if(c && location.hash.indexOf('documents')>=0) viewDocuments(c);
-    }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+    // Mini-étape « suivi PV » : date d'intervention prévue + intervention planifiée,
+    // comme au dépôt classique d'un devis signé — c'est le chemin le plus fréquent.
+    openModal(`<div class="modal-head"><h2>✍️ Déposer le devis signé</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:13px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:9px 11px">📄 <b>${esc(f.name)}</b><br>
+          <span style="color:var(--muted);font-size:12px">Sera classé « ${esc((d.nom_original||'Devis').replace(/\.[a-zA-Z0-9]+$/,''))} - SIGNE », lié au devis d'origine, et suivi pour le PV de réception.</span></div>
+        <div class="fld" style="margin:0"><label>Date d'intervention prévue <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel — pilote le rappel PV)</span></label><input id="ds_int_date" type="date"></div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer${d.erp_id?'':';opacity:.55'}"><input type="checkbox" id="ds_int_create" ${d.erp_id?'':'disabled'} style="accent-color:#2563eb"> Créer l'intervention planifiée${d.erp_id?'':' <span style="font-size:11px;color:var(--muted)">(ERP non renseigné sur le devis)</span>'}</label>
+      </div>
+      <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
+        <button class="btn primary" id="ds_go">Déposer</button></div>`);
+    document.getElementById('ds_go').onclick=async()=>{
+      const btn=document.getElementById('ds_go'); btn.disabled=true; btn.textContent='Envoi…';
+      const date_intervention_prevue=document.getElementById('ds_int_date')?.value||null;
+      const wantInter=!!(date_intervention_prevue && document.getElementById('ds_int_create')?.checked && d.erp_id);
+      try{
+        let file=f;
+        if(f.type==='application/pdf' && f.size>300*1024 && typeof compressPdf==='function'){ btn.textContent='Compression…'; try{file=await compressPdf(f);}catch(_){file=f;} btn.textContent='Envoi…'; }
+        else if(/^image\//i.test(f.type||'') && f.size>250*1024 && typeof compressImage==='function'){ btn.textContent='Compression…'; try{file=await compressImage(f,2400,0.8);}catch(_){file=f;} btn.textContent='Envoi…'; }
+        const base=(d.nom_original||'Devis').replace(/\.[a-zA-Z0-9]+$/,'');
+        const ext=((f.name||'').match(/\.[a-zA-Z0-9]+$/)||['.pdf'])[0];
+        const fname=base+' - SIGNE'+ext;
+        const path=(d.erp_id||('client_'+(d.client_id||'x')))+'/'+Date.now()+'_'+fname.replace(/[^\w.\-]/g,'_');
+        const {error:ue}=await sb.storage.from('documents').upload(path,file,{contentType:f.type||undefined});
+        if(ue) throw ue;
+        const {data:newDoc,error:ie}=await sb.from('documents').insert({
+          client_id:d.client_id||null, erp_id:d.erp_id||null, prestataire_id:d.prestataire_id||null,
+          type:'Devis signé', categorie:'devis_signe',
+          nom_original:fname, fichier_path:path,
+          date_document:new Date().toISOString().slice(0,10), statut:'classe',
+          source_devis_id:d.id, date_intervention_prevue,
+          tags:'source:scan;cat:devis_signe;signe;devis_origine:'+d.id
+        }).select('id').single();
+        if(ie) throw ie;
+        if(wantInter && newDoc){
+          try{
+            const {data:it,error:itErr}=await sb.from('interventions').insert({
+              erp_id:d.erp_id, prestataire_id:d.prestataire_id||null, type:'travaux',
+              objet:'Travaux — '+base, date_prevue:date_intervention_prevue, statut:'programmee',
+              commentaire:'Créée automatiquement depuis le devis signé déposé en GED'
+            }).select('id').single();
+            if(itErr) throw itErr;
+            if(it) await sb.from('documents').update({intervention_id:it.id}).eq('id',newDoc.id);
+          }catch(e2){ toast('Intervention : '+(e2.message||e2),'err'); }
+        }
+        closeModal();
+        toast('Devis signé archivé'+(wantInter?' · intervention planifiée le '+fmtDate(date_intervention_prevue):(date_intervention_prevue?' · suivi PV actif':''))+' ✓','ok');
+        const c=document.getElementById('content'); if(c && location.hash.indexOf('documents')>=0) viewDocuments(c);
+      }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Déposer'; }
+    };
   };
   inp.click();
 }
@@ -12516,8 +12624,10 @@ window.devisUploadSigned=devisUploadSigned;
 
 
 
-function gedEditDoc(id){
-  const d=(window._gedAllDocs||[]).find(x=>x.id===id); if(!d){toast('Document introuvable','err');return;}
+async function gedEditDoc(id){
+  let d=(window._gedAllDocs||[]).find(x=>x.id===id);
+  if(!d){ try{ const {data}=await sb.from('documents').select('*').eq('id',id).maybeSingle(); d=data; }catch(_){} }
+  if(!d){toast('Document introuvable','err');return;}
   const clientId=d.client_id||state.erps.find(e=>e.id===d.erp_id)?.client_id||'';
   const erpsClient=clientId?state.erps.filter(e=>e.client_id===clientId):state.erps;
   const erpOpts='<option value="">— Aucun —</option>'+erpsClient.map(e=>`<option value="${e.id}"${d.erp_id===e.id?' selected':''}>${esc(e.nom)}</option>`).join('');
@@ -12545,7 +12655,8 @@ function gedEditDoc(id){
       </div>
       <div class="row2">
         <div class="fld"><label>Lot</label><select id="ged_edit_lot_sel" onchange="gedEditLotChange()"><option value="">— aucun —</option><option value="__autre__">✏️ Autre (préciser)…</option></select><input id="ged_edit_lot" placeholder="Préciser le lot (SSI, Électricité…)" style="margin-top:6px;display:none"></div>
-        <div class="fld"></div>
+        ${d.categorie==='devis_signe'?`<div class="fld"><label>Date d'intervention prévue <span style="color:var(--muted-2);font-weight:400;font-size:11px">(suivi PV)</span></label><input id="ged_edit_intdate" type="date" value="${d.date_intervention_prevue||''}">
+          <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;margin-top:7px;cursor:pointer"><input type="checkbox" id="ged_edit_pvclos" ${d.pv_statut==='clos'?'checked':''} style="accent-color:#2563eb"> Écarter du suivi PV de réception</label></div>`:`<div class="fld"></div>`}
       </div>
       ${d.email_corps?`<details style="border:1px solid var(--line);border-radius:10px;background:var(--surface-2);overflow:hidden">
         <summary style="padding:10px 12px;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink);user-select:none">📧 Message d'origine${d.email_date?` — ${fmtDate(d.email_date)}`:''}</summary>
@@ -12575,9 +12686,15 @@ function gedEditDoc(id){
         prestataire_id:document.getElementById('ged_edit_prest').value||null,
         date_document:document.getElementById('ged_edit_date').value||null,
         lot:(()=>{const s=document.getElementById('ged_edit_lot_sel');const v=s?s.value:'';return (v&&v!=='__autre__')?(v||null):(((document.getElementById('ged_edit_lot')||{}).value||'').trim()||null);})(),
+        ...(d.categorie==='devis_signe'?{date_intervention_prevue:(document.getElementById('ged_edit_intdate')?.value||null),pv_statut:(document.getElementById('ged_edit_pvclos')?.checked?'clos':null)}:{}),
         statut:'classe'
       }).eq('id',id);
       if(error) throw error;
+      // Si la date d'intervention change et qu'une intervention est liée, elle suit
+      if(d.categorie==='devis_signe' && d.intervention_id){
+        const nd=document.getElementById('ged_edit_intdate')?.value||null;
+        if(nd && nd!==d.date_intervention_prevue){ try{ await sb.from('interventions').update({date_prevue:nd}).eq('id',d.intervention_id); }catch(_){} }
+      }
       closeModal(); toast('Document mis à jour','ok');
       const cont=document.getElementById('content'); if(cont) viewDocuments(cont);
     }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Enregistrer'; }
