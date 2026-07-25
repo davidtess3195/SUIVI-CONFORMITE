@@ -690,7 +690,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='650'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='651'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -805,6 +805,9 @@ function kpiCard(k){
 window.dashScrollPv=function(){
   const el=document.getElementById('dash-pv-section');
   if(!el){ navigate('/documents'); return; }
+  // Déplie l'accordéon s'il est replié
+  const b=document.getElementById('dash-pv-body'), ch=document.getElementById('dash-pv-chev');
+  if(b&&b.style.display==='none'){ window._dashPvOpen=true; b.style.display='block'; if(ch)ch.style.transform='rotate(90deg)'; }
   el.scrollIntoView({behavior:'smooth',block:'start'});
   el.style.transition='box-shadow .4s'; el.style.boxShadow='0 0 0 3px rgba(124,58,237,.45)';
   setTimeout(()=>{ el.style.boxShadow=''; },1600);
@@ -3413,12 +3416,14 @@ async function viewDashboard(c){
           <button class="btn sm primary" onclick="pvFromDevis('${d.id}')" title="Ouvrir le PV de réception pré-rempli depuis ce devis">Établir le PV</button>
         </td></tr>`;
     }).join('');
+    const pvOpen=(window._dashPvOpen!==false);
     const pvSection=devisEnCours.length?`<div class="card" id="dash-pv-section" style="overflow:hidden;margin-top:16px;scroll-margin-top:14px"><div class="card-pad" style="padding:0">
-      <div style="background:linear-gradient(135deg,#7c3aed,#7c3aedcc);color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div onclick="(function(){window._dashPvOpen=!(window._dashPvOpen!==false);const b=document.getElementById('dash-pv-body');const ch=document.getElementById('dash-pv-chev');if(b)b.style.display=(window._dashPvOpen!==false)?'block':'none';if(ch)ch.style.transform=(window._dashPvOpen!==false)?'rotate(90deg)':'rotate(0deg)'})()" title="Cliquer pour replier/déplier" style="background:linear-gradient(135deg,#7c3aed,#7c3aedcc);color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer;user-select:none">
+        <span id="dash-pv-chev" style="transition:transform .2s;transform:rotate(${pvOpen?'90':'0'}deg);font-size:18px;line-height:1">›</span>
         <h2 style="font-size:16px;margin:0;color:#fff">Réceptions de travaux à suivre</h2>
         <span style="margin-left:auto;background:rgba(255,255,255,.22);color:#fff;font-size:12px;font-weight:600;padding:2px 10px;border-radius:999px">${pvAEtablir.length} PV à établir · ${devisEnCours.length} devis signé(s) en cours</span>
       </div>
-      <div style="padding:12px"><div class="tbl-wrap" style="border:none;box-shadow:none;border-radius:0"><table class="tbl"><tbody>${pvRows}</tbody></table></div></div>
+      <div id="dash-pv-body" style="display:${pvOpen?'block':'none'};padding:12px"><div class="tbl-wrap" style="border:none;box-shadow:none;border-radius:0"><table class="tbl"><tbody>${pvRows}</tbody></table></div></div>
     </div></div>`:'';
 
     const verifSection = verifUrgents.length ? `<div class="card" style="overflow:hidden;margin-top:16px"><div class="card-pad" style="padding:0">
