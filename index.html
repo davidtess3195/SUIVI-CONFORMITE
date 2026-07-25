@@ -690,7 +690,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='648'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='649'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -796,10 +796,19 @@ function fmtBytes(n){
 const KCOL={critique:{c:'#dc2626',s:'rgba(220,38,38,.13)'},majeur:{c:'#ea580c',s:'rgba(234,88,12,.13)'},moyen:{c:'#d97706',s:'rgba(217,119,6,.14)'},ok:{c:'#16a34a',s:'rgba(22,163,74,.13)'},conforme:{c:'#16a34a',s:'rgba(22,163,74,.13)'},inter:{c:'#2563eb',s:'rgba(37,99,235,.13)'},info:{c:'#2563eb',s:'rgba(37,99,235,.13)'}};
 function kpiCard(k){
   const m={c:'#16a34a',s:'rgba(22,163,74,.13)'}; const route=k[5];
-  return `<div class="kpi" style="--c:${m.c}"${route?` onclick="navigate('${route}')"`:''}>
+  const click=route?(String(route).startsWith('js:')?` onclick="${route.slice(3)}"`:` onclick="navigate('${route}')"`):'';
+  return `<div class="kpi" style="--c:${m.c}"${click}>
     <div class="body"><div class="val">${k[1]}</div><div class="lab">${esc(k[0])}</div><div class="hint">${esc(k[3]||'')}</div></div>
   </div>`;
 }
+/* Défilement vers la section Réceptions de travaux du tableau de bord, avec halo */
+window.dashScrollPv=function(){
+  const el=document.getElementById('dash-pv-section');
+  if(!el){ navigate('/documents'); return; }
+  el.scrollIntoView({behavior:'smooth',block:'start'});
+  el.style.transition='box-shadow .4s'; el.style.boxShadow='0 0 0 3px rgba(124,58,237,.45)';
+  setTimeout(()=>{ el.style.boxShadow=''; },1600);
+};
 
 function toast(msg,type=''){
   const t=document.createElement('div'); t.className='toast '+type;
@@ -3364,8 +3373,8 @@ async function viewDashboard(c){
       ['Réserves ouvertes',resOuv.length,'majeur','En cours de levée','📋','/reserves'],
       ['Photos urgentes',photoNT.length,'majeur','Alertes terrain à traiter','📷','/photos'],
       ['Actions relances',(aRepondre.length+sansRep.length),'critique','Réponses & sans réponse','🔧','/verifications'],
-      ['Devis signés en cours',devisEnCours.length,'moyen','En attente de réception','📝','/documents'],
-      ['PV à établir',pvAEtablir.length,pvRetard.length?'critique':'majeur','Travaux réalisés, PV attendu','🧾','/documents'],
+      ['Devis signés en cours',devisEnCours.length,'moyen','En attente de réception','📝','js:dashScrollPv()'],
+      ['PV à établir',pvAEtablir.length,pvRetard.length?'critique':'majeur','Travaux réalisés, PV attendu','🧾','js:dashScrollPv()'],
     ];
 
     const priorities = [
@@ -3401,7 +3410,7 @@ async function viewDashboard(c){
           <button class="btn sm primary" onclick="pvFromDevis('${d.id}')" title="Ouvrir le PV de réception pré-rempli depuis ce devis">🧾 Établir le PV</button>
         </td></tr>`;
     }).join('');
-    const pvSection=devisEnCours.length?`<div class="card" style="overflow:hidden;margin-top:16px"><div class="card-pad" style="padding:0">
+    const pvSection=devisEnCours.length?`<div class="card" id="dash-pv-section" style="overflow:hidden;margin-top:16px;scroll-margin-top:14px"><div class="card-pad" style="padding:0">
       <div style="background:linear-gradient(135deg,#7c3aed,#7c3aedcc);color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <h2 style="font-size:16px;margin:0;color:#fff">🧾 Réceptions de travaux à suivre</h2>
         <span style="margin-left:auto;background:rgba(255,255,255,.22);color:#fff;font-size:12px;font-weight:600;padding:2px 10px;border-radius:999px">${pvAEtablir.length} PV à établir · ${devisEnCours.length} devis signé(s) en cours</span>
