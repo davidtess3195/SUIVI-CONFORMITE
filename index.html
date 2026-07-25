@@ -690,7 +690,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='649'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='650'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -3338,7 +3338,7 @@ async function viewDashboard(c){
       sb.from('interventions').select('id,erp_id,code_int,objet,statut,date_prevue,type,domaine,nb_relances,reponse_a_traiter,prestataire_id'),
       sb.from('photos_urgentes').select('id,erp_id,niveau_urgence,statut,commentaire,created_at,localisation,traitement,traitement_date,photo_path'),
       sb.from('conversations').select('intervention_id').not('intervention_id','is',null),
-      sb.from('documents').select('id,erp_id,client_id,prestataire_id,nom_original,date_intervention_prevue,pv_statut,source_devis_id,categorie,date_document').in('categorie',['devis_signe','pv_reception']),
+      sb.from('documents').select('id,erp_id,client_id,prestataire_id,nom_original,fichier_path,date_intervention_prevue,pv_statut,source_devis_id,categorie,date_document').in('categorie',['devis_signe','pv_reception']),
       sb.from('prestataires').select('id,nom'),
     ]);
     window._convInterIds = new Set(((cv&&cv.data)||[]).map(x=>x.intervention_id).filter(Boolean));
@@ -3398,21 +3398,24 @@ async function viewDashboard(c){
     const pvRows=devisEnCours.slice().sort((a,b)=>String(a.date_intervention_prevue||'9999').localeCompare(String(b.date_intervention_prevue||'9999'))).map(d=>{
       const late=d.date_intervention_prevue&&d.date_intervention_prevue<today;
       const days=late?Math.floor((Date.now()-new Date(d.date_intervention_prevue).getTime())/864e5):0;
-      const st=!d.date_intervention_prevue?['📅 Date d\'intervention à renseigner','#64748b']
-        :(late?(days>7?['🔴 PV en retard de '+days+' j','#dc2626']:['🧾 Intervention passée — PV à établir','#d97706'])
+      const st=!d.date_intervention_prevue?['Date d\'intervention à renseigner','#64748b']
+        :(late?(days>7?['PV en retard de '+days+' j','#dc2626']:['Intervention passée — PV à établir','#d97706'])
         :['Intervention prévue le '+fmtDate(d.date_intervention_prevue),'#2563eb']);
+      const pJs=(d.fichier_path||'').replace(/'/g,"\\'");
+      const nJs=(d.nom_original||'Devis').replace(/'/g,'\\u2019');
       return `<tr style="${days>7?'background:linear-gradient(90deg,#fef2f2,#fff);border-left:4px solid #ef4444;':''}">
         <td><b style="font-size:13px">${esc((d.nom_original||'Devis').replace(/\.[a-zA-Z0-9]+$/,''))}</b>
           <div style="font-size:11.5px;color:var(--muted)">${esc(prestNom[d.prestataire_id]||'Prestataire non renseigné')}</div></td>
         <td><span style="color:${st[1]};font-weight:600;font-size:12.5px">${st[0]}</span></td>
         <td style="text-align:right;white-space:nowrap">
-          ${!d.date_intervention_prevue?`<button class="btn sm" onclick="gedEditDoc('${d.id}')" title="Renseigner la date d'intervention prévue">📅 Date</button> `:''}
-          <button class="btn sm primary" onclick="pvFromDevis('${d.id}')" title="Ouvrir le PV de réception pré-rempli depuis ce devis">🧾 Établir le PV</button>
+          ${d.fichier_path?`<button class="btn sm" onclick="previewDoc('${pJs}','${nJs}')" title="Ouvrir le devis signé">Visualiser</button> `:''}
+          ${!d.date_intervention_prevue?`<button class="btn sm" onclick="gedEditDoc('${d.id}')" title="Renseigner la date d'intervention prévue">Date</button> `:''}
+          <button class="btn sm primary" onclick="pvFromDevis('${d.id}')" title="Ouvrir le PV de réception pré-rempli depuis ce devis">Établir le PV</button>
         </td></tr>`;
     }).join('');
     const pvSection=devisEnCours.length?`<div class="card" id="dash-pv-section" style="overflow:hidden;margin-top:16px;scroll-margin-top:14px"><div class="card-pad" style="padding:0">
       <div style="background:linear-gradient(135deg,#7c3aed,#7c3aedcc);color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <h2 style="font-size:16px;margin:0;color:#fff">🧾 Réceptions de travaux à suivre</h2>
+        <h2 style="font-size:16px;margin:0;color:#fff">Réceptions de travaux à suivre</h2>
         <span style="margin-left:auto;background:rgba(255,255,255,.22);color:#fff;font-size:12px;font-weight:600;padding:2px 10px;border-radius:999px">${pvAEtablir.length} PV à établir · ${devisEnCours.length} devis signé(s) en cours</span>
       </div>
       <div style="padding:12px"><div class="tbl-wrap" style="border:none;box-shadow:none;border-radius:0"><table class="tbl"><tbody>${pvRows}</tbody></table></div></div>
