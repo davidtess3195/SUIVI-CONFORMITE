@@ -690,7 +690,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='653'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='655'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -1167,7 +1167,7 @@ async function afterLogin(){
 async function loadScope(){
   const { data:cl } = await sb.from('clients').select('id,code_client,raison_sociale,statut').order('raison_sociale');
   state.clients = cl||[];
-  const { data:er } = await sb.from('erps').select('id,code_erp,nom,client_id,statut,qr_token,adresse,ville,code_postal').order('nom');
+  const { data:er } = await sb.from('erps').select('id,code_erp,nom,client_id,statut,qr_token,adresse,ville,code_postal,assurance').order('nom');
   state.erps = er||[];
 }
 
@@ -4193,7 +4193,7 @@ async function viewClient(c,id){
       <div id="client-users" style="margin-bottom:24px">${loadingBlock()}</div>
       <h2 style="font-size:16px;margin-bottom:12px">Établissements (ERP)</h2>
       ${erps.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Code</th><th>Nom</th><th>Type</th><th>Statut</th></tr></thead><tbody>
-        ${erps.map(e=>`<tr onclick="navigate('/erps/${e.id}')"><td class="mono">${esc(e.code_erp)}</td><td><b>${esc(e.nom)}</b></td><td>—</td>
+        ${erps.map(e=>`<tr onclick="navigate('/erps/${e.id}')"><td class="mono">${esc(e.code_erp)}</td><td><b>${esc(e.nom)}</b>${(()=>{const s=assurEtat(e.assurance);return s&&s.days<=60?` <span title="${s.txt}" style="display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:1px;background:${s.days<0?'var(--majeur)':'var(--moyen)'}"></span>`:'';})()}</td><td>—</td>
           <td>${statusPill(e.statut,{validee:['','Validée','ok'],brouillon:['','Brouillon','inf'],a_completer:['','À compléter','moy'],archive:['','Archivé','inf']})}</td></tr>`).join('')}
         </tbody></table></div>`:emptyBlock(I.erp,'Aucun ERP','Ajoutez le premier établissement de ce client.',`<button class="btn primary" onclick="formErp(null,'${id}')">${I.plus} Ajouter un ERP</button>`)}
       <h2 style="font-size:16px;margin:24px 0 4px">Dossier du client</h2>
@@ -4760,13 +4760,22 @@ async function viewErps(c){
   }
   const clientName=id=>state.clients.find(x=>x.id===id)?.raison_sociale||'';
   c.innerHTML+=`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Code</th><th>Nom</th><th>Client</th><th>Statut</th><th></th></tr></thead><tbody>
-    ${erps.map(e=>`<tr onclick="navigate('/erps/${e.id}')"><td class="mono">${esc(e.code_erp)}</td><td><b>${esc(e.nom)}</b></td>
+    ${erps.map(e=>`<tr onclick="navigate('/erps/${e.id}')"><td class="mono">${esc(e.code_erp)}</td><td><b>${esc(e.nom)}</b>${(()=>{const s=assurEtat(e.assurance);return s&&s.days<=60?` <span title="${s.txt}" style="display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:1px;background:${s.days<0?'var(--majeur)':'var(--moyen)'}"></span>`:'';})()}</td>
       <td>${esc(clientName(e.client_id))}</td>
       <td>${statusPill(e.statut,{validee:['','Validée','ok'],brouillon:['','Brouillon','inf'],a_completer:['','À compléter','moy'],archive:['','Archivé','inf']})}</td>
       <td style="text-align:right"><button class="btn sm" onclick="event.stopPropagation();showQR('${e.qr_token}')">${I.qr} QR</button></td></tr>`).join('')}
     </tbody></table></div>`;
 }
 
+window.assurEtat=function(a){
+  if(!a||!a.echeance) return null;
+  const _t=new Date(); const today=new Date(_t.getFullYear(),_t.getMonth(),_t.getDate()).getTime();
+  const _e=a.echeance.split('-'); const ech=new Date(+_e[0],+_e[1]-1,+_e[2]).getTime();
+  const d=Math.round((ech-today)/864e5);
+  if(d<0) return {cls:'crit',txt:'Police échue depuis '+(-d)+' j',days:d};
+  if(d<=60) return {cls:'moy',txt:'Échéance dans '+d+' j',days:d};
+  return {cls:'ok',txt:'Police active · échéance '+fmtDate(a.echeance),days:d};
+};
 function formErp(er,clientId){
   const e=er||{}; const cid=clientId||e.client_id||state.currentClient!=='all'?state.currentClient:'';
   const clientOpts=state.clients.map(c=>`<option value="${c.id}"${(clientId||e.client_id)===c.id?' selected':''}>${esc(c.raison_sociale)}</option>`).join('');
@@ -4793,6 +4802,21 @@ function formErp(er,clientId){
     <div class="checkrow"><input type="checkbox" id="f_som"${e.locaux_sommeil?' checked':''}><label style="margin:0">Locaux à sommeil</label></div>
     <div class="checkrow"><input type="checkbox" id="f_eas"${e.eas?' checked':''}><label style="margin:0">EAS (Espace d'Attente Sécurisé)</label></div>
     <div class="fld"><label>Commentaire <span style="font-weight:400;color:var(--muted)">(apparaît sur la fiche d'identité)</span></label><textarea id="f_com_erp" placeholder="Remarques diverses…" style="min-height:70px">${esc(e.commentaire)}</textarea></div>
+    <div style="margin-top:12px;padding-top:14px;border-top:1px solid var(--line)">
+      <label style="font-weight:600;display:flex;align-items:center;gap:7px;margin-bottom:8px">🛡️ Assurance de l'établissement <span style="font-size:11px;font-weight:400;color:var(--muted)">(alimente le dossier sinistre)</span></label>
+      <div class="row2">
+        <div class="fld"><label>Compagnie</label><input id="f_ass_cie" value="${esc((e.assurance||{}).compagnie)}" placeholder="ex. XYZ Assurances IARD"></div>
+        <div class="fld"><label>N° de police</label><input id="f_ass_pol" value="${esc((e.assurance||{}).police)}" placeholder="ex. 784-556-XX"></div></div>
+      <div class="row2">
+        <div class="fld"><label>Nature du contrat</label><select id="f_ass_nat">
+          ${['','Multirisque établissement','RC exploitation','Dommages aux biens','Autre'].map(n=>`<option value="${n}"${(e.assurance||{}).nature===n?' selected':''}>${n||'—'}</option>`).join('')}
+        </select></div>
+        <div class="fld"><label>Échéance annuelle</label><input id="f_ass_ech" type="date" value="${esc((e.assurance||{}).echeance)}"></div></div>
+      <div class="row2">
+        <div class="fld"><label>Courtier / intermédiaire</label><input id="f_ass_cour" value="${esc((e.assurance||{}).courtier)}" placeholder="cabinet, interlocuteur"></div>
+        <div class="fld"><label>Contact courtier</label><input id="f_ass_courc" value="${esc((e.assurance||{}).courtier_contact)}" placeholder="téléphone · email"></div></div>
+      <div class="fld"><label>Garanties concernées</label><input id="f_ass_gar" value="${esc((e.assurance||{}).garanties)}" placeholder="ex. incendie · dommages aux biens · pertes d'exploitation"></div>
+    </div>
     <div class="fld" style="margin-top:12px;padding-top:14px;border-top:1px solid var(--line)">
       <label style="display:flex;align-items:center;gap:6px">Contacts de notification <span style="font-size:11px;font-weight:400;color:var(--muted)">(reçoivent les alertes arrivée / départ)</span></label>
       <div id="f_notif_contacts_list" style="margin-top:8px;display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--surface-2)">
@@ -4841,6 +4865,10 @@ function formErp(er,clientId){
       effectif_salarie:$('#f_efs').value?parseInt($('#f_efs').value):null,
       activite:$('#f_act').value.trim()||null,
       locaux_sommeil:$('#f_som').checked, eas:$('#f_eas').checked,
+      assurance:{compagnie:$('#f_ass_cie').value.trim()||null,police:$('#f_ass_pol').value.trim()||null,
+        nature:$('#f_ass_nat').value||null,echeance:$('#f_ass_ech').value||null,
+        courtier:$('#f_ass_cour').value.trim()||null,courtier_contact:$('#f_ass_courc').value.trim()||null,
+        garanties:$('#f_ass_gar').value.trim()||null},
       commentaire:$('#f_com_erp').value.trim()||null,
       notif_contact_ids:[...document.querySelectorAll('input[name="f_notif_cb"]:checked')].map(cb=>cb.value)};
     try{ if(er){ delete payload.client_id; await sb.from('erps').update(payload).eq('id',er.id);}else{await sb.from('erps').insert(payload);}
@@ -5058,6 +5086,20 @@ function renderErpTab(tab,d){
       <div class="it"><div class="k">Vérifications</div><div class="v">${d.ob.length}</div></div>
       <div class="it"><div class="k">Réserves ouvertes</div><div class="v">${d.re.filter(r=>!['cloturee','levee','rejetee'].includes(r.statut)).length}</div></div>
     </div>
+    ${(()=>{ const a=e.assurance||{}; const has=a.compagnie||a.police||a.echeance;
+      const st=assurEtat(a);
+      return `<div class="card" style="margin-top:14px;padding:12px 16px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <h3 style="margin:0;font-size:14px;font-weight:600">🛡️ Assurance de l'établissement</h3>
+          ${st?statusPill(st.cls,{crit:['',st.txt,'crit'],moy:['',st.txt,'moy'],ok:['',st.txt,'ok']}):''}
+          <button class="btn sm" style="margin-left:auto" onclick='formErp(${JSON.stringify(e).replace(/'/g,"&#39;")})'>${has?'Modifier':'Renseigner'}</button>
+        </div>
+        ${has?`<div style="font-size:12.5px;color:var(--muted);margin-top:7px;line-height:1.7">
+          ${a.compagnie?`<b style="color:var(--ink)">${esc(a.compagnie)}</b>`:''}${a.police?' · police n° '+esc(a.police):''}${a.nature?' · '+esc(a.nature):''}
+          ${a.courtier?`<br>Courtier : ${esc(a.courtier)}${a.courtier_contact?' — '+esc(a.courtier_contact):''}`:''}
+          ${a.garanties?`<br>Garanties : ${esc(a.garanties)}`:''}
+        </div>`:`<div style="font-size:12.5px;color:var(--muted-2);margin-top:6px">Compagnie, n° de police, courtier et échéance — indispensables au dossier sinistre.</div>`}
+      </div>`;})()}
     <div class="card" style="margin-top:18px;padding:0;overflow:hidden">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line,#e2e8f0)">
         <h3 style="margin:0;font-size:14px;font-weight:600">⚖️ Commission de sécurité</h3>
@@ -8971,7 +9013,10 @@ function formDoc(prefiles){
           }
         }
       }
-      _modalDirty=false; closeModal(); toast(list.length>1?`${list.length} documents déposés`:'Document déposé','ok'); renderRoute();
+      _modalDirty=false; closeModal();
+      const catT=catFromType(type);
+      toast((list.length>1?`${list.length} documents déposés`:'Document déposé')+(catT==='devis_signe'?' · dossier ouvert dans Travaux':(catT==='devis'?' · visible dans Travaux (Préparation)':''))+'','ok');
+      renderRoute();
     }catch(e){ toast(e.message,'err'); btn.disabled=false; btn.textContent='Déposer'; }
   };
 }
@@ -9152,6 +9197,7 @@ function gedRenderList(){
             ${(((d.tags||'').indexOf('cat:mail')>=0)||(!d.fichier_path&&d.email_corps))?`<button class="btn sm" onclick="gedViewMail('${d.id}')">Visualiser</button>`:`<button class="btn sm" onclick="previewDoc('${pathJs}','${nmJs}','${bk}')">Visualiser</button>`}
             ${(d.fichier_path&&/\.pdf$/i.test(d.nom_original||d.fichier_path||'')&&['Rapport','Bureau de contrôle',"Bon d'intervention",'PV commission'].includes(d.type))?`<button class="btn sm" title="Analyser ce rapport et préparer le tableau de levées de réserves" onclick="gedExtractRes('${d.id}')">Extraire réserves</button>`:''}
             ${['devis','devis_signe'].includes(dcat)||['devis','devis signé','devis signe'].includes((d.type||'').toLowerCase())?`<button class="btn sm" title="Générer un PV de réception de travaux à partir de ce devis" onclick="pvFromDevis('${d.id}')">PV réception</button>`:''}
+            ${['devis','devis_signe'].includes(dcat)?`<button class="btn sm" title="Ouvrir ce dossier dans le suivi Travaux" onclick="txGoto('${d.id}')">🧰 Travaux</button>`:''}
             ${dcat==='devis'&&(d.type||'').toLowerCase()==='devis'?`<button class="btn sm" title="Déposer la copie signée scannée de ce devis" onclick="devisUploadSigned('${d.id}')">📎 Déposer le signé</button>`:''}
             ${dcat==='pv_reception'&&(d.tags||'').indexOf('signe')<0?`<button class="btn sm" title="Déposer la copie signée scannée de ce PV" onclick="pvUploadSigned('${d.id}')">PV signé</button>`:''}
             <button class="btn sm" title="Renommer / classer" onclick="gedEditDoc('${d.id}')" style="${d.statut==='classe'?'color:#16a34a;border-color:#16a34a66;font-weight:600':'color:#d97706;border-color:#d9770666;font-weight:600'}">${d.statut==='classe'?'Classé':'À classer'}</button>
@@ -12663,8 +12709,8 @@ async function devisUploadSigned(docId){
           }catch(e2){ toast('Intervention : '+(e2.message||e2),'err'); }
         }
         closeModal();
-        toast('Devis signé archivé'+(wantInter?' · intervention planifiée le '+fmtDate(date_intervention_prevue):(date_intervention_prevue?' · suivi PV actif':''))+' ✓','ok');
-        const c=document.getElementById('content'); if(c && location.hash.indexOf('documents')>=0) viewDocuments(c);
+        toast('Devis signé archivé'+(wantInter?' · intervention planifiée '+(date_intervention_fin&&date_intervention_fin!==date_intervention_prevue?'du '+fmtDate(date_intervention_prevue)+' au '+fmtDate(date_intervention_fin):'le '+fmtDate(date_intervention_prevue)):(date_intervention_prevue?' · suivi PV actif':''))+' · visible dans Travaux ✓','ok');
+        renderRoute();
       }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Déposer'; }
     };
   };
@@ -12911,6 +12957,8 @@ window.viewTravaux=async function(c){
     const prest={}; ((pq&&pq.data)||[]).forEach(p=>prest[p.id]=p.nom);
     window._txData={docs,prest};
     txRender();
+    if(window._txOpenAfter){ const oid=window._txOpenAfter; window._txOpenAfter=null;
+      if(docs.find(x=>x.id===oid)) setTimeout(()=>txOpen(oid),80); }
   }catch(e){
     document.getElementById('tx-wrap').innerHTML=`<div class="tx-empty">Erreur de chargement : ${esc(e.message||e)}</div>`;
   }
@@ -13183,6 +13231,7 @@ window.txEcarter=async function(id){
     const c=document.getElementById('content'); if(c) viewTravaux(c);
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
 };
+window.txGoto=function(id){ window._txOpenAfter=id; navigate('/travaux'); };
 window.txRestaurer=async function(id){
   try{
     const {error}=await sb.from('documents').update({pv_statut:null}).eq('id',id);
