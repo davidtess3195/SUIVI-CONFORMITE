@@ -690,7 +690,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='655'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='656'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -5092,7 +5092,8 @@ function renderErpTab(tab,d){
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <h3 style="margin:0;font-size:14px;font-weight:600">🛡️ Assurance de l'établissement</h3>
           ${st?statusPill(st.cls,{crit:['',st.txt,'crit'],moy:['',st.txt,'moy'],ok:['',st.txt,'ok']}):''}
-          <button class="btn sm" style="margin-left:auto" onclick='formErp(${JSON.stringify(e).replace(/'/g,"&#39;")})'>${has?'Modifier':'Renseigner'}</button>
+          <button class="btn sm" style="margin-left:auto" onclick="sinOpen(null,'${e.id}')" title="Générer un dossier sinistre pour l'assureur">⚠️ Dossier sinistre</button>
+          <button class="btn sm" onclick='formErp(${JSON.stringify(e).replace(/'/g,"&#39;")})'>${has?'Modifier':'Renseigner'}</button>
         </div>
         ${has?`<div style="font-size:12.5px;color:var(--muted);margin-top:7px;line-height:1.7">
           ${a.compagnie?`<b style="color:var(--ink)">${esc(a.compagnie)}</b>`:''}${a.police?' · police n° '+esc(a.police):''}${a.nature?' · '+esc(a.nature):''}
@@ -13172,6 +13173,7 @@ window.txOpen=function(id){
     if(st.etat!=='sansdate'&&st.etat!=='reporte') foot.push(`<button class="btn" onclick="txReport('${d.id}')">Reporter</button>`);
     foot.push(`<button class="btn primary" onclick="txClose();gedEditDoc('${d.id}')">${st.etat==='sansdate'||st.etat==='reporte'?'Renseigner les dates':'Modifier les dates'}</button>`);
   }
+  if(!isPrep) foot.unshift(`<button class="btn ghost" title="Générer un dossier sinistre pour l'assureur" onclick="sinOpen('${d.id}')">⚠️ Sinistre</button>`);
   document.getElementById('tx-foot').innerHTML=foot.join('');
   document.getElementById('tx-ov').classList.add('on');
   document.getElementById('tx-dr').classList.add('on');
@@ -13232,6 +13234,308 @@ window.txEcarter=async function(id){
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
 };
 window.txGoto=function(id){ window._txOpenAfter=id; navigate('/travaux'); };
+
+/* =====================================================================
+   DOSSIER SINISTRE — générateur au gabarit figé
+   Émis par l'exploitant à son assureur. Deux entrées : panneau Travaux
+   (dossier pré-résolu) et fiche ERP (choix du dossier). Assistant en
+   sélecteurs, sortie imprimable fidèle au gabarit (4 sections + annexe).
+===================================================================== */
+window._sinCtx=null;
+
+window.sinOpen=async function(docId,erpId){
+  try{
+    // ── charger le contexte ──
+    let doc=null;
+    if(docId){
+      const r=await sb.from('documents').select('*').eq('id',docId).maybeSingle(); doc=r.data;
+      if(doc) erpId=doc.erp_id||erpId;
+    }
+    const erp=erpId?(await sb.from('erps').select('*').eq('id',erpId).maybeSingle()).data:null;
+    if(!erp){ toast('ERP introuvable pour ce dossier','err'); return; }
+    const client=(state.clients||[]).find(c=>c.id===erp.client_id)||{};
+    // dossiers signés de l'ERP (pour l'entrée fiche ERP)
+    const dsq=await sb.from('documents').select('id,nom_original,date_document,date_intervention_prevue,date_intervention_fin,dates_historique,prestataire_id,source_devis_id,created_at').eq('erp_id',erp.id).eq('categorie','devis_signe').order('created_at',{ascending:false});
+    const signes=dsq.data||[];
+    if(!doc&&signes.length===1) doc=null; // le choix reste à l'utilisateur
+    // photos de l'ERP (traitées ou non, avec fichier)
+    let photos=[];
+    try{ const pq=await sb.from('photos_urgentes').select('id,photo_path,commentaire,localisation,date_photo,created_at,mission').eq('erp_id',erp.id).not('photo_path','is',null).order('created_at',{ascending:false}).limit(12); photos=(pq.data||[]).filter(p=>!isVideoPath||!isVideoPath(p.photo_path)); }catch(_){}
+    window._sinCtx={doc,erp,client,signes,photos};
+
+    const dOpts=[`<option value="">— Sinistre sans dossier de travaux lié —</option>`]
+      .concat(signes.map(s=>`<option value="${s.id}"${doc&&doc.id===s.id?' selected':''}>${esc((s.nom_original||'Devis signé').replace(/\.[a-z0-9]+$/i,''))}${s.date_document?' · signé le '+fmtDate(s.date_document):''}</option>`)).join('');
+    const a=erp.assurance||{};
+    const phHtml=photos.length?photos.map(p=>`
+      <label style="display:flex;gap:9px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:6px 9px;cursor:pointer">
+        <input type="checkbox" class="sin_ph" value="${p.id}" style="accent-color:#2563eb">
+        <img src="${publicPhoto(p.photo_path)}" style="width:46px;height:34px;object-fit:cover;border-radius:6px" loading="lazy">
+        <span style="font-size:12px;line-height:1.3">${esc((p.commentaire||'Photo').slice(0,60))}<br><span style="color:var(--muted-2);font-size:10.5px">${fmtDate(p.date_photo||p.created_at)}${p.localisation?' · '+esc(p.localisation):''}</span></span>
+      </label>`).join('')
+      :'<div style="font-size:12px;color:var(--muted-2)">Aucune photo disponible pour cet ERP.</div>';
+
+    openModal(`<div class="modal-head"><h2>⚠️ Générer un dossier sinistre</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:12.5px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:8px 11px">
+        <b>${esc(erp.nom)}</b> — exploitant : ${esc(client.raison_sociale||'—')}<br>
+        <span style="color:var(--muted);font-size:11.5px">Le dossier est émis au nom de l'exploitant, à destination de son assureur. Toutes les dates proviennent de l'horodatage du système.</span></div>
+      <div class="row2">
+        <div class="fld" style="margin:0"><label>Date du sinistre <span class="req">*</span></label><input id="sin_date" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+        <div class="fld" style="margin:0"><label>Heure approximative</label><input id="sin_heure" type="time"></div></div>
+      <div class="row2">
+        <div class="fld" style="margin:0"><label>Nature du sinistre</label><select id="sin_nature">
+          ${['Départ de feu','Incendie','Dégât des eaux','Dommage électrique','Autre'].map(n=>`<option>${n}</option>`).join('')}</select></div>
+        <div class="fld" style="margin:0"><label>Local / zone concernée</label><input id="sin_zone" placeholder="ex. local technique N-1"></div></div>
+      <div class="fld" style="margin:0"><label>Dossier de travaux concerné</label><select id="sin_doc">${dOpts}</select></div>
+      <div style="border-top:1px solid var(--line);padding-top:10px">
+        <label style="font-weight:600;font-size:12.5px">Références assureur <span style="color:var(--muted);font-weight:400;font-size:11px">— pré-remplies depuis la fiche assurance de l'ERP</span></label>
+        <div class="row2" style="margin-top:7px">
+          <div class="fld" style="margin:0"><label>Réf. sinistre assureur</label><input id="sin_ref" placeholder="attribuée à la déclaration"></div>
+          <div class="fld" style="margin:0"><label>Date de déclaration</label><input id="sin_decl" type="date"></div></div>
+        <div class="row2" style="margin-top:7px">
+          <div class="fld" style="margin:0"><label>Gestionnaire sinistre</label><input id="sin_gest" placeholder="nom · email"></div>
+          <div class="fld" style="margin:0"><label>Expert désigné · visite</label><input id="sin_exp" placeholder="cabinet, nom · date de visite"></div></div>
+        ${a.compagnie||a.police?`<div style="font-size:11.5px;color:var(--muted);margin-top:6px">Contrat : <b>${esc(a.compagnie||'—')}</b>${a.police?' · police n° '+esc(a.police):''}${a.echeance?' · échéance '+fmtDate(a.echeance):''}</div>`
+          :`<div style="font-size:11.5px;color:var(--moyen);margin-top:6px">⚠ Fiche assurance de l'ERP non renseignée — complétez-la dans la fiche ERP pour un dossier complet.</div>`}
+      </div>
+      <div style="border-top:1px solid var(--line);padding-top:10px">
+        <label style="font-weight:600;font-size:12.5px">Photos à joindre en annexe <span style="color:var(--muted);font-weight:400;font-size:11px">(module Photos &amp; vidéos, horodatées)</span></label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px;max-height:180px;overflow-y:auto">${phHtml}</div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" id="sin_go">Générer le dossier</button></div>`);
+    document.getElementById('sin_go').onclick=sinGenerate;
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+/* Construction des données (pur, testable) */
+window.sinBuild=function(ctx,form){
+  const {erp,client,signes,photos}=ctx;
+  const doc=form.docId?signes.find(s=>s.id===form.docId):null;
+  const prest=form.prest||null, origine=form.origine||null, pv=form.pv||null;
+  const a=erp.assurance||{}, pa=(prest&&prest.assurance)||{};
+  const periode=doc&&doc.date_intervention_prevue?(doc.date_intervention_fin&&doc.date_intervention_fin!==doc.date_intervention_prevue?('du '+fmtDate(doc.date_intervention_prevue)+' au '+fmtDate(doc.date_intervention_fin)):('le '+fmtDate(doc.date_intervention_prevue))):'';
+  // pièces
+  const pieces=[];
+  if(origine) pieces.push({label:'Devis d\'origine — '+(origine.nom_original||''),date:origine.date_document||origine.created_at,src:'GED'});
+  if(doc) pieces.push({label:'Devis signé — '+(doc.nom_original||''),date:doc.date_document||doc.created_at,src:'GED'});
+  if(pv) pieces.push({label:'PV de réception — '+(pv.nom_original||''),date:pv.date_document||pv.created_at,src:'GED'});
+  const phSel=photos.filter(p=>form.photoIds.includes(p.id));
+  phSel.forEach(p=>pieces.push({label:'Photo — '+((p.commentaire||'constat').slice(0,60)),date:p.date_photo||p.created_at,src:'photos',photo:p}));
+  // chronologie
+  const ev=[];
+  if(origine) ev.push({d:origine.date_document||origine.created_at,t:'Devis reçu et classé — '+(origine.nom_original||''),k:''});
+  if(doc){
+    ev.push({d:doc.date_document||doc.created_at,t:'Devis signé — engagement des travaux',k:'key'});
+    (Array.isArray(doc.dates_historique)?doc.dates_historique:[]).forEach(hh=>{
+      ev.push({d:hh.change_le||doc.date_document,t:'Report — dates du '+fmtDate(hh.du)+(hh.au&&hh.au!==hh.du?' au '+fmtDate(hh.au):'')+' annulées'+(hh.motif?' · '+hh.motif:''),k:''});
+    });
+    if(doc.date_intervention_prevue) ev.push({d:doc.date_intervention_prevue,t:'Travaux '+periode,k:''});
+  }
+  if(pv) ev.push({d:pv.date_document||pv.created_at,t:'PV de réception établi',k:'key'});
+  ev.push({d:form.dateSin,t:'Sinistre — '+form.nature+(form.zone?', '+form.zone:''),k:'bad'});
+  ev.sort((x,y)=>String(x.d).localeCompare(String(y.d)));
+  // verdicts
+  const verd=[];
+  if(pv) verd.push({cls:'ok',t:'Travaux réceptionnés',s:'PV établi le '+fmtDate(pv.date_document||pv.created_at)});
+  else if(doc&&doc.date_intervention_prevue&&(doc.date_intervention_fin||doc.date_intervention_prevue)<form.dateSin) verd.push({cls:'warn',t:'PV en cours d\'établissement',s:'travaux terminés '+periode});
+  else if(doc) verd.push({cls:'ok',t:'Travaux engagés',s:'devis signé'+(doc.date_document?' le '+fmtDate(doc.date_document):'')});
+  if(prest&&pa.validite_fin) verd.push({cls:pa.validite_fin>=form.dateSin?'ok':'warn',t:pa.validite_fin>=form.dateSin?'Entreprise assurée':'Attestation entreprise à vérifier',s:(pa.assureur||'')+' · valide jusqu\'au '+fmtDate(pa.validite_fin)});
+  if(a.echeance) verd.push({cls:a.echeance>=form.dateSin?'ok':'warn',t:a.echeance>=form.dateSin?'Police établissement active':'Police établissement échue',s:(a.compagnie||'')+' · échéance '+fmtDate(a.echeance)});
+  verd.push({cls:'ok',t:'Chronologie horodatée',s:pieces.length+' pièce'+(pieces.length>1?'s':'')+' jointe'+(pieces.length>1?'s':'')+' — aucune saisie rétroactive'});
+  return {doc,prest,origine,pv,pieces,ev,verd,periode,phSel};
+};
+
+window.sinGenerate=async function(){
+  const ctx=window._sinCtx; if(!ctx) return;
+  const g=id=>document.getElementById(id);
+  const btn=g('sin_go'); btn.disabled=true; btn.textContent='Génération…';
+  try{
+    const form={
+      docId:g('sin_doc').value||null,
+      dateSin:g('sin_date').value, heure:g('sin_heure').value,
+      nature:g('sin_nature').value, zone:g('sin_zone').value.trim(),
+      ref:g('sin_ref').value.trim(), decl:g('sin_decl').value,
+      gest:g('sin_gest').value.trim(), exp:g('sin_exp').value.trim(),
+      photoIds:[...document.querySelectorAll('.sin_ph:checked')].map(x=>x.value)
+    };
+    if(!form.dateSin){ toast('Renseignez la date du sinistre','err'); btn.disabled=false; btn.textContent='Générer le dossier'; return; }
+    // compléments : origine, PV, prestataire du dossier choisi
+    if(form.docId){
+      const dsel=ctx.signes.find(s=>s.id===form.docId);
+      if(dsel){
+        if(dsel.source_devis_id){ const r=await sb.from('documents').select('id,nom_original,date_document,created_at').eq('id',dsel.source_devis_id).maybeSingle(); form.origine=r.data; }
+        const rp=await sb.from('documents').select('id,nom_original,date_document,created_at').eq('categorie','pv_reception').or(`source_devis_id.eq.${dsel.id}${dsel.source_devis_id?',source_devis_id.eq.'+dsel.source_devis_id:''}`).limit(1); form.pv=(rp.data||[])[0]||null;
+        if(dsel.prestataire_id){ const rr=await sb.from('prestataires').select('*').eq('id',dsel.prestataire_id).maybeSingle(); form.prest=rr.data; }
+      }
+    }
+    const D=sinBuild(ctx,form);
+    const html=sinHtml(ctx,form,D);
+    const w=window.open('','_blank');
+    if(!w){ toast('Autorisez les fenêtres pop-up pour générer le dossier','err'); btn.disabled=false; btn.textContent='Générer le dossier'; return; }
+    w.document.write(html); w.document.close();
+    closeModal();
+    toast('Dossier sinistre généré — imprimez ou enregistrez en PDF','ok');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='Générer le dossier'; } }
+};
+
+/* Rendu HTML imprimable — fidèle au gabarit figé */
+window.sinHtml=function(ctx,form,D){
+  const {erp,client}=ctx; const a=erp.assurance||{};
+  const pa=(D.prest&&D.prest.assurance)||{};
+  const E=esc, F=fmtDate;
+  const ref='SIN-'+form.dateSin.replace(/-/g,'').slice(2)+'-'+String(erp.code_erp||'').replace(/[^A-Z0-9]/gi,'').slice(-4);
+  const titre=D.pv?'Le risque était traité : travaux réceptionnés'+((D.pv.date_document||'')>=form.dateSin?'':' avant le sinistre')+'.'
+    :D.doc?'Les travaux étaient engagés et suivis au jour du sinistre.'
+    :'Dossier justificatif des diligences de l\'exploitant.';
+  const cards=D.verd.map(v=>`<div class="v ${v.cls}"><span class="ic">${v.cls==='ok'?'✓':'!'}</span><b>${E(v.t)}</b><span>${E(v.s)}</span></div>`).join('');
+  const tl=D.ev.map(e2=>`<div class="ev ${e2.k}"><span class="dt">${F(e2.d)}</span><div class="t">${E(e2.t)}</div></div>`).join('');
+  const bordereau=D.pieces.map((p,i)=>`<div class="pi"><span class="no">P${i+1}</span><span>${E(p.label)}</span><span class="d">${F(p.date)} · ${p.src}</span></div>`).join('');
+  const nPh0=D.pieces.findIndex(p=>p.photo);
+  const annexe=D.phSel.length?`<div class="pgbrk"></div><div class="sec"><span class="n">05</span><b>Annexe photographique</b><span class="rule"></span></div>
+    <div class="phgrid">${D.phSel.map((p,i)=>`<div class="ph"><img src="${publicPhoto(p.photo_path)}"><div class="cap"><b>${E(p.commentaire||'Constat photographique')}</b>
+      <div class="meta"><span class="chip p">P${nPh0+1+i}</span> prise le ${F(p.date_photo||p.created_at)} · déposée le ${F(p.created_at)} (horodatage serveur)${p.localisation?' · '+E(p.localisation):''}</div></div></div>`).join('')}</div>
+    <div class="phnote">Chaque photographie est conservée en original avec son horodatage de dépôt ; les originaux haute définition sont communicables sur demande.</div>`:'';
+  const prestCard=D.prest?`<div class="idcard">
+    <div class="idhead"><b>${E(D.prest.nom)}</b><span class="lf">${E(pa.forme||'')}</span>${pa.validite_fin?`<span class="${pa.validite_fin>=form.dateSin?'ok':'warnb'}">${pa.validite_fin>=form.dateSin?'✓ Garanties valides au jour des travaux':'⚠ Validité attestation à vérifier'}</span>`:''}</div>
+    <div class="idgrid">
+      <div class="idsec">Identité légale</div>
+      ${D.prest.siret?`<div class="idrow"><span class="k">SIRET</span><span>${E(D.prest.siret)}</span></div>`:''}
+      ${D.prest.code_ape?`<div class="idrow"><span class="k">Code APE</span><span>${E(D.prest.code_ape)}</span></div>`:''}
+      ${D.prest.tva_intra?`<div class="idrow"><span class="k">TVA</span><span>${E(D.prest.tva_intra)}</span></div>`:''}
+      ${D.prest.adresse?`<div class="idrow"><span class="k">Siège</span><span>${E([D.prest.adresse,D.prest.code_postal,D.prest.ville].filter(Boolean).join(', '))}</span></div>`:''}
+      ${pa.representant?`<div class="idrow"><span class="k">Représentant</span><span>${E(pa.representant)}</span></div>`:''}
+      <div class="idsec">Assurances &amp; qualifications</div>
+      ${pa.assureur?`<div class="idrow"><span class="k">Assureur</span><span>${E(pa.assureur)}${pa.police?' · police n° '+E(pa.police):''}</span></div>`:''}
+      ${pa.validite_fin?`<div class="idrow"><span class="k">Validité</span><span>attestation valide jusqu'au <b>${F(pa.validite_fin)}</b></span></div>`:''}
+      ${pa.activites?`<div class="idrow"><span class="k">Activités</span><span>${E(pa.activites)}</span></div>`:''}
+      ${pa.qualifications?`<div class="idrow"><span class="k">Qualifications</span><span>${E(pa.qualifications)}</span></div>`:''}
+    </div></div>`:'';
+  const assCard=`<div class="idcard" style="margin-top:8px">
+    <div class="idhead"><b>Contrat d'assurance &amp; références du sinistre</b><span class="lf">fiche assurance de l'établissement</span>${a.echeance?`<span class="${a.echeance>=form.dateSin?'ok':'warnb'}">${a.echeance>=form.dateSin?'Police active au jour du sinistre':'⚠ Échéance antérieure au sinistre'}</span>`:''}</div>
+    <div class="idgrid">
+      <div class="idsec">Contrat</div>
+      ${a.compagnie?`<div class="idrow"><span class="k">Compagnie</span><span><b>${E(a.compagnie)}</b></span></div>`:''}
+      ${a.police?`<div class="idrow"><span class="k">Police n°</span><span>${E(a.police)}${a.nature?' · '+E(a.nature):''}</span></div>`:''}
+      ${a.courtier?`<div class="idrow"><span class="k">Intermédiaire</span><span>${E(a.courtier)}${a.courtier_contact?' — '+E(a.courtier_contact):''}</span></div>`:''}
+      ${a.echeance?`<div class="idrow"><span class="k">Échéance</span><span>${F(a.echeance)}${a.garanties?' · garanties '+E(a.garanties):''}</span></div>`:''}
+      <div class="idsec">Sinistre &amp; expertise</div>
+      <div class="idrow"><span class="k">Sinistre</span><span>${E(form.nature)} du ${F(form.dateSin)}${form.heure?' vers '+E(form.heure):''}${form.zone?' · '+E(form.zone):''}</span></div>
+      ${form.decl?`<div class="idrow"><span class="k">Déclaration</span><span>${F(form.decl)}${form.ref?' · réf. assureur : <b>'+E(form.ref)+'</b>':''}</span></div>`:(form.ref?`<div class="idrow"><span class="k">Réf. assureur</span><span><b>${E(form.ref)}</b></span></div>`:'')}
+      ${form.gest?`<div class="idrow"><span class="k">Gestionnaire</span><span>${E(form.gest)}</span></div>`:''}
+      ${form.exp?`<div class="idrow"><span class="k">Expert désigné</span><span>${E(form.exp)}</span></div>`:''}
+      <div class="idrow"><span class="k">Expert d'assuré</span><span class="warnv">à désigner le cas échéant (contre-expertise)</span></div>
+    </div></div>`;
+  return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Dossier sinistre ${E(ref)} — ${E(erp.nom)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#101828;--mut:#667085;--mut2:#98a2b3;--line:#e4e7ec;--navy:#0e1b2e;--green:#087443;--greenbg:#ecfdf3;--greenln:#abefc6;--red:#b42318;--redbg:#fef3f2;--amber:#b54708;--amberbg:#fffaeb;--amberln:#fedf89}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;color:var(--ink);font-size:10.5px;line-height:1.5;max-width:210mm;margin:0 auto;padding:10mm 14mm;background:#fff}
+.printbar{position:fixed;top:10px;right:10px;z-index:9}
+.printbar button{font-family:inherit;font-weight:700;font-size:13px;background:#2563eb;color:#fff;border:none;border-radius:10px;padding:10px 18px;cursor:pointer;box-shadow:0 6px 18px rgba(37,99,235,.4)}
+.top{display:flex;align-items:baseline;gap:12px;padding-bottom:9px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.brand{font-family:'Space Grotesk';font-weight:700;letter-spacing:.6px;font-size:11.5px;white-space:nowrap}
+.doctype{font-size:8.5px;font-weight:700;letter-spacing:1px;color:var(--mut);text-transform:uppercase;white-space:nowrap}
+.docid{margin-left:auto;font-size:9px;color:var(--mut2)}
+.addr{display:flex;gap:22px;border-bottom:1px solid var(--line);padding:6px 0 7px;font-size:9px;color:var(--mut);flex-wrap:wrap}
+h1{font-family:'Space Grotesk';font-size:18px;line-height:1.25;margin:13px 0 3px;letter-spacing:-.2px}
+.chapo{font-size:11px;color:var(--mut);max-width:160mm;margin-bottom:13px}
+.chapo b{color:var(--ink)}
+.verdict{display:grid;grid-template-columns:repeat(auto-fit,minmax(38mm,1fr));gap:8px;margin-bottom:15px}
+.v{border:1.5px solid var(--greenln);background:var(--greenbg);border-radius:10px;padding:9px 10px 8px}
+.v.warn{border-color:var(--amberln);background:var(--amberbg)}
+.v .ic{width:20px;height:20px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:800;margin-bottom:5px}
+.v.warn .ic{background:var(--amber)}
+.v b{display:block;font-size:10.5px;line-height:1.3;margin-bottom:2px}
+.v span{font-size:9px;color:var(--green);opacity:.9}
+.v.warn span{color:var(--amber)}
+.sec{display:flex;align-items:baseline;gap:9px;margin:15px 0 8px}
+.sec .n{font-family:'Space Grotesk';font-weight:700;font-size:16px;color:var(--mut2)}
+.sec b{font-family:'Space Grotesk';font-size:13px}
+.sec .rule{flex:1;height:1px;background:var(--line);align-self:center}
+.ctx{display:grid;grid-template-columns:1fr 1fr;gap:2px 26px;font-size:10px}
+.ctx .row{display:flex;gap:8px;padding:3.5px 0;border-bottom:1px solid #f2f4f7}
+.ctx .k{width:88px;flex:0 0 auto;color:var(--mut);font-size:9px;text-transform:uppercase;letter-spacing:.5px;font-weight:600;padding-top:1px}
+.tl{position:relative;margin-left:86px;border-left:2px solid var(--line);padding:2px 0}
+.ev{position:relative;padding:0 0 10px 18px}
+.ev::before{content:'';position:absolute;left:-6px;top:3px;width:10px;height:10px;border-radius:50%;background:#fff;border:2.5px solid var(--mut2)}
+.ev.key::before{border-color:var(--green);background:var(--green)}
+.ev.bad::before{border-color:var(--red);background:var(--red);box-shadow:0 0 0 3px var(--redbg)}
+.ev .dt{position:absolute;left:-86px;top:1px;width:64px;text-align:right;font-size:9.5px;font-weight:700;color:var(--mut)}
+.ev.key .dt{color:var(--ink)}.ev.bad .dt{color:var(--red)}
+.ev .t{font-size:10.5px;line-height:1.4}
+.ev.bad .t{color:var(--red);font-weight:600}
+.legend{font-size:8.5px;color:var(--mut2);margin-top:6px}
+.idcard{border:1px solid var(--line);border-radius:10px;overflow:hidden;page-break-inside:avoid;margin-top:2px}
+.idhead{background:#f8fafc;border-bottom:1px solid var(--line);padding:8px 12px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.idhead b{font-family:'Space Grotesk';font-size:12px}
+.idhead .lf{font-size:9px;color:var(--mut)}
+.idhead .ok{margin-left:auto;font-size:8.5px;font-weight:800;background:var(--greenbg);color:var(--green);border:1px solid var(--greenln);border-radius:5px;padding:1.5px 8px}
+.idhead .warnb{margin-left:auto;font-size:8.5px;font-weight:800;background:var(--amberbg);color:var(--amber);border:1px solid var(--amberln);border-radius:5px;padding:1.5px 8px}
+.idgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 22px;padding:7px 12px 9px}
+.idsec{grid-column:1/-1;font-size:8.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--mut2);font-weight:700;padding:6px 0 2px;border-bottom:1px solid #f2f4f7;margin-bottom:2px}
+.idrow{display:flex;gap:8px;padding:2.5px 0;font-size:9.5px}
+.idrow .k{width:86px;flex:0 0 auto;color:var(--mut);font-size:8.5px;font-weight:600;padding-top:1px}
+.idrow .warnv{color:var(--amber);font-weight:700}
+.chip{display:inline-block;font-size:8px;font-weight:700;border-radius:4px;padding:.5px 5px;vertical-align:1px;margin-left:4px}
+.chip.p{background:#eff4ff;color:#3538cd;border:1px solid #c7d7fe}
+.pieces{columns:2;column-gap:22px;font-size:9.5px}
+.pi{display:flex;gap:8px;padding:3.5px 0;border-bottom:1px solid #f2f4f7;break-inside:avoid}
+.pi .no{flex:0 0 auto;font-weight:800;font-size:8.5px;color:#3538cd;background:#eff4ff;border:1px solid #c7d7fe;border-radius:4px;padding:.5px 5px;height:fit-content}
+.pi .d{margin-left:auto;color:var(--mut2);font-size:8.5px;white-space:nowrap}
+.phgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ph{border:1px solid var(--line);border-radius:10px;overflow:hidden;page-break-inside:avoid}
+.ph img{display:block;width:100%;height:52mm;object-fit:cover}
+.ph .cap{padding:7px 10px 8px}
+.ph .cap b{font-size:10px;display:block;line-height:1.35}
+.ph .meta{font-size:8.5px;color:var(--mut2);margin-top:2px}
+.phnote{font-size:8.5px;color:var(--mut2);margin-top:7px}
+.att{border:1.5px solid var(--navy);border-radius:10px;padding:10px 13px;margin-top:11px;font-size:9.5px;page-break-inside:avoid}
+.att b.h{font-family:'Space Grotesk';font-size:11px;display:block;margin-bottom:3px}
+.sig{display:flex;gap:30px;margin-top:9px;font-size:9px;color:var(--mut)}
+.sig div{flex:1;border-top:1px dashed var(--line);padding-top:4px}
+.foot{margin-top:11px;display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:6px;font-size:8.5px;color:var(--mut2);gap:10px}
+.pgbrk{page-break-before:always;padding-top:5mm}
+@media print{.printbar{display:none}}
+</style></head><body>
+<div class="printbar"><button onclick="window.print()">🖨 Imprimer / Enregistrer en PDF</button></div>
+<div class="top"><span class="brand">${E((client.raison_sociale||'EXPLOITANT').toUpperCase())}</span>
+  <span class="doctype">Exploitant · ${E(erp.nom)}</span>
+  <span class="docid">${E(ref)} · établi le ${F(new Date().toISOString().slice(0,10))} · ${D.pieces.length} pièces · données horodatées</span></div>
+<div class="addr"><span><b style="color:var(--ink)">Document</b> · Dossier justificatif de diligences — transmis à l'assureur au titre du sinistre déclaré</span>
+  <span style="margin-left:auto;text-align:right"><b style="color:var(--ink)">À l'attention de</b> · ${E(a.compagnie||'l\'assureur de l\'établissement')}${a.police?' — police n° '+E(a.police):''}${form.ref?' · réf. '+E(form.ref):''}</span></div>
+<h1>${E(titre)}</h1>
+<div class="chapo">Sinistre du <b>${F(form.dateSin)}</b>${form.heure?' vers '+E(form.heure):''} (${E(form.nature.toLowerCase())}${form.zone?', '+E(form.zone):''}) — ${E(erp.nom)}${erp.ville?', '+E(erp.ville):''}.${D.doc?' Opération concernée : '+E((D.doc.nom_original||'').replace(/\.[a-z0-9]+$/i,''))+(D.prest?' · '+E(D.prest.nom):'')+'.':''} Le présent dossier, établi par nos soins en qualité d'exploitant, restitue nos diligences, pièces horodatées à l'appui.</div>
+<div class="verdict">${cards}</div>
+<div class="sec"><span class="n">01</span><b>Contexte</b><span class="rule"></span></div>
+<div class="ctx">
+  <div class="row"><span class="k">Établissement</span><span><b>${E(erp.nom)}</b>${erp.type_erp?' — type '+E(erp.type_erp):''}${erp.categorie?', '+E(String(erp.categorie))+'e cat.':''}</span></div>
+  <div class="row"><span class="k">Sinistre</span><span>${F(form.dateSin)}${form.heure?' ≈ '+E(form.heure):''}${form.zone?' · '+E(form.zone):''}</span></div>
+  <div class="row"><span class="k">Exploitant</span><span>${E(client.raison_sociale||'—')}</span></div>
+  ${a.police?`<div class="row"><span class="k">Police</span><span>n° ${E(a.police)}${form.decl?' · déclaration du '+F(form.decl):''}</span></div>`:''}
+  ${D.doc?`<div class="row"><span class="k">Travaux</span><span>${E((D.doc.nom_original||'').replace(/\.[a-z0-9]+$/i,''))}${D.periode?' · '+E(D.periode):''}</span></div>`:''}
+  ${D.prest?`<div class="row"><span class="k">Entreprise</span><span>${E(D.prest.nom)}${D.prest.siret?' · SIRET '+E(D.prest.siret):''}</span></div>`:''}
+  <div class="row"><span class="k">Conseil</span><span>PREVA CONSEILS — assistance réglementaire de l'exploitant</span></div>
+</div>
+<div class="sec"><span class="n">02</span><b>Chronologie des diligences</b><span class="rule"></span></div>
+<div class="tl">${tl}</div>
+<div class="legend">● vert = jalon décisif · ● rouge = sinistre · <span class="chip p">Pn</span> renvoi au bordereau. Dates issues de l'horodatage système — aucune saisie rétroactive.</div>
+<div class="pgbrk"></div>
+<div class="sec"><span class="n">03</span><b>Les parties${D.prest?' — entreprise intervenante · assureur':' — assureur'}</b><span class="rule"></span></div>
+${prestCard}${assCard}
+<div class="sec"><span class="n">04</span><b>Bordereau des pièces</b><span class="rule"></span></div>
+<div class="pieces">${bordereau||'<div style="color:var(--mut2)">Aucune pièce sélectionnée.</div>'}</div>
+${annexe}
+<div class="att"><b class="h">Attestation de l'exploitant</b>
+  Je soussigné(e), représentant de ${E(client.raison_sociale||'l\'exploitant')}, exploitant de l'établissement ${E(erp.nom)}, certifie que les pièces ${D.pieces.length?('P1'+(D.pieces.length>1?' à P'+D.pieces.length:'')):''} sont issues du système de suivi réglementaire de l'établissement (SUIVI-CONFORMITÉ), qu'elles y ont été enregistrées aux dates indiquées et qu'elles sont communiquées sans altération.
+  <div class="sig"><div>Fait à</div><div>Le</div><div>Signature et qualité</div></div></div>
+<div class="foot"><span>Établi par l'exploitant, avec l'assistance de PREVA CONSEILS · généré par SUIVI-CONFORMITÉ · ${E(ref)}</span><span>fin du dossier</span></div>
+</body></html>`;
+};
+
 window.txRestaurer=async function(id){
   try{
     const {error}=await sb.from('documents').update({pv_statut:null}).eq('id',id);
@@ -14699,6 +15003,24 @@ async function formPrest(p){
       </div>
     </div>
 
+    <div class="card" style="padding:14px 16px;margin-top:12px">
+      <label style="font-weight:600;display:flex;align-items:center;gap:7px;margin-bottom:8px">🛡️ Assurance &amp; qualifications
+        <span style="font-size:11px;font-weight:400;color:var(--muted)">(vérifiées avant travaux — alimentent le dossier sinistre)</span>
+        ${(()=>{const a=(p.assurance||{});const s=typeof assurEtat==='function'?assurEtat({echeance:a.validite_fin}):null;
+          return s?`<span class="pill ${s.cls==='crit'?'crit':s.cls==='moy'?'moy':'ok'}" style="margin-left:auto">${s.cls==='crit'?'Attestation échue':s.cls==='moy'?'Attestation expire dans '+s.days+' j':'Attestation valide'}</span>`:'';})()}
+      </label>
+      <div class="row2">
+        <div class="fld"><label>Forme juridique</label><input id="f_ass_forme" value="${esc((p.assurance||{}).forme||'')}" placeholder="ex. SASU au capital de 50 000 €"></div>
+        <div class="fld"><label>Représentant légal</label><input id="f_ass_rep" value="${esc((p.assurance||{}).representant||'')}" placeholder="ex. M. L. Fontaine, Président"></div></div>
+      <div class="row2">
+        <div class="fld"><label>Assureur (RC Pro / décennale)</label><input id="f_ass_assureur" value="${esc((p.assurance||{}).assureur||'')}" placeholder="ex. AXA France IARD"></div>
+        <div class="fld"><label>N° de police</label><input id="f_ass_police" value="${esc((p.assurance||{}).police||'')}"></div></div>
+      <div class="row2">
+        <div class="fld"><label>Attestation valide jusqu'au</label><input id="f_ass_valfin" type="date" value="${esc((p.assurance||{}).validite_fin||'')}"></div>
+        <div class="fld"><label>Activités couvertes</label><input id="f_ass_act" value="${esc((p.assurance||{}).activites||'')}" placeholder="ex. désenfumage, SSI, électricité"></div></div>
+      <div class="fld" style="margin-bottom:0"><label>Qualifications / habilitations</label><input id="f_ass_qual" value="${esc((p.assurance||{}).qualifications||'')}" placeholder="ex. APSAD · habilitations B2V/BR"></div>
+    </div>
+
     <div class="fld"><label>Clients rattachés <span style="color:var(--muted-2);font-weight:400;font-size:11px">(laisser vide = commun à tous)</span></label>
       <div id="f_pclient_list" style="display:flex;flex-direction:column;gap:6px;margin-top:6px;max-height:200px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface-2)">
         ${(()=>{ const sel=Array.isArray(p.client_ids)&&p.client_ids.length?p.client_ids:(p.client_id?[p.client_id]:[]); return state.clients.map(cl=>`<label style="display:flex;align-items:center;gap:9px;font-size:13px;cursor:pointer;padding:3px 0"><input type="checkbox" name="f_pclient_cb" value="${cl.id}"${sel.includes(cl.id)?' checked':''} style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer;flex:0 0 auto"> ${esc(cl.raison_sociale)}</label>`).join(''); })()}
@@ -14942,6 +15264,10 @@ async function formPrest(p){
       code_ape:$('#f_ape')?.value.trim()||null,
       tva_intra:$('#f_tva')?.value.trim()||null,
       contacts: Object.keys(contacts).length ? contacts : null,
+      assurance:{forme:$('#f_ass_forme')?.value.trim()||null,representant:$('#f_ass_rep')?.value.trim()||null,
+        assureur:$('#f_ass_assureur')?.value.trim()||null,police:$('#f_ass_police')?.value.trim()||null,
+        validite_fin:$('#f_ass_valfin')?.value||null,activites:$('#f_ass_act')?.value.trim()||null,
+        qualifications:$('#f_ass_qual')?.value.trim()||null},
       has_contrat: document.querySelector('input[name="rb_contrat"]:checked')?.value==='oui'||false,
       has_avenant: document.querySelector('input[name="rb_avenant"]:checked')?.value==='oui'||false,
     };
