@@ -690,7 +690,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='651'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='653'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -1213,6 +1213,7 @@ function renderRoute(){
   if(base==='/preparation-cs') return viewPreparationCS(content);
   if(base==='/prestataires') return viewPrestataires(content);
   if(base==='/parametres') return viewParametres(content);
+  if(base==='/travaux') return viewTravaux(content);
   if(base==='/verifications') return viewVerifications(content);
   if(base==='/admin') return viewAdmin(content);
   viewDashboard(content);
@@ -2997,13 +2998,14 @@ const NI={
  hist:NICON('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
  keyl:NICON('<rect x="3" y="10" width="18" height="11" rx="2"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/><path d="M12 15v2"/>'),
  gear:NICON('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/>'),
+ trvx:NICON('<path d="M2 18h20"/><path d="M4 18v-3a8 8 0 0 1 5-7.4"/><path d="M20 18v-3a8 8 0 0 0-5-7.4"/><path d="M10 5a2 2 0 0 1 4 0v6h-4z"/>'),
 };
 function getNAV(){ return [
   {link:['/','Tableau de bord',NI.dash]},
   {sec:'etab',   titre:'Établissement',          ic:NI.etab,      items:[['/clients','Clients',NI.clients],['/erps','ERP',NI.erp],['/plan-maintenance','Plan de maintenance',NI.plan]]},
   {sec:'sitdeg', titre:'Situation dégradée',     ic:NI.alert,     items:[['/photos','Photos et vidéos',NI.cam],['/compte-rendu','Compte rendu',NI.cr]]},
   {sec:'prest',  titre:'Suivi des prestataires', ic:NI.briefcase, items:[['/prestataires','Prestataires',NI.wrench],['/conversations','Conversations',NI.chat],['/pointage','Pointage & journal',NI.clock]]},
-  {sec:'suivi',  titre:'Suivi et conformité',    ic:NI.shield,    items:[['/interventions','Interventions',NI.tools],['/verifications','Vérifications & relances',NI.bell],['/reserves','Levées des réserves',NI.checks],['/tableaux-reserves','Tableaux de réserves',NI.tablo]]},
+  {sec:'suivi',  titre:'Suivi et conformité',    ic:NI.shield,    items:[['/interventions','Interventions',NI.tools],['/travaux','Travaux',NI.trvx],['/verifications','Vérifications & relances',NI.bell],['/reserves','Levées des réserves',NI.checks],['/tableaux-reserves','Tableaux de réserves',NI.tablo]]},
   {sec:'ged',    titre:'Gestion documentaire',   ic:NI.folderO,   items:[['/documents','Documents (GED)',NI.folder],['/rapports','Rapports reçus',NI.inbox],['/contrats','Contrats de maintenance',NI.contrat]]},
   {link:['/preparation-cs','Commission de sécurité',NI.landmark]},
   {sec:'admin',  titre:'Administration',         ic:NI.gear,      items: state.profile?.role==='admin' ? [['/admin','Tableau de bord admin',NI.gauge],['/parametres','Paramètres & email',NI.gear]] : [['/parametres','Paramètres & email',NI.gear]]},
@@ -3341,7 +3343,7 @@ async function viewDashboard(c){
       sb.from('interventions').select('id,erp_id,code_int,objet,statut,date_prevue,type,domaine,nb_relances,reponse_a_traiter,prestataire_id'),
       sb.from('photos_urgentes').select('id,erp_id,niveau_urgence,statut,commentaire,created_at,localisation,traitement,traitement_date,photo_path'),
       sb.from('conversations').select('intervention_id').not('intervention_id','is',null),
-      sb.from('documents').select('id,erp_id,client_id,prestataire_id,nom_original,fichier_path,date_intervention_prevue,pv_statut,source_devis_id,categorie,date_document').in('categorie',['devis_signe','pv_reception']),
+      sb.from('documents').select('id,erp_id,client_id,prestataire_id,nom_original,fichier_path,date_intervention_prevue,date_intervention_fin,pv_statut,source_devis_id,categorie,date_document').in('categorie',['devis_signe','pv_reception']),
       sb.from('prestataires').select('id,nom'),
     ]);
     window._convInterIds = new Set(((cv&&cv.data)||[]).map(x=>x.intervention_id).filter(Boolean));
@@ -3363,8 +3365,9 @@ async function viewDashboard(c){
     const allDg=(dg.data||[]);
     const pvDone=new Set(allDg.filter(d=>d.categorie==='pv_reception'&&d.source_devis_id).map(d=>d.source_devis_id));
     const devisEnCours=allDg.filter(d=>d.categorie==='devis_signe'&&d.pv_statut!=='clos'&&!pvDone.has(d.id)&&!(d.source_devis_id&&pvDone.has(d.source_devis_id))&&scopeDoc(d));
-    const pvAEtablir=devisEnCours.filter(d=>d.date_intervention_prevue&&d.date_intervention_prevue<today);
-    const pvRetard=pvAEtablir.filter(d=>(Date.now()-new Date(d.date_intervention_prevue).getTime())/864e5>7);
+    const trvEnd=d=>d.date_intervention_fin||d.date_intervention_prevue;
+    const pvAEtablir=devisEnCours.filter(d=>trvEnd(d)&&trvEnd(d)<today);
+    const pvRetard=pvAEtablir.filter(d=>(Date.now()-new Date(trvEnd(d)).getTime())/864e5>7);
     const prestNom={}; ((pn&&pn.data)||[]).forEach(p=>prestNom[p.id]=p.nom);
     const badge=$('#badge-photos'); if(badge){ if(photoNT.length){badge.style.display='grid';badge.textContent=photoNT.length;}else badge.style.display='none'; }
     const mobBadgePhotos=document.getElementById('mob-badge-photos'); if(mobBadgePhotos){mobBadgePhotos.textContent=photoNT.length;mobBadgePhotos.style.display=photoNT.length?'grid':'none';}
@@ -7662,15 +7665,37 @@ async function generateReportPDF(f){
     doc.text(polLines, M, y); y+=polLines.length*4.8+5;
   }
 
-  // Signature + cachet
-  doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(60);
-  doc.text("L'auteur du rapport,", rX, y, {align:'right'}); y+=2;
-  const _sigW=40, _sigH=_sigW*246/360, _cachW=26;
-  try{ if(window.SIGN_IMG) doc.addImage(SIGN_IMG,'PNG', rX-_sigW, y, _sigW, _sigH); }catch(e){}
-  try{ if(window.CACHET_IMG) doc.addImage(CACHET_IMG,'PNG', rX-_sigW-_cachW-8, y, _cachW, _cachW); }catch(e){}
-  y += Math.max(_sigH,_cachW) + 1.5;
-  if(f.redacteur){ doc.setFont('helvetica','bold'); doc.setTextColor(25); doc.text(f.redacteur, rX, y, {align:'right'}); }
-  y+=8;
+  // ── Bloc de clôture : « Fait à [ville ERP] », colonne signature, cachet apposé ──
+  {
+    // Garde-fou de bas de page : le bloc fait ~60 mm, on ne le coupe jamais
+    if(y+62>PH-18){ doc.addPage(); y=M; }
+    const ville=(f.erpId&&(state.erps.find(e=>e.id===f.erpId)?.ville||''))
+      ||((f.clientId&&Array.isArray(state.clients))?((state.clients.find(c=>c.id===f.clientId)||{}).ville||''):'')||'';
+    const auj=new Date().toLocaleDateString('fr-FR');
+    doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(60);
+    doc.text(ville?('Fait à '+ville+', le '+auj):('Fait le '+auj), rX, y, {align:'right'}); y+=5.5;
+    doc.text("L'auteur du rapport,", rX, y, {align:'right'}); y+=3;
+    const _sigW=40, _sigH=_sigW*246/360, _cachW=25;
+    try{ if(window.SIGN_IMG) doc.addImage(SIGN_IMG,'PNG', rX-_sigW, y, _sigW, _sigH); }catch(e){}
+    // Cachet apposé à cheval sur le bas de la signature : incliné (9°), semi-transparent
+    try{ if(window.CACHET_IMG){
+      let gs=null; try{ gs=new doc.GState({opacity:0.82}); doc.setGState(gs); }catch(_){}
+      doc.addImage(CACHET_IMG,'PNG', rX-_sigW-_cachW*0.35, y+_sigH-_cachW*0.7, _cachW, _cachW, undefined, 'FAST', 9);
+      try{ if(gs) doc.setGState(new doc.GState({opacity:1})); }catch(_){}
+    } }catch(e){}
+    y+=_sigH+(window.CACHET_IMG?_cachW*0.32:0)+3.5;
+    // Nom en forme administrative : « david lahouel » → « David LAHOUEL »
+    const nomProp=s=>{ s=String(s||'').trim(); if(!s) return '';
+      const p=s.split(/\s+/); if(p.length===1) return p[0].charAt(0).toUpperCase()+p[0].slice(1);
+      return p[0].charAt(0).toUpperCase()+p[0].slice(1).toLowerCase()+' '+p.slice(1).join(' ').toUpperCase(); };
+    if(f.redacteur){
+      doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(25);
+      doc.text(nomProp(f.redacteur), rX, y, {align:'right'}); y+=4.3;
+      doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(120);
+      doc.text('PREVA CONSEILS', rX, y, {align:'right'});
+    }
+    doc.setTextColor(20); y+=8;
+  }
 
   // Titre de l'annexe (seulement s'il y a des photos)
   if(photos.length){
@@ -8874,7 +8899,8 @@ function formDoc(prefiles){
     <div id="f_pvsuivi_zone" style="display:none;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface-2)">
       <div style="font-size:12.5px;font-weight:600;margin-bottom:8px">🧾 Suivi du PV de réception de travaux</div>
       <div class="row2">
-        <div class="fld" style="margin:0"><label>Date d'intervention prévue <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel — pilote le rappel PV)</span></label><input id="f_int_date" type="date"></div>
+        <div class="fld" style="margin:0"><label>Travaux du <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel — pilote le rappel PV)</span></label><input id="f_int_date" type="date"></div>
+        <div class="fld" style="margin:0"><label>au <span style="color:var(--muted-2);font-weight:400;font-size:11px">(vide = un seul jour)</span></label><input id="f_int_fin" type="date"></div>
         <div class="fld" style="margin:0;justify-content:flex-end;display:flex;flex-direction:column"><label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;margin:0;font-weight:500"><input type="checkbox" id="f_int_create" style="accent-color:#2563eb"> Créer l'intervention planifiée <span style="color:var(--muted-2);font-weight:400;font-size:11px">(nécessite date + ERP)</span></label></div>
       </div>
     </div>
@@ -8903,6 +8929,9 @@ function formDoc(prefiles){
     // Suivi PV de réception (devis signés uniquement)
     const isDevisSigne=catFromType(type)==='devis_signe';
     const date_intervention_prevue=isDevisSigne?(($('#f_int_date')?.value)||null):null;
+    let date_intervention_fin=isDevisSigne?(($('#f_int_fin')?.value)||null):null;
+    if(date_intervention_fin&&date_intervention_prevue&&date_intervention_fin<date_intervention_prevue){ toast('La date de fin est avant la date de début','err'); btn.disabled=false; btn.textContent='Déposer'; return; }
+    if(date_intervention_fin&&!date_intervention_prevue) date_intervention_fin=null;
     const wantInter=isDevisSigne&&date_intervention_prevue&&($('#f_int_create')?.checked);
     try{
       let i=0;
@@ -8923,7 +8952,7 @@ function formDoc(prefiles){
         const upName=(fileToUpload && fileToUpload.name) ? fileToUpload.name : file.name;
         const path=folder+'/'+Date.now()+'_'+upName.replace(/[^\w.\-]/g,'_');
         const {error:upErr}=await sb.storage.from('documents').upload(path,fileToUpload,{contentType:(fileToUpload&&fileToUpload.type)||undefined}); if(upErr)throw upErr;
-        const {data:newDoc,error:insErr}=await sb.from('documents').insert({erp_id,client_id,prestataire_id,type,categorie:catFromType(type),lot,date_document,avis,fichier_path:path,nom_original:file.name,...(isDevisSigne?{date_intervention_prevue}:{})}).select('id').single();
+        const {data:newDoc,error:insErr}=await sb.from('documents').insert({erp_id,client_id,prestataire_id,type,categorie:catFromType(type),lot,date_document,avis,fichier_path:path,nom_original:file.name,...(isDevisSigne?{date_intervention_prevue,date_intervention_fin}:{})}).select('id').single();
         if(insErr) throw insErr;
         if(wantInter && newDoc){
           if(!erp_id){ toast("Intervention non créée : un ERP est nécessaire pour la planifier",'err'); }
@@ -12590,7 +12619,8 @@ async function devisUploadSigned(docId){
       <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
         <div style="font-size:13px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:9px 11px">📄 <b>${esc(f.name)}</b><br>
           <span style="color:var(--muted);font-size:12px">Sera classé « ${esc((d.nom_original||'Devis').replace(/\.[a-zA-Z0-9]+$/,''))} - SIGNE », lié au devis d'origine, et suivi pour le PV de réception.</span></div>
-        <div class="fld" style="margin:0"><label>Date d'intervention prévue <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel — pilote le rappel PV)</span></label><input id="ds_int_date" type="date"></div>
+        <div class="row2"><div class="fld" style="margin:0"><label>Travaux du <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel — pilote le rappel PV)</span></label><input id="ds_int_date" type="date"></div>
+        <div class="fld" style="margin:0"><label>au <span style="color:var(--muted-2);font-weight:400;font-size:11px">(vide = un seul jour)</span></label><input id="ds_int_fin" type="date"></div></div>
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer${d.erp_id?'':';opacity:.55'}"><input type="checkbox" id="ds_int_create" ${d.erp_id?'':'disabled'} style="accent-color:#2563eb"> Créer l'intervention planifiée${d.erp_id?'':' <span style="font-size:11px;color:var(--muted)">(ERP non renseigné sur le devis)</span>'}</label>
       </div>
       <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
@@ -12598,6 +12628,9 @@ async function devisUploadSigned(docId){
     document.getElementById('ds_go').onclick=async()=>{
       const btn=document.getElementById('ds_go'); btn.disabled=true; btn.textContent='Envoi…';
       const date_intervention_prevue=document.getElementById('ds_int_date')?.value||null;
+      let date_intervention_fin=document.getElementById('ds_int_fin')?.value||null;
+      if(date_intervention_fin&&date_intervention_prevue&&date_intervention_fin<date_intervention_prevue){ toast('La date de fin est avant la date de début','err'); btn.disabled=false; btn.textContent='Déposer'; return; }
+      if(date_intervention_fin&&!date_intervention_prevue) date_intervention_fin=null;
       const wantInter=!!(date_intervention_prevue && document.getElementById('ds_int_create')?.checked && d.erp_id);
       try{
         let file=f;
@@ -12614,7 +12647,7 @@ async function devisUploadSigned(docId){
           type:'Devis signé', categorie:'devis_signe',
           nom_original:fname, fichier_path:path,
           date_document:new Date().toISOString().slice(0,10), statut:'classe',
-          source_devis_id:d.id, date_intervention_prevue,
+          source_devis_id:d.id, date_intervention_prevue, date_intervention_fin,
           tags:'source:scan;cat:devis_signe;signe;devis_origine:'+d.id
         }).select('id').single();
         if(ie) throw ie;
@@ -12672,7 +12705,8 @@ async function gedEditDoc(id){
       </div>
       <div class="row2">
         <div class="fld"><label>Lot</label><select id="ged_edit_lot_sel" onchange="gedEditLotChange()"><option value="">— aucun —</option><option value="__autre__">✏️ Autre (préciser)…</option></select><input id="ged_edit_lot" placeholder="Préciser le lot (SSI, Électricité…)" style="margin-top:6px;display:none"></div>
-        ${d.categorie==='devis_signe'?`<div class="fld"><label>Date d'intervention prévue <span style="color:var(--muted-2);font-weight:400;font-size:11px">(suivi PV)</span></label><input id="ged_edit_intdate" type="date" value="${d.date_intervention_prevue||''}">
+        ${d.categorie==='devis_signe'?`<div class="fld"><label>Travaux du <span style="color:var(--muted-2);font-weight:400;font-size:11px">(suivi PV)</span></label><input id="ged_edit_intdate" type="date" value="${d.date_intervention_prevue||''}">
+          <label style="margin-top:7px">au <span style="color:var(--muted-2);font-weight:400;font-size:11px">(vide = un seul jour)</span></label><input id="ged_edit_intfin" type="date" value="${d.date_intervention_fin||''}">
           <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;margin-top:7px;cursor:pointer"><input type="checkbox" id="ged_edit_pvclos" ${d.pv_statut==='clos'?'checked':''} style="accent-color:#2563eb"> Écarter du suivi PV de réception</label></div>`:`<div class="fld"></div>`}
       </div>
       ${d.email_corps?`<details style="border:1px solid var(--line);border-radius:10px;background:var(--surface-2);overflow:hidden">
@@ -12703,7 +12737,12 @@ async function gedEditDoc(id){
         prestataire_id:document.getElementById('ged_edit_prest').value||null,
         date_document:document.getElementById('ged_edit_date').value||null,
         lot:(()=>{const s=document.getElementById('ged_edit_lot_sel');const v=s?s.value:'';return (v&&v!=='__autre__')?(v||null):(((document.getElementById('ged_edit_lot')||{}).value||'').trim()||null);})(),
-        ...(d.categorie==='devis_signe'?{date_intervention_prevue:(document.getElementById('ged_edit_intdate')?.value||null),pv_statut:(document.getElementById('ged_edit_pvclos')?.checked?'clos':null)}:{}),
+        ...(d.categorie==='devis_signe'?(()=>{
+          const du=document.getElementById('ged_edit_intdate')?.value||null;
+          let au=document.getElementById('ged_edit_intfin')?.value||null;
+          if(au&&(!du||au<du)) au=null;
+          return {date_intervention_prevue:du,date_intervention_fin:au,pv_statut:(document.getElementById('ged_edit_pvclos')?.checked?'clos':null)};
+        })():{}),
         statut:'classe'
       }).eq('id',id);
       if(error) throw error;
@@ -12718,6 +12757,441 @@ async function gedEditDoc(id){
   };
 }
 window.gedEditDoc=gedEditDoc;
+
+/* =====================================================================
+   PAGE TRAVAUX — vue 3 phases (Préparation / Intervention / Réception)
+   Un dossier = un devis. Aucune table nouvelle : vue fédérant GED,
+   interventions et agenda. Panneau de détail au clic, report avec
+   historique, écarter, période du…au.
+===================================================================== */
+const TX_CSS=`
+.tx-brief{display:flex;gap:9px;flex-wrap:wrap;margin:2px 0 16px}
+.tx-chip{display:inline-flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:12.5px;font-weight:600;box-shadow:var(--sh)}
+.tx-chip .d{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.tx-chip.red{border-color:#fecaca;background:#fff5f5}
+.tx-board{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start}
+@media(max-width:1080px){.tx-board{grid-template-columns:1fr}}
+.tx-col{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r)}
+.tx-colh{padding:11px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px}
+.tx-colh .ph{width:25px;height:25px;border-radius:8px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:12.5px;font-family:var(--fd);flex:0 0 auto}
+.tx-c1 .ph{background:#475569}.tx-c2 .ph{background:var(--primary)}.tx-c3 .ph{background:#7c3aed}
+.tx-colh b{font-family:var(--fd);font-size:14px}
+.tx-colh .cnt{margin-left:auto;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:0 9px;font-size:12px;font-weight:700}
+.tx-colsub{font-size:10.5px;color:var(--muted-2);padding:5px 14px 2px}
+.tx-colbody{padding:9px}
+.tx-empty{border:1.5px dashed var(--line);border-radius:11px;padding:12px;font-size:12px;color:var(--muted-2);text-align:center}
+.tx-dc{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh);padding:11px 12px;margin-bottom:9px;cursor:pointer;transition:box-shadow .12s,transform .12s}
+.tx-dc:hover{box-shadow:0 4px 18px rgba(15,23,42,.12);transform:translateY(-1px)}
+.tx-dc.late{border-color:#fecaca;box-shadow:0 0 0 1px #fecaca,var(--sh)}
+.tx-top{display:flex;align-items:flex-start;gap:8px}
+.tx-name{font-weight:700;font-size:12.5px;line-height:1.35;overflow-wrap:anywhere}
+.tx-meta{font-size:11px;color:var(--muted);margin-top:1px}
+.tx-ball{margin-left:auto;font-size:10px;font-weight:700;border-radius:6px;padding:2.5px 8px;white-space:nowrap;flex:0 0 auto}
+.tx-ball.moi{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+.tx-ball.prest{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
+.tx-ball.att{background:#f1f5f9;color:#475569;border:1px solid var(--line)}
+.tx-ball.rep{background:#fffbeb;color:#b45309;border:1px solid #fde68a}
+.tx-state{margin:8px 0 0;font-size:12px;display:flex;align-items:flex-start;gap:7px}
+.tx-state .ic{width:8px;height:8px;border-radius:50%;flex:0 0 auto;margin-top:5px}
+.tx-g{background:var(--conforme)}.tx-o{background:var(--moyen)}.tx-r{background:var(--majeur)}.tx-b{background:var(--primary)}
+.tx-dead{font-size:10.5px;color:var(--muted);margin:2px 0 0 15px}
+.tx-dead.red{color:var(--majeur);font-weight:700}
+.tx-act{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+.tx-act .btn{padding:6px 10px;font-size:11.5px;border-radius:8px}
+.tx-mini{display:flex;align-items:center;gap:4px;margin-top:9px}
+.tx-m{height:4px;flex:1;border-radius:3px;background:var(--line)}
+.tx-m.on{background:var(--conforme)}.tx-m.now{background:var(--moyen)}.tx-m.rnow{background:var(--majeur)}
+.tx-minil{font-size:9.5px;color:var(--muted-2);margin-left:4px;white-space:nowrap}
+.tx-tabs{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap}
+.tx-tab{display:flex;align-items:center;gap:7px;padding:8px 15px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-weight:600;font-size:13px;color:var(--muted);box-shadow:var(--sh);cursor:pointer}
+.tx-tab .n{background:var(--line-2);border-radius:999px;padding:0 8px;font-size:11.5px;color:var(--ink)}
+.tx-tab.active{background:var(--primary);border-color:var(--primary);color:#fff}
+.tx-tab.active .n{background:rgba(255,255,255,.25);color:#fff}
+.tx-row{display:flex;align-items:center;gap:11px;padding:11px 14px;border-bottom:1px solid var(--line-2);flex-wrap:wrap}
+.tx-row:last-child{border-bottom:none}
+.tx-tick{width:22px;height:22px;border-radius:50%;background:var(--conforme);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:800;flex:0 0 auto}
+.tx-tick.gray{background:var(--muted-2)}
+/* panneau de détail */
+.tx-ov{position:fixed;inset:0;background:rgba(15,23,42,.42);opacity:0;pointer-events:none;transition:.2s;z-index:940}
+.tx-ov.on{opacity:1;pointer-events:auto}
+.tx-dr{position:fixed;top:0;right:-620px;width:600px;max-width:96vw;height:100dvh;background:var(--surface);box-shadow:-12px 0 40px rgba(15,23,42,.25);transition:right .22s ease;z-index:950;display:flex;flex-direction:column}
+.tx-dr.on{right:0}
+.tx-drh{padding:15px 18px 12px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:11px}
+.tx-drh h2{font-family:var(--fd);font-size:16px;line-height:1.3;overflow-wrap:anywhere}
+.tx-x{margin-left:auto;width:32px;height:32px;border-radius:9px;border:1px solid var(--line);display:grid;place-items:center;font-size:14px;color:var(--muted);flex:0 0 auto;cursor:pointer;background:var(--surface)}
+.tx-drb{flex:1;overflow-y:auto;padding:15px 18px 26px}
+.tx-sec{font-family:var(--fd);font-weight:700;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:17px 0 9px}
+.tx-drb .tx-sec:first-child{margin-top:0}
+.tx-steps{display:flex;align-items:flex-start;overflow-x:auto;padding:3px 0}
+.tx-step{flex:1;min-width:88px;position:relative;text-align:center}
+.tx-step::before{content:'';position:absolute;top:11px;left:-50%;width:100%;height:2.5px;background:var(--line)}
+.tx-step:first-child::before{display:none}
+.tx-step.done::before,.tx-step.cur::before{background:var(--conforme)}
+.tx-sdot{width:22px;height:22px;border-radius:50%;margin:0 auto;display:grid;place-items:center;font-size:11px;font-weight:800;background:var(--surface);border:2.5px solid var(--line);color:var(--muted-2);position:relative;z-index:1}
+.tx-step.done .tx-sdot{background:var(--conforme);border-color:var(--conforme);color:#fff}
+.tx-step.cur .tx-sdot{background:#fff;border-color:var(--moyen);color:var(--moyen);box-shadow:0 0 0 4px #fef3c7}
+.tx-step.cur.red .tx-sdot{border-color:var(--majeur);color:var(--majeur);box-shadow:0 0 0 4px #fee2e2}
+.tx-slab{font-size:10.5px;font-weight:600;margin-top:5px;color:var(--muted)}
+.tx-step.done .tx-slab,.tx-step.cur .tx-slab{color:var(--ink)}
+.tx-ssub{font-size:9.5px;color:var(--muted-2)}
+.tx-step.cur .tx-ssub{color:var(--moyen);font-weight:600}
+.tx-step.cur.red .tx-ssub{color:var(--majeur)}
+.tx-doc{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px;font-size:12px}
+.tx-doc .de{width:30px;height:30px;border-radius:8px;background:var(--line-2);display:grid;place-items:center;font-size:9px;font-weight:800;color:var(--muted);flex:0 0 auto}
+.tx-doc .nm{flex:1;overflow-wrap:anywhere}
+.tx-doc .btn{padding:5px 10px;font-size:11px;border-radius:8px;flex:0 0 auto}
+.tx-tl{border-left:2px solid var(--line);margin-left:8px;padding-left:15px}
+.tx-tli{position:relative;padding-bottom:11px;font-size:12px}
+.tx-tli::before{content:'';position:absolute;left:-20px;top:5px;width:8px;height:8px;border-radius:50%;background:var(--muted-2)}
+.tx-tli.hot::before{background:var(--moyen)}
+.tx-tli .d{color:var(--muted-2);font-size:10.5px}
+.tx-drf{border-top:1px solid var(--line);padding:11px 18px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.tx-drf .btn{font-size:12.5px}`;
+
+/* ── état & helpers ── */
+window._txTab='encours'; window._txData=null; window._txCurId=null;
+function txErp(id){ const e=(state.erps||[]).find(x=>x.id===id); return e?e.nom:''; }
+function txToday(){ return new Date().toISOString().slice(0,10); }
+function txDays(iso){ return Math.floor((Date.now()-new Date(iso).getTime())/864e5); }
+function txPeriode(d){
+  if(!d.date_intervention_prevue) return '';
+  if(d.date_intervention_fin && d.date_intervention_fin!==d.date_intervention_prevue)
+    return 'du '+fmtDate(d.date_intervention_prevue)+' au '+fmtDate(d.date_intervention_fin);
+  return 'le '+fmtDate(d.date_intervention_prevue);
+}
+function txFin(d){ return d.date_intervention_fin||d.date_intervention_prevue; }
+function txBase(n){ return (n||'Devis').replace(/\.[a-zA-Z0-9]+$/,''); }
+
+/* Classement d'un devis signé dans le pipeline */
+function txStatut(d,pvDone){
+  const today=txToday();
+  const done=pvDone.has(d.id)||(d.source_devis_id&&pvDone.has(d.source_devis_id));
+  if(done) return {phase:'fini'};
+  if(d.pv_statut==='clos') return {phase:'ecarte'};
+  const reporte=(Array.isArray(d.dates_historique)&&d.dates_historique.length>0&&!d.date_intervention_prevue);
+  if(reporte) return {phase:'inter',etat:'reporte'};
+  if(!d.date_intervention_prevue) return {phase:'inter',etat:'sansdate'};
+  const fin=txFin(d);
+  if(fin<today){
+    const days=txDays(fin);
+    return {phase:'recep',etat:days>7?'retard':'pv',days};
+  }
+  if(d.date_intervention_prevue<=today) return {phase:'inter',etat:'encours'};
+  return {phase:'inter',etat:'planifie'};
+}
+
+/* ── chargement ── */
+window.viewTravaux=async function(c){
+  document.title='Travaux — PREVA';
+  c.innerHTML=`<style>${TX_CSS}</style>
+    <div class="page-head"><div><h1>Travaux</h1>
+      <p class="sub">Chaque devis suivi de la signature jusqu'au PV de réception — les dates alimentent l'agenda, les pièces la GED.</p></div></div>
+    <div id="tx-wrap"><div style="text-align:center;color:var(--muted);padding:40px 0">Chargement…</div></div>
+    <div class="tx-ov" id="tx-ov" onclick="txClose()"></div>
+    <aside class="tx-dr" id="tx-dr" aria-label="Détail du dossier">
+      <div class="tx-drh"><div><h2 id="tx-t">—</h2><div class="tx-meta" id="tx-m">—</div></div>
+        <span class="tx-ball" id="tx-b" style="margin-left:auto;display:none"></span>
+        <button class="tx-x" onclick="txClose()" title="Fermer (Échap)">✕</button></div>
+      <div class="tx-drb" id="tx-body"></div>
+      <div class="tx-drf" id="tx-foot"></div>
+    </aside>`;
+  try{
+    const [dq,pq]=await Promise.all([
+      sb.from('documents').select('id,erp_id,client_id,prestataire_id,nom_original,fichier_path,type,categorie,lot,date_document,created_at,date_intervention_prevue,date_intervention_fin,pv_statut,source_devis_id,intervention_id,dates_historique').in('categorie',['devis','devis_signe','pv_reception']).order('created_at',{ascending:false}),
+      sb.from('prestataires').select('id,nom,categorie')
+    ]);
+    if(dq.error) throw dq.error;
+    const erpIds=state.currentClient!=='all'?(state.erps||[]).filter(e=>e.client_id===state.currentClient).map(e=>e.id):[];
+    const scope=d=>{
+      if(state.currentErp!=='all') return d.erp_id===state.currentErp;
+      if(state.currentClient!=='all') return (d.erp_id&&erpIds.includes(d.erp_id))||d.client_id===state.currentClient;
+      return true;
+    };
+    const docs=(dq.data||[]).filter(scope);
+    const prest={}; ((pq&&pq.data)||[]).forEach(p=>prest[p.id]=p.nom);
+    window._txData={docs,prest};
+    txRender();
+  }catch(e){
+    document.getElementById('tx-wrap').innerHTML=`<div class="tx-empty">Erreur de chargement : ${esc(e.message||e)}</div>`;
+  }
+};
+
+/* ── rendu ── */
+window.txRender=function(){
+  const {docs,prest}=window._txData||{docs:[],prest:{}};
+  const wrap=document.getElementById('tx-wrap'); if(!wrap) return;
+  const today=txToday();
+  const signes=docs.filter(d=>d.categorie==='devis_signe');
+  const pvs=docs.filter(d=>d.categorie==='pv_reception');
+  const pvDone=new Set(pvs.filter(p=>p.source_devis_id).map(p=>p.source_devis_id));
+  const signedFrom=new Set(signes.map(s=>s.source_devis_id).filter(Boolean));
+
+  // Préparation : devis en attente de signature
+  const prep=docs.filter(d=>d.categorie==='devis'&&!signedFrom.has(d.id)&&d.pv_statut!=='clos');
+  // Dossiers signés classés
+  const cls=signes.map(d=>({d,s:txStatut(d,pvDone)}));
+  const inter=cls.filter(x=>x.s.phase==='inter');
+  const recep=cls.filter(x=>x.s.phase==='recep');
+  const finis=cls.filter(x=>x.s.phase==='fini');
+  const ecartes=cls.filter(x=>x.s.phase==='ecarte');
+
+  // Résumé « balle »
+  const nRetard=recep.filter(x=>x.s.etat==='retard').length + prep.filter(d=>txDays(d.date_document||d.created_at)>15).length;
+  const nMoi=inter.filter(x=>x.s.etat==='sansdate').length + recep.length;
+  const nAttente=prep.length + inter.filter(x=>['planifie','encours','reporte'].includes(x.s.etat)).length;
+  const semaine=inter.filter(x=>x.s.etat==='planifie'&&txDays(x.d.date_intervention_prevue)>=-7).length;
+
+  const pName=id=>prest[id]||'Prestataire non renseigné';
+  const meta=d=>`${esc(pName(d.prestataire_id))}${d.erp_id?' · '+esc(txErp(d.erp_id)):''}`;
+
+  const cardPrep=d=>{
+    const age=txDays(d.date_document||d.created_at);
+    const late=age>15;
+    return `<div class="tx-dc${late?' late':''}" onclick="txOpen('${d.id}')">
+      <div class="tx-top"><div><div class="tx-name">${esc(txBase(d.nom_original))}</div><div class="tx-meta">${meta(d)}</div></div>
+        <span class="tx-ball att">Attente client</span></div>
+      <div class="tx-state"><span class="ic tx-${late?'r':'b'}"></span><span>Devis ${d.date_document?'du '+fmtDate(d.date_document):'reçu'} — <b>sans signé depuis ${age} j</b></span></div>
+      ${late?'<div class="tx-dead red">relance client recommandée</div>':''}
+      <div class="tx-act"><button class="btn sm primary" onclick="event.stopPropagation();devisUploadSigned('${d.id}')">📎 Déposer le signé</button></div>
+      <div class="tx-mini"><span class="tx-m on"></span><span class="tx-m ${late?'rnow':'now'}"></span><span class="tx-m"></span><span class="tx-m"></span><span class="tx-m"></span><span class="tx-minil">signature</span></div>
+    </div>`;
+  };
+  const cardInter=x=>{
+    const d=x.d,e=x.s.etat;
+    let ball,st,dead='',mini,btns;
+    if(e==='sansdate'){ ball='<span class="tx-ball moi">Action : vous</span>';
+      st=`<span class="ic tx-o"></span><span>Signé${d.date_document?' le '+fmtDate(d.date_document):''} — <b>dates à renseigner</b></span>`;
+      mini='<span class="tx-m on"></span><span class="tx-m on"></span><span class="tx-m now"></span><span class="tx-m"></span><span class="tx-m"></span><span class="tx-minil">dates</span>';
+      btns=`<button class="btn sm primary" onclick="event.stopPropagation();gedEditDoc('${d.id}')">Renseigner les dates</button>`;
+    }else if(e==='reporte'){ ball='<span class="tx-ball rep">Reportée</span>';
+      const h=(d.dates_historique||[]).slice(-1)[0]||{};
+      st=`<span class="ic tx-o"></span><span><b>Intervention reportée</b>${h.du?' — dates du '+fmtDate(h.du)+(h.au&&h.au!==h.du?' au '+fmtDate(h.au):'')+' annulées':''}</span>`;
+      dead='<div class="tx-dead">nouvelles dates à renseigner</div>';
+      mini='<span class="tx-m on"></span><span class="tx-m on"></span><span class="tx-m now"></span><span class="tx-m"></span><span class="tx-m"></span><span class="tx-minil">reportée</span>';
+      btns=`<button class="btn sm primary" onclick="event.stopPropagation();gedEditDoc('${d.id}')">Proposer des dates</button>`;
+    }else if(e==='encours'){ ball='<span class="tx-ball prest">Chantier en cours</span>';
+      st=`<span class="ic tx-b"></span><span><b>Travaux ${esc(txPeriode(d))}</b> — en cours</span>`;
+      mini='<span class="tx-m on"></span><span class="tx-m on"></span><span class="tx-m on"></span><span class="tx-m now"></span><span class="tx-m"></span><span class="tx-minil">en cours</span>';
+      btns=`<button class="btn sm" onclick="event.stopPropagation();txReport('${d.id}')">Reporter</button>`;
+    }else{ const j=-txDays(d.date_intervention_prevue);
+      ball='<span class="tx-ball att">Planifiée</span>';
+      st=`<span class="ic tx-b"></span><span>Signé — <b>travaux ${esc(txPeriode(d))}</b></span>`;
+      dead=`<div class="tx-dead">début dans ${j} jour${j>1?'s':''}${d.intervention_id?' · intervention liée':''}</div>`;
+      mini='<span class="tx-m on"></span><span class="tx-m on"></span><span class="tx-m on"></span><span class="tx-m now"></span><span class="tx-m"></span><span class="tx-minil">J-'+j+'</span>';
+      btns=`<button class="btn sm" onclick="event.stopPropagation();gedEditDoc('${d.id}')">Modifier les dates</button>
+        <button class="btn sm" onclick="event.stopPropagation();txReport('${d.id}')">Reporter</button>`;
+    }
+    return `<div class="tx-dc" onclick="txOpen('${d.id}')">
+      <div class="tx-top"><div><div class="tx-name">${esc(txBase(d.nom_original))}</div><div class="tx-meta">${meta(d)}</div></div>${ball}</div>
+      <div class="tx-state">${st}</div>${dead}
+      <div class="tx-act">${btns}</div>
+      <div class="tx-mini">${mini}</div></div>`;
+  };
+  const cardRecep=x=>{
+    const d=x.d, late=x.s.etat==='retard';
+    return `<div class="tx-dc${late?' late':''}" onclick="txOpen('${d.id}')">
+      <div class="tx-top"><div><div class="tx-name">${esc(txBase(d.nom_original))}</div><div class="tx-meta">${meta(d)}</div></div>
+        <span class="tx-ball moi">Action : vous</span></div>
+      <div class="tx-state"><span class="ic tx-${late?'r':'o'}"></span><span>Travaux terminés ${esc(txPeriode(d))} — <b>PV à établir</b></span></div>
+      ${late?`<div class="tx-dead red">en retard de ${x.s.days} jours</div>`:''}
+      <div class="tx-act">
+        ${d.fichier_path?`<button class="btn sm" onclick="event.stopPropagation();previewDoc('${(d.fichier_path||'').replace(/'/g,"\\'")}','${(d.nom_original||'Devis').replace(/'/g,'\\u2019')}')">Visualiser</button>`:''}
+        <button class="btn sm primary" onclick="event.stopPropagation();pvFromDevis('${d.id}')">Établir le PV</button></div>
+      <div class="tx-mini"><span class="tx-m on"></span><span class="tx-m on"></span><span class="tx-m on"></span><span class="tx-m on"></span><span class="tx-m ${late?'rnow':'now'}"></span><span class="tx-minil">PV</span></div>
+    </div>`;
+  };
+
+  const tab=window._txTab;
+  let body='';
+  if(tab==='encours'){
+    body=`
+    <div class="tx-brief">
+      ${nRetard?`<span class="tx-chip red"><span class="d" style="background:var(--majeur)"></span>${nRetard} en retard</span>`:''}
+      <span class="tx-chip"><span class="d" style="background:var(--primary)"></span>${nMoi} action${nMoi>1?'s':''} à vous</span>
+      <span class="tx-chip"><span class="d" style="background:#f59e0b"></span>${nAttente} en attente</span>
+      ${semaine?`<span class="tx-chip"><span class="d" style="background:#94a3b8"></span>${semaine} intervention${semaine>1?'s':''} sous 7 j</span>`:''}
+    </div>
+    <div class="tx-board">
+      <div class="tx-col tx-c1"><div class="tx-colh"><span class="ph">1</span><b>Préparation</b><span class="cnt">${prep.length}</span></div>
+        <div class="tx-colsub">Devis en attente de signature</div>
+        <div class="tx-colbody">${prep.length?prep.map(cardPrep).join(''):'<div class="tx-empty">Aucun devis en attente — les devis déposés en GED apparaissent ici jusqu\'au dépôt du signé.</div>'}</div></div>
+      <div class="tx-col tx-c2"><div class="tx-colh"><span class="ph">2</span><b>Intervention</b><span class="cnt">${inter.length}</span></div>
+        <div class="tx-colsub">Devis signé · dates du…au · réalisation</div>
+        <div class="tx-colbody">${inter.length?inter.map(cardInter).join(''):'<div class="tx-empty">Aucune intervention en préparation.</div>'}
+          <div class="tx-empty" style="margin-top:2px">Le lendemain de la date de fin, le dossier passe seul en <b>Réception</b>.</div></div></div>
+      <div class="tx-col tx-c3"><div class="tx-colh"><span class="ph">3</span><b>Réception</b><span class="cnt">${recep.length}</span></div>
+        <div class="tx-colsub">PV de réception à établir</div>
+        <div class="tx-colbody">${recep.length?recep.map(cardRecep).join(''):'<div class="tx-empty">Rien à réceptionner — tous les PV sont à jour.</div>'}</div></div>
+    </div>`;
+  }else if(tab==='fini'){
+    const rows=pvs.slice(0,30).map(p=>`<div class="tx-row"><div class="tx-tick">✓</div>
+      <div style="flex:1;min-width:220px"><b style="font-size:13px">${esc(txBase(p.nom_original))}</b>
+        <div class="tx-meta">${esc(prest[p.prestataire_id]||'')}${p.erp_id?' · '+esc(txErp(p.erp_id)):''} · PV du ${fmtDate(p.date_document||p.created_at)}</div></div>
+      ${p.fichier_path?`<button class="btn sm" onclick="previewDoc('${(p.fichier_path||'').replace(/'/g,"\\'")}','${(p.nom_original||'PV').replace(/'/g,'\\u2019')}')">Voir le PV</button>`:''}</div>`).join('');
+    body=`<div class="card" style="padding:0;overflow:hidden">${rows||'<div class="tx-empty" style="margin:14px">Aucun PV de réception pour le moment.</div>'}</div>`;
+  }else{
+    const rows=ecartes.map(x=>`<div class="tx-row"><div class="tx-tick gray">–</div>
+      <div style="flex:1;min-width:220px"><b style="font-size:13px">${esc(txBase(x.d.nom_original))}</b>
+        <div class="tx-meta">${esc(prest[x.d.prestataire_id]||'')}${x.d.erp_id?' · '+esc(txErp(x.d.erp_id)):''} · écarté du suivi</div></div>
+      <button class="btn sm" onclick="txRestaurer('${x.d.id}')">Reprendre le suivi</button></div>`).join('');
+    body=`<div class="card" style="padding:0;overflow:hidden">${rows||'<div class="tx-empty" style="margin:14px">Aucun dossier écarté.</div>'}</div>`;
+  }
+  wrap.innerHTML=`<div class="tx-tabs">
+      <button class="tx-tab ${tab==='encours'?'active':''}" onclick="window._txTab='encours';txRender()">En cours <span class="n">${prep.length+inter.length+recep.length}</span></button>
+      <button class="tx-tab ${tab==='fini'?'active':''}" onclick="window._txTab='fini';txRender()">Terminés <span class="n">${pvs.length}</span></button>
+      <button class="tx-tab ${tab==='ecarte'?'active':''}" onclick="window._txTab='ecarte';txRender()">Écartés <span class="n">${ecartes.length}</span></button>
+    </div>${body}`;
+};
+
+/* ── panneau de détail ── */
+window.txOpen=function(id){
+  const {docs,prest}=window._txData||{docs:[]};
+  const d=docs.find(x=>x.id===id); if(!d) return;
+  window._txCurId=id;
+  const isPrep=d.categorie==='devis';
+  const pvs=docs.filter(x=>x.categorie==='pv_reception');
+  const pvDone=new Set(pvs.filter(p=>p.source_devis_id).map(p=>p.source_devis_id));
+  const st=isPrep?{phase:'prep'}:txStatut(d,pvDone);
+  const today=txToday();
+  document.getElementById('tx-t').textContent=txBase(d.nom_original);
+  document.getElementById('tx-m').textContent=(prest[d.prestataire_id]||'Prestataire non renseigné')+(d.erp_id?' · '+txErp(d.erp_id):'')+(d.lot?' · '+d.lot:'');
+  const ball=document.getElementById('tx-b');
+  const balls={prep:['att','Attente client'],fini:['att','Terminé'],ecarte:['att','Écarté']};
+  const bstate=st.phase==='inter'?(st.etat==='sansdate'?['moi','Action : vous']:st.etat==='reporte'?['rep','Reportée']:st.etat==='encours'?['prest','Chantier en cours']:['att','Planifiée'])
+    :st.phase==='recep'?['moi','Action : vous']:(balls[st.phase]||['att','—']);
+  ball.className='tx-ball '+bstate[0]; ball.textContent=bstate[1]; ball.style.display='';
+
+  // Parcours
+  const origine=d.source_devis_id?docs.find(x=>x.id===d.source_devis_id):null;
+  const pvDoc=isPrep?null:pvs.find(p=>p.source_devis_id===d.id||(d.source_devis_id&&p.source_devis_id===d.source_devis_id));
+  const finPassee=!isPrep&&d.date_intervention_prevue&&txFin(d)<today;
+  let steps;
+  if(isPrep){
+    const age=txDays(d.date_document||d.created_at);
+    steps=[['done','Devis reçu',d.date_document?fmtDate(d.date_document):fmtDate(d.created_at)],
+      ['cur'+(age>15?' red':''),'Signature','attendue · '+age+' j'],
+      ['','Dates du…au','—'],['','Intervention','—'],['','PV de réception','—']];
+  }else{
+    steps=[['done','Devis signé',d.date_document?fmtDate(d.date_document):'—'],
+      d.date_intervention_prevue?['done','Dates du…au',txPeriode(d).replace(/^le |^du /,'')]
+        :[('cur'+(st.etat==='reporte'?'':'')) ,'Dates du…au',st.etat==='reporte'?'reportée':'à renseigner'],
+      finPassee?['done','Intervention',txPeriode(d).replace(/^le |^du /,'')]
+        :(st.etat==='encours'?['cur','Intervention','en cours']:['','Intervention','—']),
+      pvDoc?['done','PV de réception',fmtDate(pvDoc.date_document||pvDoc.created_at)]
+        :(st.phase==='recep'?['cur'+(st.etat==='retard'?' red':''),'PV de réception',st.etat==='retard'?'retard '+st.days+' j':'à établir']:['','PV de réception','—'])];
+  }
+  const stepsHtml=steps.map((s,i)=>`<div class="tx-step ${s[0]}"><div class="tx-sdot">${s[0].includes('done')?'✓':(i+1)}</div><div class="tx-slab">${s[1]}</div><div class="tx-ssub">${esc(s[2])}</div></div>`).join('');
+
+  // Documents
+  const rows=[];
+  const docRow=(x,label)=>{
+    if(!x) return '';
+    const pJs=(x.fichier_path||'').replace(/'/g,"\\'");
+    const nJs=(x.nom_original||'Document').replace(/'/g,'\\u2019');
+    return `<div class="tx-doc"><span class="de">PDF</span><span class="nm"><b>${esc(label)}</b><div class="tx-meta">${esc(x.nom_original||'')}${x.date_document?' · '+fmtDate(x.date_document):''}</div></span>
+      ${x.fichier_path?`<button class="btn" onclick="previewDoc('${pJs}','${nJs}')">Visualiser</button>
+      <button class="btn" onclick="dlDoc('${pJs}','${nJs}')" title="Télécharger">⬇</button>`:''}</div>`;
+  };
+  if(origine) rows.push(docRow(origine,'Devis d\'origine'));
+  rows.push(docRow(d,isPrep?'Devis':'Devis signé'));
+  if(pvDoc) rows.push(docRow(pvDoc,'PV de réception'));
+  if(!isPrep&&d.intervention_id) rows.push(`<div class="tx-doc"><span class="de">INT</span><span class="nm"><b>Intervention liée</b><div class="tx-meta">planifiée ${esc(txPeriode(d)||'')} — visible dans l'agenda</div></span>
+    <button class="btn" onclick="navigate('/interventions')">Ouvrir</button></div>`);
+
+  // Historique
+  const tl=[];
+  (Array.isArray(d.dates_historique)?d.dates_historique:[]).slice().reverse().forEach(h=>{
+    tl.push(['hot',`Report — dates du ${fmtDate(h.du)}${h.au&&h.au!==h.du?' au '+fmtDate(h.au):''} annulées${h.motif?' · '+esc(h.motif):''}`,h.change_le?fmtDate(h.change_le):'']);
+  });
+  if(pvDoc) tl.push(['','PV de réception établi',fmtDate(pvDoc.date_document||pvDoc.created_at)]);
+  if(!isPrep&&d.date_intervention_prevue) tl.push(['',`Travaux planifiés ${txPeriode(d)}`,'']);
+  tl.push(['',isPrep?'Devis reçu et classé en GED':'Devis signé déposé en GED',fmtDate(d.date_document||d.created_at)]);
+  if(origine) tl.push(['','Devis d\'origine classé',fmtDate(origine.date_document||origine.created_at)]);
+  const tlHtml=tl.map(t=>`<div class="tx-tli ${t[0]}"><b>${t[1]}</b>${t[2]?`<div class="d">${t[2]}</div>`:''}</div>`).join('');
+
+  document.getElementById('tx-body').innerHTML=`
+    <div class="tx-sec">Parcours du dossier</div><div class="tx-steps">${stepsHtml}</div>
+    <div class="tx-sec">Documents du dossier</div>${rows.join('')||'<div class="tx-empty">Aucun document.</div>'}
+    <div class="tx-sec">Historique</div><div class="tx-tl">${tlHtml}</div>`;
+
+  // Actions de pied
+  const foot=[];
+  if(isPrep){ foot.push(`<button class="btn primary" onclick="txClose();devisUploadSigned('${d.id}')">📎 Déposer le signé</button>`); }
+  else if(st.phase==='recep'){ foot.push(`<button class="btn ghost" onclick="txEcarter('${d.id}')">Écarter</button>`,
+    `<button class="btn primary" onclick="txClose();pvFromDevis('${d.id}')">Établir le PV</button>`); }
+  else if(st.phase==='inter'){
+    foot.push(`<button class="btn ghost" onclick="txEcarter('${d.id}')">Écarter</button>`);
+    if(st.etat!=='sansdate'&&st.etat!=='reporte') foot.push(`<button class="btn" onclick="txReport('${d.id}')">Reporter</button>`);
+    foot.push(`<button class="btn primary" onclick="txClose();gedEditDoc('${d.id}')">${st.etat==='sansdate'||st.etat==='reporte'?'Renseigner les dates':'Modifier les dates'}</button>`);
+  }
+  document.getElementById('tx-foot').innerHTML=foot.join('');
+  document.getElementById('tx-ov').classList.add('on');
+  document.getElementById('tx-dr').classList.add('on');
+};
+window.txClose=function(){
+  const ov=document.getElementById('tx-ov'),dr=document.getElementById('tx-dr');
+  if(ov)ov.classList.remove('on'); if(dr)dr.classList.remove('on');
+};
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&document.getElementById('tx-dr')?.classList.contains('on')) txClose(); });
+
+/* ── Reporter : historique conservé, agenda synchronisé ── */
+window.txReport=function(id){
+  const d=((window._txData||{}).docs||[]).find(x=>x.id===id); if(!d) return;
+  openModal(`<div class="modal-head"><h2>↺ Reporter l'intervention</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:13px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:9px 11px">
+        <b>${esc(txBase(d.nom_original))}</b><br><span style="color:var(--muted);font-size:12px">Dates actuelles : ${esc(txPeriode(d)||'non renseignées')} — elles seront conservées dans l'historique du dossier.</span></div>
+      <div class="row2">
+        <div class="fld" style="margin:0"><label>Nouvelles dates — du <span style="color:var(--muted-2);font-weight:400;font-size:11px">(vide = à définir plus tard)</span></label><input id="txr_du" type="date"></div>
+        <div class="fld" style="margin:0"><label>au</label><input id="txr_au" type="date"></div>
+      </div>
+      <div class="fld" style="margin:0"><label>Motif du report <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel)</span></label>
+        <select id="txr_motif"><option value="">—</option><option>Demande du prestataire</option><option>Demande de l'établissement</option><option>Matériel non disponible</option><option>Météo / chantier précédent retardé</option><option value="__autre__">Autre…</option></select>
+        <input id="txr_motif_txt" placeholder="Préciser le motif" style="margin-top:6px;display:none"></div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" id="txr_go">Reporter</button></div>`);
+  const sel=document.getElementById('txr_motif');
+  sel.onchange=()=>{ document.getElementById('txr_motif_txt').style.display=sel.value==='__autre__'?'':'none'; };
+  document.getElementById('txr_go').onclick=async()=>{
+    const btn=document.getElementById('txr_go'); btn.disabled=true; btn.textContent='Report…';
+    const du=document.getElementById('txr_du').value||null;
+    let au=document.getElementById('txr_au').value||null;
+    if(au&&(!du||au<du)){ toast('La date de fin est avant la date de début','err'); btn.disabled=false; btn.textContent='Reporter'; return; }
+    if(au&&!du) au=null;
+    const motif=sel.value==='__autre__'?(document.getElementById('txr_motif_txt').value||'').trim():sel.value;
+    const hist=(Array.isArray(d.dates_historique)?d.dates_historique:[]).concat([{du:d.date_intervention_prevue,au:d.date_intervention_fin,motif:motif||null,change_le:new Date().toISOString().slice(0,10)}]);
+    try{
+      const {error}=await sb.from('documents').update({date_intervention_prevue:du,date_intervention_fin:au,dates_historique:hist}).eq('id',d.id);
+      if(error) throw error;
+      if(d.intervention_id){
+        try{ await sb.from('interventions').update(du?{date_prevue:du,statut:'programmee'}:{statut:'reportee'}).eq('id',d.intervention_id); }catch(_){}
+      }
+      closeModal(); toast(du?('Intervention reportée '+(au&&au!==du?'du '+fmtDate(du)+' au '+fmtDate(au):'au '+fmtDate(du))):'Intervention reportée — nouvelles dates à définir','ok');
+      txClose(); const c=document.getElementById('content'); if(c) viewTravaux(c);
+    }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Reporter'; }
+  };
+};
+
+/* ── Écarter / reprendre ── */
+window.txEcarter=async function(id){
+  if(!confirm('Écarter ce dossier du suivi des travaux ?\nIl restera en GED et pourra être repris depuis l\'onglet « Écartés ».')) return;
+  try{
+    const {error}=await sb.from('documents').update({pv_statut:'clos'}).eq('id',id);
+    if(error) throw error;
+    toast('Dossier écarté du suivi','ok'); txClose();
+    const c=document.getElementById('content'); if(c) viewTravaux(c);
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+window.txRestaurer=async function(id){
+  try{
+    const {error}=await sb.from('documents').update({pv_statut:null}).eq('id',id);
+    if(error) throw error;
+    toast('Dossier repris dans le suivi','ok');
+    const c=document.getElementById('content'); if(c) viewTravaux(c);
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
 window.gedEditLotChange=function(){
   const sel=document.getElementById('ged_edit_lot_sel'), inp=document.getElementById('ged_edit_lot');
   if(!sel||!inp)return;
