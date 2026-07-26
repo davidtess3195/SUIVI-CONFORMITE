@@ -690,7 +690,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='656'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='657'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -4767,6 +4767,17 @@ async function viewErps(c){
     </tbody></table></div>`;
 }
 
+window.prestGaranties=function(p,duTravaux,auTravaux){
+  const i=(p&&p.assurance)||{};
+  if(!i.validite_fin) return {cls:'inc',txt:'Garanties non renseignées'};
+  const fin=i.validite_fin;
+  const ref=auTravaux||duTravaux||null;
+  if(ref) return fin>=ref?{cls:'ok',txt:'Garanties valides aux dates des travaux (jusqu\'au '+fmtDate(fin)+')'}
+                         :{cls:'crit',txt:'⚠ Attestation expirée avant la fin des travaux ('+fmtDate(fin)+')'};
+  const _t=new Date(); const today=_t.getFullYear()+'-'+String(_t.getMonth()+1).padStart(2,'0')+'-'+String(_t.getDate()).padStart(2,'0');
+  return fin>=today?{cls:'ok',txt:'Attestation valide jusqu\'au '+fmtDate(fin)}
+                   :{cls:'crit',txt:'⚠ Attestation expirée le '+fmtDate(fin)};
+};
 window.assurEtat=function(a){
   if(!a||!a.echeance) return null;
   const _t=new Date(); const today=new Date(_t.getFullYear(),_t.getMonth(),_t.getDate()).getTime();
@@ -5286,7 +5297,7 @@ window.deleteEquip=deleteEquip;
 async function formOblig(erpId, preEquip){
   let equips=[], prests=[];
   try{ const {data}=await sb.from('equipements').select('id,type,periodicite,acteur_suivi,localisation').eq('erp_id',erpId).order('type'); equips=data||[]; }catch(e){}
-  try{ const {data}=await sb.from('prestataires').select('id,nom,categorie').order('nom'); prests=data||[]; }catch(e){}
+  try{ const {data}=await sb.from('prestataires').select('id,nom,categorie,siret,siren,code_ape,tva_intra,adresse,ville,assurance').order('nom'); prests=data||[]; }catch(e){}
   window._obligEquips=equips; window._obligPrests=prests;
   const equipOpts=equips.map(eq=>`<option value="${eq.id}">${esc(eq.type)}${eq.localisation?' — '+esc(eq.localisation):''}</option>`).join('');
   openModal(`<div class="modal-head"><h2>Nouvelle vérification</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
@@ -12955,8 +12966,8 @@ window.viewTravaux=async function(c){
       return true;
     };
     const docs=(dq.data||[]).filter(scope);
-    const prest={}; ((pq&&pq.data)||[]).forEach(p=>prest[p.id]=p.nom);
-    window._txData={docs,prest};
+    const prest={},prestFull={}; ((pq&&pq.data)||[]).forEach(p=>{prest[p.id]=p.nom;prestFull[p.id]=p;});
+    window._txData={docs,prest,prestFull};
     txRender();
     if(window._txOpenAfter){ const oid=window._txOpenAfter; window._txOpenAfter=null;
       if(docs.find(x=>x.id===oid)) setTimeout(()=>txOpen(oid),80); }
@@ -13158,8 +13169,28 @@ window.txOpen=function(id){
   if(origine) tl.push(['','Devis d\'origine classé',fmtDate(origine.date_document||origine.created_at)]);
   const tlHtml=tl.map(t=>`<div class="tx-tli ${t[0]}"><b>${t[1]}</b>${t[2]?`<div class="d">${t[2]}</div>`:''}</div>`).join('');
 
+  // Identité de l'entreprise rattachée au devis + validité des garanties aux dates des travaux
+  const pf=((window._txData||{}).prestFull||{})[d.prestataire_id];
+  let entHtml='';
+  if(pf){
+    const g=prestGaranties(pf, d.date_intervention_prevue||null, txFin(d)||null);
+    const a=pf.assurance||{};
+    const pill=g.cls==='ok'?'ok':(g.cls==='crit'?'crit':'inf');
+    entHtml=`<div class="tx-sec">Entreprise rattachée au devis</div>
+    <div class="tx-doc" style="align-items:flex-start">
+      <span class="de">🛡️</span>
+      <span class="nm"><b>${esc(pf.nom)}</b>${a.forme?' — '+esc(a.forme):''}
+        <div class="tx-meta">${pf.siret?'SIRET '+esc(pf.siret):(pf.siren?'SIREN '+esc(pf.siren):'')}${pf.code_ape?' · APE '+esc(pf.code_ape):''}${a.representant?' · '+esc(a.representant):''}</div>
+        ${a.assureur?`<div class="tx-meta">${esc(a.assureur)}${a.police?' · police n° '+esc(a.police):''}${a.activites?' · '+esc(a.activites):''}</div>`:''}
+        ${a.qualifications?`<div class="tx-meta">${esc(a.qualifications)}</div>`:''}
+        <span class="pill ${pill}" style="margin-top:6px;display:inline-block">${esc(g.txt)}</span>
+      </span>
+      <button class="btn" onclick='txClose();formPrest(${JSON.stringify({id:pf.id}).replace(/'/g,"&#39;")})'>${a.assureur||pf.siret?'Modifier':'Compléter'}</button>
+    </div>`;
+  }
   document.getElementById('tx-body').innerHTML=`
     <div class="tx-sec">Parcours du dossier</div><div class="tx-steps">${stepsHtml}</div>
+    ${entHtml}
     <div class="tx-sec">Documents du dossier</div>${rows.join('')||'<div class="tx-empty">Aucun document.</div>'}
     <div class="tx-sec">Historique</div><div class="tx-tl">${tlHtml}</div>`;
 
@@ -14997,6 +15028,7 @@ async function formPrest(p){
         <div class="fld" style="margin-bottom:10px"><label>Téléphone</label><input id="f_telephone" type="tel" value="${esc(p.telephone||'')}" placeholder="01 23 45 67 89"></div>
         <div class="fld" style="margin-bottom:10px"><label>Email</label><input id="f_email" type="email" value="${esc(p.email_rapports||'')}" placeholder="contact@entreprise.fr"></div>
         <div class="fld" style="margin-bottom:10px"><label>SIRET</label><input id="f_siret" value="${esc(p.siret||'')}" placeholder="123 456 789 00012" inputmode="numeric"></div>
+
         <div class="fld" style="margin-bottom:10px"><label>SIREN</label><input id="f_siren" value="${esc(p.siren||'')}" placeholder="123 456 789" inputmode="numeric"></div>
         <div class="fld" style="margin-bottom:10px"><label>Code APE</label><input id="f_ape" value="${esc(p.code_ape||'')}" placeholder="4321A"></div>
         <div class="fld" style="margin-bottom:0"><label>N° TVA intracommunautaire</label><input id="f_tva" value="${esc(p.tva_intra||'')}" placeholder="FR 12 345678901"></div>
