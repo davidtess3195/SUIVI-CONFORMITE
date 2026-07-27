@@ -11,9 +11,9 @@
 <title>PREVA — Suivi réglementaire incendie ERP</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 (function(){
   var s=document.createElement('script');
@@ -22,8 +22,8 @@
   document.head.appendChild(s);
 })();
 </script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
   --bg:#eef1f6; --surface:#ffffff; --surface-2:#f6f8fb;
@@ -690,7 +690,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='657'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='658'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -13460,7 +13460,7 @@ window.sinHtml=function(ctx,form,D){
       <div class="idrow"><span class="k">Expert d'assuré</span><span class="warnv">à désigner le cas échéant (contre-expertise)</span></div>
     </div></div>`;
   return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Dossier sinistre ${E(ref)} — ${E(erp.nom)}</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+
 <style>
 :root{--ink:#101828;--mut:#667085;--mut2:#98a2b3;--line:#e4e7ec;--navy:#0e1b2e;--green:#087443;--greenbg:#ecfdf3;--greenln:#abefc6;--red:#b42318;--redbg:#fef3f2;--amber:#b54708;--amberbg:#fffaeb;--amberln:#fedf89}
 *{box-sizing:border-box;margin:0;padding:0}
