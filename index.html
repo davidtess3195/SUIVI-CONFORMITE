@@ -4204,7 +4204,7 @@ async function viewClient(c,id){
           <td>${statusPill(e.statut,{validee:['','Validée','ok'],brouillon:['','Brouillon','inf'],a_completer:['','À compléter','moy'],archive:['','Archivé','inf']})}</td></tr>`).join('')}
         </tbody></table></div>`:emptyBlock(I.erp,'Aucun ERP','Ajoutez le premier établissement de ce client.',`<button class="btn primary" onclick="formErp(null,'${id}')">${I.plus} Ajouter un ERP</button>`)}
       <h2 style="font-size:16px;margin:24px 0 4px">Dossier du client</h2>
-      <p style="color:var(--muted);font-size:12.5px;margin:0 0 14px">Éléments traités et documents archivés, classés par catégorie.</p>
+      <p style="color:var(--muted);font-size:12.5px;margin:0 0 14px">Éléments et documents du client, classés par catégorie.</p>
       <div id="client-dossier" class="grid" style="grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:14px">
         <div style="color:var(--muted);font-size:13px;padding:10px">Chargement…</div>
       </div>`;
@@ -4233,17 +4233,23 @@ async function loadClientDossier(id, erps){
   const box=document.getElementById('client-dossier'); if(!box) return;
   const erpIds=(erps||[]).map(e=>e.id);
   let phs=[], docs=[], convs=[];
-  try{ if(erpIds.length){ const r=await sb.from('photos_urgentes').select('id,erp_id,photo_path,commentaire,date_photo,created_at,traitement,traitement_date,mission').in('erp_id',erpIds).eq('traitement','fait').order('created_at',{ascending:false}); phs=r.data||[]; } }catch(e){}
-  try{ const r=await sb.from('documents').select('id,type,nom_original,fichier_path,date_document,created_at,tags').eq('client_id',id).order('date_document',{ascending:false}); docs=r.data||[]; }catch(e){}
   try{ const r=await sb.from('conversations').select('*').eq('client_id',id).order('date_conv',{ascending:false}); convs=r.data||[]; }catch(e){}
+  try{
+    const convIds=convs.map(cv=>cv.id);
+    const ors=[];
+    if(erpIds.length) ors.push(`erp_id.in.(${erpIds.join(',')})`);
+    if(convIds.length) ors.push(`conversation_id.in.(${convIds.join(',')})`);
+    if(ors.length){ const r=await sb.from('photos_urgentes').select('id,erp_id,photo_path,commentaire,date_photo,created_at,traitement,traitement_date,mission').or(ors.join(',')).order('created_at',{ascending:false}); phs=r.data||[]; }
+  }catch(e){}
+  try{ const r=await sb.from('documents').select('id,type,nom_original,fichier_path,date_document,created_at,tags').eq('client_id',id).order('date_document',{ascending:false}); docs=r.data||[]; }catch(e){}
   window._dossierConvs=window._dossierConvs||{}; convs.forEach(cv=>{ window._dossierConvs[cv.id]=cv; });
   const photos=phs.filter(p=>p.photo_path);
   const notes =phs.filter(p=>!p.photo_path);
   const crs   =docs.filter(d=>d.type==='Compte rendu');
   const raps  =docs.filter(d=>d.type==='Rapport');
-  const devis =docs.filter(d=>d.type==='Devis');
+  const devis =docs.filter(d=>d.type==='Devis'||d.type==='Devis signé');
   const factures=docs.filter(d=>d.type==='Facture');
-  const diversTypes=['Compte rendu','Rapport','Devis','Facture'];
+  const diversTypes=['Compte rendu','Rapport','Devis','Devis signé','Facture'];
   const divers=docs.filter(d=>!diversTypes.includes(d.type));
 
   const sub=(d)=>fmtDate(d) ;
@@ -4265,7 +4271,7 @@ async function loadClientDossier(id, erps){
     return `<div onclick="previewDoc('${d.fichier_path}','${safe}','${docBucket(d)}')" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;background:var(--surface-2)">
       <span style="font-size:17px;flex:0 0 auto">📄</span>
       <div style="min-width:0;flex:1"><div style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nm)}</div>
-      <div style="font-size:11px;color:var(--muted)">${fmtDate(d.date_document||d.created_at)}</div></div>
+      <div style="font-size:11px;color:var(--muted)">${fmtDate(d.date_document||d.created_at)}${d.type==='Devis signé'?' <span style="background:#16a34a;color:#fff;font-size:10px;font-weight:600;padding:0 7px;border-radius:999px;margin-left:4px">signé ✓</span>':''}</div></div>
     </div>`; };
   const docItemTyped=d=>{ const nm=(d.nom_original||d.type||'document.pdf'); const safe=nm.replace(/'/g,'\\u2019');
     return `<div onclick="previewDoc('${d.fichier_path}','${safe}','${docBucket(d)}')" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;background:var(--surface-2)">
@@ -4292,8 +4298,8 @@ async function loadClientDossier(id, erps){
 
   box.innerHTML =
     card('Conversations', '💬', '#0891b2', convs.map(convItem), 'Aucune conversation') +
-    card('Notes', '📝', '#f59e0b', notes.map(noteItem), 'Aucune note traitée') +
-    card('Photos', '📷', '#2563eb', photos.map(photoItem), 'Aucune photo traitée') +
+    card('Notes', '📝', '#f59e0b', notes.map(noteItem), 'Aucune note') +
+    card('Photos', '📷', '#2563eb', photos.map(photoItem), 'Aucune photo') +
     card('Comptes rendus', '📄', '#16a34a', crs.map(docItem), 'Aucun compte rendu archivé') +
     card('Rapports', '📋', '#7c3aed', raps.map(docItem), 'Aucun rapport archivé') +
     card('Devis', '📝', '#d97706', devis.map(docItem), 'Aucun devis archivé') +
