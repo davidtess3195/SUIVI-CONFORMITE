@@ -264,7 +264,7 @@ table.tbl .mono{font-family:var(--fd);font-weight:600;font-size:12.5px;color:var
 .empty p{font-size:13.5px;max-width:340px;margin:0 auto 16px}
 
 /* Modal */
-.overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(2px);z-index:60;display:grid;place-items:center;padding:18px;opacity:0;pointer-events:none;transition:.18s}
+.overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(2px);z-index:990;display:grid;place-items:center;padding:18px;opacity:0;pointer-events:none;transition:.18s}
 .overlay.on{opacity:1;pointer-events:auto}
 body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .modal{background:var(--surface);border-radius:18px;box-shadow:var(--sh-l);width:100%;max-width:560px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;transform:translateY(8px) scale(.99);transition:.18s}
@@ -576,13 +576,6 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   .modal-foot{flex-wrap:wrap}
   h1{font-size:21px}
 }
-/* Badges clients (tableau prestataires) */
-.cl-badges{display:flex;flex-wrap:wrap;gap:3px}
-.cl-badge{display:inline-block;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:11.5px;word-break:normal;overflow-wrap:normal;white-space:normal;max-width:100%}
-@media(max-width:640px){
-  .cl-badges{justify-content:flex-end;min-width:0}
-  .cl-badge{text-align:right}
-}
 @media(max-width:640px){
   /* Tableaux -> cartes lisibles sur mobile */
   .tbl-wrap{overflow:visible;border:none;background:transparent;box-shadow:none;border-radius:0}
@@ -593,8 +586,13 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   table.tbl tbody tr:hover{background:var(--surface)}
   table.tbl td{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:10px 14px;border-bottom:1px solid var(--line-2);text-align:right;white-space:normal;overflow-wrap:anywhere;word-break:break-word}
   table.tbl tr td:last-child{border-bottom:none}
-  table.tbl td[data-label]:not([data-label=""])::before{content:attr(data-label);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);text-align:left;flex:0 0 40%;white-space:nowrap}
+  table.tbl td[data-label]:not([data-label=""])::before{content:attr(data-label);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);text-align:left;flex:0 1 34%;min-width:0;white-space:nowrap}
   table.tbl td:empty{display:none}
+  /* Les pastilles (clients, etc.) ne doivent jamais se casser lettre par lettre :
+     la cellule devient une grappe qui passe à la ligne, chaque pastille reste entière. */
+  table.tbl td:has(> span[style*="border-radius:6px"]){display:block;text-align:left}
+  table.tbl td:has(> span[style*="border-radius:6px"])::before{display:block;margin-bottom:5px;flex:none}
+  table.tbl td > span[style*="border-radius:6px"]{white-space:normal;overflow-wrap:break-word;word-break:normal;hyphens:none;max-width:100%;box-sizing:border-box}
   table.tbl td .btn{flex:0 0 auto}
 }
 
@@ -697,7 +695,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='660'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='668'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -3588,126 +3586,24 @@ function joursFeries(y){
   window._feriesCache[y]=map; return map;
 }
 window.joursFeries=joursFeries;
+window._invalidateDashboard=function(){
+  // Rafraîchir le calendrier unifié s'il est monté (tableau de bord OU agenda)
+  if(document.getElementById('ag_shell')) agRefresh();
+};
+
 
 function renderDashCalendar(){
   const host=document.getElementById('dashcal'); if(!host) return;
-  const inter=window._dashInter||[];
-  let start=window._dashCalMonth; if(!start){ const n=new Date(); start=new Date(n.getFullYear(),n.getMonth(),1); window._dashCalMonth=start; }
-  const range=window._dashCalRange||1;
-  const erpName=id=>state.erps.find(e=>e.id===id)?.nom||'';
-  const typeColor={preventive:'#2563eb',corrective:'#dc2626',travaux:'#f59e0b',visite:'#16a34a',commission_securite:'#9333ea'};
-  const typeLabel={preventive:'Préventive',corrective:'Corrective',travaux:'Travaux',visite:'Visite',commission_securite:'Commission de sécurité'};
-  const _convIds=window._convInterIds||new Set();
-  const isConv=i=>_convIds.has(i.id);
-  const colorFor=i=>isConv(i)?'#0891b2':(typeColor[i.type]||'#64748b');
-  const labelFor=i=>isConv(i)?'Conversation':(typeLabel[i.type]||i.type||'');
-  const pad=n=>String(n).padStart(2,'0');
-  const todayK=`${new Date().getFullYear()}-${pad(new Date().getMonth()+1)}-${pad(new Date().getDate())}`;
-  const byDay={}; inter.forEach(i=>{ if(i.date_prevue){ (byDay[i.date_prevue]=byDay[i.date_prevue]||[]).push(i); } });
-  const dows=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
-
-  // Période affichée
-  const startMs=new Date(start.getFullYear(),start.getMonth(),1);
-  const endMs=new Date(start.getFullYear(),start.getMonth()+range,1);
-  const periodeLabel = range===1
-    ? start.toLocaleDateString('fr-FR',{month:'long',year:'numeric'})
-    : start.toLocaleDateString('fr-FR',{month:'short',year:'numeric'})+' → '+new Date(start.getFullYear(),start.getMonth()+range-1,1).toLocaleDateString('fr-FR',{month:'short',year:'numeric'});
-
-  // Récapitulatif chronologique sur la période
-  const inRange=inter.filter(i=>i.date_prevue && i.date_prevue>=`${startMs.getFullYear()}-${pad(startMs.getMonth()+1)}-01` && new Date(i.date_prevue)<endMs)
-    .sort((a,b)=> a.date_prevue<b.date_prevue?-1:(a.date_prevue>b.date_prevue?1:0));
-  const recap = `<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:14px">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b style="font-size:13.5px">Récapitulatif des dates</b>
-      <span class="pill inf" style="margin-left:auto">${inRange.length} intervention(s)</span></div>
-    ${inRange.length? `<div style="max-height:190px;overflow:auto;display:flex;flex-direction:column;gap:4px">${inRange.map(i=>`
-      <div onclick="dashOpenInter('${i.id}')" style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:4px 6px;border-radius:6px;cursor:pointer" onmouseover="this.style.background='var(--line)'" onmouseout="this.style.background='transparent'">
-        <span style="width:9px;height:9px;border-radius:50%;background:${colorFor(i)};flex:0 0 auto"></span>
-        <span style="font-weight:600;min-width:118px">${fmtDate(i.date_prevue)}</span>
-        <span style="color:var(--muted);min-width:74px">${isConv(i)?'💬 ':''}${esc(labelFor(i))}</span>
-        ${i.domaine?`<span class="pill inf" style="font-size:10.5px">${esc(i.domaine)}</span>`:''}
-        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(erpName(i.erp_id))}${i.objet?' · '+esc(i.objet):''}</span>
-      </div>`).join('')}</div>`
-      : `<div style="font-size:12.5px;color:var(--muted)">Aucune intervention programmée sur cette période.</div>`}
-  </div>`;
-
-  // Grille d'un mois
-  const buildMonth=(m)=>{
-    const year=m.getFullYear(), month=m.getMonth();
-    const feries=joursFeries(year);
-    const first=new Date(year,month,1);
-    const startDow=(first.getDay()+6)%7;
-    const daysInMonth=new Date(year,month+1,0).getDate();
-    const monthName=first.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
-    const cellH = range===1 ? 104 : 76;
-    const head=dows.map(d=>`<div style="text-align:center;font-size:10.5px;font-weight:600;color:var(--muted);padding:3px 0">${range===1?d:d[0]}</div>`).join('');
-    let cells='';
-    for(let i=0;i<startDow;i++) cells+=`<div style="height:${cellH}px;border:1px solid var(--line);border-radius:7px;opacity:.3"></div>`;
-    for(let day=1;day<=daysInMonth;day++){
-      const dk=`${year}-${pad(month+1)}-${pad(day)}`;
-      const items=byDay[dk]||[];
-      const isToday=dk===todayK;
-      const ferie=feries[dk];
-      const maxShow = range===1?3:2;
-      const chips=items.slice(0,maxShow).map(i=> range===1
-        ? `<div onclick="event.stopPropagation();dashOpenInter('${i.id}')" title="${esc(erpName(i.erp_id)+' — '+(i.objet||i.type||''))}" style="display:flex;align-items:center;gap:5px;margin-top:2px;font-size:11px;line-height:1.2;cursor:pointer"><span style="width:8px;height:8px;border-radius:50%;background:${colorFor(i)};flex:0 0 auto"></span><span style="color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${isConv(i)?'💬 ':''}${esc(labelFor(i))}</span></div>`
-        : `<span onclick="event.stopPropagation();dashOpenInter('${i.id}')" title="${esc(erpName(i.erp_id)+' — '+(i.objet||i.type||''))}" style="width:9px;height:9px;border-radius:50%;background:${colorFor(i)};display:inline-block;margin:2px 2px 0 0;cursor:pointer"></span>`
-      ).join('');
-      const more=items.length>maxShow?`<div style="font-size:9.5px;color:var(--muted)">+${items.length-maxShow}</div>`:'';
-      const ferieLabel = (ferie&&range===1)?`<div title="${esc(ferie)}" style="font-size:9.5px;color:#9333ea;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px">${esc(ferie)}</div>`:'';
-      cells+=`<div onclick="dashProgram('${dk}')" title="${ferie?esc('Jour férié : '+ferie):''}" style="height:${cellH}px;border:1px solid ${ferie?'#a855f7':'var(--line)'};border-radius:7px;padding:4px;cursor:pointer;display:flex;flex-direction:column;overflow:hidden;${ferie?'background:rgba(168,85,247,.10);':''}${isToday?'box-shadow:inset 0 0 0 2px var(--primary)':''}">
-        <div style="font-size:10.5px;font-weight:${isToday?'700':'500'};color:${isToday?'var(--primary)':(ferie?'#9333ea':'var(--muted)')}">${day}</div>${ferieLabel}<div style="display:flex;flex-wrap:wrap">${range===1?'':chips}</div>${range===1?chips:''}${more}</div>`;
-    }
-    return `<div><div style="font-size:13px;font-weight:600;text-transform:capitalize;margin:0 0 6px">${monthName}</div>
-      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">${head}</div>
-      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${cells}</div></div>`;
-  };
-  let months='';
-  for(let mi=0; mi<range; mi++){ months+=buildMonth(new Date(start.getFullYear(),start.getMonth()+mi,1)); }
-  const ranges=[[1,'1 mois'],[2,'2 mois'],[3,'3 mois'],[6,'6 mois'],[12,'1 an']];
-
-  host.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-      <div style="display:flex;align-items:center;gap:6px">
-        <button class="btn sm" onclick="dashCalNav(-1)">‹</button>
-        <span style="font-size:13px;font-weight:600;text-transform:capitalize;min-width:150px;text-align:center">${periodeLabel}</span>
-        <button class="btn sm" onclick="dashCalNav(1)">›</button>
-        <button class="btn sm" onclick="dashCalToday()">Aujourd'hui</button>
-      </div>
-      <button class="btn sm${window._dashCalAllClients?' primary':''}" onclick="dashCalAllClients()" style="margin-left:8px">Tous les calendriers des clients</button>
-      <button class="btn primary sm" style="margin-left:auto" onclick="dashProgram('')">${I.plus} Programmer</button>
-    </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
-      ${ranges.map(([n,lab])=>`<button class="btn sm${range===n?' primary':''}" onclick="dashCalRange(${n})">${lab}</button>`).join('')}
-    </div>
-    ${recap}
-    <p style="font-size:12px;color:var(--muted);margin:0 0 12px">Cliquez sur un jour pour programmer une intervention (bureau de contrôle ou prestataire). Périmètre : ${window._dashCalAllClients?'<b>tous les clients (vue globale)</b>':(state.currentErp!=='all'?esc(erpName(state.currentErp)):(state.currentClient!=='all'?'client sélectionné':'tous les clients'))}.</p>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(${range===1?'100%':'300px'},1fr));gap:18px">${months}</div>
-    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;font-size:11.5px;color:var(--muted)">
-      ${[['preventive','Préventive'],['corrective','Corrective'],['travaux','Travaux'],['visite','Visite']].map(([k,v])=>`<span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:3px;background:${typeColor[k]}"></span>${v}</span>`).join('')}
-      <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:3px;background:#0891b2"></span>💬 Conversation</span>
-      <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:3px;background:rgba(168,85,247,.35);border:1px solid #a855f7"></span>Jour férié</span>
-    </div>`;
-  const _cnt=document.getElementById('dashcal-sec-count'); if(_cnt) _cnt.textContent=inRange.length+' prévue(s)';
+  if(window._dashCalMonth){ const m=window._dashCalMonth; window._agDate=new Date(m.getFullYear(),m.getMonth(),1); }
+  if(!document.getElementById('ag_shell')) host.innerHTML='<div id="ag_shell"></div>';
+  agRefresh();
 }
 window.renderDashCalendar=renderDashCalendar;
-function dashCalNav(delta){ const r=window._dashCalRange||1; const m=window._dashCalMonth||new Date(); window._dashCalMonth=new Date(m.getFullYear(),m.getMonth()+delta*r,1); renderDashCalendar(); }
-function dashCalToday(){ const n=new Date(); window._dashCalMonth=new Date(n.getFullYear(),n.getMonth(),1); renderDashCalendar(); }
-function dashCalRange(n){ window._dashCalRange=n; renderDashCalendar(); }
+function dashCalNav(d){ agNav(d); }
+function dashCalToday(){ agToday(); }
+function dashCalRange(n){ agSpan(n); }
 window.dashCalNav=dashCalNav; window.dashCalToday=dashCalToday; window.dashCalRange=dashCalRange;
-async function dashCalAllClients(){
-  if(window._dashCalAllClients){
-    window._dashCalAllClients=false;
-    window._dashInter = window._dashInterScope || [];
-    renderDashCalendar();
-    return;
-  }
-  try{
-    const {data}=await sb.from('interventions').select('id,erp_id,code_int,objet,statut,date_prevue,type,domaine');
-    window._dashInter = data||[];
-    window._dashCalAllClients=true;
-    renderDashCalendar();
-    toast('Tous les calendriers clients affichés','ok');
-  }catch(e){ toast(e.message||'Chargement impossible','err'); }
-}
+async function dashCalAllClients(){ agAllClients(); }
 window.dashCalAllClients=dashCalAllClients;
 function dashProgram(dateISO){ formInter(window._dashScopeErp||'', dateISO?{date_prevue:dateISO}:{}); }
 window.dashProgram=dashProgram;
@@ -4204,7 +4100,7 @@ async function viewClient(c,id){
           <td>${statusPill(e.statut,{validee:['','Validée','ok'],brouillon:['','Brouillon','inf'],a_completer:['','À compléter','moy'],archive:['','Archivé','inf']})}</td></tr>`).join('')}
         </tbody></table></div>`:emptyBlock(I.erp,'Aucun ERP','Ajoutez le premier établissement de ce client.',`<button class="btn primary" onclick="formErp(null,'${id}')">${I.plus} Ajouter un ERP</button>`)}
       <h2 style="font-size:16px;margin:24px 0 4px">Dossier du client</h2>
-      <p style="color:var(--muted);font-size:12.5px;margin:0 0 14px">Éléments et documents du client, classés par catégorie.</p>
+      <p style="color:var(--muted);font-size:12.5px;margin:0 0 14px">Éléments traités et documents archivés, classés par catégorie.</p>
       <div id="client-dossier" class="grid" style="grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:14px">
         <div style="color:var(--muted);font-size:13px;padding:10px">Chargement…</div>
       </div>`;
@@ -4233,23 +4129,17 @@ async function loadClientDossier(id, erps){
   const box=document.getElementById('client-dossier'); if(!box) return;
   const erpIds=(erps||[]).map(e=>e.id);
   let phs=[], docs=[], convs=[];
-  try{ const r=await sb.from('conversations').select('*').eq('client_id',id).order('date_conv',{ascending:false}); convs=r.data||[]; }catch(e){}
-  try{
-    const convIds=convs.map(cv=>cv.id);
-    const ors=[];
-    if(erpIds.length) ors.push(`erp_id.in.(${erpIds.join(',')})`);
-    if(convIds.length) ors.push(`conversation_id.in.(${convIds.join(',')})`);
-    if(ors.length){ const r=await sb.from('photos_urgentes').select('id,erp_id,photo_path,commentaire,date_photo,created_at,traitement,traitement_date,mission').or(ors.join(',')).order('created_at',{ascending:false}); phs=r.data||[]; }
-  }catch(e){}
+  try{ if(erpIds.length){ const r=await sb.from('photos_urgentes').select('id,erp_id,photo_path,commentaire,date_photo,created_at,traitement,traitement_date,mission').in('erp_id',erpIds).eq('traitement','fait').order('created_at',{ascending:false}); phs=r.data||[]; } }catch(e){}
   try{ const r=await sb.from('documents').select('id,type,nom_original,fichier_path,date_document,created_at,tags').eq('client_id',id).order('date_document',{ascending:false}); docs=r.data||[]; }catch(e){}
+  try{ const r=await sb.from('conversations').select('*').eq('client_id',id).order('date_conv',{ascending:false}); convs=r.data||[]; }catch(e){}
   window._dossierConvs=window._dossierConvs||{}; convs.forEach(cv=>{ window._dossierConvs[cv.id]=cv; });
   const photos=phs.filter(p=>p.photo_path);
   const notes =phs.filter(p=>!p.photo_path);
   const crs   =docs.filter(d=>d.type==='Compte rendu');
   const raps  =docs.filter(d=>d.type==='Rapport');
-  const devis =docs.filter(d=>d.type==='Devis'||d.type==='Devis signé');
+  const devis =docs.filter(d=>d.type==='Devis');
   const factures=docs.filter(d=>d.type==='Facture');
-  const diversTypes=['Compte rendu','Rapport','Devis','Devis signé','Facture'];
+  const diversTypes=['Compte rendu','Rapport','Devis','Facture'];
   const divers=docs.filter(d=>!diversTypes.includes(d.type));
 
   const sub=(d)=>fmtDate(d) ;
@@ -4271,7 +4161,7 @@ async function loadClientDossier(id, erps){
     return `<div onclick="previewDoc('${d.fichier_path}','${safe}','${docBucket(d)}')" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;background:var(--surface-2)">
       <span style="font-size:17px;flex:0 0 auto">📄</span>
       <div style="min-width:0;flex:1"><div style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nm)}</div>
-      <div style="font-size:11px;color:var(--muted)">${fmtDate(d.date_document||d.created_at)}${d.type==='Devis signé'?' <span style="background:#16a34a;color:#fff;font-size:10px;font-weight:600;padding:0 7px;border-radius:999px;margin-left:4px">signé ✓</span>':''}</div></div>
+      <div style="font-size:11px;color:var(--muted)">${fmtDate(d.date_document||d.created_at)}</div></div>
     </div>`; };
   const docItemTyped=d=>{ const nm=(d.nom_original||d.type||'document.pdf'); const safe=nm.replace(/'/g,'\\u2019');
     return `<div onclick="previewDoc('${d.fichier_path}','${safe}','${docBucket(d)}')" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;background:var(--surface-2)">
@@ -4298,8 +4188,8 @@ async function loadClientDossier(id, erps){
 
   box.innerHTML =
     card('Conversations', '💬', '#0891b2', convs.map(convItem), 'Aucune conversation') +
-    card('Notes', '📝', '#f59e0b', notes.map(noteItem), 'Aucune note') +
-    card('Photos', '📷', '#2563eb', photos.map(photoItem), 'Aucune photo') +
+    card('Notes', '📝', '#f59e0b', notes.map(noteItem), 'Aucune note traitée') +
+    card('Photos', '📷', '#2563eb', photos.map(photoItem), 'Aucune photo traitée') +
     card('Comptes rendus', '📄', '#16a34a', crs.map(docItem), 'Aucun compte rendu archivé') +
     card('Rapports', '📋', '#7c3aed', raps.map(docItem), 'Aucun rapport archivé') +
     card('Devis', '📝', '#d97706', devis.map(docItem), 'Aucun devis archivé') +
@@ -4721,7 +4611,7 @@ async function convCreateAgenda(convId, p){
   let erpId=p.erp_id;
   if(!erpId && p.client_id){ const e=state.erps.find(x=>x.client_id===p.client_id); erpId=e?e.id:null; }
   if(!erpId){ toast("Action enregistrée, mais pas d'agenda : ce client n'a aucun établissement (ERP).",'err'); return; }
-  const {data,error}=await sb.from('interventions').insert({
+  const {data:_interData,error:_interErr}=await sb.from('interventions').insert({
     erp_id:erpId, type:'visite', objet:(p.action||'Suivi conversation'),
     date_prevue:p.action_date||p.date_conv||new Date().toISOString().slice(0,10),
     statut:'programmee',
@@ -5795,7 +5685,7 @@ function interTable(rows){
           ${erpName(i.erp_id)?`<div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(erpName(i.erp_id))}</div>`:''}
         </div>
         <div class="itr-right" style="display:flex;align-items:center;gap:14px;flex:0 0 auto">
-          <div class="itr-date" style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;width:96px;text-align:right">${fmtDate(i.date_prevue)||'—'}</div>
+          <div class="itr-date" style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;width:96px;text-align:right">${fmtDate(i.date_prevue)||'—'}${i.heure_prevue?'<div style="font-weight:500;color:var(--muted);font-size:11.5px">'+String(i.heure_prevue).slice(0,5)+'</div>':''}</div>
           <span class="mono itr-code" style="font-size:11px;color:var(--muted-2);white-space:nowrap;width:120px">${i.code_int?esc(i.code_int):''}</span>
           <span class="itr-stat" style="width:104px;display:flex;justify-content:flex-start">${statusPill(i.statut,ITST)}</span>
           <button class="btn sm" style="font-size:12px;white-space:nowrap" title="Tableau de bord" onclick="event.stopPropagation();gotoClientDashboard('${i.erp_id}','${esc(i.date_prevue||'')}')">Tableau de bord</button>
@@ -5923,7 +5813,7 @@ async function formInter(erpId,it,mode){
     <div class="fld"><label>Domaine / spécialité</label><div id="f_dom_wrap">${domSelHtml}</div></div>
     <div class="fld"><label>Commentaire</label><textarea id="f_obj" rows="4" placeholder="Commentaire…" onkeydown="event.stopPropagation()" style="width:100%;border:1px solid var(--line,#e2e8f0);border-radius:6px;padding:7px 10px;font-size:14px;font-family:inherit;resize:vertical;color:var(--ink);box-sizing:border-box">${esc(it.objet||'')}</textarea></div>
     <div class="row2"><div class="fld"><label>Prestataire</label><select id="f_prest"><option value="">—</option>${prestOpts}</select></div>
-      <div class="fld"><label>Date prévue${_prog?' <span class="req">*</span>':''}</label><input id="f_date" type="date" value="${esc(it.date_prevue)}"${_prog?' style="border-color:#2563eb;border-width:2px"':''}></div></div>
+      <div class="fld"><label>Date prévue${_prog?' <span class="req">*</span>':''}</label><div style="display:flex;gap:8px"><input id="f_date" type="date" value="${esc(it.date_prevue)}"${_prog?' style="border-color:#2563eb;border-width:2px"':''} style="flex:1"><input id="f_heure" type="time" value="${esc((it.heure_prevue||'').slice(0,5))}" title="Heure (optionnelle)" style="width:110px"></div></div></div>
     ${it.id?`<div class="fld"><label>Statut</label><select id="f_statut">${Object.keys(ITST).map(s=>`<option value="${s}"${it.statut===s?' selected':''}>${ITST[s][1]}</option>`).join('')}</select></div>`:''}
   </div>
   <div class="modal-foot">${it.id?'<button class="btn danger" id="del" style="margin-right:auto">Supprimer</button>':''}${it.id&&(it.type==='travaux'||it.type==='corrective')?`<button class="btn sm" title="Générer le PV de réception de travaux" onclick="pvFromInter('${it.id}')">PV réception</button>`:''}${(!it.id&&_prog)?'':`<button class="btn primary" id="btn_email_inter" style="gap:6px">Demande par email</button><button class="btn sm" id="btn_sms_inter">💬 Par SMS</button>`}<button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">${it.id?'Enregistrer':(_prog?'Programmer':'Créer')}</button></div>`);
@@ -5935,10 +5825,10 @@ async function formInter(erpId,it,mode){
     const domSel=$('#f_dom_sel').value;
     const domaine = domSel==='__autre__' ? ($('#f_dom').value.trim()||null) : (domSel||null);
     const payload={erp_id,type:$('#f_type').value,domaine,objet:$('#f_obj').value||null,
-      prestataire_id:$('#f_prest').value||null,date_prevue:$('#f_date').value||null};
+      prestataire_id:$('#f_prest').value||null,date_prevue:$('#f_date').value||null,heure_prevue:$('#f_heure')?.value||null};
     if(it.id)payload.statut=$('#f_statut').value;
-    try{ if(it.id){delete payload.erp_id; await sb.from('interventions').update(payload).eq('id',it.id);}
-      else{ payload.statut=(_prog||$('#f_date').value)?'programmee':'a_programmer'; await sb.from('interventions').insert(payload);}
+    try{ if(it.id){delete payload.erp_id; await sb.from('interventions').update(payload).eq('id',it.id); window._invalidateDashboard();}
+      else{ payload.statut=(_prog||$('#f_date').value)?'programmee':'a_programmer'; await sb.from('interventions').insert(payload); window._invalidateDashboard();}
       // Si cette intervention est liée à une vérification (obligation), synchroniser son échéance sur la nouvelle date
       if(it.id && it.obligation_id && payload.date_prevue){
         try{ await sb.from('obligations').update({prochaine_echeance:payload.date_prevue}).eq('id',it.obligation_id); }catch(_){}
@@ -8631,42 +8521,11 @@ async function viewDocuments(c){
         <select id="ged_rub" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Toutes les rubriques</option><option value="Commission de sécurité">Commission de sécurité</option><option value="Bureau de contrôle">Bureau de contrôle</option><option value="Maintenance préventive">Maintenance préventive</option><option value="Maintenance corrective">Maintenance corrective</option><option value="Maintenance">Maintenance</option><option value="Compte rendu">Compte rendu</option><option value="Rapport">Rapport</option><option value="Devis">Devis</option><option value="Devis signé">Devis signé</option><option value="Facture">Facture</option><option value="Bon d'intervention">Bon d'intervention</option><option value="PV de réception">PV de réception</option><option value="Courrier mairie">Courrier mairie</option><option value="Mail">Mail</option><option value="Plans">Plans</option><option value="DOE">DOE</option><option value="Sécurité">Sécurité</option><option value="Autres">Autres</option></select>
         <select id="ged_prest" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Tous les prestataires</option>${(prestData||[]).map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select>
       </div>
-      <div class="ged-grid">
-        <div id="ged_list"></div>
-        <div>${contratsPanel(prestData||[])}</div>
-      </div>`;
+      <div id="ged_list"></div>`;
     gedRenderList();
   }catch(e){ c.innerHTML=errBlock(e); }
 }
 
-/* Panneau latéral : contrats de maintenance par prestataire et bureau de contrôle */
-function contratsPanel(prest){
-  const withContrat=(prest||[]).filter(p=>p.contrat_path);
-  const bdc  = withContrat.filter(p=>p.categorie==='bureau_de_controle');
-  const pres = withContrat.filter(p=>p.categorie!=='bureau_de_controle');
-  const itemHtml=p=>`<div class="ctr-item">
-    <span style="font-size:16px;flex:0 0 auto">📄</span>
-    <div style="flex:1;min-width:0;overflow:hidden">
-      <div class="ctr-nom" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.nom)}</div>
-      ${p.type?`<div class="ctr-spe" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.type)}</div>`:''}
-    </div>
-    <button type="button" class="btn sm" title="Visualiser le contrat" onclick="dlPrestDoc('${esc(p.contrat_path)}')">${I.dl||'↓'}</button>
-  </div>`;
-  const groupHtml=(label,emoji,arr)=>`
-    <div class="ctr-grp-t"><span>${emoji}</span>${label} <span style="color:var(--muted-2);font-weight:600">· ${arr.length}</span></div>
-    ${arr.length?arr.map(itemHtml).join(''):`<div style="font-size:12.5px;color:var(--muted-2);padding:2px 2px 8px">Aucun contrat enregistré</div>`}`;
-  return `<div class="ctr-card">
-    <div class="ctr-head">
-      <span style="width:32px;height:32px;border-radius:9px;background:#eff4ff;display:grid;place-items:center;font-size:17px;flex:0 0 auto">🗂️</span>
-      <div><div style="font-weight:700;font-size:14.5px;font-family:var(--fd)">Contrats de maintenance</div>
-        <div style="font-size:12px;color:var(--muted)">${withContrat.length} contrat${withContrat.length>1?'s':''} enregistré${withContrat.length>1?'s':''}</div></div>
-    </div>
-    <div class="ctr-grp">
-      ${groupHtml('Prestataires','🔧',pres)}
-      ${groupHtml('Bureaux de contrôle','🔬',bdc)}
-    </div>
-  </div>`;
-}
 
 /* Page dédiée : Contrats de maintenance (prestataires + bureaux de contrôle) */
 async function viewContrats(c){
@@ -8859,9 +8718,9 @@ window.contratSave=contratSave;
 window.contratRappel=async function(ctId){
   const ct=(window._contratsCache||[]).find(x=>x.id===ctId); if(!ct) return;
   const s=contratEtat(ct); if(!s||!s.lim){ toast('Renseigne d\'abord le cycle du contrat (début, durée, préavis)','err'); return; }
-  // Contacts du client (pour proposer les destinataires)
-  let ctts=[];
-  if(ct.client_id){ try{ const r=await sb.from('client_contacts').select('id,civilite,prenom,nom,fonction,email').eq('client_id',ct.client_id).order('nom'); ctts=(r.data||[]).filter(c=>c.email&&/@/.test(c.email)); }catch(_){} }
+  // Contacts du client pour les cases à cocher
+  let contacts=[];
+  try{ const r=await sb.from('client_contacts').select('prenom,nom,email,role_suivi').eq('client_id',ct.client_id).order('nom'); contacts=(r.data||[]).filter(x=>x.email); }catch(_){ }
   const limIso=s.lim.toISOString().slice(0,10);
   // date proposée : 30 j avant la limite de dénonciation, sinon demain si on est déjà dedans
   const prop=new Date(s.lim); prop.setDate(prop.getDate()-30);
@@ -8877,14 +8736,32 @@ window.contratRappel=async function(ctId){
     <div style="font-size:12.5px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:9px 11px">
       Limite de dénonciation : <b>${fmtDate(limIso)}</b> · échéance : <b>${fmtDate(s.ech.toISOString().slice(0,10))}</b><br>
       <span style="color:var(--muted)">L\'e-mail partira automatiquement à la date choisie, vers 8h.</span></div>
-    <div class="fld" style="margin:0"><label>Date d\'envoi</label><input id="rp_date" type="date" value="${dEnvoi}" max="${limIso}"></div>
-    <div class="fld" style="margin:0"><label>Destinataire(s) <span style="color:var(--muted-2);font-weight:400;font-size:11px">(coche un ou plusieurs)</span></label>
-      <div id="rp_to_list" style="display:flex;flex-direction:column;gap:6px;max-height:170px;overflow:auto;padding:2px">
-        ${cl.email&&/@/.test(cl.email)?`<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;border:1px solid var(--line);border-radius:9px;padding:7px 10px;background:var(--surface)"><input type="checkbox" class="rp_ck" value="${esc(cl.email)}" checked style="accent-color:#2563eb"><span><b>${esc(cl.raison_sociale||'Client')}</b> <span style="color:var(--muted)">(adresse générale)</span><br><span style="color:var(--muted);font-size:11.5px">${esc(cl.email)}</span></span></label>`:''}
-        ${ctts.map(c=>`<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;border:1px solid var(--line);border-radius:9px;padding:7px 10px;background:var(--surface)"><input type="checkbox" class="rp_ck" value="${esc(c.email)}" style="accent-color:#2563eb"><span><b>${esc([c.civilite,c.prenom,c.nom].filter(Boolean).join(' '))}</b>${c.fonction?` <span style="color:var(--muted)">· ${esc(c.fonction)}</span>`:''}<br><span style="color:var(--muted);font-size:11.5px">${esc(c.email)}</span></span></label>`).join('')}
-        ${(!cl.email&&!ctts.length)?'<div style="font-size:12px;color:var(--muted)">Aucun contact enregistré pour ce client.</div>':''}
-      </div>
-      <input id="rp_to_extra" placeholder="＋ Autres adresses (séparées par des virgules)" style="margin-top:8px;width:100%;box-sizing:border-box;border:1px dashed var(--line);border-radius:10px;padding:9px 12px;font-size:12.5px;background:var(--surface-2);color:var(--ink)">
+    <div class="row2">
+      <div class="fld" style="margin:0"><label>Date d\'envoi</label><input id="rp_date" type="date" value="${dEnvoi}" max="${limIso}"></div>
+      <div class="fld" style="margin:0"><label>Destinataire(s) <span style="color:var(--muted-2);font-weight:400;font-size:11px">(coche un ou plusieurs)</span></label>
+        <div id="rp_list" style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow:auto;padding:2px">
+          ${(()=>{
+            const rows=[];
+            const seen=new Set();
+            contacts.forEach((k,idx)=>{ if(seen.has(k.email.toLowerCase())) return; seen.add(k.email.toLowerCase());
+              const nom=[k.prenom,k.nom].filter(Boolean).join(' ')||'Contact';
+              rows.push(`<label style="display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer;background:var(--surface)">
+                <input type="checkbox" class="rp_cb" value="${esc(k.email)}"${idx===0?' checked':''} style="width:16px;height:16px;flex:0 0 auto;accent-color:var(--primary)">
+                <span style="flex:1;min-width:0;text-align:left">
+                  <span style="display:block;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nom)}${k.role_suivi?' · '+esc(k.role_suivi):''}</span>
+                  <span style="display:block;font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(k.email)}</span>
+                </span></label>`); });
+            if(cl.email && !seen.has(cl.email.toLowerCase()))
+              rows.push(`<label style="display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer;background:var(--surface)">
+                <input type="checkbox" class="rp_cb" value="${esc(cl.email)}"${contacts.length?'':' checked'} style="width:16px;height:16px;flex:0 0 auto;accent-color:var(--primary)">
+                <span style="flex:1;min-width:0;text-align:left">
+                  <span style="display:block;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Email principal du client</span>
+                  <span style="display:block;font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cl.email)}</span>
+                </span></label>`);
+            return rows.join('')||'<div style="font-size:12.5px;color:var(--muted);padding:4px 2px">Aucun contact avec e-mail — utilise le champ ci-dessous.</div>';
+          })()}
+        </div>
+        <input id="rp_extra" placeholder="＋ Autres adresses (séparées par des virgules)" style="margin-top:8px;width:100%;box-sizing:border-box;border:1px dashed var(--line);border-radius:10px;padding:9px 12px;font-size:12.5px;background:var(--surface-2);color:var(--ink)"></div>
     </div>
     <div class="fld" style="margin:0"><label>Sujet</label><input id="rp_sujet" value="${esc(sujet)}"></div>
     <div class="fld" style="margin:0"><label>Message</label><textarea id="rp_corps" rows="9" style="width:100%;font-size:13px;line-height:1.5">${esc(corps)}</textarea></div>
@@ -8893,13 +8770,13 @@ window.contratRappel=async function(ctId){
     <button class="btn primary" id="rp_go">Programmer</button></div>`);
   document.getElementById('rp_go').onclick=async()=>{
     const btn=document.getElementById('rp_go');
-    const checked=Array.from(document.querySelectorAll('.rp_ck:checked')).map(x=>x.value.trim()).filter(Boolean);
-    const extra=(document.getElementById('rp_to_extra').value||'').split(',').map(x=>x.trim()).filter(x=>x&&/@/.test(x));
-    const to=[...new Set([...checked,...extra])].join(', ');
+    const cochees=[...document.querySelectorAll('.rp_cb:checked')].map(x=>x.value);
+    const libres=(document.getElementById('rp_extra').value||'').split(/[,;]/).map(x=>x.trim()).filter(Boolean);
+    const to=[...new Set([...cochees,...libres])].join(', ');
     const date=document.getElementById('rp_date').value;
     const suj=(document.getElementById('rp_sujet').value||'').trim();
     const corpsTxt=(document.getElementById('rp_corps').value||'').trim();
-    if(!to||!/@/.test(to)){ toast('Coche au moins un destinataire ou saisis une adresse','err'); return; }
+    if(!to||!/@/.test(to)){ toast('Destinataire manquant ou invalide','err'); return; }
     if(!date){ toast('Choisis la date d\'envoi','err'); return; }
     if(!suj||!corpsTxt){ toast('Sujet et message requis','err'); return; }
     btn.disabled=true; btn.textContent='Programmation…';
@@ -12489,21 +12366,34 @@ window._agDate=null; window._agSpan=1; window._agOff={}; window._agEvents={};
 function agIso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function agErpIds(){
   let erps=state.erps||[];
+  if(window._agAllClients) return erps.map(e=>e.id);
   if(state.currentClient && state.currentClient!=='all') erps=erps.filter(e=>e.client_id===state.currentClient);
   if(state.currentErp && state.currentErp!=='all') erps=erps.filter(e=>e.id===state.currentErp);
   return erps.map(e=>e.id);
 }
-window.viewAgenda=async function(c){
-  if(!window._agDate) window._agDate=new Date();
-  c.innerHTML=`<div class="page-head"><div class="t"><h1>Agenda</h1><p>Échéances, interventions, réserves et rappels du périmètre sélectionné.</p></div>
-    <div class="actions"><button class="btn" onclick="window._agDate=new Date();viewAgenda(document.getElementById('content'))">Aujourd'hui</button>
-      <button class="btn primary" onclick="quickIntervention()">＋ Programmer une intervention</button></div></div>
-    <div class="cal-top">
+window.agShellHtml=function(){
+  const span=window._agSpan||1;
+  const perim=window._agAllClients?'<b>tous les clients (vue globale)</b>'
+    :(state.currentErp!=='all'?esc((state.erps.find(e=>e.id===state.currentErp)||{}).nom||'')
+    :(state.currentClient!=='all'?'client sélectionné':'tous les clients'));
+  return `<div class="cal-top">
       <div class="cal-nav"><button onclick="agNav(-1)">‹</button><div class="cal-m" id="ag_m"></div><button onclick="agNav(1)">›</button></div>
-      <div class="cal-span">${[[1,'1 mois'],[2,'2 mois'],[3,'3 mois'],[6,'6 mois'],[12,'1 an']].map(([v,l])=>`<button class="${window._agSpan===v?'on':''}" onclick="agSpan(${v})">${l}</button>`).join('')}</div>
+      <button class="btn sm" onclick="agToday()">Aujourd'hui</button>
+      <div class="cal-span">${[[1,'1 mois'],[2,'2 mois'],[3,'3 mois'],[6,'6 mois'],[12,'1 an']].map(([v,l])=>`<button class="${span===v?'on':''}" onclick="agSpan(${v})">${l}</button>`).join('')}</div>
+      <button class="btn sm${window._agAllClients?' primary':''}" onclick="agAllClients()">Tous les calendriers des clients</button>
       <div class="cal-leg">${Object.entries(AG_TYPES).map(([k,t])=>`<button id="agl_${k}" class="${window._agOff[k]?'off':''}" onclick="agToggle('${k}')"><span class="dot" style="background:${t.color}"></span>${t.label}</button>`).join('')}</div>
     </div>
+    <p style="font-size:12px;color:var(--muted);margin:6px 0 10px">Cliquez sur un jour pour le détail ou pour programmer. Périmètre : ${perim}.</p>
+    <div id="ag_recap"></div>
     <div id="ag_grid"><div style="text-align:center;color:var(--muted);padding:30px 0">Chargement…</div></div>`;
+};
+window.agRefresh=async function(){
+  const sh=document.getElementById('ag_shell'); if(!sh) return;
+  sh.innerHTML=agShellHtml();
+  await agReload();
+};
+window.agReload=async function(){
+  if(!window._agDate) window._agDate=new Date();
   const base=window._agDate, span=window._agSpan||1;
   const first=new Date(base.getFullYear(),base.getMonth(),1);
   const start=new Date(first); start.setDate(1-((first.getDay()+6)%7));
@@ -12516,22 +12406,52 @@ window.viewAgenda=async function(c){
     const erpName=id=>{ const e=(state.erps||[]).find(x=>x.id===id); return e?e.nom:''; };
     const [ob,it,rs,sm]=await Promise.all([
       erpIds.length?sb.from('obligations').select('libelle,domaine,erp_id,prochaine_echeance').in('erp_id',erpIds).gte('prochaine_echeance',sIso).lte('prochaine_echeance',eIso):{data:[]},
-      erpIds.length?sb.from('interventions').select('objet,domaine,type,statut,erp_id,date_prevue,commentaire').in('erp_id',erpIds).gte('date_prevue',sIso).lte('date_prevue',eIso):{data:[]},
+      erpIds.length?sb.from('interventions').select('objet,domaine,type,statut,erp_id,date_prevue,heure_prevue,commentaire').in('erp_id',erpIds).gte('date_prevue',sIso).lte('date_prevue',eIso):{data:[]},
       erpIds.length?sb.from('reserves').select('libelle,statut,erp_id,date_limite,rdv_date').in('erp_id',erpIds).or('and(date_limite.gte.'+sIso+',date_limite.lte.'+eIso+'),and(rdv_date.gte.'+sIso+',rdv_date.lte.'+eIso+')'):{data:[]},
       sb.from('sms_scheduled').select('destinataire,message,send_at,statut').eq('statut','pending').gte('send_at',sIso).lte('send_at',eIso+'T23:59:59Z')
     ]);
     (ob.data||[]).forEach(o=>push(o.prochaine_echeance,'verif',(o.libelle||o.domaine||'Vérification')+' — '+erpName(o.erp_id),'/verifications'));
     (it.data||[]).forEach(i=>{ if(/^annul/i.test(i.statut||'')) return;
       const fromConv=/issu d.une conversation/i.test(i.commentaire||'');
-      push(i.date_prevue, fromConv?'conv':'inter', (i.objet||i.domaine||i.type||'Intervention')+' — '+erpName(i.erp_id), '/conversations'.replace('/conversations', fromConv?'/conversations':'/interventions')); });
+      const hh=i.heure_prevue?String(i.heure_prevue).slice(0,5)+' · ':'';
+      push(i.date_prevue, fromConv?'conv':'inter', hh+(i.objet||i.domaine||i.type||'Intervention')+' — '+erpName(i.erp_id), fromConv?'/conversations':'/interventions'); });
     (rs.data||[]).forEach(r=>{ const done=/lev/i.test(r.statut||'');
       if(!done && r.date_limite) push(r.date_limite,'reslim','Limite : '+(r.libelle||'réserve')+' — '+erpName(r.erp_id),'/reserves');
       if(r.rdv_date) push(r.rdv_date,'resrdv','RDV : '+(r.libelle||'réserve')+' — '+erpName(r.erp_id),'/reserves'); });
     (sm.data||[]).forEach(s=>push(String(s.send_at).slice(0,10),'sms','SMS '+new Date(s.send_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' → '+s.destinataire,null));
   }catch(e){ console.warn('agenda:',e); }
   window._agEvents=ev;
+  agRecap(first, new Date(base.getFullYear(),base.getMonth()+span,1));
   agRender();
 };
+window.agRecap=function(from,to){
+  const host=document.getElementById('ag_recap'); if(!host) return;
+  const ev=window._agEvents||{};
+  const rows=[];
+  Object.keys(ev).sort().forEach(iso=>{
+    if(iso<agIso(from)||iso>=agIso(to)) return;
+    ev[iso].forEach(x=>{ if(!window._agOff[x.type]) rows.push({iso,...x}); });
+  });
+  host.innerHTML=`<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:${rows.length?'8px':'0'}"><b style="font-size:13.5px">Récapitulatif des dates</b>
+      <span class="pill inf" style="margin-left:auto">${rows.length} échéance(s)</span></div>
+    ${rows.length?`<div style="max-height:190px;overflow:auto;display:flex;flex-direction:column;gap:4px">${rows.map(r=>`
+      <div ${r.route?`onclick="navigate('${r.route}')"`:''} style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:4px 6px;border-radius:6px;${r.route?'cursor:pointer':''}" onmouseover="this.style.background='var(--line)'" onmouseout="this.style.background='transparent'">
+        <span style="width:9px;height:9px;border-radius:50%;background:${AG_TYPES[r.type].color};flex:0 0 auto"></span>
+        <span style="font-weight:600;min-width:96px">${fmtDate(r.iso)}</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.type==='conv'?'💬 ':''}${esc(r.label)}</span>
+      </div>`).join('')}</div>`:''}
+  </div>`;
+};
+window.viewAgenda=async function(c){
+  if(!window._agDate) window._agDate=new Date();
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Agenda</h1><p>Échéances, interventions, réserves et rappels — la même vue que le tableau de bord.</p></div>
+    <div class="actions"><button class="btn primary" onclick="quickIntervention()">＋ Programmer une intervention</button></div></div>
+    <div id="ag_shell"></div>`;
+  agRefresh();
+};
+window.agToday=function(){ window._agDate=new Date(); window._dashCalMonth=new Date(); agRefresh(); };
+window.agAllClients=function(){ window._agAllClients=!window._agAllClients; agRefresh(); };
 window.agRender=function(){
   const base=window._agDate, span=window._agSpan||1, ev=window._agEvents||{};
   const m=document.getElementById('ag_m'); if(!m) return;
@@ -12550,9 +12470,11 @@ window.agRender=function(){
       const d=new Date(gs); d.setDate(gs.getDate()+i);
       const iso=agIso(d);
       const list=(ev[iso]||[]).filter(x=>!window._agOff[x.type]);
+      const ferie=(typeof joursFeries==='function')?joursFeries(d.getFullYear())[iso]:null;
       const out=d.getMonth()!==mo.getMonth();
       html+=`<div class="cal-cell${out?' out':''}${iso===today?' today':''}" onclick="agDay('${iso}')">
         <span class="d">${d.getDate()}</span>
+        ${ferie?`<span class="cal-pill" title="${esc(ferie)}" style="background:rgba(168,85,247,.75)">${esc(ferie)}</span>`:''}
         ${list.length?`<span class="nb" style="display:none">${list.length}</span>`:''}
         ${list.slice(0,3).map(x=>`<span class="cal-pill${x.type==='conv'?' conv':''}" style="background:${AG_TYPES[x.type].color}">${x.type==='conv'?'<span class="cbadge">💬</span>':''}${esc(x.label)}</span>`).join('')}
         ${list.length>3?`<span class="cal-more">+${list.length-3} autres</span>`:''}
@@ -12562,15 +12484,18 @@ window.agRender=function(){
   }
   document.getElementById('ag_grid').innerHTML=html;
 };
-window.agSpan=function(v){ window._agSpan=v; viewAgenda(document.getElementById('content')); };
+window.agSpan=function(v){ window._agSpan=v; agRefresh(); };
 window.agNav=function(delta){
-  const d=window._agDate, span=window._agSpan||1;
+  const d=window._agDate||new Date(), span=window._agSpan||1;
   window._agDate=new Date(d.getFullYear(),d.getMonth()+delta*span,1);
-  viewAgenda(document.getElementById('content'));
+  window._dashCalMonth=new Date(window._agDate);
+  agRefresh();
 };
 window.agToggle=function(k){
   window._agOff[k]=!window._agOff[k];
   const b=document.getElementById('agl_'+k); if(b) b.classList.toggle('off',!!window._agOff[k]);
+  const base=window._agDate||new Date(), span=window._agSpan||1;
+  agRecap(new Date(base.getFullYear(),base.getMonth(),1), new Date(base.getFullYear(),base.getMonth()+span,1));
   agRender();
 };
 window.agDay=function(iso){
@@ -15082,7 +15007,7 @@ function renderPrestTable(rows, categorie){
     </tr></thead>
     <tbody>${filtered.map(p=>{ const ci=prestContactInfo(p); return `<tr onclick='formPrest(${JSON.stringify(p).replace(/'/g,"&#39;")})' style="cursor:pointer">
       <td><b>${esc(p.nom)}</b>${p.tel_astreinte?`<a href="tel:${esc(p.tel_astreinte)}" onclick="event.stopPropagation()" title="Astreinte : ${esc(p.tel_astreinte)}" style="display:inline-flex;align-items:center;margin-left:7px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:999px;padding:1px 8px;font-size:10.5px;font-weight:800;text-decoration:none;vertical-align:middle">Astreinte : ${esc(p.tel_astreinte)}</a>`:''}${p.commentaire?`<div style="font-size:12px;color:var(--muted)">${esc(p.commentaire)}</div>`:''}</td>
-      <td style="font-size:12.5px">${(()=>{ const ids=Array.isArray(p.client_ids)&&p.client_ids.length?p.client_ids:(p.client_id?[p.client_id]:[]); if(!ids.length) return '<span style="color:var(--muted-2)">Tous</span>'; return `<div class="cl-badges">`+ids.map(id=>{ const cl=state.clients.find(x=>x.id===id); return cl?`<span class="cl-badge">${esc(cl.raison_sociale)}</span>`:''; }).join('')+`</div>`; })()}</td>
+      <td style="font-size:12.5px">${(()=>{ const ids=Array.isArray(p.client_ids)&&p.client_ids.length?p.client_ids:(p.client_id?[p.client_id]:[]); if(!ids.length) return '<span style="color:var(--muted-2)">Tous</span>'; return ids.map(id=>{ const cl=state.clients.find(x=>x.id===id); return cl?`<span style="display:inline-block;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:2px 7px;margin:1px 2px;font-size:11.5px">${esc(cl.raison_sociale)}</span>`:''; }).join(''); })()}</td>
       <td style="font-size:13px">${esc(p.type)||'—'}</td>
       <td style="font-size:13px">${ci.email?`<a href="mailto:${esc(ci.email)}" onclick="event.stopPropagation()" style="color:var(--primary)">${esc(ci.email)}</a>`:'—'}${ci.from?`<div style="font-size:11px;color:var(--muted)">👤 ${esc(ci.from)}</div>`:''}</td>
       <td style="font-size:13px">${ci.tel?`<a href="tel:${esc(ci.tel)}" onclick="event.stopPropagation()" style="color:var(--primary)">${esc(ci.tel)}</a>`:'—'}</td>
