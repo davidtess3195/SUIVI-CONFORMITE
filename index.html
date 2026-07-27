@@ -264,7 +264,7 @@ table.tbl .mono{font-family:var(--fd);font-weight:600;font-size:12.5px;color:var
 .empty p{font-size:13.5px;max-width:340px;margin:0 auto 16px}
 
 /* Modal */
-.overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(2px);z-index:990;display:grid;place-items:center;padding:18px;opacity:0;pointer-events:none;transition:.18s}
+.overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);backdrop-filter:blur(2px);z-index:60;display:grid;place-items:center;padding:18px;opacity:0;pointer-events:none;transition:.18s}
 .overlay.on{opacity:1;pointer-events:auto}
 body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .modal{background:var(--surface);border-radius:18px;box-shadow:var(--sh-l);width:100%;max-width:560px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;transform:translateY(8px) scale(.99);transition:.18s}
@@ -576,6 +576,13 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   .modal-foot{flex-wrap:wrap}
   h1{font-size:21px}
 }
+/* Badges clients (tableau prestataires) */
+.cl-badges{display:flex;flex-wrap:wrap;gap:3px}
+.cl-badge{display:inline-block;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:11.5px;word-break:normal;overflow-wrap:normal;white-space:normal;max-width:100%}
+@media(max-width:640px){
+  .cl-badges{justify-content:flex-end;min-width:0}
+  .cl-badge{text-align:right}
+}
 @media(max-width:640px){
   /* Tableaux -> cartes lisibles sur mobile */
   .tbl-wrap{overflow:visible;border:none;background:transparent;box-shadow:none;border-radius:0}
@@ -690,7 +697,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='662'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='660'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -8843,9 +8850,12 @@ async function contratSave(id){
 }
 window.contratSave=contratSave;
 
-window.contratRappel=function(ctId){
+window.contratRappel=async function(ctId){
   const ct=(window._contratsCache||[]).find(x=>x.id===ctId); if(!ct) return;
   const s=contratEtat(ct); if(!s||!s.lim){ toast('Renseigne d\'abord le cycle du contrat (début, durée, préavis)','err'); return; }
+  // Contacts du client (pour proposer les destinataires)
+  let ctts=[];
+  if(ct.client_id){ try{ const r=await sb.from('client_contacts').select('id,civilite,prenom,nom,fonction,email').eq('client_id',ct.client_id).order('nom'); ctts=(r.data||[]).filter(c=>c.email&&/@/.test(c.email)); }catch(_){} }
   const limIso=s.lim.toISOString().slice(0,10);
   // date proposée : 30 j avant la limite de dénonciation, sinon demain si on est déjà dedans
   const prop=new Date(s.lim); prop.setDate(prop.getDate()-30);
@@ -8861,9 +8871,14 @@ window.contratRappel=function(ctId){
     <div style="font-size:12.5px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:9px 11px">
       Limite de dénonciation : <b>${fmtDate(limIso)}</b> · échéance : <b>${fmtDate(s.ech.toISOString().slice(0,10))}</b><br>
       <span style="color:var(--muted)">L\'e-mail partira automatiquement à la date choisie, vers 8h.</span></div>
-    <div class="row2">
-      <div class="fld" style="margin:0"><label>Date d\'envoi</label><input id="rp_date" type="date" value="${dEnvoi}" max="${limIso}"></div>
-      <div class="fld" style="margin:0"><label>Destinataire(s) <span style="color:var(--muted-2);font-weight:400;font-size:11px">(virgules pour plusieurs)</span></label><input id="rp_to" value="${esc(cl.email||'')}" placeholder="email@client.fr"></div>
+    <div class="fld" style="margin:0"><label>Date d\'envoi</label><input id="rp_date" type="date" value="${dEnvoi}" max="${limIso}"></div>
+    <div class="fld" style="margin:0"><label>Destinataire(s) <span style="color:var(--muted-2);font-weight:400;font-size:11px">(coche un ou plusieurs)</span></label>
+      <div id="rp_to_list" style="display:flex;flex-direction:column;gap:6px;max-height:170px;overflow:auto;padding:2px">
+        ${cl.email&&/@/.test(cl.email)?`<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;border:1px solid var(--line);border-radius:9px;padding:7px 10px;background:var(--surface)"><input type="checkbox" class="rp_ck" value="${esc(cl.email)}" checked style="accent-color:#2563eb"><span><b>${esc(cl.raison_sociale||'Client')}</b> <span style="color:var(--muted)">(adresse générale)</span><br><span style="color:var(--muted);font-size:11.5px">${esc(cl.email)}</span></span></label>`:''}
+        ${ctts.map(c=>`<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;border:1px solid var(--line);border-radius:9px;padding:7px 10px;background:var(--surface)"><input type="checkbox" class="rp_ck" value="${esc(c.email)}" style="accent-color:#2563eb"><span><b>${esc([c.civilite,c.prenom,c.nom].filter(Boolean).join(' '))}</b>${c.fonction?` <span style="color:var(--muted)">· ${esc(c.fonction)}</span>`:''}<br><span style="color:var(--muted);font-size:11.5px">${esc(c.email)}</span></span></label>`).join('')}
+        ${(!cl.email&&!ctts.length)?'<div style="font-size:12px;color:var(--muted)">Aucun contact enregistré pour ce client.</div>':''}
+      </div>
+      <input id="rp_to_extra" placeholder="＋ Autres adresses (séparées par des virgules)" style="margin-top:8px;width:100%;box-sizing:border-box;border:1px dashed var(--line);border-radius:10px;padding:9px 12px;font-size:12.5px;background:var(--surface-2);color:var(--ink)">
     </div>
     <div class="fld" style="margin:0"><label>Sujet</label><input id="rp_sujet" value="${esc(sujet)}"></div>
     <div class="fld" style="margin:0"><label>Message</label><textarea id="rp_corps" rows="9" style="width:100%;font-size:13px;line-height:1.5">${esc(corps)}</textarea></div>
@@ -8872,11 +8887,13 @@ window.contratRappel=function(ctId){
     <button class="btn primary" id="rp_go">Programmer</button></div>`);
   document.getElementById('rp_go').onclick=async()=>{
     const btn=document.getElementById('rp_go');
-    const to=(document.getElementById('rp_to').value||'').trim();
+    const checked=Array.from(document.querySelectorAll('.rp_ck:checked')).map(x=>x.value.trim()).filter(Boolean);
+    const extra=(document.getElementById('rp_to_extra').value||'').split(',').map(x=>x.trim()).filter(x=>x&&/@/.test(x));
+    const to=[...new Set([...checked,...extra])].join(', ');
     const date=document.getElementById('rp_date').value;
     const suj=(document.getElementById('rp_sujet').value||'').trim();
     const corpsTxt=(document.getElementById('rp_corps').value||'').trim();
-    if(!to||!/@/.test(to)){ toast('Destinataire manquant ou invalide','err'); return; }
+    if(!to||!/@/.test(to)){ toast('Coche au moins un destinataire ou saisis une adresse','err'); return; }
     if(!date){ toast('Choisis la date d\'envoi','err'); return; }
     if(!suj||!corpsTxt){ toast('Sujet et message requis','err'); return; }
     btn.disabled=true; btn.textContent='Programmation…';
@@ -15059,7 +15076,7 @@ function renderPrestTable(rows, categorie){
     </tr></thead>
     <tbody>${filtered.map(p=>{ const ci=prestContactInfo(p); return `<tr onclick='formPrest(${JSON.stringify(p).replace(/'/g,"&#39;")})' style="cursor:pointer">
       <td><b>${esc(p.nom)}</b>${p.tel_astreinte?`<a href="tel:${esc(p.tel_astreinte)}" onclick="event.stopPropagation()" title="Astreinte : ${esc(p.tel_astreinte)}" style="display:inline-flex;align-items:center;margin-left:7px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:999px;padding:1px 8px;font-size:10.5px;font-weight:800;text-decoration:none;vertical-align:middle">Astreinte : ${esc(p.tel_astreinte)}</a>`:''}${p.commentaire?`<div style="font-size:12px;color:var(--muted)">${esc(p.commentaire)}</div>`:''}</td>
-      <td style="font-size:12.5px">${(()=>{ const ids=Array.isArray(p.client_ids)&&p.client_ids.length?p.client_ids:(p.client_id?[p.client_id]:[]); if(!ids.length) return '<span style="color:var(--muted-2)">Tous</span>'; return ids.map(id=>{ const cl=state.clients.find(x=>x.id===id); return cl?`<span style="display:inline-block;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:2px 7px;margin:1px 2px;font-size:11.5px">${esc(cl.raison_sociale)}</span>`:''; }).join(''); })()}</td>
+      <td style="font-size:12.5px">${(()=>{ const ids=Array.isArray(p.client_ids)&&p.client_ids.length?p.client_ids:(p.client_id?[p.client_id]:[]); if(!ids.length) return '<span style="color:var(--muted-2)">Tous</span>'; return `<div class="cl-badges">`+ids.map(id=>{ const cl=state.clients.find(x=>x.id===id); return cl?`<span class="cl-badge">${esc(cl.raison_sociale)}</span>`:''; }).join('')+`</div>`; })()}</td>
       <td style="font-size:13px">${esc(p.type)||'—'}</td>
       <td style="font-size:13px">${ci.email?`<a href="mailto:${esc(ci.email)}" onclick="event.stopPropagation()" style="color:var(--primary)">${esc(ci.email)}</a>`:'—'}${ci.from?`<div style="font-size:11px;color:var(--muted)">👤 ${esc(ci.from)}</div>`:''}</td>
       <td style="font-size:13px">${ci.tel?`<a href="tel:${esc(ci.tel)}" onclick="event.stopPropagation()" style="color:var(--primary)">${esc(ci.tel)}</a>`:'—'}</td>
