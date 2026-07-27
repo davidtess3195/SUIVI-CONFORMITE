@@ -695,7 +695,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='668'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='669'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -8585,7 +8585,7 @@ async function viewContrats(c){
         ${ct.nom?infoRow('📄 Document', esc(ct.nom)):''}
         ${(()=>{const s=contratEtat(ct);return s?`<div style="margin-top:7px"><span class="pill ${s.cls}" style="font-size:11px;white-space:normal;line-height:1.45;text-align:left">${esc(s.txt)}</span></div>`:'';})()}
         ${(()=>{const r=(window._ctRappels||{})[ct.id];const s=contratEtat(ct);
-          if(r&&r.statut==='pending') return `<div style="margin-top:6px;font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:7px;flex-wrap:wrap">🔔 Rappel programmé le <b>${fmtDate(r.send_at)}</b> → ${esc((r.destinataires||'').split(',')[0])}<button class="btn sm ghost" style="padding:2px 8px;font-size:10.5px" onclick="ctRappelAnnuler('${r.id}')">Annuler</button></div>`;
+          if(r&&r.statut==='pending') return `<div style="margin-top:6px;font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:7px;flex-wrap:wrap">🔔 Rappel programmé le <b>${fmtDate(r.send_at)}</b> → ${esc((r.destinataires||'').split(/[,;]/).map(x=>x.trim()).filter(Boolean).join(', '))}<button class="btn sm" style="padding:2px 8px;font-size:10.5px" onclick="contratRappel('${ct.id}','${r.id}')">Modifier</button><button class="btn sm ghost" style="padding:2px 8px;font-size:10.5px" onclick="ctRappelAnnuler('${r.id}')">Annuler</button></div>`;
           if(r&&r.statut==='sent') return `<div style="margin-top:6px;font-size:11.5px;color:var(--conforme)">✉️ Rappel envoyé le ${fmtDate(r.sent_at||r.send_at)}</div>`;
           if(r&&r.statut==='failed') return `<div style="margin-top:6px;font-size:11.5px;color:var(--majeur)">⚠ Échec d\'envoi du rappel <button class="btn sm" style="padding:2px 8px;font-size:10.5px" onclick="contratRappel('${ct.id}')">Reprogrammer</button></div>`;
           if(s&&ct.tacite!==false&&s.lim) return `<div style="margin-top:6px"><button class="btn sm" style="font-size:11px" onclick="contratRappel('${ct.id}')">🔔 Programmer un rappel e-mail</button></div>`;
@@ -8651,6 +8651,11 @@ function contratForm(ct, file){
       </div>
       ${(()=>{const s=typeof contratEtat==='function'?contratEtat(ct):null;
         return s?`<div style="margin-top:9px"><span class="pill ${s.cls}" style="white-space:normal;line-height:1.45;text-align:left">${esc(s.txt)}</span></div>`:'';})()}
+      ${(()=>{const r=ct.id?((window._ctRappels||{})[ct.id]):null;
+        if(!r) return '';
+        if(r.statut==='pending') return `<div style="margin-top:8px;font-size:12px;color:var(--muted)">🔔 Rappel e-mail programmé le <b>${fmtDate(r.send_at)}</b> → ${esc((r.destinataires||'').split(/[,;]/).map(x=>x.trim()).filter(Boolean).join(', '))} <span style="color:var(--muted-2)">(modifiable depuis la carte du contrat)</span></div>`;
+        if(r.statut==='sent') return `<div style="margin-top:8px;font-size:12px;color:var(--conforme)">✉️ Rappel envoyé le ${fmtDate(r.sent_at||r.send_at)}</div>`;
+        return '';})()}
     </div>
     <div class="fld"><label>Document <span style="color:var(--muted-2);font-weight:400;font-size:11px">(PDF/image, compressé automatiquement)</span></label>
       ${ct.fichier_path?`<div style="font-size:12.5px;color:var(--muted);margin-bottom:6px">Document actuel : ${esc(ct.nom||'fichier')} <button type="button" class="btn sm" onclick="previewContrat('${ct.id}')">Voir</button></div>`:''}
@@ -8715,9 +8720,12 @@ async function contratSave(id){
 }
 window.contratSave=contratSave;
 
-window.contratRappel=async function(ctId){
+window.contratRappel=async function(ctId, rappelId){
   const ct=(window._contratsCache||[]).find(x=>x.id===ctId); if(!ct) return;
   const s=contratEtat(ct); if(!s||!s.lim){ toast('Renseigne d\'abord le cycle du contrat (début, durée, préavis)','err'); return; }
+  let edit=null;
+  if(rappelId){ try{ const r=await sb.from('emails_programmes').select('*').eq('id',rappelId).maybeSingle(); edit=r.data||null; }catch(_){ } }
+  const editDest=edit?String(edit.destinataires||'').split(/[,;]/).map(x=>x.trim().toLowerCase()).filter(Boolean):[];
   // Contacts du client pour les cases à cocher
   let contacts=[];
   try{ const r=await sb.from('client_contacts').select('prenom,nom,email,role_suivi').eq('client_id',ct.client_id).order('nom'); contacts=(r.data||[]).filter(x=>x.email); }catch(_){ }
@@ -8725,13 +8733,21 @@ window.contratRappel=async function(ctId){
   // date proposée : 30 j avant la limite de dénonciation, sinon demain si on est déjà dedans
   const prop=new Date(s.lim); prop.setDate(prop.getDate()-30);
   const tomorrow=new Date(); tomorrow.setDate(tomorrow.getDate()+1);
-  const dEnvoi=(prop>tomorrow?prop:tomorrow).toISOString().slice(0,10);
+  let dEnvoi=(prop>tomorrow?prop:tomorrow).toISOString().slice(0,10);
+  if(edit&&edit.send_at) dEnvoi=String(edit.send_at).slice(0,10);
   const cl=state.clients.find(x=>x.id===ct.client_id)||{};
   const erp=(state.erps||[]).find(e=>e.id===ct.erp_id);
   const prest=(window._prestList||[]).find(p=>p.id===ct.prestataire_id);
-  const sujet=`Rappel — contrat${ct.nom?' « '+ct.nom+' »':''} : préavis à dénoncer avant le ${fmtDate(limIso)}`;
+  let sujet=`Rappel — contrat${ct.nom?' « '+ct.nom+' »':''} : préavis à dénoncer avant le ${fmtDate(limIso)}`;
+  if(edit&&edit.sujet) sujet=edit.sujet;
   const corps=`Bonjour,\n\nLe contrat de maintenance${ct.nom?' « '+ct.nom+' »':''}${prest?' ('+prest.nom+')':''}${erp?' de l\'établissement '+erp.nom:''} arrive à son échéance annuelle le ${fmtDate(s.ech.toISOString().slice(0,10))}.\n\nSans dénonciation avant le ${fmtDate(limIso)} (préavis de ${ct.preavis_mois||'—'} mois), il sera reconduit tacitement pour ${ct.duree_mois} mois.\n\nSi vous souhaitez le renégocier ou le résilier, c\'est le moment d\'envoyer le courrier de dénonciation.\n\nBien cordialement,\nSUIVI-CONFORMITÉ — PREVA CONSEILS`;
-  openModal(`<div class="modal-head"><h2>🔔 Programmer le rappel e-mail</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+  let corpsTxt2=corps;
+  if(edit&&edit.corps_html){
+    const _tmp=document.createElement('div');
+    _tmp.innerHTML=String(edit.corps_html).replace(/<br\s*\/?>/gi,'\n');
+    corpsTxt2=_tmp.textContent;
+  }
+  openModal(`<div class="modal-head"><h2>🔔 ${edit?'Modifier le rappel e-mail':'Programmer le rappel e-mail'}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
   <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
     <div style="font-size:12.5px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:9px 11px">
       Limite de dénonciation : <b>${fmtDate(limIso)}</b> · échéance : <b>${fmtDate(s.ech.toISOString().slice(0,10))}</b><br>
@@ -8746,14 +8762,14 @@ window.contratRappel=async function(ctId){
             contacts.forEach((k,idx)=>{ if(seen.has(k.email.toLowerCase())) return; seen.add(k.email.toLowerCase());
               const nom=[k.prenom,k.nom].filter(Boolean).join(' ')||'Contact';
               rows.push(`<label style="display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer;background:var(--surface)">
-                <input type="checkbox" class="rp_cb" value="${esc(k.email)}"${idx===0?' checked':''} style="width:16px;height:16px;flex:0 0 auto;accent-color:var(--primary)">
+                <input type="checkbox" class="rp_cb" value="${esc(k.email)}"${edit?(editDest.includes(k.email.toLowerCase())?' checked':''):(idx===0?' checked':'')} style="width:16px;height:16px;flex:0 0 auto;accent-color:var(--primary)">
                 <span style="flex:1;min-width:0;text-align:left">
                   <span style="display:block;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nom)}${k.role_suivi?' · '+esc(k.role_suivi):''}</span>
                   <span style="display:block;font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(k.email)}</span>
                 </span></label>`); });
             if(cl.email && !seen.has(cl.email.toLowerCase()))
               rows.push(`<label style="display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer;background:var(--surface)">
-                <input type="checkbox" class="rp_cb" value="${esc(cl.email)}"${contacts.length?'':' checked'} style="width:16px;height:16px;flex:0 0 auto;accent-color:var(--primary)">
+                <input type="checkbox" class="rp_cb" value="${esc(cl.email)}"${edit?(editDest.includes(cl.email.toLowerCase())?' checked':''):(contacts.length?'':' checked')} style="width:16px;height:16px;flex:0 0 auto;accent-color:var(--primary)">
                 <span style="flex:1;min-width:0;text-align:left">
                   <span style="display:block;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Email principal du client</span>
                   <span style="display:block;font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cl.email)}</span>
@@ -8761,13 +8777,13 @@ window.contratRappel=async function(ctId){
             return rows.join('')||'<div style="font-size:12.5px;color:var(--muted);padding:4px 2px">Aucun contact avec e-mail — utilise le champ ci-dessous.</div>';
           })()}
         </div>
-        <input id="rp_extra" placeholder="＋ Autres adresses (séparées par des virgules)" style="margin-top:8px;width:100%;box-sizing:border-box;border:1px dashed var(--line);border-radius:10px;padding:9px 12px;font-size:12.5px;background:var(--surface-2);color:var(--ink)"></div>
+        <input id="rp_extra" value="${esc(edit?editDest.filter(e=>!contacts.some(k=>k.email.toLowerCase()===e)&&e!==(cl.email||'').toLowerCase()).join(', '):'')}" placeholder="＋ Autres adresses (séparées par des virgules)" style="margin-top:8px;width:100%;box-sizing:border-box;border:1px dashed var(--line);border-radius:10px;padding:9px 12px;font-size:12.5px;background:var(--surface-2);color:var(--ink)"></div>
     </div>
     <div class="fld" style="margin:0"><label>Sujet</label><input id="rp_sujet" value="${esc(sujet)}"></div>
-    <div class="fld" style="margin:0"><label>Message</label><textarea id="rp_corps" rows="9" style="width:100%;font-size:13px;line-height:1.5">${esc(corps)}</textarea></div>
+    <div class="fld" style="margin:0"><label>Message</label><textarea id="rp_corps" rows="9" style="width:100%;font-size:13px;line-height:1.5">${esc(corpsTxt2)}</textarea></div>
   </div>
   <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
-    <button class="btn primary" id="rp_go">Programmer</button></div>`);
+    <button class="btn primary" id="rp_go">${edit?'Mettre à jour':'Programmer'}</button></div>`);
   document.getElementById('rp_go').onclick=async()=>{
     const btn=document.getElementById('rp_go');
     const cochees=[...document.querySelectorAll('.rp_cb:checked')].map(x=>x.value);
@@ -8782,12 +8798,11 @@ window.contratRappel=async function(ctId){
     btn.disabled=true; btn.textContent='Programmation…';
     try{
       const html=corpsTxt.split('\n').map(l=>esc(l)).join('<br>');
-      const {error}=await sb.from('emails_programmes').insert({
-        type:'contrat_preavis', contrat_id:ct.id, destinataires:to,
-        sujet:suj, corps_html:html, send_at:date+'T08:00:00+02:00'
-      });
-      if(error) throw error;
-      closeModal(); toast('Rappel programmé pour le '+fmtDate(date)+' ✓','ok');
+      const payload={type:'contrat_preavis', contrat_id:ct.id, destinataires:to,
+        sujet:suj, corps_html:html, send_at:date+'T08:00:00+02:00'};
+      if(edit){ const {error}=await sb.from('emails_programmes').update(payload).eq('id',edit.id); if(error) throw error; }
+      else{ const {error}=await sb.from('emails_programmes').insert(payload); if(error) throw error; }
+      closeModal(); toast(edit?'Rappel mis à jour ✓':'Rappel programmé pour le '+fmtDate(date)+' ✓','ok');
       const cont=document.getElementById('content'); if(cont) viewContrats(cont);
     }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Programmer'; }
   };
