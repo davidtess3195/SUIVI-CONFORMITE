@@ -690,7 +690,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='658'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='659'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -4778,6 +4778,32 @@ window.prestGaranties=function(p,duTravaux,auTravaux){
   return fin>=today?{cls:'ok',txt:'Attestation valide jusqu\'au '+fmtDate(fin)}
                    :{cls:'crit',txt:'⚠ Attestation expirée le '+fmtDate(fin)};
 };
+window.contratEtat=function(ct){
+  if(!ct||!ct.date_debut||!ct.duree_mois) return null;
+  const _t=new Date(); const today=new Date(_t.getFullYear(),_t.getMonth(),_t.getDate());
+  const parts=String(ct.date_debut).split('-').map(Number);
+  const debut=new Date(parts[0],parts[1]-1,parts[2]);
+  // prochaine échéance : début + k cycles, première strictement future (ou = aujourd'hui)
+  let ech=new Date(debut);
+  while(ech<today){ ech=new Date(ech.getFullYear(),ech.getMonth()+ct.duree_mois,ech.getDate()); }
+  const jEch=Math.round((ech-today)/864e5);
+  if(!ct.tacite){
+    // contrat à terme fixe : la 1re échéance est la fin
+    const fin=new Date(debut.getFullYear(),debut.getMonth()+ct.duree_mois,debut.getDate());
+    const jFin=Math.round((fin-today)/864e5);
+    if(jFin<0) return {cls:'crit',txt:'Contrat expiré le '+fmtDate(fin.toISOString().slice(0,10)),j:jFin,ech:fin};
+    if(jFin<=90) return {cls:'moy',txt:'Contrat expire le '+fmtDate(fin.toISOString().slice(0,10))+' ('+jFin+' j)',j:jFin,ech:fin};
+    return {cls:'ok',txt:'Contrat en cours — fin le '+fmtDate(fin.toISOString().slice(0,10)),j:jFin,ech:fin};
+  }
+  const pre=ct.preavis_mois||0;
+  const lim=new Date(ech.getFullYear(),ech.getMonth()-pre,ech.getDate());
+  const jLim=Math.round((lim-today)/864e5);
+  const echIso=ech.toISOString().slice(0,10), limIso=lim.toISOString().slice(0,10);
+  if(jLim<0) return {cls:'inf',txt:'Préavis dépassé — reconduit jusqu\'au '+fmtDate(echIso),j:jLim,ech,lim};
+  if(jLim<=15) return {cls:'crit',txt:'⚠ Préavis avant le '+fmtDate(limIso)+' ('+jLim+' j) — sinon reconduction au '+fmtDate(echIso),j:jLim,ech,lim};
+  if(jLim<=60) return {cls:'moy',txt:'Préavis avant le '+fmtDate(limIso)+' ('+jLim+' j)',j:jLim,ech,lim};
+  return {cls:'ok',txt:'Anniversaire le '+fmtDate(echIso)+' — dénonçable jusqu\'au '+fmtDate(limIso),j:jLim,ech,lim};
+};
 window.assurEtat=function(a){
   if(!a||!a.echeance) return null;
   const _t=new Date(); const today=new Date(_t.getFullYear(),_t.getMonth(),_t.getDate()).getTime();
@@ -8682,6 +8708,7 @@ async function viewContrats(c){
         ${infoRow('🔧 Prestataire', ct.prestataire_id?esc(presNm(ct.prestataire_id)):'')}
         ${infoRow('🔬 B. contrôle', ct.bureau_id?esc(presNm(ct.bureau_id)):'')}
         ${ct.nom?infoRow('📄 Document', esc(ct.nom)):''}
+        ${(()=>{const s=contratEtat(ct);return s?`<div style="margin-top:7px"><span class="pill ${s.cls}" style="font-size:11px">${esc(s.txt)}</span></div>`:'';})()}
       </div>
       <div style="display:flex;gap:7px;padding:10px 15px;border-top:1px solid var(--line)">
         ${ct.fichier_path?`<button class="btn sm" onclick="previewContrat('${ct.id}')">Visualiser</button>`:''}
@@ -8726,6 +8753,24 @@ function contratForm(ct, file){
       <div class="fld"><label>Prestataire</label><select id="ct_prest"><option value="">— (optionnel) —</option>${presOpts}</select></div>
       <div class="fld"><label>Bureau de contrôle</label><select id="ct_bureau"><option value="">— (optionnel) —</option>${bdcOpts}</select></div>
     </div>
+    <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px">
+      <label style="font-weight:600;display:flex;align-items:center;gap:7px;margin-bottom:9px">📅 Cycle du contrat
+        <span style="font-size:11px;font-weight:400;color:var(--muted)">(pilote l'alerte de préavis)</span></label>
+      <div class="row2">
+        <div class="fld" style="margin-bottom:9px"><label>Date de début <span style="color:var(--muted-2);font-weight:400;font-size:11px">(= anniversaire)</span></label><input id="ct_debut" type="date" value="${esc(ct.date_debut||'')}"></div>
+        <div class="fld" style="margin-bottom:9px"><label>Durée</label><select id="ct_duree">
+          ${[['',''],[12,'12 mois (1 an)'],[24,'24 mois (2 ans)'],[36,'36 mois (3 ans)'],[48,'48 mois (4 ans)']].map(o=>`<option value="${o[0]}"${String(ct.duree_mois||'')===String(o[0])?' selected':''}>${o[1]||'—'}</option>`).join('')}
+        </select></div>
+      </div>
+      <div class="row2">
+        <div class="fld" style="margin-bottom:0"><label>Préavis de dénonciation</label><select id="ct_preavis">
+          ${[['',''],[1,'1 mois'],[2,'2 mois'],[3,'3 mois'],[6,'6 mois']].map(o=>`<option value="${o[0]}"${String(ct.preavis_mois||'')===String(o[0])?' selected':''}>${o[1]||'—'}</option>`).join('')}
+        </select></div>
+        <div class="fld" style="margin-bottom:0;display:flex;align-items:flex-end"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;padding-bottom:9px"><input type="checkbox" id="ct_tacite" ${ct.tacite!==false?'checked':''} style="width:16px;height:16px;accent-color:var(--primary)"> Tacite reconduction</label></div>
+      </div>
+      ${(()=>{const s=typeof contratEtat==='function'?contratEtat(ct):null;
+        return s?`<div style="margin-top:9px"><span class="pill ${s.cls}">${esc(s.txt)}</span></div>`:'';})()}
+    </div>
     <div class="fld"><label>Document <span style="color:var(--muted-2);font-weight:400;font-size:11px">(PDF/image, compressé automatiquement)</span></label>
       ${ct.fichier_path?`<div style="font-size:12.5px;color:var(--muted);margin-bottom:6px">Document actuel : ${esc(ct.nom||'fichier')} <button type="button" class="btn sm" onclick="previewContrat('${ct.id}')">Voir</button></div>`:''}
       <input id="ct_filein" type="file" accept="application/pdf,image/*" style="display:none" onchange="contratSetFile(this.files[0])">
@@ -8762,6 +8807,10 @@ async function contratSave(id){
       prestataire_id:document.getElementById('ct_prest').value||null,
       bureau_id:document.getElementById('ct_bureau').value||null,
       annee:parseInt(document.getElementById('ct_annee').value,10)||null,
+      date_debut:document.getElementById('ct_debut').value||null,
+      duree_mois:parseInt(document.getElementById('ct_duree').value,10)||null,
+      preavis_mois:parseInt(document.getElementById('ct_preavis').value,10)||null,
+      tacite:document.getElementById('ct_tacite').checked,
       nom:(document.getElementById('ct_nom').value||'').trim()||null
     };
     const file=window._ctrPendingFile;
