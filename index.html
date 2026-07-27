@@ -695,7 +695,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='669'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='670'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -8592,7 +8592,7 @@ async function viewContrats(c){
           return '';})()}
       </div>
       <div style="display:flex;gap:7px;padding:10px 15px;border-top:1px solid var(--line)">
-        ${ct.fichier_path?`<button class="btn sm" onclick="previewContrat('${ct.id}')">Visualiser</button>`:''}
+        ${ct.fichier_path?`<button class="btn sm" onclick="previewContrat('${ct.id}')">Visualiser</button>`:`<span style="font-size:11.5px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:7px;padding:4px 9px;display:inline-flex;align-items:center;gap:5px">⚠ Aucun PDF déposé <button class="btn sm" style="padding:2px 8px;font-size:10.5px" onclick="contratForm((window._contratsCache||[]).find(x=>x.id==='${ct.id}'))">Déposer</button></span>`}
         <button class="btn sm" onclick="contratForm((window._contratsCache||[]).find(x=>x.id==='${ct.id}'))">Modifier</button>
         <button class="btn sm danger" style="margin-left:auto" onclick="delContrat('${ct.id}')">Supprimer</button>
       </div>
