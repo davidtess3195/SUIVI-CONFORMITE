@@ -690,7 +690,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='659'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='660'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -8661,11 +8661,14 @@ async function viewContrats(c){
     <div class="actions"><button class="btn primary" onclick="contratForm()">${I.plus} Nouveau contrat</button></div></div>`;
   c.innerHTML=head+loadingBlock();
   try{
-    const [ctR, presR] = await Promise.all([
+    const [ctR, presR, rapR] = await Promise.all([
       sb.from('contrats').select('*').order('annee',{ascending:false}).order('created_at',{ascending:false}),
-      sb.from('prestataires').select('id,nom,categorie').order('nom')
+      sb.from('prestataires').select('id,nom,categorie').order('nom'),
+      sb.from('emails_programmes').select('id,contrat_id,send_at,statut,sent_at,destinataires').eq('type','contrat_preavis').order('created_at',{ascending:false})
     ]);
     const contrats=ctR.data||[];
+    window._ctRappels={};
+    ((rapR&&rapR.data)||[]).forEach(r=>{ if(r.contrat_id&&r.statut!=='annule'&&!window._ctRappels[r.contrat_id]) window._ctRappels[r.contrat_id]=r; });
     window._prestList=presR.data||[];
     window._contratsCache=contrats;
     const clientNm = id => (state.clients.find(x=>x.id===id)||{}).raison_sociale || '—';
@@ -8708,7 +8711,13 @@ async function viewContrats(c){
         ${infoRow('🔧 Prestataire', ct.prestataire_id?esc(presNm(ct.prestataire_id)):'')}
         ${infoRow('🔬 B. contrôle', ct.bureau_id?esc(presNm(ct.bureau_id)):'')}
         ${ct.nom?infoRow('📄 Document', esc(ct.nom)):''}
-        ${(()=>{const s=contratEtat(ct);return s?`<div style="margin-top:7px"><span class="pill ${s.cls}" style="font-size:11px">${esc(s.txt)}</span></div>`:'';})()}
+        ${(()=>{const s=contratEtat(ct);return s?`<div style="margin-top:7px"><span class="pill ${s.cls}" style="font-size:11px;white-space:normal;line-height:1.45;text-align:left">${esc(s.txt)}</span></div>`:'';})()}
+        ${(()=>{const r=(window._ctRappels||{})[ct.id];const s=contratEtat(ct);
+          if(r&&r.statut==='pending') return `<div style="margin-top:6px;font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:7px;flex-wrap:wrap">🔔 Rappel programmé le <b>${fmtDate(r.send_at)}</b> → ${esc((r.destinataires||'').split(',')[0])}<button class="btn sm ghost" style="padding:2px 8px;font-size:10.5px" onclick="ctRappelAnnuler('${r.id}')">Annuler</button></div>`;
+          if(r&&r.statut==='sent') return `<div style="margin-top:6px;font-size:11.5px;color:var(--conforme)">✉️ Rappel envoyé le ${fmtDate(r.sent_at||r.send_at)}</div>`;
+          if(r&&r.statut==='failed') return `<div style="margin-top:6px;font-size:11.5px;color:var(--majeur)">⚠ Échec d\'envoi du rappel <button class="btn sm" style="padding:2px 8px;font-size:10.5px" onclick="contratRappel('${ct.id}')">Reprogrammer</button></div>`;
+          if(s&&ct.tacite!==false&&s.lim) return `<div style="margin-top:6px"><button class="btn sm" style="font-size:11px" onclick="contratRappel('${ct.id}')">🔔 Programmer un rappel e-mail</button></div>`;
+          return '';})()}
       </div>
       <div style="display:flex;gap:7px;padding:10px 15px;border-top:1px solid var(--line)">
         ${ct.fichier_path?`<button class="btn sm" onclick="previewContrat('${ct.id}')">Visualiser</button>`:''}
@@ -8769,7 +8778,7 @@ function contratForm(ct, file){
         <div class="fld" style="margin-bottom:0;display:flex;align-items:flex-end"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;padding-bottom:9px"><input type="checkbox" id="ct_tacite" ${ct.tacite!==false?'checked':''} style="width:16px;height:16px;accent-color:var(--primary)"> Tacite reconduction</label></div>
       </div>
       ${(()=>{const s=typeof contratEtat==='function'?contratEtat(ct):null;
-        return s?`<div style="margin-top:9px"><span class="pill ${s.cls}">${esc(s.txt)}</span></div>`:'';})()}
+        return s?`<div style="margin-top:9px"><span class="pill ${s.cls}" style="white-space:normal;line-height:1.45;text-align:left">${esc(s.txt)}</span></div>`:'';})()}
     </div>
     <div class="fld"><label>Document <span style="color:var(--muted-2);font-weight:400;font-size:11px">(PDF/image, compressé automatiquement)</span></label>
       ${ct.fichier_path?`<div style="font-size:12.5px;color:var(--muted);margin-bottom:6px">Document actuel : ${esc(ct.nom||'fichier')} <button type="button" class="btn sm" onclick="previewContrat('${ct.id}')">Voir</button></div>`:''}
@@ -8834,6 +8843,64 @@ async function contratSave(id){
 }
 window.contratSave=contratSave;
 
+window.contratRappel=function(ctId){
+  const ct=(window._contratsCache||[]).find(x=>x.id===ctId); if(!ct) return;
+  const s=contratEtat(ct); if(!s||!s.lim){ toast('Renseigne d\'abord le cycle du contrat (début, durée, préavis)','err'); return; }
+  const limIso=s.lim.toISOString().slice(0,10);
+  // date proposée : 30 j avant la limite de dénonciation, sinon demain si on est déjà dedans
+  const prop=new Date(s.lim); prop.setDate(prop.getDate()-30);
+  const tomorrow=new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+  const dEnvoi=(prop>tomorrow?prop:tomorrow).toISOString().slice(0,10);
+  const cl=state.clients.find(x=>x.id===ct.client_id)||{};
+  const erp=(state.erps||[]).find(e=>e.id===ct.erp_id);
+  const prest=(window._prestList||[]).find(p=>p.id===ct.prestataire_id);
+  const sujet=`Rappel — contrat${ct.nom?' « '+ct.nom+' »':''} : préavis à dénoncer avant le ${fmtDate(limIso)}`;
+  const corps=`Bonjour,\n\nLe contrat de maintenance${ct.nom?' « '+ct.nom+' »':''}${prest?' ('+prest.nom+')':''}${erp?' de l\'établissement '+erp.nom:''} arrive à son échéance annuelle le ${fmtDate(s.ech.toISOString().slice(0,10))}.\n\nSans dénonciation avant le ${fmtDate(limIso)} (préavis de ${ct.preavis_mois||'—'} mois), il sera reconduit tacitement pour ${ct.duree_mois} mois.\n\nSi vous souhaitez le renégocier ou le résilier, c\'est le moment d\'envoyer le courrier de dénonciation.\n\nBien cordialement,\nSUIVI-CONFORMITÉ — PREVA CONSEILS`;
+  openModal(`<div class="modal-head"><h2>🔔 Programmer le rappel e-mail</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+  <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+    <div style="font-size:12.5px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:9px 11px">
+      Limite de dénonciation : <b>${fmtDate(limIso)}</b> · échéance : <b>${fmtDate(s.ech.toISOString().slice(0,10))}</b><br>
+      <span style="color:var(--muted)">L\'e-mail partira automatiquement à la date choisie, vers 8h.</span></div>
+    <div class="row2">
+      <div class="fld" style="margin:0"><label>Date d\'envoi</label><input id="rp_date" type="date" value="${dEnvoi}" max="${limIso}"></div>
+      <div class="fld" style="margin:0"><label>Destinataire(s) <span style="color:var(--muted-2);font-weight:400;font-size:11px">(virgules pour plusieurs)</span></label><input id="rp_to" value="${esc(cl.email||'')}" placeholder="email@client.fr"></div>
+    </div>
+    <div class="fld" style="margin:0"><label>Sujet</label><input id="rp_sujet" value="${esc(sujet)}"></div>
+    <div class="fld" style="margin:0"><label>Message</label><textarea id="rp_corps" rows="9" style="width:100%;font-size:13px;line-height:1.5">${esc(corps)}</textarea></div>
+  </div>
+  <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
+    <button class="btn primary" id="rp_go">Programmer</button></div>`);
+  document.getElementById('rp_go').onclick=async()=>{
+    const btn=document.getElementById('rp_go');
+    const to=(document.getElementById('rp_to').value||'').trim();
+    const date=document.getElementById('rp_date').value;
+    const suj=(document.getElementById('rp_sujet').value||'').trim();
+    const corpsTxt=(document.getElementById('rp_corps').value||'').trim();
+    if(!to||!/@/.test(to)){ toast('Destinataire manquant ou invalide','err'); return; }
+    if(!date){ toast('Choisis la date d\'envoi','err'); return; }
+    if(!suj||!corpsTxt){ toast('Sujet et message requis','err'); return; }
+    btn.disabled=true; btn.textContent='Programmation…';
+    try{
+      const html=corpsTxt.split('\n').map(l=>esc(l)).join('<br>');
+      const {error}=await sb.from('emails_programmes').insert({
+        type:'contrat_preavis', contrat_id:ct.id, destinataires:to,
+        sujet:suj, corps_html:html, send_at:date+'T08:00:00+02:00'
+      });
+      if(error) throw error;
+      closeModal(); toast('Rappel programmé pour le '+fmtDate(date)+' ✓','ok');
+      const cont=document.getElementById('content'); if(cont) viewContrats(cont);
+    }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Programmer'; }
+  };
+};
+window.ctRappelAnnuler=async function(id){
+  if(!confirm('Annuler ce rappel programmé ?')) return;
+  try{
+    const {error}=await sb.from('emails_programmes').update({statut:'annule'}).eq('id',id);
+    if(error) throw error;
+    toast('Rappel annulé','ok');
+    const cont=document.getElementById('content'); if(cont) viewContrats(cont);
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
 window.delContrat=async function(id){
   if(!confirm('Supprimer ce contrat ?')) return;
   try{ const {error}=await sb.from('contrats').delete().eq('id',id); if(error) throw error; toast('Contrat supprimé','ok'); const cont=document.getElementById('content'); if(cont) viewContrats(cont); }
