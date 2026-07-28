@@ -248,6 +248,69 @@ table.tbl tbody tr:hover{background:var(--surface-2)}
 table.tbl .mono{font-family:var(--fd);font-weight:600;font-size:12.5px;color:var(--muted)}
 
 /* Badges / pills */
+/* ── Registre des équipements (eqx) ── */
+.eqx-search{display:flex;gap:8px;margin:14px 0 10px}
+.eqx-search .in{flex:1;display:flex;align-items:center;gap:8px;background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:9px 12px}
+.eqx-search .in:focus-within{border-color:var(--primary)}
+.eqx-search input{border:none;outline:none;flex:1;font-size:13.5px;font-family:inherit;background:transparent;min-width:0;color:var(--ink)}
+.eqx-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.eqx-seg{display:inline-flex;border-bottom:2px solid var(--line);gap:2px}
+.eqx-seg button{border:none;background:transparent;font-family:var(--fd);font-size:12.5px;font-weight:600;color:var(--muted);padding:5px 11px 7px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px}
+.eqx-seg button.on{color:var(--ink);border-bottom-color:var(--ink)}
+.eqx-chips{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+.eqx-chip{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;font-family:var(--fd)}
+.eqx-chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.eqx-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:12px}
+.eqx-blk{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;cursor:pointer;box-shadow:0 1px 3px rgba(15,23,42,.06);transition:box-shadow .13s}
+.eqx-blk:hover{box-shadow:0 6px 18px rgba(15,23,42,.13)}
+.eqx-bh{background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;padding:12px 13px;display:flex;align-items:center;gap:10px}
+.eqx-bh .n{font-family:var(--fd);font-size:27px;font-weight:700;line-height:.9}
+.eqx-bh .nl{font-size:8px;letter-spacing:.11em;font-weight:700;opacity:.85;display:block;margin-top:3px;text-align:center}
+.eqx-bh .nm{font-family:var(--fd);font-weight:700;font-size:13.5px;line-height:1.25;min-width:0;flex:1}
+.eqx-bh .ic{width:24px;height:24px;flex:0 0 auto;opacity:.95}
+.eqx-bh .ic svg{width:100%;height:100%}
+.eqx-bb{padding:10px 13px 11px;display:flex;flex-direction:column;gap:5px}
+.eqx-r{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted)}
+.eqx-r b{color:var(--ink);font-family:var(--fd);width:34px;flex:0 0 auto}
+.eqx-r .bar{flex:1;height:6px;border-radius:4px;background:var(--surface-2);overflow:hidden}
+.eqx-r .bar i{display:block;height:100%;background:var(--primary);border-radius:4px}
+.eqx-r .c{font-weight:700;color:var(--ink);width:16px;text-align:right;font-family:var(--fd)}
+.eqx-bf{border-top:1px solid var(--surface-2);padding:7px 13px;font-size:10.5px;font-weight:600;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+.eqx-bf .go{color:var(--primary)}
+.eqx-hero{background:linear-gradient(135deg,#2563eb,#1e40af);border-radius:16px;padding:15px 15px 12px;color:#fff;margin-bottom:14px;box-shadow:0 6px 20px rgba(37,99,235,.22)}
+.eqx-ht{display:flex;align-items:center;gap:11px}
+.eqx-back{border:1.5px solid rgba(255,255,255,.4);background:rgba(255,255,255,.12);color:#fff;border-radius:10px;width:32px;height:32px;font-size:16px;cursor:pointer;flex:0 0 auto}
+.eqx-ht .ic{width:24px;height:24px;flex:0 0 auto}
+.eqx-ht .ic svg{width:100%;height:100%}
+.eqx-ht .tt{flex:1;min-width:0}
+.eqx-ht .tt .nm{font-family:var(--fd);font-weight:700;font-size:16px;line-height:1.2}
+.eqx-ht .tt .sub{font-size:11px;opacity:.85;margin-top:1px}
+.eqx-ht .bignum{text-align:center;flex:0 0 auto}
+.eqx-ht .bignum .n{font-family:var(--fd);font-size:27px;font-weight:700;line-height:.9;display:block}
+.eqx-ht .bignum .l{font-size:8px;letter-spacing:.11em;font-weight:700;opacity:.85}
+.eqx-hact{display:flex;gap:7px;margin-top:12px;flex-wrap:wrap;align-items:center}
+.eqx-hchips{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+.eqx-hchips button{border:1.5px solid rgba(255,255,255,.35);background:rgba(255,255,255,.10);color:#fff;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;font-family:var(--fd);cursor:pointer}
+.eqx-hchips button b{font-weight:700;opacity:.8;margin-left:4px}
+.eqx-hchips button.on{background:#fff;color:var(--primary);border-color:#fff}
+.eqx-hbtn{border:1.5px solid rgba(255,255,255,.45);background:rgba(255,255,255,.14);color:#fff;border-radius:10px;padding:5px 12px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap}
+.eqx-grp{margin-bottom:13px}
+.eqx-gh{display:flex;align-items:baseline;gap:9px;padding:0 2px 6px}
+.eqx-gh .tag{font-family:var(--fd);font-weight:700;font-size:11.5px;color:var(--primary);background:#eff6ff;border:1px solid #bfdbfe;border-radius:7px;padding:2px 9px}
+.eqx-gh .c{font-size:11px;color:var(--muted)}
+.eqx-ul{background:var(--surface);border:1px solid var(--line);border-radius:13px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.05)}
+.eqx-u{display:flex;align-items:center;gap:11px;padding:11px 14px;border-top:1px solid var(--surface-2);cursor:pointer}
+.eqx-u:first-child{border-top:none}
+.eqx-u:hover{background:var(--surface-2)}
+.eqx-u .ref{flex:0 0 92px;font-weight:700;font-size:13px}
+.eqx-u .ref small{display:block;font-weight:500;color:var(--muted-2);font-size:10.5px}
+.eqx-u .loc{flex:1;min-width:0}
+.eqx-u .loc b{display:block;font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.eqx-u .loc small{display:block;color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.eqx-u .rf{font-size:10px;font-weight:700;color:var(--primary);background:#eff6ff;border-radius:6px;padding:2px 7px;flex:0 0 auto}
+.eqx-u .fam-tag{font-size:9.5px;font-weight:700;letter-spacing:.04em;color:var(--muted);text-transform:uppercase;flex:0 0 auto}
+.eqx-verif{background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:9px 13px;font-size:11.5px;color:var(--ink);margin-top:2px}
+eqxmark{background:#fef08a;border-radius:3px;padding:0 1px}
 .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:600;white-space:nowrap}
 .pill .d{width:7px;height:7px;border-radius:50%}
 .pill.crit{background:#fdeaea;color:var(--critique)} .pill.crit .d{background:var(--critique)}
@@ -695,7 +758,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='671'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='672'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -4991,25 +5054,18 @@ async function viewErp(c,id){
 function renderErpTab(tab,d){
   const w=$('#erptab'); const e=d.e;
   if(tab==='equip'){
-    const prests=(window.state&&state.prestataires)||[];
     const eqList=d.eq||[];
     if(!eqList.length){
       w.innerHTML='<div style="margin-top:24px">'+emptyBlock('🔧','Aucun équipement','Appliquez un plan de maintenance à cet ERP pour créer les équipements.')+'</div>';
       return;
     }
-    w.innerHTML='<div style="margin-top:16px;display:flex;flex-direction:column;gap:16px" id="equip_tab_wrap">'+eqList.map(eq=>{
-      const units=(d.un||[]).filter(u=>u.equipement_id===eq.id);
-      return '<div class="card" style="padding:0;overflow:hidden">'
-        +'<div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)">'
-        +'<div style="flex:1"><b style="font-size:14px">'+esc(eq.type)+'</b>'
-        +(eq.periodicite?'<span style="font-size:11px;color:var(--muted);margin-left:8px">'+esc(eq.periodicite)+'</span>':'')+'</div>'
-        +'<button class="btn sm primary" onclick="equipAddUnit(&quot;'+eq.id+'&quot;,&quot;'+e.id+'&quot;)">+ Ajouter une unité</button>'
-        +'</div>'
-        +'<div id="equip_units_'+eq.id+'" style="display:flex;flex-direction:column">'
-        +(units.length?units.map(u=>equipUnitHtml(u)).join(''):
-          '<div style="padding:12px 16px;color:var(--muted);font-size:13px">Aucune unité — cliquez "+ Ajouter une unité"</div>')
-        +'</div></div>';
-    }).join('')+'</div>';
+    // Rendu local + rechargement des unités après ajout/modif/suppression
+    window._eqRerenderLocal=()=>{ eqxRender(w,e,d); };
+    window._eqRerender=async()=>{
+      try{ const {data}=await sb.from('equipement_unites').select('*').eq('erp_id',e.id).order('created_at'); d.un=data||[]; }catch(_){ }
+      eqxRender(w,e,d);
+    };
+    eqxRender(w,e,d);
     return;
   }
   if(tab==='apercu'){
@@ -14589,6 +14645,151 @@ async function viewPlanMaintenance(c){
   };
 }
 /* ── Équipements / Unités physiques ── */
+/* ── Registre visuel des équipements (design validé) ── */
+window._eqTab={erp:null,q:'',niv:'',fam:null,view:'fam'};
+window.EQICO=function(type){
+  const t=(type||'').toLowerCase();
+  const svg=p=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';
+  if(/exting|extinct/.test(t)) return svg('<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>');
+  if(/baes|baeh|éclairage|eclairage|lumin/.test(t)) return svg('<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>');
+  if(/porte|issue/.test(t)) return svg('<path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h3"/><path d="M13 20h9"/><path d="M10 12v.01"/><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561z"/>');
+  if(/désenfum|desenfum|ventil|vmc/.test(t)) return svg('<path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/>');
+  if(/ssi|alarme|détect|detect|incendie/.test(t)) return svg('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>');
+  if(/ria|sprink|colonne|robinet/.test(t)) return svg('<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>');
+  if(/élec|elec|tgbt|armoire/.test(t)) return svg('<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>');
+  if(/ascenseur|monte/.test(t)) return svg('<polyline points="7 15 12 20 17 15"/><polyline points="7 9 12 4 17 9"/>');
+  if(/gaz|chauff|chaudi/.test(t)) return svg('<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>');
+  return svg('<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>');
+};
+function eqxNorm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function eqxMk(t){ const st=window._eqTab; if(!st.q) return esc(t||'');
+  let out=esc(t||'');
+  eqxNorm(st.q).split(/\s+/).filter(Boolean).forEach(term=>{
+    const i=eqxNorm(out).indexOf(term);
+    if(i>=0) out=out.slice(0,i)+'<eqxmark>'+out.slice(i,i+term.length)+'</eqxmark>'+out.slice(i+term.length);
+  });
+  return out;
+}
+function eqxUnitLoc(u){
+  if(u.niveau||u.zone||u.repere) return {niv:u.niveau||'À situer', zone:u.zone||'', rep:u.repere||''};
+  return {niv:'À situer', zone:u.localisation||'', rep:''};
+}
+function eqxHit(u, famType){
+  const st=window._eqTab;
+  const l=eqxUnitLoc(u);
+  if(st.niv && l.niv!==st.niv) return false;
+  if(!st.q) return true;
+  const refs=Array.isArray(u.refs)?u.refs.map(r=>(r.numero||'')+' '+(r.prestataire||'')).join(' '):'';
+  const hay=eqxNorm([u.designation,u.localisation,l.niv,l.zone,l.rep,refs,famType].join(' '));
+  return eqxNorm(st.q).split(/\s+/).every(t=>hay.includes(t));
+}
+function eqxNivOrder(a,b){
+  const rank=n=>n==='À situer'?999:(/rdc|rez/i.test(n)?0:(/sous|-1/i.test(n)?-1:(parseInt(String(n).replace(/\D/g,''),10)||500)));
+  return rank(a)-rank(b);
+}
+function eqxUnitRow(u, famType, showFam){
+  const l=eqxUnitLoc(u);
+  const refs=Array.isArray(u.refs)?u.refs.filter(r=>r.numero||r.prestataire):[];
+  return `<div class="eqx-u" onclick="equipEditUnit('${u.id}','${u.equipement_id}','${u.erp_id}')">
+    <span class="ref">${eqxMk(u.designation)}</span>
+    ${showFam?`<span class="fam-tag">${esc((famType||'').split(' ')[0])}</span>`:''}
+    <span class="loc"><b>${eqxMk(l.zone)||'<span style="color:var(--muted-2);font-weight:400">Zone non renseignée</span>'}</b>${l.rep?`<small>${eqxMk(l.rep)}</small>`:''}</span>
+    ${refs.length?`<span class="rf">${refs.length} réf.</span>`:''}
+    <span style="color:var(--muted-2)">›</span>
+  </div>`;
+}
+function eqxGroupsByNiv(units, famOf, showFam){
+  const g={};
+  units.forEach(u=>{ const n=eqxUnitLoc(u).niv; (g[n]=g[n]||[]).push(u); });
+  return Object.keys(g).sort(eqxNivOrder).map(n=>`
+    <div class="eqx-grp">
+      <div class="eqx-gh"><span class="tag">${esc(n)}</span><span class="c">${g[n].length} unité(s)</span></div>
+      <div class="eqx-ul">${g[n].map(u=>eqxUnitRow(u,famOf(u),showFam)).join('')}</div>
+    </div>`).join('');
+}
+window.eqxRender=function(w,e,d){
+  const st=window._eqTab;
+  if(st.erp!==e.id) Object.assign(st,{erp:e.id,q:'',niv:'',fam:null,view:'fam'});
+  const eqs=d.eq||[], units=d.un||[];
+  const unitsOf=id=>units.filter(u=>u.equipement_id===id);
+  const famOf=u=>{ const q=eqs.find(x=>x.id===u.equipement_id); return q?q.type:''; };
+  const niveaux=[...new Set(units.map(u=>eqxUnitLoc(u).niv))].sort(eqxNivOrder);
+  const chip=n=>`<button class="eqx-chip${st.niv===n?' on':''}" onclick="eqxNiv('${esc(n)}')">${n||'Tous'}</button>`;
+  let body='';
+  if(st.q){
+    body=eqs.map(eq=>{
+      const vis=unitsOf(eq.id).filter(u=>eqxHit(u,eq.type));
+      if(!vis.length) return '';
+      return `<div style="font-family:var(--fd);font-weight:700;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:6px 2px 6px">${esc(eq.type)} · ${vis.length}</div>
+        <div class="eqx-ul" style="margin-bottom:12px">${vis.map(u=>eqxUnitRow(u,eq.type,false)).join('')}</div>`;
+    }).join('')||'<div style="color:var(--muted-2);text-align:center;padding:28px 0;font-size:13px">Aucun équipement ne correspond.</div>';
+  } else if(st.fam){
+    const eq=eqs.find(x=>x.id===st.fam);
+    if(!eq){ st.fam=null; return eqxRender(w,e,d); }
+    const all=unitsOf(eq.id), vis=all.filter(u=>eqxHit(u,eq.type));
+    const decl=parseInt(String(eq.quantite||'').replace(/\D/g,''),10)||null;
+    const ecart=decl&&all.length<decl;
+    const c={}; all.forEach(u=>{const n=eqxUnitLoc(u).niv; c[n]=(c[n]||0)+1;});
+    const hchip=(n,l)=>`<button class="${st.niv===n?'on':''}" onclick="eqxNiv('${esc(n)}')">${l}${n?`<b>${c[n]||0}</b>`:''}</button>`;
+    body=`<div class="eqx-hero">
+      <div class="eqx-ht">
+        <button class="eqx-back" onclick="eqxFam(null)">‹</button>
+        <span class="ic">${EQICO(eq.type)}</span>
+        <div class="tt"><div class="nm">${esc(eq.type)}</div>
+          <div class="sub">${ecart?`${all.length} / ${decl} déclarées · ${decl-all.length} à localiser`:(decl?'Registre complet':(all.length+' unité(s) au registre'))}${eq.periodicite?' · vérif. '+esc(eq.periodicite):''}</div></div>
+        <div class="bignum"><span class="n">${all.length}</span><span class="l">UNITÉS</span></div>
+      </div>
+      <div class="eqx-hact">
+        <div class="eqx-hchips">${hchip('','Tous')}${Object.keys(c).sort(eqxNivOrder).map(n=>hchip(n,esc(n))).join('')}</div>
+        <button class="eqx-hbtn" onclick="equipAddUnit('${eq.id}','${e.id}')">＋ Unité</button>
+        <button class="eqx-hbtn" title="Modifier la famille" onclick='formEquip("${e.id}",${JSON.stringify(eq).replace(/'/g,"&#39;")})'>⚙</button>
+      </div>
+    </div>
+    ${vis.length?eqxGroupsByNiv(vis,()=>eq.type,false):'<div style="color:var(--muted-2);text-align:center;padding:26px 0;font-size:13px">Aucune unité'+(st.niv?' — filtre « '+esc(st.niv)+' »':' — cliquez « ＋ Unité »')+'</div>'}
+    ${eq.periodicite||eq.acteur_suivi?`<div class="eqx-verif">Suivi réglementaire : ${eq.periodicite?'vérification '+esc(eq.periodicite):''}${eq.acteur_suivi?' — '+esc(eq.acteur_suivi):''} · géré dans l'onglet <b>Vérification</b></div>`:''}`;
+  } else if(st.view==='niv'){
+    const vis=units.filter(u=>eqxHit(u,famOf(u)));
+    body=vis.length?eqxGroupsByNiv(vis,famOf,true):'<div style="color:var(--muted-2);text-align:center;padding:26px 0;font-size:13px">Aucune unité enregistrée.</div>';
+  } else {
+    body='<div class="eqx-tiles">'+eqs.map(eq=>{
+      const all=unitsOf(eq.id);
+      const decl=parseInt(String(eq.quantite||'').replace(/\D/g,''),10)||null;
+      const ecart=decl&&all.length<decl;
+      const c={}; all.forEach(u=>{const n=eqxUnitLoc(u).niv; c[n]=(c[n]||0)+1;});
+      const mx=Math.max(1,...Object.values(c));
+      const rows=Object.keys(c).sort(eqxNivOrder).slice(0,4).map(n=>
+        `<div class="eqx-r"><b>${esc(n).slice(0,5)}</b><span class="bar"><i style="width:${Math.round(c[n]/mx*100)}%"></i></span><span class="c">${c[n]}</span></div>`).join('');
+      return `<div class="eqx-blk" onclick="eqxFam('${eq.id}')">
+        <div class="eqx-bh">
+          <div><span class="n">${all.length}</span><span class="nl">UNITÉS</span></div>
+          <div class="nm">${esc(eq.type)}</div>
+          <span class="ic">${EQICO(eq.type)}</span>
+        </div>
+        ${rows?`<div class="eqx-bb">${rows}</div>`:'<div class="eqx-bb" style="color:var(--muted-2);font-size:11.5px">Aucune unité localisée</div>'}
+        <div class="eqx-bf"><span>${ecart?`${all.length} / ${decl} déclarées · ${decl-all.length} à localiser`:(decl?'Registre complet':'Quantité non déclarée')}</span><span class="go">Ouvrir ›</span></div>
+      </div>`;
+    }).join('')+'</div>';
+  }
+  w.innerHTML=`<div id="eqx">
+    <div class="eqx-search">
+      <div class="in"><span style="color:var(--muted-2)">⌕</span><input id="eqx_q" placeholder="Référence, niveau, zone… (ex. « exti n2 »)" value="${esc(st.q)}" oninput="eqxQ(this.value)"></div>
+    </div>
+    <div class="eqx-bar">
+      <div class="eqx-seg">
+        <button class="${st.view==='fam'&&!st.q?'on':''}" onclick="eqxView('fam')">Par famille</button>
+        <button class="${st.view==='niv'&&!st.q?'on':''}" onclick="eqxView('niv')">Par niveau</button>
+      </div>
+      <div class="eqx-chips">${chip('')}${niveaux.filter(n=>n!=='À situer').map(chip).join('')}${niveaux.includes('À situer')?chip('À situer'):''}</div>
+    </div>
+    ${body}</div>`;
+  const inp=document.getElementById('eqx_q');
+  if(st._focus){ inp.focus(); const v=inp.value; inp.value=''; inp.value=v; st._focus=false; }
+};
+window.eqxQ=function(v){ window._eqTab.q=v.trim(); window._eqTab._focus=true; if(window._eqRerenderLocal) _eqRerenderLocal(); };
+window.eqxNiv=function(n){ const st=window._eqTab; st.niv=(st.niv===n?'':n); if(window._eqRerenderLocal) _eqRerenderLocal(); };
+window.eqxFam=function(id){ const st=window._eqTab; st.fam=id; st.niv=''; if(window._eqRerenderLocal) _eqRerenderLocal(); };
+window.eqxView=function(v){ const st=window._eqTab; st.view=v; st.fam=null; st.q=''; if(window._eqRerenderLocal) _eqRerenderLocal(); };
+
 function equipUnitHtml(u){
   const refs=Array.isArray(u.refs)?u.refs:[];
   const refsHtml=refs.length
@@ -14611,8 +14812,10 @@ function equipUnitHtml(u){
 window.equipAddUnit=function(equipId, erpId){
   openModal('<div class="modal-head"><h2>Nouvelle unité</h2><button class="x" onclick="closeModal()">'+I.x+'</button></div>'
     +'<div class="modal-body">'
-    +'<div class="fld"><label>Désignation <span class="req">*</span></label><input id="eu_des" placeholder="Ex: Portail nord, Portail parking…"></div>'
-    +'<div class="fld"><label>Localisation</label><input id="eu_loc" placeholder="Bâtiment A, Hall entrée…"></div>'
+    +'<div class="fld"><label>Référence / désignation <span class="req">*</span></label><input id="eu_des" placeholder="Ex : EXT-01, BAES palier A…"></div>'
+    +'<div class="row2"><div class="fld"><label>Niveau</label><input id="eu_niv" list="eu_nivlist" placeholder="RDC, N1, R+2…"><datalist id="eu_nivlist"><option>RDC</option><option>N1</option><option>N2</option><option>N3</option><option>Sous-sol</option></datalist></div>'
+    +'<div class="fld"><label>Zone / local</label><input id="eu_zone" placeholder="Couloir Est, Cuisine…"></div></div>'
+    +'<div class="fld"><label>Repère <span style="color:var(--muted-2);font-weight:400;font-size:11px">(à côté de…)</span></label><input id="eu_rep" placeholder="à côté ch. 214, face lingerie…"></div>'
     +'<div class="fld"><label style="font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Références prestataires</label>'
     +'<div id="eu_refs_list" style="display:flex;flex-direction:column;gap:6px;margin-top:8px">'+_euRefRow('','','')+'</div>'
     +'<button type="button" class="btn sm" style="margin-top:8px" onclick="equipAddRef()">+ Ajouter une référence</button>'
@@ -14621,7 +14824,10 @@ window.equipAddUnit=function(equipId, erpId){
   document.getElementById('eu_save').onclick=async()=>{
     const des=document.getElementById('eu_des').value.trim();
     if(!des){toast('La désignation est requise','err');return;}
-    const loc=document.getElementById('eu_loc').value.trim()||null;
+    const niv=document.getElementById('eu_niv').value.trim()||null;
+    const zn=document.getElementById('eu_zone').value.trim()||null;
+    const rep=document.getElementById('eu_rep').value.trim()||null;
+    const loc=[niv,zn,rep].filter(Boolean).join(' · ')||null;
     const refs=[...document.querySelectorAll('.eu-ref-row')].map(r=>({
       prestataire:r.querySelector('.eu-ref-prest').value.trim()||null,
       numero:r.querySelector('.eu-ref-num').value.trim()||null,
@@ -14629,15 +14835,10 @@ window.equipAddUnit=function(equipId, erpId){
     })).filter(r=>r.prestataire||r.numero);
     const btn=document.getElementById('eu_save'); btn.disabled=true; btn.textContent='Enregistrement…';
     try{
-      const {data,error}=await sb.from('equipement_unites').insert({equipement_id:equipId,erp_id:erpId,designation:des,localisation:loc,refs}).select().single();
+      const {error}=await sb.from('equipement_unites').insert({equipement_id:equipId,erp_id:erpId,designation:des,niveau:niv,zone:zn,repere:rep,localisation:loc,refs});
       if(error) throw error;
       _modalDirty=false; closeModal(); toast('Unité ajoutée ✓','ok');
-      const zone=document.getElementById('equip_units_'+equipId);
-      if(zone){
-        const empty=zone.querySelector('div[style*="Aucune unité"]');
-        if(empty) empty.remove();
-        zone.insertAdjacentHTML('beforeend',equipUnitHtml(data));
-      }
+      if(window._eqRerender) await _eqRerender();
     }catch(e){toast(e.message,'err');btn.disabled=false;btn.textContent='Enregistrer';}
   };
 };
@@ -14648,8 +14849,11 @@ window.equipEditUnit=async function(unitId, equipId, erpId){
   const refs=Array.isArray(u.refs)?u.refs:[];
   openModal('<div class="modal-head"><h2>Modifier une unité</h2><button class="x" onclick="closeModal()">'+I.x+'</button></div>'
     +'<div class="modal-body">'
-    +'<div class="fld"><label>Désignation <span class="req">*</span></label><input id="eu_des" value="'+esc(u.designation||'')+'"></div>'
-    +'<div class="fld"><label>Localisation</label><input id="eu_loc" value="'+esc(u.localisation||'')+'" placeholder="Bâtiment A, Hall entrée…"></div>'
+    +'<div class="fld"><label>Référence / désignation <span class="req">*</span></label><input id="eu_des" value="'+esc(u.designation||'')+'"></div>'
+    +'<div class="row2"><div class="fld"><label>Niveau</label><input id="eu_niv" list="eu_nivlist" value="'+esc(u.niveau||'')+'" placeholder="RDC, N1…"><datalist id="eu_nivlist"><option>RDC</option><option>N1</option><option>N2</option><option>N3</option><option>Sous-sol</option></datalist></div>'
+    +'<div class="fld"><label>Zone / local</label><input id="eu_zone" value="'+esc(u.zone||'')+'" placeholder="Couloir Est…"></div></div>'
+    +'<div class="fld"><label>Repère</label><input id="eu_rep" value="'+esc(u.repere||'')+'" placeholder="à côté ch. 214…"></div>'
+    +((!u.niveau&&!u.zone&&u.localisation)?'<div style="font-size:11.5px;color:var(--muted);margin:-4px 0 10px">Ancienne localisation : « '+esc(u.localisation)+' » — répartis-la dans les champs ci-dessus.</div>':'')
     +'<div class="fld"><label style="font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Références prestataires</label>'
     +'<div id="eu_refs_list" style="display:flex;flex-direction:column;gap:6px;margin-top:8px">'
     +(refs.length?refs.map(r=>_euRefRow(r.prestataire||'',r.numero||'',r.date||'')).join(''):_euRefRow('','',''))
@@ -14662,7 +14866,10 @@ window.equipEditUnit=async function(unitId, equipId, erpId){
   document.getElementById('eu_save').onclick=async()=>{
     const des=document.getElementById('eu_des').value.trim();
     if(!des){toast('La désignation est requise','err');return;}
-    const loc=document.getElementById('eu_loc').value.trim()||null;
+    const niv=document.getElementById('eu_niv').value.trim()||null;
+    const zn=document.getElementById('eu_zone').value.trim()||null;
+    const rep=document.getElementById('eu_rep').value.trim()||null;
+    const loc=[niv,zn,rep].filter(Boolean).join(' · ')||u.localisation||null;
     const refs=[...document.querySelectorAll('.eu-ref-row')].map(r=>({
       prestataire:r.querySelector('.eu-ref-prest').value.trim()||null,
       numero:r.querySelector('.eu-ref-num').value.trim()||null,
@@ -14670,15 +14877,10 @@ window.equipEditUnit=async function(unitId, equipId, erpId){
     })).filter(r=>r.prestataire||r.numero);
     const btn=document.getElementById('eu_save'); btn.disabled=true; btn.textContent='Enregistrement…';
     try{
-      const {data,error}=await sb.from('equipement_unites').update({designation:des,localisation:loc,refs}).eq('id',unitId).select().single();
+      const {error}=await sb.from('equipement_unites').update({designation:des,niveau:niv,zone:zn,repere:rep,localisation:loc,refs}).eq('id',unitId);
       if(error) throw error;
       _modalDirty=false; closeModal(); toast('Modifié ✓','ok');
-      const zone=document.getElementById('equip_units_'+equipId);
-      if(zone){
-        const old=zone.querySelector('[data-unit-id="'+unitId+'"]');
-        const html=equipUnitHtml(data);
-        if(old) old.outerHTML=html; else zone.innerHTML=zone.innerHTML+html;
-      }
+      if(window._eqRerender) await _eqRerender();
     }catch(e){toast(e.message,'err');btn.disabled=false;btn.textContent='Enregistrer';}
   };
 };
@@ -14688,8 +14890,7 @@ window.equipDelUnit=async function(unitId,equipId){
   const {error}=await sb.from('equipement_unites').delete().eq('id',unitId);
   if(error){toast(error.message,'err');return;}
   closeModal(); toast('Supprimé','ok');
-  const zone=document.getElementById('equip_units_'+equipId);
-  if(zone){ const el=zone.querySelector('[data-unit-id="'+unitId+'"]'); if(el) el.remove(); if(!zone.children.length) zone.innerHTML='<div style="padding:12px 16px;color:var(--muted);font-size:13px">Aucune unité</div>'; }
+  if(window._eqRerender) await _eqRerender();
 };
 
 function _euRefRow(prest,num,date){
