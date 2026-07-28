@@ -758,7 +758,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='672'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='673'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -14779,6 +14779,7 @@ window.eqxRender=function(w,e,d){
         <button class="${st.view==='fam'&&!st.q?'on':''}" onclick="eqxView('fam')">Par famille</button>
         <button class="${st.view==='niv'&&!st.q?'on':''}" onclick="eqxView('niv')">Par niveau</button>
       </div>
+      <button class="btn sm primary" onclick="formEquip('${e.id}',{})">＋ Famille</button>
       <div class="eqx-chips">${chip('')}${niveaux.filter(n=>n!=='À situer').map(chip).join('')}${niveaux.includes('À situer')?chip('À situer'):''}</div>
     </div>
     ${body}</div>`;
