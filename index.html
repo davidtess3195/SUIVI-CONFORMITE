@@ -758,7 +758,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='673'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='676'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -14650,14 +14650,20 @@ window._eqTab={erp:null,q:'',niv:'',fam:null,view:'fam'};
 window.EQICO=function(type){
   const t=(type||'').toLowerCase();
   const svg=p=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';
-  if(/exting|extinct/.test(t)) return svg('<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>');
+  if(/exting|extinct/.test(t)) return svg('<rect x="9" y="8" width="6.5" height="13" rx="2.6"/><path d="M12.2 8V4.6"/><path d="M9.6 4.6h5.2"/><path d="M9.8 4.8C7 5.4 5.8 7.2 5.8 9.6"/><path d="M4.6 9.6h2.4"/>');
   if(/baes|baeh|éclairage|eclairage|lumin/.test(t)) return svg('<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>');
   if(/porte|issue/.test(t)) return svg('<path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h3"/><path d="M13 20h9"/><path d="M10 12v.01"/><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561z"/>');
   if(/désenfum|desenfum|ventil|vmc/.test(t)) return svg('<path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/>');
   if(/ssi|alarme|détect|detect|incendie/.test(t)) return svg('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>');
   if(/ria|sprink|colonne|robinet/.test(t)) return svg('<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>');
+  if(/barri|levante/.test(t)) return svg('<path d="M2 20h20"/><path d="M5 20v-9"/><circle cx="5" cy="9" r="2"/><path d="M6.9 7.9 20 3.5"/><path d="M10.8 6.6l.7 2"/><path d="M14.8 5.3l.7 2"/>');
   if(/élec|elec|tgbt|armoire/.test(t)) return svg('<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>');
   if(/ascenseur|monte/.test(t)) return svg('<polyline points="7 15 12 20 17 15"/><polyline points="7 9 12 4 17 9"/>');
+  if(/machine à laver|machine a laver|lave[- ]linge/.test(t)) return svg('<rect x="4" y="2.5" width="16" height="19" rx="2"/><path d="M7.2 6h.01"/><path d="M10 6h.01"/><circle cx="12" cy="13.5" r="4.6"/><path d="M12 16.6a3.1 3.1 0 0 0 0-6.2"/>');
+  if(/sèche[- ]linge|seche[- ]linge/.test(t)) return svg('<rect x="4" y="2.5" width="16" height="19" rx="2"/><path d="M7.2 6h.01"/><path d="M10 6h.01"/><circle cx="12" cy="13.5" r="4.6"/><path d="M9.9 12.4c.7-.9 1.5-.9 2.1 0s1.4.9 2.1 0"/><path d="M9.9 15c.7-.9 1.5-.9 2.1 0s1.4.9 2.1 0"/>');
+  if(/clim/.test(t)) return svg('<path d="M6 12H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 8h12"/><path d="M18.3 17.7a2.5 2.5 0 0 1-3.16 3.83 2.53 2.53 0 0 1-1.14-2V12"/><path d="M6.6 15.6A2 2 0 1 0 10 17v-5"/>');
+  if(/portail|portillon/.test(t)) return svg('<path d="M4 21V8.6"/><path d="M20 21V8.6"/><path d="M4 8.6c4-3.4 12-3.4 16 0"/><path d="M9.3 21V7"/><path d="M14.7 21V7"/><path d="M2.5 21h19"/>');
+  if(/toit|toiture|terrasse|couverture/.test(t)) return svg('<path d="M3 11.5 12 3l9 8.5"/><path d="M16.6 7.6V4.4h2.8v5.8"/><path d="M6 13v7.5"/><path d="M18 13v7.5"/><path d="M6 20.5h12"/>');
   if(/gaz|chauff|chaudi/.test(t)) return svg('<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>');
   return svg('<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>');
 };
@@ -14743,6 +14749,7 @@ window.eqxRender=function(w,e,d){
         <div class="eqx-hchips">${hchip('','Tous')}${Object.keys(c).sort(eqxNivOrder).map(n=>hchip(n,esc(n))).join('')}</div>
         <button class="eqx-hbtn" onclick="equipAddUnit('${eq.id}','${e.id}')">＋ Unité</button>
         <button class="eqx-hbtn" title="Modifier la famille" onclick='formEquip("${e.id}",${JSON.stringify(eq).replace(/'/g,"&#39;")})'>⚙</button>
+        <button class="eqx-hbtn" title="Supprimer la famille" style="border-color:rgba(255,180,180,.55);color:#ffd9d9" onclick="eqxDelFam('${eq.id}',${all.length})">🗑</button>
       </div>
     </div>
     ${vis.length?eqxGroupsByNiv(vis,()=>eq.type,false):'<div style="color:var(--muted-2);text-align:center;padding:26px 0;font-size:13px">Aucune unité'+(st.niv?' — filtre « '+esc(st.niv)+' »':' — cliquez « ＋ Unité »')+'</div>'}
@@ -14789,6 +14796,19 @@ window.eqxRender=function(w,e,d){
 window.eqxQ=function(v){ window._eqTab.q=v.trim(); window._eqTab._focus=true; if(window._eqRerenderLocal) _eqRerenderLocal(); };
 window.eqxNiv=function(n){ const st=window._eqTab; st.niv=(st.niv===n?'':n); if(window._eqRerenderLocal) _eqRerenderLocal(); };
 window.eqxFam=function(id){ const st=window._eqTab; st.fam=id; st.niv=''; if(window._eqRerenderLocal) _eqRerenderLocal(); };
+window.eqxDelFam=async function(id,nb){
+  const msg=nb>0
+    ?'Supprimer cette famille ET ses '+nb+' unité(s) du registre ?\n\nCette action est définitive.'
+    :'Supprimer cette famille d\'équipement ?';
+  if(!confirm(msg)) return;
+  try{
+    const {error}=await sb.from('equipements').delete().eq('id',id);
+    if(error) throw error;
+    toast('Famille supprimée','ok');
+    window._eqTab.fam=null;
+    renderRoute();
+  }catch(e){ toast(e.message||'Suppression impossible','err'); }
+};
 window.eqxView=function(v){ const st=window._eqTab; st.view=v; st.fam=null; st.q=''; if(window._eqRerenderLocal) _eqRerenderLocal(); };
 
 function equipUnitHtml(u){
