@@ -758,7 +758,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='677'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='678'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -5209,10 +5209,10 @@ const OBST={proposee:['','Proposée','inf'],applicable:['','Applicable','int'],n
 async function formEquip(erpId, eq){
   eq = eq || {};
   const editing = !!eq.id;
-  const baseTypes=['Appareils de cuisson','Ascenseur','BAES / éclairage de sécurité','Clapet coupe-feu','Désenfumage mécanique','Désenfumage naturel','Extincteur','Parking','Porte coupe-feu','RIA','Sprinklers','SSI / centrale incendie','Thermographie électrique'];
+  const baseTypes=['Appareils de cuisson','Ascenseur','BAES / éclairage de sécurité','Clapet coupe-feu','Désenfumage mécanique','Désenfumage naturel','Extincteur','Parking','Porte coupe-feu','RIA','Sprinklers','SSI / centrale incendie'];
   // Charger les types personnalisés existants en base (tous ERPs)
   const {data:existingEquips}=await sb.from('equipements').select('type');
-  const customTypes=[...new Set((existingEquips||[]).map(e=>e.type).filter(t=>t&&!baseTypes.includes(t)))].sort();
+  const customTypes=[...new Set((existingEquips||[]).map(e=>e.type).filter(t=>t&&!baseTypes.includes(t)&&!/rapport|thermograph|exercice|formation/i.test(t)))].sort();
   const allTypes=[...baseTypes,...customTypes];
   let types=(eq.type&&!allTypes.includes(eq.type))?[eq.type,...allTypes]:allTypes;
   const pers=['','journalière','hebdomadaire','mensuelle','bimestrielle','trimestrielle','semestrielle','annuelle','biannuelle','triennale','quadriennale','quinquennale','décennale'];
