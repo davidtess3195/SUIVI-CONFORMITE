@@ -758,7 +758,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='679'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='682'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -5216,7 +5216,7 @@ async function formEquip(erpId, eq){
   const allTypes=[...baseTypes,...customTypes];
   let types=(eq.type&&!allTypes.includes(eq.type))?[eq.type,...allTypes]:allTypes;
   const pers=['','journalière','hebdomadaire','mensuelle','bimestrielle','trimestrielle','semestrielle','annuelle','biannuelle','triennale','quadriennale','quinquennale','décennale'];
-  const acteurs=['','Mainteneur','Bureau de contrôle','Exploitant','Consultant'];
+  const acteurs=['','Mainteneur','Exploitant'];
   openModal(`<div class="modal-head"><h2>${editing?'Modifier':'Ajouter'} un équipement</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
   <div class="modal-body">
     <div class="fld"><label>Équipement <span class="req">*</span></label>
@@ -6689,14 +6689,20 @@ const PREST_TYPES_BDC=[
   'Désenfumage mesure des débits'
 ];
 const PREST_TYPES_PREST=[
-  'Extincteur','RIA','Porte coupe-feu','BAES/BAEH','SSI',
-  'Portail','Porte coulissante','Porte de garage','Barrière',
-  'Dératisation, désinsectisation','Désenfumage naturel','Désenfumage mécanique',
-  'Climatisation','Ventilation','Evaporateur',
-  'Formation sécurité incendie','Formation sécurité','Maintenance électrique',
-  'Ascenseurs','Nettoyage des hottes','Appareils de cuissons','Chaudière / gaz',
-  'Sous-station','Dégraissage bac à graisse','Sprinklers',
-  'Serrurerie','Vitrerie','Plomberie'
+  // Sécurité incendie — libellés alignés sur le registre des équipements
+  'Extincteur','RIA','Sprinklers','Porte coupe-feu','Clapet coupe-feu',
+  'BAES / éclairage de sécurité','SSI / centrale incendie',
+  'Désenfumage naturel','Désenfumage mécanique','Baie accessible',
+  // Fermetures & accès
+  'Portail','Porte coulissante','Porte de garage','Barrière levante','Rideau métallique','Ferme-porte','Serrurerie','Vitrerie',
+  // Transport & stationnement
+  'Ascenseur','Escalator','Parking',
+  // Cuisine & laverie
+  'Appareils de cuisson','Hotte','Bac à graisse','Armoire froide','Machine à laver','Sèche-linge',
+  // Technique du bâtiment
+  'Chaufferie','Sous-station','Maintenance électrique','Batterie','Climatisation','Ventilation','Evaporateur','Plomberie','Assainissement','Toit',
+  // Services & formation
+  'Dératisation / désinsectisation','Formation sécurité incendie','Formation sécurité'
 ];
 // Thématiques photos = spécialités prestataires, sauf les formations
 const MISSIONS_LIST = [...PREST_TYPES_PREST.filter(m=>!['Formation sécurité incendie','Formation sécurité'].includes(m)), 'Mise hors tension', 'Électricité', 'Divers', 'Autre'];
@@ -14709,8 +14715,25 @@ function eqxHit(u, famType){
   return eqxNorm(st.q).split(/\s+/).every(t=>hay.includes(t));
 }
 function eqxNivOrder(a,b){
-  const rank=n=>n==='À situer'?999:(/rdc|rez/i.test(n)?0:(/sous|-1/i.test(n)?-1:(parseInt(String(n).replace(/\D/g,''),10)||500)));
+  const rank=n=>{
+    if(n==='À situer') return 999;
+    const s=String(n).toLowerCase();
+    const m=s.match(/sous[- ]sol\s*-?(\d+)/); if(m) return -parseInt(m[1],10);
+    if(/^ss[- ]?(\d+)/.test(s)) return -parseInt(s.match(/^ss[- ]?(\d+)/)[1],10);
+    if(/rdc|rez/.test(s)) return 0;
+    if(/rdj/.test(s)) return 0.5;
+    if(/parking/.test(s)) return 850;
+    const e=s.match(/^(\d+)\s*(er|e|ème|eme)?/); if(e) return parseInt(e[1],10);
+    const d=parseInt(s.replace(/\D/g,''),10); return isNaN(d)?500:d;
+  };
   return rank(a)-rank(b);
+}
+function eqxNivShort(n){
+  const s=String(n);
+  const m=s.match(/sous[- ]sol\s*-?(\d+)/i); if(m) return 'SS-'+m[1];
+  if(/parking/i.test(s)) return 'Park.';
+  const e=s.match(/^(\d+)(er|e|ème|eme)/i); if(e) return e[1]+e[2].toLowerCase();
+  return s.slice(0,5);
 }
 function eqxUnitRow(u, famType, showFam){
   const l=eqxUnitLoc(u);
@@ -14784,7 +14807,7 @@ window.eqxRender=function(w,e,d){
       const c={}; all.forEach(u=>{const n=eqxUnitLoc(u).niv; c[n]=(c[n]||0)+1;});
       const mx=Math.max(1,...Object.values(c));
       const rows=Object.keys(c).sort(eqxNivOrder).slice(0,4).map(n=>
-        `<div class="eqx-r"><b>${esc(n).slice(0,5)}</b><span class="bar"><i style="width:${Math.round(c[n]/mx*100)}%"></i></span><span class="c">${c[n]}</span></div>`).join('');
+        `<div class="eqx-r"><b title="${esc(n)}">${esc(eqxNivShort(n))}</b><span class="bar"><i style="width:${Math.round(c[n]/mx*100)}%"></i></span><span class="c">${c[n]}</span></div>`).join('');
       return `<div class="eqx-blk" onclick="eqxFam('${eq.id}')">
         <div class="eqx-bh">
           <div><span class="n">${all.length}</span><span class="nl">UNITÉS</span></div>
@@ -14853,7 +14876,7 @@ window.equipAddUnit=function(equipId, erpId){
   openModal('<div class="modal-head"><h2>Nouvelle unité</h2><button class="x" onclick="closeModal()">'+I.x+'</button></div>'
     +'<div class="modal-body">'
     +'<div class="fld"><label>Référence / désignation <span class="req">*</span></label><input id="eu_des" placeholder="Ex : EXT-01, BAES palier A…"></div>'
-    +'<div class="row2"><div class="fld"><label>Niveau</label><input id="eu_niv" list="eu_nivlist" placeholder="RDC, N1, R+2…"><datalist id="eu_nivlist"><option>RDC</option><option>N1</option><option>N2</option><option>N3</option><option>Sous-sol</option></datalist></div>'
+    +'<div class="row2"><div class="fld"><label>Niveau</label><select id="eu_niv"><option value="">—</option>'+['Sous-sol -4','Sous-sol -3','Sous-sol -2','Sous-sol -1','RDC','RDJ','1er étage','2e étage','3e étage','4e étage','5e étage','Parking aérien'].map(n=>'<option value="'+n+'">'+n+'</option>').join('')+'</select></div>'
     +'<div class="fld"><label>Zone / local</label><input id="eu_zone" placeholder="Couloir Est, Cuisine…"></div></div>'
     +'<div class="fld"><label>Repère <span style="color:var(--muted-2);font-weight:400;font-size:11px">(à côté de…)</span></label><input id="eu_rep" placeholder="à côté ch. 214, face lingerie…"></div>'
     +'<div class="fld"><label style="font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Références prestataires</label>'
@@ -14890,7 +14913,10 @@ window.equipEditUnit=async function(unitId, equipId, erpId){
   openModal('<div class="modal-head"><h2>Modifier une unité</h2><button class="x" onclick="closeModal()">'+I.x+'</button></div>'
     +'<div class="modal-body">'
     +'<div class="fld"><label>Référence / désignation <span class="req">*</span></label><input id="eu_des" value="'+esc(u.designation||'')+'"></div>'
-    +'<div class="row2"><div class="fld"><label>Niveau</label><input id="eu_niv" list="eu_nivlist" value="'+esc(u.niveau||'')+'" placeholder="RDC, N1…"><datalist id="eu_nivlist"><option>RDC</option><option>N1</option><option>N2</option><option>N3</option><option>Sous-sol</option></datalist></div>'
+    +(function(){ const NV=['Sous-sol -4','Sous-sol -3','Sous-sol -2','Sous-sol -1','RDC','RDJ','1er étage','2e étage','3e étage','4e étage','5e étage','Parking aérien']; const cur=u.niveau||'';
+        const opts=(cur&&!NV.includes(cur)?[cur,...NV]:NV);
+        return '<div class="row2"><div class="fld"><label>Niveau</label><select id="eu_niv"><option value=""'+(cur?'':' selected')+'>—</option>'
+          +opts.map(n=>'<option value="'+esc(n)+'"'+(n===cur?' selected':'')+'>'+esc(n)+'</option>').join('')+'</select></div>'; })()
     +'<div class="fld"><label>Zone / local</label><input id="eu_zone" value="'+esc(u.zone||'')+'" placeholder="Couloir Est…"></div></div>'
     +'<div class="fld"><label>Repère</label><input id="eu_rep" value="'+esc(u.repere||'')+'" placeholder="à côté ch. 214…"></div>'
     +((!u.niveau&&!u.zone&&u.localisation)?'<div style="font-size:11.5px;color:var(--muted);margin:-4px 0 10px">Ancienne localisation : « '+esc(u.localisation)+' » — répartis-la dans les champs ci-dessus.</div>':'')
