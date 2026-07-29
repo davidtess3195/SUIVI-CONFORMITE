@@ -758,7 +758,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='682'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='683'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -6694,13 +6694,13 @@ const PREST_TYPES_PREST=[
   'BAES / éclairage de sécurité','SSI / centrale incendie',
   'Désenfumage naturel','Désenfumage mécanique','Baie accessible',
   // Fermetures & accès
-  'Portail','Porte coulissante','Porte de garage','Barrière levante','Rideau métallique','Ferme-porte','Serrurerie','Vitrerie',
+  'Portail / portillon','Porte coulissante','Porte de garage','Barrière levante','Rideau métallique','Ferme-porte','Serrurerie','Vitrerie',
   // Transport & stationnement
-  'Ascenseur','Escalator','Parking',
+  'Ascenseur','Monte-charge','Escalator','Parking',
   // Cuisine & laverie
   'Appareils de cuisson','Hotte','Bac à graisse','Armoire froide','Machine à laver','Sèche-linge',
   // Technique du bâtiment
-  'Chaufferie','Sous-station','Maintenance électrique','Batterie','Climatisation','Ventilation','Evaporateur','Plomberie','Assainissement','Toit',
+  'Chaufferie','Sous-station','Maintenance électrique','Armoire électrique','Batterie','Éclairage d\'ambiance','Climatisation','Ventilation','Evaporateur','Plomberie','Assainissement','Toit',
   // Services & formation
   'Dératisation / désinsectisation','Formation sécurité incendie','Formation sécurité'
 ];
