@@ -758,7 +758,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='678'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='679'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -5209,7 +5209,7 @@ const OBST={proposee:['','Proposée','inf'],applicable:['','Applicable','int'],n
 async function formEquip(erpId, eq){
   eq = eq || {};
   const editing = !!eq.id;
-  const baseTypes=['Appareils de cuisson','Ascenseur','BAES / éclairage de sécurité','Clapet coupe-feu','Désenfumage mécanique','Désenfumage naturel','Extincteur','Parking','Porte coupe-feu','RIA','Sprinklers','SSI / centrale incendie'];
+  const baseTypes=['Appareils de cuisson','Ascenseur','Baie accessible','BAES / éclairage de sécurité','Chaufferie','Clapet coupe-feu','Désenfumage mécanique','Désenfumage naturel','Escalator','Extincteur','Parking','Porte coupe-feu','Porte de garage','RIA','Sous-station','Sprinklers','SSI / centrale incendie'];
   // Charger les types personnalisés existants en base (tous ERPs)
   const {data:existingEquips}=await sb.from('equipements').select('type');
   const customTypes=[...new Set((existingEquips||[]).map(e=>e.type).filter(t=>t&&!baseTypes.includes(t)&&!/rapport|thermograph|exercice|formation/i.test(t)))].sort();
@@ -5220,11 +5220,12 @@ async function formEquip(erpId, eq){
   openModal(`<div class="modal-head"><h2>${editing?'Modifier':'Ajouter'} un équipement</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
   <div class="modal-body">
     <div class="fld"><label>Équipement <span class="req">*</span></label>
-      <select id="f_type" onchange="(function(){const v=document.getElementById('f_type').value;const wrap=document.getElementById('f_autre_wrap');if(wrap)wrap.style.display=v==='__autre__'?'block':'none';})()">
+      <div style="display:flex;gap:9px;align-items:flex-start"><span id="f_type_ic" style="width:38px;height:38px;flex:0 0 auto;background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;border-radius:10px;padding:8px;box-sizing:border-box"></span>
+      <div style="flex:1;min-width:0"><select id="f_type" style="width:100%" onchange="(function(){const v=document.getElementById('f_type').value;const wrap=document.getElementById('f_autre_wrap');if(wrap)wrap.style.display=v==='__autre__'?'block':'none';if(window.eqIcPrev)eqIcPrev();})()">
         ${types.map(t=>`<option value="${esc(t)}"${t===eq.type?' selected':''}>${esc(t)}</option>`).join('')}
         <option value="__autre__">— Autre (saisie libre) —</option>
       </select>
-      <div id="f_autre_wrap" style="display:none;margin-top:8px"><input id="f_type_custom" placeholder="Nom de l'équipement…" style="width:100%;border:1px solid var(--line);border-radius:6px;padding:7px 10px;font-size:14px;color:var(--ink);box-sizing:border-box"></div>
+      <div id="f_autre_wrap" style="display:none;margin-top:8px"><input id="f_type_custom" placeholder="Nom de l'équipement…" oninput="if(window.eqIcPrev)eqIcPrev()" style="width:100%;border:1px solid var(--line);border-radius:6px;padding:7px 10px;font-size:14px;color:var(--ink);box-sizing:border-box"></div></div></div>
     </div>
     <div class="row2"><div class="fld"><label>Quantité / type</label><input id="f_qte" value="${esc(eq.quantite)}"></div>
       <div class="fld"><label>Localisation</label><input id="f_loc" value="${esc(eq.localisation)}"></div></div>
@@ -5249,6 +5250,12 @@ async function formEquip(erpId, eq){
     dz.ondragleave=()=>{ dz.style.borderColor='var(--line)'; };
     dz.ondrop=e=>{ e.preventDefault(); dz.style.borderColor='var(--line)'; const f=e.dataTransfer.files[0]; if(f){ equipDocFile=f; msg.textContent='📄 '+f.name; } };
   }
+  window.eqIcPrev=function(){ const s=document.getElementById('f_type'); if(!s) return;
+    const c=document.getElementById('f_type_custom');
+    const val=(s.value==='__autre__')?((c&&c.value)||''):s.value;
+    const ic=document.getElementById('f_type_ic'); if(ic) ic.innerHTML=EQICO(val);
+  };
+  eqIcPrev();
   $('#save').onclick=async()=>{
     const btn=$('#save'); btn.disabled=true;
     const selType=$('#f_type').value;const customType=($('#f_type_custom')?.value||'').trim();const finalType=selType==='__autre__'?customType:selType;if(!finalType){toast('Saisir un type d\'équipement','err');btn.disabled=false;return;}
@@ -14652,6 +14659,10 @@ window.EQICO=function(type){
   const svg=p=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';
   if(/exting|extinct/.test(t)) return svg('<rect x="9" y="8" width="6.5" height="13" rx="2.6"/><path d="M12.2 8V4.6"/><path d="M9.6 4.6h5.2"/><path d="M9.8 4.8C7 5.4 5.8 7.2 5.8 9.6"/><path d="M4.6 9.6h2.4"/>');
   if(/baes|baeh|éclairage|eclairage|lumin/.test(t)) return svg('<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>');
+  if(/baie/.test(t)) return svg('<rect x="2.5" y="4.5" width="11" height="14" rx="1.5"/><path d="M8 4.5v14"/><path d="M2.5 11.5h11"/><path d="M16.2 21 19 10.5"/><path d="M19.8 21l2.8-10.5"/><path d="M17.3 17.4h3.5"/><path d="M18.1 14.2h3.5"/><path d="M18.9 11h3.5"/>');
+  if(/escalator|escalier mécanique|escalier mecanique/.test(t)) return svg('<path d="M2.5 19.5h4.3a2 2 0 0 0 1.5-.7l6.9-8.1a2 2 0 0 1 1.5-.7h4.8"/><path d="M2.5 16h3.2a2 2 0 0 0 1.5-.7l6.9-8.1a2 2 0 0 1 1.5-.7h5.9"/><path d="M9.5 19.5v-3"/><path d="M13 15.4v-3"/>');
+  if(/sous[- ]station|transformat|poste de livraison/.test(t)) return svg('<rect x="3.5" y="5.5" width="17" height="13.5" rx="2"/><path d="M13.2 8.2 9.6 12.6h3.1l-2 3.9 4.8-5.1h-3.1z"/><path d="M6.5 19v2.2"/><path d="M17.5 19v2.2"/>');
+  if(/garage/.test(t)) return svg('<path d="M3 21V10l9-6.2L21 10v11"/><path d="M7 21v-8.5h10V21"/><path d="M7 15.5h10"/><path d="M7 18.2h10"/>');
   if(/ferme[- ]porte|groom/.test(t)) return svg('<path d="M3 4h18"/><rect x="4.5" y="6.5" width="7" height="3.6" rx="1"/><path d="M11.5 8.3h4.7"/><path d="M16.2 8.3 20 13"/><path d="M20 13v7.5"/>');
   if(/porte|issue/.test(t)) return svg('<path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h3"/><path d="M13 20h9"/><path d="M10 12v.01"/><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561z"/>');
   if(/désenfum|desenfum|ventil|vmc/.test(t)) return svg('<path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/>');
