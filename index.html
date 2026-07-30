@@ -758,7 +758,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='685'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='686'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -14797,13 +14797,19 @@ window.eqxRender=function(w,e,d){
     </div>
     ${vis.length?eqxGroupsByNiv(vis,()=>eq.type,false):'<div style="color:var(--muted-2);text-align:center;padding:26px 0;font-size:13px">Aucune unité'+(st.niv?' — filtre « '+esc(st.niv)+' »':' — cliquez « ＋ Unité »')+'</div>'}
     ${(()=>{
-      const SLOTS=[['notice','📘','Notice d\'utilisation'],['fiche','📄','Fiche technique'],['maintenance','🔧','Notice de maintenance']];
+      const _dsvg=p=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%">'+p+'</svg>';
+      const SLOTS=[
+        ['notice', _dsvg('<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>'), 'Notice d\'utilisation'],
+        ['fiche', _dsvg('<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5z"/><path d="M14 2v5h6"/><path d="M9 13h6"/><path d="M9 17h6"/><path d="M9 9h2"/>'), 'Fiche technique'],
+        ['maintenance', _dsvg('<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>'), 'Notice de maintenance']
+      ];
+      const _dpast=ico=>`<span style="width:34px;height:34px;flex:0 0 auto;background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;border-radius:9px;padding:7px;box-sizing:border-box;display:inline-flex">${ico}</span>`;
       const docs=eq.docs||{};
       const jsq=v=>String(v==null?'':v).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
       const slot=([k,ico,lab])=>{
         const d0=docs[k];
         if(d0&&d0.path) return `<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:11px;padding:9px 12px;background:var(--surface)">
-          <span style="font-size:17px;flex:0 0 auto">${ico}</span>
+          ${_dpast(ico)}
           <span style="flex:1;min-width:0"><b style="display:block;font-size:12.5px">${esc(lab)}</b>
             <span style="display:block;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d0.nom||'document')}${d0.taille?' · '+Math.round(d0.taille/1024)+' Ko':''}</span></span>
           <button class="btn sm" onclick="previewDoc('${jsq(d0.path)}','${jsq(d0.nom||lab)}','documents')">Visualiser</button>
@@ -14814,7 +14820,7 @@ window.eqxRender=function(w,e,d){
         return `<div onclick="eqxDocPick('${eq.id}','${k}')" style="display:flex;align-items:center;gap:10px;border:1.5px dashed var(--line);border-radius:11px;padding:10px 12px;cursor:pointer;color:var(--muted)"
           ondragover="event.preventDefault();this.style.borderColor='var(--primary)'" ondragleave="this.style.borderColor='var(--line)'"
           ondrop="event.preventDefault();this.style.borderColor='var(--line)';const f=event.dataTransfer.files[0];if(f)eqxDocUp('${eq.id}','${k}',f)">
-          <span style="font-size:17px;opacity:.6">${ico}</span>
+          <span style="opacity:.85;display:inline-flex">${_dpast(ico)}</span>
           <span style="flex:1;font-size:12.5px"><b style="color:var(--ink)">${esc(lab)}</b> — glisser un fichier ou cliquer</span>
           <span style="font-size:16px;opacity:.5">＋</span></div>`;
       };
