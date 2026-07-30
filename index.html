@@ -758,7 +758,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='683'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='685'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -5060,6 +5060,7 @@ function renderErpTab(tab,d){
       return;
     }
     // Rendu local + rechargement des unités après ajout/modif/suppression
+    window._eqPrintCtx={e,d};
     window._eqRerenderLocal=()=>{ eqxRender(w,e,d); };
     window._eqRerender=async()=>{
       try{ const {data}=await sb.from('equipement_unites').select('*').eq('erp_id',e.id).order('created_at'); d.un=data||[]; }catch(_){ }
@@ -14795,6 +14796,44 @@ window.eqxRender=function(w,e,d){
       </div>
     </div>
     ${vis.length?eqxGroupsByNiv(vis,()=>eq.type,false):'<div style="color:var(--muted-2);text-align:center;padding:26px 0;font-size:13px">Aucune unité'+(st.niv?' — filtre « '+esc(st.niv)+' »':' — cliquez « ＋ Unité »')+'</div>'}
+    ${(()=>{
+      const SLOTS=[['notice','📘','Notice d\'utilisation'],['fiche','📄','Fiche technique'],['maintenance','🔧','Notice de maintenance']];
+      const docs=eq.docs||{};
+      const jsq=v=>String(v==null?'':v).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const slot=([k,ico,lab])=>{
+        const d0=docs[k];
+        if(d0&&d0.path) return `<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:11px;padding:9px 12px;background:var(--surface)">
+          <span style="font-size:17px;flex:0 0 auto">${ico}</span>
+          <span style="flex:1;min-width:0"><b style="display:block;font-size:12.5px">${esc(lab)}</b>
+            <span style="display:block;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d0.nom||'document')}${d0.taille?' · '+Math.round(d0.taille/1024)+' Ko':''}</span></span>
+          <button class="btn sm" onclick="previewDoc('${jsq(d0.path)}','${jsq(d0.nom||lab)}','documents')">Visualiser</button>
+          <button class="btn sm" onclick="dlDoc('${jsq(d0.path)}','${jsq(d0.nom||lab)}','documents')">⬇</button>
+          <button class="btn sm ghost" title="Remplacer" onclick="eqxDocPick('${eq.id}','${k}')">↺</button>
+          <button class="btn sm ghost" title="Supprimer" style="color:#b91c1c" onclick="eqxDocDel('${eq.id}','${k}')">🗑</button>
+        </div>`;
+        return `<div onclick="eqxDocPick('${eq.id}','${k}')" style="display:flex;align-items:center;gap:10px;border:1.5px dashed var(--line);border-radius:11px;padding:10px 12px;cursor:pointer;color:var(--muted)"
+          ondragover="event.preventDefault();this.style.borderColor='var(--primary)'" ondragleave="this.style.borderColor='var(--line)'"
+          ondrop="event.preventDefault();this.style.borderColor='var(--line)';const f=event.dataTransfer.files[0];if(f)eqxDocUp('${eq.id}','${k}',f)">
+          <span style="font-size:17px;opacity:.6">${ico}</span>
+          <span style="flex:1;font-size:12.5px"><b style="color:var(--ink)">${esc(lab)}</b> — glisser un fichier ou cliquer</span>
+          <span style="font-size:16px;opacity:.5">＋</span></div>`;
+      };
+      const legacy=(eq.document_path&&!docs.notice&&!docs.fiche&&!docs.maintenance)?`
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px;margin-top:2px">
+          📎 Document existant non classé : <b style="color:var(--ink)">${esc(eq.document_nom||'document')}</b>
+          <button class="btn sm ghost" onclick="previewDoc('${jsq(eq.document_path)}','${jsq(eq.document_nom||'document')}','documents')">Visualiser</button>
+          — classer comme :
+          <button class="btn sm" onclick="eqxDocClass('${eq.id}','notice')">Notice</button>
+          <button class="btn sm" onclick="eqxDocClass('${eq.id}','fiche')">Fiche technique</button>
+          <button class="btn sm" onclick="eqxDocClass('${eq.id}','maintenance')">Maintenance</button>
+        </div>`:'';
+      return `<div style="background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:12px 14px;margin-bottom:13px;box-shadow:0 1px 3px rgba(15,23,42,.05)">
+        <div style="font-family:var(--fd);font-weight:700;font-size:13px;margin-bottom:9px">Documents de l'équipement</div>
+        <div style="display:flex;flex-direction:column;gap:7px">${SLOTS.map(slot).join('')}</div>
+        ${legacy}
+        <input type="file" id="eqx_doc_file" accept="application/pdf,image/*" style="display:none">
+      </div>`;
+    })()}
     ${eq.periodicite||eq.acteur_suivi?`<div class="eqx-verif">Suivi réglementaire : ${eq.periodicite?'vérification '+esc(eq.periodicite):''}${eq.acteur_suivi?' — '+esc(eq.acteur_suivi):''} · géré dans l'onglet <b>Vérification</b></div>`:''}`;
   } else if(st.view==='niv'){
     const vis=units.filter(u=>eqxHit(u,famOf(u)));
@@ -14829,6 +14868,7 @@ window.eqxRender=function(w,e,d){
         <button class="${st.view==='niv'&&!st.q?'on':''}" onclick="eqxView('niv')">Par niveau</button>
       </div>
       <button class="btn sm primary" onclick="formEquip('${e.id}',{})">＋ Famille</button>
+      <button class="btn sm" onclick="eqxPrint()">🖨 Imprimer</button>
       <div class="eqx-chips">${chip('')}${niveaux.filter(n=>n!=='À situer').map(chip).join('')}${niveaux.includes('À situer')?chip('À situer'):''}</div>
     </div>
     ${body}</div>`;
@@ -14838,6 +14878,225 @@ window.eqxRender=function(w,e,d){
 window.eqxQ=function(v){ window._eqTab.q=v.trim(); window._eqTab._focus=true; if(window._eqRerenderLocal) _eqRerenderLocal(); };
 window.eqxNiv=function(n){ const st=window._eqTab; st.niv=(st.niv===n?'':n); if(window._eqRerenderLocal) _eqRerenderLocal(); };
 window.eqxFam=function(id){ const st=window._eqTab; st.fam=id; st.niv=''; if(window._eqRerenderLocal) _eqRerenderLocal(); };
+/* ── Documents par emplacement (notice / fiche / maintenance) ── */
+window.eqxDocPick=function(eqId,slot){
+  const inp=document.getElementById('eqx_doc_file'); if(!inp) return;
+  inp.onchange=()=>{ const f=inp.files[0]; inp.value=''; if(f) eqxDocUp(eqId,slot,f); };
+  inp.click();
+};
+window.eqxDocUp=async function(eqId,slot,file){
+  const ctx=window._eqPrintCtx; if(!ctx) return;
+  const eq=(ctx.d.eq||[]).find(x=>x.id===eqId); if(!eq) return;
+  try{
+    toast('Préparation du fichier…','ok');
+    let up=file;
+    if(file.type==='application/pdf' && file.size>300*1024 && typeof compressPdf==='function'){
+      up=await compressPdf(file);
+      const g=Math.round((1-up.size/file.size)*100);
+      if(g>5) toast(`PDF compressé −${g}% (${Math.round(up.size/1024)} Ko)`,'ok');
+    } else if(file.type && file.type.startsWith('image/') && typeof compressImage==='function'){
+      up=await compressImage(file);
+    }
+    const path=ctx.e.id+'/equip/'+eqId+'/'+slot+'_'+Date.now()+'_'+String(file.name||'doc').replace(/[^\w.\-]/g,'_');
+    const {error:ue}=await sb.storage.from('documents').upload(path,up,{contentType:up.type||file.type||undefined});
+    if(ue) throw ue;
+    const old=(eq.docs||{})[slot];
+    const docs={...(eq.docs||{}), [slot]:{path, nom:file.name||'document', taille:up.size||file.size||null}};
+    const {error}=await sb.from('equipements').update({docs}).eq('id',eqId);
+    if(error) throw error;
+    if(old&&old.path){ try{ await sb.storage.from('documents').remove([old.path]); }catch(_){ } }
+    eq.docs=docs;
+    toast('Document enregistré ✓','ok');
+    if(window._eqRerenderLocal) _eqRerenderLocal();
+  }catch(e){ toast(e.message||'Dépôt impossible','err'); }
+};
+window.eqxDocDel=async function(eqId,slot){
+  const ctx=window._eqPrintCtx; if(!ctx) return;
+  const eq=(ctx.d.eq||[]).find(x=>x.id===eqId); if(!eq) return;
+  const d0=(eq.docs||{})[slot]; if(!d0) return;
+  if(!confirm('Supprimer « '+(d0.nom||'ce document')+' » ?')) return;
+  try{
+    const docs={...(eq.docs||{})}; delete docs[slot];
+    const {error}=await sb.from('equipements').update({docs}).eq('id',eqId);
+    if(error) throw error;
+    try{ await sb.storage.from('documents').remove([d0.path]); }catch(_){ }
+    eq.docs=docs;
+    toast('Document supprimé','ok');
+    if(window._eqRerenderLocal) _eqRerenderLocal();
+  }catch(e){ toast(e.message||'Suppression impossible','err'); }
+};
+window.eqxDocClass=async function(eqId,slot){
+  const ctx=window._eqPrintCtx; if(!ctx) return;
+  const eq=(ctx.d.eq||[]).find(x=>x.id===eqId); if(!eq||!eq.document_path) return;
+  try{
+    const docs={...(eq.docs||{}), [slot]:{path:eq.document_path, nom:eq.document_nom||'document', taille:null}};
+    const {error}=await sb.from('equipements').update({docs, document_path:null, document_nom:null}).eq('id',eqId);
+    if(error) throw error;
+    eq.docs=docs; eq.document_path=null; eq.document_nom=null;
+    toast('Document classé ✓','ok');
+    if(window._eqRerenderLocal) _eqRerenderLocal();
+  }catch(e){ toast(e.message||'Classement impossible','err'); }
+};
+/* ── Impression du registre (PDF) ── */
+window.eqxPrint=function(){
+  const st=window._eqTab;
+  const d=window._eqPrintCtx; if(!d){ toast('Ouvre d\'abord l\'onglet Équipements','err'); return; }
+  const eqs=d.d.eq||[], units=d.d.un||[];
+  const nbOf=id=>units.filter(u=>u.equipement_id===id).length;
+  openModal(`<div class="modal-head"><h2>🖨 Imprimer le registre</h2><button class="mx" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <p style="font-size:12.5px;color:var(--muted);margin:0 0 10px">Coche les familles à inclure — celles qui ont des unités sont pré-cochées.</p>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="btn sm" onclick="[...document.querySelectorAll('.eqp_cb')].forEach(c=>c.checked=true)">Tout</button>
+      <button class="btn sm" onclick="[...document.querySelectorAll('.eqp_cb')].forEach(c=>c.checked=c.dataset.n>0)">Avec unités seulement</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow:auto;padding:2px">
+      ${eqs.map(q=>{ const n=nbOf(q.id);
+        return `<label style="display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:10px;padding:8px 11px;cursor:pointer;background:var(--surface)">
+          <input type="checkbox" class="eqp_cb" value="${q.id}" data-n="${n}"${n>0?' checked':''} style="width:16px;height:16px;accent-color:var(--primary);flex:0 0 auto">
+          <span style="flex:1;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(q.type)}</span>
+          <span class="pill ${n>0?'ok':'inf'}" style="flex:0 0 auto">${n} unité(s)</span>
+        </label>`; }).join('')}
+    </div>
+  </div>
+  <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
+    <button class="btn primary" id="eqp_go">Générer le PDF</button></div>`);
+  document.getElementById('eqp_go').onclick=()=>{
+    const sel=[...document.querySelectorAll('.eqp_cb:checked')].map(c=>c.value);
+    if(!sel.length){ toast('Sélectionne au moins une famille','err'); return; }
+    const data=eqxPrintData(sel);
+    try{ eqxPdf(data); closeModal(); toast('Registre généré ✓','ok'); }
+    catch(err){ console.error(err); toast('Génération impossible : '+(err.message||err),'err'); }
+  };
+};
+window.eqxPrintData=function(selIds){
+  const ctx=window._eqPrintCtx, e=ctx.e, d=ctx.d;
+  const units=d.un||[];
+  const fams=(d.eq||[]).filter(q=>selIds.includes(q.id)).map(q=>{
+    const us=units.filter(u=>u.equipement_id===q.id).map(u=>{
+      const l=eqxUnitLoc(u);
+      const refs=Array.isArray(u.refs)?u.refs.filter(r=>r.numero||r.prestataire)
+        .map(r=>[r.prestataire,r.numero].filter(Boolean).join(' · ')).join(' / '):'';
+      return {ref:u.designation||'—', niv:l.niv, zone:l.zone||'', rep:l.rep||'', refp:refs||'—'};
+    }).sort((a,b)=>eqxNivOrder(a.niv,b.niv)||String(a.ref).localeCompare(String(b.ref),'fr'));
+    const decl=parseInt(String(q.quantite||'').replace(/\D/g,''),10)||null;
+    return {nom:q.type, rows:us, decl, count:us.length};
+  }).filter(f=>true);
+  const tot=fams.reduce((s,f)=>s+f.count,0);
+  return {erp:{nom:e.nom||'', code:e.code||e.numero||'', type_erp:e.type_erp||'', categorie:e.categorie||''},
+    date:new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}),
+    tot, nbFam:fams.length, fams};
+};
+window.eqxPdf=function(data){
+  const jsPDFCtor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
+  if(!jsPDFCtor) throw new Error('PDF non disponible (jsPDF)');
+  const doc=new jsPDFCtor({unit:'mm',format:'a4',orientation:'portrait',compress:true});
+  const W=210, ML=14, MR=14, CW=W-ML-MR, MB=16;
+  const BLUE=[30,64,175], INK=[15,23,42], MUT=[100,116,139], LINE=[226,232,240], ZEB=[248,250,252];
+  const AMB=[180,83,9], AMBG=[255,251,235];
+  // colonnes : ref 24 · niveau 24 · zone 42 · repère flex · réf prest 34
+  const C={ref:24, niv:24, zone:42, refp:34};
+  C.rep=CW-C.ref-C.niv-C.zone-C.refp;
+  const X={ref:ML, niv:ML+C.ref, zone:ML+C.ref+C.niv, rep:ML+C.ref+C.niv+C.zone, refp:ML+C.ref+C.niv+C.zone+ (CW-C.ref-C.niv-C.zone-C.refp)};
+  X.refp=X.rep+C.rep;
+  let y=0;
+  const head=()=>{
+    y=14;
+    doc.setTextColor(...BLUE); doc.setFont('helvetica','bold'); doc.setFontSize(14);
+    doc.text('REGISTRE DES ÉQUIPEMENTS', ML, y+4);
+    doc.setTextColor(...MUT); doc.setFont('helvetica','normal'); doc.setFontSize(8.6);
+    const sub=[data.erp.nom, data.erp.type_erp?('Type '+data.erp.type_erp):null, data.erp.categorie?(data.erp.categorie+'e catégorie'):null].filter(Boolean).join(' · ');
+    doc.text(sub, ML, y+9);
+    doc.setFont('helvetica','bold'); doc.setFontSize(8.6); doc.setTextColor(...INK);
+    doc.text('SUIVI-CONFORMITÉ', W-MR, y, {align:'right'});
+    doc.setFont('helvetica','normal'); doc.setFontSize(7.6); doc.setTextColor(...MUT);
+    doc.text('Édité le '+data.date, W-MR, y+4, {align:'right'});
+    doc.text(data.tot+' unité(s) · '+data.nbFam+' famille(s)', W-MR, y+8, {align:'right'});
+    doc.setDrawColor(...BLUE); doc.setLineWidth(0.7);
+    doc.line(ML, y+12.5, W-MR, y+12.5);
+    y+=18;
+  };
+  const thead=()=>{
+    doc.setFillColor(...BLUE); doc.rect(ML, y, CW, 6, 'F');
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(6.6);
+    doc.text('RÉFÉRENCE', X.ref+2, y+4); doc.text('NIVEAU', X.niv+2, y+4);
+    doc.text('ZONE / LOCAL', X.zone+2, y+4); doc.text('REPÈRE', X.rep+2, y+4);
+    doc.text('RÉF. PRESTATAIRE', X.refp+2, y+4);
+    y+=6;
+  };
+  const nivPill=(txt,x,yy)=>{
+    const r=(n=>{ if(n==='À situer') return [148,163,184];
+      const s=String(n).toLowerCase();
+      if(/sous|rdc|rez/.test(s)) return INK;
+      if(/rdj|1er|2e/.test(s)) return [37,99,235];
+      return [124,159,245]; })(txt);
+    const lab=(txt==='À situer')?'À situer':(/parking/i.test(txt)?'Parking':eqxNivShort(txt));
+    doc.setFillColor(...r);
+    const w=doc.getTextWidth(lab)+3.6;
+    doc.roundedRect(x, yy-3.1, Math.max(w,10), 4.4, 1.1, 1.1, 'F');
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(6.6);
+    doc.text(lab, x+Math.max(w,10)/2, yy, {align:'center'});
+  };
+  const newPage=()=>{ doc.addPage(); head(); };
+  head();
+  data.fams.forEach(f=>{
+    // titre famille (garder avec l'en-tête de tableau + 1 ligne)
+    if(y+22>297-MB) newPage();
+    doc.setTextColor(...BLUE); doc.setFont('helvetica','bold'); doc.setFontSize(10);
+    doc.text(String(f.nom).toUpperCase(), ML, y+4);
+    const tw=doc.getTextWidth(String(f.nom).toUpperCase());
+    doc.setFont('helvetica','normal'); doc.setFontSize(7.4); doc.setTextColor(...MUT);
+    const ecart=f.decl&&f.count<f.decl;
+    doc.text(f.count+' unité(s)'+(f.decl&&!ecart?' · registre complet':''), ML+tw+3, y+4);
+    if(ecart){
+      const et='ÉCART '+f.count+'/'+f.decl+' — '+(f.decl-f.count)+' à localiser';
+      doc.setFont('helvetica','bold'); doc.setFontSize(6.8);
+      const ew=doc.getTextWidth(et)+4;
+      const ex=ML+tw+3+doc.getTextWidth(f.count+' unité(s)')+3;
+      doc.setFillColor(...AMBG); doc.setDrawColor(253,230,138); doc.setLineWidth(0.25);
+      doc.roundedRect(ex, y+0.8, ew, 4.6, 1.1, 1.1, 'FD');
+      doc.setTextColor(...AMB); doc.text(et, ex+2, y+4);
+    }
+    y+=7; thead();
+    if(!f.rows.length){
+      doc.setTextColor(...MUT); doc.setFont('helvetica','italic'); doc.setFontSize(7.6);
+      doc.text('Aucune unité enregistrée', ML+2, y+4.5); y+=8;
+    }
+    f.rows.forEach((r,i)=>{
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.6);
+      const zl=doc.splitTextToSize(r.zone||'—', C.zone-4);
+      const rl=doc.splitTextToSize(r.rep||'', C.rep-4);
+      const pl=doc.splitTextToSize(r.refp, C.refp-4);
+      const nl=Math.max(zl.length, rl.length||1, pl.length, 1);
+      const rh=Math.max(6.4, nl*3.4+3);
+      if(y+rh>297-MB){ newPage(); thead(); }
+      if(i%2===1){ doc.setFillColor(...ZEB); doc.rect(ML, y, CW, rh, 'F'); }
+      doc.setTextColor(...INK); doc.setFont('helvetica','bold'); doc.setFontSize(7.8);
+      doc.text(String(r.ref), X.ref+2, y+4.4);
+      nivPill(r.niv, X.niv+2, y+4.4);
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.6); doc.setTextColor(...INK);
+      doc.text(zl, X.zone+2, y+4.4);
+      doc.setTextColor(...MUT); doc.text(rl, X.rep+2, y+4.4);
+      doc.setTextColor(...INK); doc.text(pl, X.refp+2, y+4.4);
+      doc.setDrawColor(...LINE); doc.setLineWidth(0.2);
+      doc.line(ML, y+rh, W-MR, y+rh);
+      y+=rh;
+    });
+    y+=6;
+  });
+  // pieds de page
+  const n=doc.getNumberOfPages();
+  for(let i=1;i<=n;i++){
+    doc.setPage(i);
+    doc.setDrawColor(...LINE); doc.setLineWidth(0.25);
+    doc.line(ML, 297-11, W-MR, 297-11);
+    doc.setTextColor(148,163,184); doc.setFont('helvetica','normal'); doc.setFontSize(6.8);
+    doc.text('SUIVI-CONFORMITÉ · conformite-securite.fr — registre édité par l\'exploitant', ML, 297-7);
+    doc.text('Page '+i+' / '+n, W-MR, 297-7, {align:'right'});
+  }
+  const fn='registre-equipements-'+String(data.erp.nom||'erp').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')+'.pdf';
+  doc.save(fn);
+};
 window.eqxDelFam=async function(id,nb){
   const msg=nb>0
     ?'Supprimer cette famille ET ses '+nb+' unité(s) du registre ?\n\nCette action est définitive.'
