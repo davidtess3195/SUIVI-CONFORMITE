@@ -758,7 +758,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='689'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='691'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -12152,10 +12152,10 @@ window.ficheIdModal=async function(clientId,erpId){
     const factDefault=(contacts||[]).find(c=>/factur/i.test(c.role_suivi||'')||/factur/i.test(c.fonction||''));
     const cChips=(contacts||[]).map(c=>{
       const nom=[c.prenom,c.nom].filter(Boolean).join(' ')||'Contact';
-      return `<label style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 9px;border:1px solid var(--line);border-radius:10px;padding:7px 10px;cursor:pointer;max-width:100%;box-sizing:border-box;overflow:hidden">
-        <input type="checkbox" id="fi_c_${esc(c.id)}" checked style="accent-color:#1a44ad;width:15px;height:15px;min-width:15px;max-width:15px;flex:0 0 15px">
-        <span style="min-width:0;flex:1 1 140px;font-size:12.5px;text-align:left"><b style="overflow-wrap:anywhere">${esc(nom)}</b>${c.fonction?' · '+esc(c.fonction):''}<span style="display:block;font-size:11px;color:var(--muted);overflow-wrap:anywhere">${[c.telephone,c.mobile,c.email].filter(Boolean).map(esc).join(' · ')||'—'}</span></span>
-        <label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#1a44ad;font-weight:700;flex:0 0 auto;margin-left:auto;cursor:pointer;white-space:nowrap"><input type="radio" name="fi_fact" value="${esc(c.id)}" ${factDefault&&factDefault.id===c.id?'checked':''} style="accent-color:#1a44ad;width:14px;height:14px;min-width:14px">Facturation</label>
+      return `<label style="display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:center;column-gap:9px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer;min-height:46px;box-sizing:border-box">
+        <input type="checkbox" id="fi_c_${esc(c.id)}" checked style="accent-color:#1a44ad;width:15px;height:15px;margin:0">
+        <span style="min-width:0;text-align:left"><b style="display:block;font-size:12.5px;line-height:1.3;overflow-wrap:anywhere">${esc(nom)}${c.fonction?' · '+esc(c.fonction):''}</b><span style="display:block;font-size:11px;line-height:1.35;color:var(--muted);overflow-wrap:anywhere">${[c.telephone,c.mobile,c.email].filter(Boolean).map(esc).join(' · ')||'—'}</span></span>
+        <label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#1a44ad;font-weight:700;cursor:pointer;white-space:nowrap;justify-self:end"><input type="radio" name="fi_fact" value="${esc(c.id)}" ${factDefault&&factDefault.id===c.id?'checked':''} style="accent-color:#1a44ad;width:14px;height:14px;margin:0">Facturation</label>
       </label>`;
     }).join('');
     openModal(`<div class="modal-head"><h2>Fiche d'identité <span style="font-size:11px;font-weight:600;color:var(--muted)">${esc(cl.raison_sociale||'')}</span></h2><button class="x" onclick="closeModal()">${I.x}</button></div>
@@ -14803,6 +14803,12 @@ window.eqxRender=function(w,e,d){
         ['fiche', _dsvg('<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5z"/><path d="M14 2v5h6"/><path d="M9 13h6"/><path d="M9 17h6"/><path d="M9 9h2"/>'), 'Fiche technique'],
         ['maintenance', _dsvg('<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>'), 'Notice de maintenance']
       ];
+      // Emplacements spécifiques selon la famille
+      const _tSlot=(eq.type||'').toLowerCase();
+      if(/dérat|derat|désinsect|desinsect|nuisibl/.test(_tSlot))
+        SLOTS.push(['fds', _dsvg('<path d="M10 2v7.5a2 2 0 0 1-.21.9L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45L14.21 10.4a2 2 0 0 1-.21-.9V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/>'), 'Fiche de données de sécurité']);
+      if(/ascenseur|monte[- ]charge/.test(_tSlot))
+        SLOTS.push(['securite', _dsvg('<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>'), 'Fiche de sécurité']);
       const _dpast=ico=>`<span style="width:34px;height:34px;flex:0 0 auto;background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;border-radius:9px;padding:7px;box-sizing:border-box;display:inline-flex">${ico}</span>`;
       const docs=eq.docs||{};
       const jsq=v=>String(v==null?'':v).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
@@ -14831,7 +14837,7 @@ window.eqxRender=function(w,e,d){
           </div>
         </div>`;
       };
-      const legacy=(eq.document_path&&!arrOf('notice').length&&!arrOf('fiche').length&&!arrOf('maintenance').length)?`
+      const legacy=(eq.document_path&&SLOTS.every(s=>!arrOf(s[0]).length))?`
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);border-top:1px dashed var(--line);padding-top:8px;margin-top:2px">
           📎 Document existant non classé : <b style="color:var(--ink)">${esc(eq.document_nom||'document')}</b>
           <button class="btn sm ghost" onclick="previewDoc('${jsq(eq.document_path)}','${jsq(eq.document_nom||'document')}','documents')">Visualiser</button>
