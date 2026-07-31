@@ -758,7 +758,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='691'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='692'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -2345,7 +2345,7 @@ function formCreateDemo(){
         <input id="demo_email" type="email" placeholder="prospect@client.fr" autocomplete="off">
       </div>
       <div class="fld"><label>Mot de passe</label>
-        <input id="demo_pass" type="password" placeholder="Minimum 8 caractères" autocomplete="new-password">
+        <div style="position:relative"><input id="demo_pass" type="password" placeholder="Minimum 8 caractères" autocomplete="new-password" style="width:100%;box-sizing:border-box;padding-right:42px"><button type="button" tabindex="-1" onclick="togglePwd('demo_pass',this)" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:6px;color:#64748b;display:grid;place-items:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
       </div>
       <div class="fld"><label>Nom affiché (optionnel)</label>
         <input id="demo_nom" placeholder="Ex: Prospect Dupont" autocomplete="off">
