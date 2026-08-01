@@ -766,7 +766,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='699'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='700'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -5097,6 +5097,7 @@ function renderErpTab(tab,d){
     // Rendu local + rechargement des unités après ajout/modif/suppression
     window._eqPrintCtx={e,d};
     window._eqRerenderLocal=()=>{ eqxRender(w,e,d); };
+    try{ sb.from('gpa_ouvrages').select('*').eq('erp_id',e.id).then(({data})=>{ d.gpa=data||[]; if(w.isConnected) eqxRender(w,e,d); }); }catch(_){ }
     window._eqRerender=async()=>{
       try{ const {data}=await sb.from('equipement_unites').select('*').eq('erp_id',e.id).order('created_at'); d.un=data||[]; }catch(_){ }
       eqxRender(w,e,d);
@@ -13451,8 +13452,12 @@ window.txEcarter=async function(id){
 };
 /* ═══════════ GARANTIES (GPA / biennale / décennale) ═══════════ */
 window._gpaTab={t:'tab'};
-const GPA_TYPES={gpa:['Parfait achèvement','1 an',1], biennale:['Bon fonctionnement','2 ans',2], decennale:['Décennale','10 ans',10]};
-function gpaFin(o){ const d=new Date(o.date_reception); d.setFullYear(d.getFullYear()+(GPA_TYPES[o.type_garantie||'gpa']||[0,0,1])[2]); return d; }
+const GPA_TYPES={gpa:['Parfait achèvement','1 an',1], biennale:['Bon fonctionnement','2 ans',2], decennale:['Décennale','10 ans',10], fabricant:['Fabricant / matériel','durée libre',null]};
+function gpaFin(o){ const d=new Date(o.date_reception);
+  const yrs=(o.type_garantie==='fabricant')?(parseFloat(o.duree_annees)||1):((GPA_TYPES[o.type_garantie||'gpa']||[0,0,1])[2]||1);
+  d.setMonth(d.getMonth()+Math.round(yrs*12)); return d; }
+function gpaTypeLib(o){ const T=GPA_TYPES[o.type_garantie||'gpa']||GPA_TYPES.gpa;
+  return o.type_garantie==='fabricant'?`${T[0]} · ${parseFloat(o.duree_annees)||1} an(s)`:`${T[0]} · ${T[1]}`; }
 function gpaJours(o){ return Math.ceil((gpaFin(o).getTime()-Date.now())/864e5); }
 function gpaFrise(o){
   const deb=new Date(o.date_reception).getTime(), fin=gpaFin(o).getTime();
@@ -13521,7 +13526,7 @@ window.gpaRender=function(c){
       <div style="background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;padding:11px 14px;display:flex;align-items:center;gap:10px">
         <div style="flex:1;min-width:0"><b style="font-size:13.5px;font-family:var(--fd)">${esc(o0.designation)}</b>
           <div style="font-size:11px;opacity:.85">${esc(prestNom[o0.prestataire_id]||o0.entreprise||'Entreprise non renseignée')}</div></div>
-        <span style="background:rgba(255,255,255,.18);border-radius:7px;padding:2px 9px;font-size:10.5px;font-weight:700;white-space:nowrap">${T[0]} · ${T[1]}</span>
+        <span style="background:rgba(255,255,255,.18);border-radius:7px;padding:2px 9px;font-size:10.5px;font-weight:700;white-space:nowrap">${gpaTypeLib(o0)}</span>
       </div>
       <div style="padding:10px 14px 12px">${gpaFrise(o0)}
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;align-items:center">
@@ -13613,7 +13618,8 @@ window.gpaFormOuvrage=function(id){
   <div class="modal-body">
     <div class="fld"><label>Désignation <span class="req">*</span></label><input id="g_des" value="${esc(o0.designation||'')}" placeholder="Remplacement BAES bâtiment A"></div>
     <div class="row2"><div class="fld"><label>Établissement</label><select id="g_erp">${erps.map(e=>`<option value="${e.id}"${e.id===(o0.erp_id||state.currentErp)?' selected':''}>${esc(e.nom)}</option>`).join('')}</select></div>
-      <div class="fld"><label>Type de garantie</label><select id="g_type">${Object.entries(GPA_TYPES).map(([k,v])=>`<option value="${k}"${k===(o0.type_garantie||'gpa')?' selected':''}>${v[0]} (${v[1]})</option>`).join('')}</select></div></div>
+      <div class="fld"><label>Type de garantie</label><select id="g_type" onchange="document.getElementById('g_dur_wrap').style.display=this.value==='fabricant'?'block':'none'">${Object.entries(GPA_TYPES).map(([k,v])=>`<option value="${k}"${k===(o0.type_garantie||'gpa')?' selected':''}>${v[0]} (${v[1]})</option>`).join('')}</select></div></div>
+    <div class="fld" id="g_dur_wrap" style="display:${o0.type_garantie==='fabricant'?'block':'none'}"><label>Durée de la garantie (années) <span class="req">*</span></label><input type="number" id="g_dur" min="0.5" step="0.5" value="${o0.duree_annees||''}" placeholder="Ex : 3"></div>
     <div class="row2"><div class="fld"><label>Date de réception <span class="req">*</span></label><input type="date" id="g_rec" value="${o0.date_reception||''}"></div>
       <div class="fld"><label>Entreprise</label><select id="g_prest"><option value="">— libre —</option>${prests.map(p=>`<option value="${p.id}"${p.id===o0.prestataire_id?' selected':''}>${esc(p.nom)}</option>`).join('')}</select></div></div>
     <div class="row2"><div class="fld"><label>Montant du marché (€ HT)</label><input type="number" id="g_mt" value="${o0.montant_marche||''}"></div>
@@ -13622,10 +13628,29 @@ window.gpaFormOuvrage=function(id){
         <option value="5"${o0.retenue_pct==5?' selected':''}>5 % — cas particulier</option>
         <option value="3"${o0.retenue_pct==3?' selected':''}>3 % — cas particulier</option>
       </select></div></div>
+    <div class="row2"><div class="fld"><label>Rattacher à un équipement <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel)</span></label><select id="g_eq" onchange="gpaLoadUnites()"><option value="">— Aucun —</option></select></div>
+      <div class="fld"><label>Unité précise</label><select id="g_un"><option value="">— Toute la famille —</option></select></div></div>
     <div class="fld" id="g_ret_wrap" style="display:${o0.retenue_pct?'block':'none'}"><label>Retenue restituée</label><select id="g_ret"><option value="false">Non</option><option value="true"${o0.retenue_restituee?' selected':''}>Oui</option></select></div>
   </div>
   <div class="modal-foot">${id?`<button class="btn danger" style="margin-right:auto" onclick="gpaDelOuvrage('${id}')">Supprimer</button>`:''}
     <button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="g_save">${id?'Enregistrer':'Créer'}</button></div>`);
+  window.gpaLoadEquips=async function(){
+    const erp=document.getElementById('g_erp').value; const sel=document.getElementById('g_eq'); if(!sel) return;
+    try{ const {data}=await sb.from('equipements').select('id,type').eq('erp_id',erp).order('type');
+      sel.innerHTML='<option value="">— Aucun —</option>'+(data||[]).map(q=>`<option value="${q.id}"${q.id===o0.equipement_id?' selected':''}>${esc(q.type)}</option>`).join('');
+      if(o0.equipement_id) await gpaLoadUnites();
+    }catch(_){ }
+  };
+  window.gpaLoadUnites=async function(){
+    const eq=document.getElementById('g_eq').value; const sel=document.getElementById('g_un'); if(!sel) return;
+    sel.innerHTML='<option value="">— Toute la famille —</option>';
+    if(!eq) return;
+    try{ const {data}=await sb.from('equipement_unites').select('id,designation').eq('equipement_id',eq).order('designation');
+      sel.innerHTML+='<option disabled>──</option>'.replace('<option disabled>──</option>','')+(data||[]).map(u=>`<option value="${u.id}"${u.id===o0.unite_id?' selected':''}>${esc(u.designation)}</option>`).join('');
+    }catch(_){ }
+  };
+  document.getElementById('g_erp').addEventListener('change',gpaLoadEquips);
+  gpaLoadEquips();
   document.getElementById('g_save').onclick=async()=>{
     const des=document.getElementById('g_des').value.trim();
     const rec=document.getElementById('g_rec').value;
@@ -13636,7 +13661,11 @@ window.gpaFormOuvrage=function(id){
       prestataire_id:document.getElementById('g_prest').value||null,
       montant_marche:parseFloat(document.getElementById('g_mt').value)||null,
       retenue_pct:parseFloat(document.getElementById('g_pct').value)||null,
-      retenue_restituee:document.getElementById('g_ret').value==='true'};
+      retenue_restituee:document.getElementById('g_ret').value==='true',
+      duree_annees:document.getElementById('g_type').value==='fabricant'?(parseFloat(document.getElementById('g_dur').value)||null):null,
+      equipement_id:document.getElementById('g_eq').value||null,
+      unite_id:document.getElementById('g_un').value||null};
+    if(pl.type_garantie==='fabricant'&&!pl.duree_annees){ toast('Durée requise pour une garantie fabricant','err'); return; }
     try{
       const q=id?sb.from('gpa_ouvrages').update(pl).eq('id',id):sb.from('gpa_ouvrages').insert(pl);
       const {error}=await q; if(error) throw error;
@@ -15112,6 +15141,11 @@ window.eqxRender=function(w,e,d){
           <div class="sub">${ecart?`${all.length} / ${decl} déclarées · ${decl-all.length} à localiser`:(decl?'Registre complet':(all.length+' unité(s) au registre'))}${eq.periodicite?' · vérif. '+esc(eq.periodicite):''}</div></div>
         <div class="bignum"><span class="n">${all.length}</span><span class="l">UNITÉS</span></div>
       </div>
+      ${(()=>{
+        const g=(d.gpa||[]).filter(x=>x.equipement_id===eq.id&&(typeof gpaJours==='function'?gpaJours(x)>=0:true));
+        if(!g.length) return '';
+        return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px">${g.map(x=>`<span style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:99px;padding:3px 11px;font-size:11px;font-weight:700">🛡 ${typeof gpaTypeLib==='function'?gpaTypeLib(x):'Garantie'} — jusqu'au ${fmtDate(gpaFin(x))}${x.unite_id?' (unité)':''}</span>`).join('')}</div>`;
+      })()}
       <div class="eqx-hact">
         <div class="eqx-hchips">${hchip('','Tous')}${Object.keys(c).sort(eqxNivOrder).map(n=>hchip(n,esc(n))).join('')}</div>
         <button class="eqx-hbtn" onclick="equipAddUnit('${eq.id}','${e.id}')">＋ Unité</button>
