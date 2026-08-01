@@ -251,13 +251,11 @@ table.tbl .mono{font-family:var(--fd);font-weight:600;font-size:12.5px;color:var
 /* Badges / pills */
 /* ── Registre des équipements (eqx) ── */
 .gpa-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px;margin-bottom:16px}
-.gpa-kpis .card > div:nth-child(2){font-family:var(--fd);font-size:26px;font-weight:700;line-height:1.1}
+.kpi-tile{background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;border-radius:14px;padding:13px 15px;box-shadow:0 4px 14px rgba(37,99,235,.22)}
 @media(max-width:640px){
   .gpa-kpis{grid-template-columns:1fr 1fr;gap:8px}
-  .gpa-kpis .card{padding:10px 12px !important}
-  .gpa-kpis .card > div:first-child{font-size:9px !important;letter-spacing:.08em !important}
-  .gpa-kpis .card > div:nth-child(2){font-size:22px !important}
-  .gpa-kpis .card > div:nth-child(3){font-size:10.5px !important}
+  .kpi-tile{padding:11px 12px;border-radius:12px}
+  .kpi-tile svg{width:18px !important;height:18px !important}
 }
 .eqx-search{display:flex;gap:8px;margin:14px 0 10px}
 .eqx-search .in{flex:1;display:flex;align-items:center;gap:8px;background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:9px 12px}
@@ -768,7 +766,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='697'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='698'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -13498,7 +13496,21 @@ window.gpaRender=function(c){
   const retenues=ouv.filter(o=>o.montant_marche&&o.retenue_pct&&!o.retenue_restituee&&gpaJours(o)<30);
   const prestNom={}; (state.prestataires||[]).forEach(p=>prestNom[p.id]=p.nom);
   const tabs=[['tab','Tableau'],['ouv','Ouvrages ('+ouv.length+')'],['res','Réserves ('+resOuv.length+')'],['rel','Relances ('+D.l.length+')']];
-  const kpi=(lab,val,sub,col)=>`<div class="card" style="padding:13px 15px;border-left:3px solid ${col}"><div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700">${lab}</div><div style="font-family:var(--fd);font-size:26px;font-weight:700">${val}</div><div style="font-size:11.5px;color:var(--muted)">${sub}</div></div>`;
+  const _ksvg=p=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;opacity:.9">${p}</svg>`;
+  const KICO={
+    shield:_ksvg('<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>'),
+    clock:_ksvg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+    list:_ksvg('<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5z"/><path d="M14 2v5h6"/><path d="M9 13h6"/><path d="M9 17h6"/>'),
+    coin:_ksvg('<circle cx="12" cy="12" r="9"/><path d="M14.8 9.2a3.2 3.2 0 0 0-5.6 2.8 3.2 3.2 0 0 0 5.6 2.8"/><path d="M7.5 10.5h5"/><path d="M7.5 13.5h5"/>')
+  };
+  const kpi=(lab,val,sub,ico,alerte)=>`<div class="kpi-tile">
+    <div style="display:flex;align-items:flex-start;gap:8px">
+      <span style="flex:1;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;opacity:.85">${lab}</span>${KICO[ico]||''}
+    </div>
+    <div style="font-family:var(--fd);font-size:30px;font-weight:700;line-height:1;margin:4px 0 3px">${val}</div>
+    <div style="font-size:11px;opacity:.8">${sub}</div>
+    ${alerte&&val>0?`<span style="display:inline-block;margin-top:6px;background:rgba(255,255,255,.2);border-radius:99px;padding:2px 9px;font-size:10px;font-weight:700">⚠ à traiter</span>`:''}
+  </div>`;
   const pillStatut=s=>({notifiee:'<span class="pill moy">Notifiée</span>',en_cours:'<span class="pill int">En cours</span>',levee:'<span class="pill ok">Levée</span>'}[s]||'');
   const pillRel=t=>({simple:'<span class="pill inf">Relance simple</span>',recommandee:'<span class="pill moy">Recommandée</span>',mise_en_demeure:'<span class="pill crit">Mise en demeure</span>'}[t]||'');
   const carteOuvrage=o0=>{
@@ -13522,10 +13534,10 @@ window.gpaRender=function(c){
   let body='';
   if(st.t==='tab'){
     body=`<div class="gpa-kpis">
-      ${kpi('Sous garantie',actifs.length,'ouvrages actifs','#2563eb')}
-      ${kpi('Échéance < 60 j',expire60.length,'visites à programmer',expire60.length?'#d97706':'#16a34a')}
-      ${kpi('Réserves ouvertes',resOuv.length,'à faire lever',resOuv.length?'#dc2626':'#16a34a')}
-      ${kpi('Retenues',retenues.length,'à restituer (cas particuliers)','#7c3aed')}
+      ${kpi('Sous garantie',actifs.length,'ouvrages actifs','shield')}
+      ${kpi('Échéance < 60 j',expire60.length,'visites à programmer','clock',true)}
+      ${kpi('Réserves ouvertes',resOuv.length,'à faire lever','list',true)}
+      ${kpi('Retenues',retenues.length,'à restituer (cas particuliers)','coin')}
     </div>
     ${expire60.length?`<div class="card" style="padding:12px 14px;margin-bottom:14px;border-left:4px solid #d97706;background:linear-gradient(90deg,#fffbeb,#fff)">
       <b style="font-size:13px">⚠ Visites de fin de garantie à programmer</b>
