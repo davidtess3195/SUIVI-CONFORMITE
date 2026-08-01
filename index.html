@@ -766,7 +766,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='698'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='699'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -10175,10 +10175,10 @@ async function pvGenerate(){
     const path=(erpId||('client_'+(client.id||'x')))+'/'+Date.now()+'_'+fname.replace(/[^\w.\-]/g,'_');
     const {error:ue}=await sb.storage.from('documents').upload(path,pdfBlob,{contentType:'application/pdf'});
     if(ue) throw ue;
-    const {error:ie}=await sb.from('documents').insert({client_id:client.id||null,erp_id:erpId,prestataire_id:prestId,
+    const {data:pvDoc,error:ie}=await sb.from('documents').insert({client_id:client.id||null,erp_id:erpId,prestataire_id:prestId,
       type:'PV de réception',categorie:'pv_reception',nom_original:fname,fichier_path:path,
       date_document:dateVisite,statut:'classe',source_devis_id:(document.getElementById('pv_devis_sel')?.value||null),
-      tags:'source:app;cat:pv_reception'+(devisRef?';devis:'+devisRef:'')});
+      tags:'source:app;cat:pv_reception'+(devisRef?';devis:'+devisRef:'')}).select('id').single();
     if(ie) throw ie;
     let suivi='';
     const dateVisiteStr=new Date(dateVisite).toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'});
@@ -10227,6 +10227,7 @@ async function pvGenerate(){
     // Ouverture du PDF pour contrôle/impression
     try{ const bu=URL.createObjectURL(pdfBlob); const w=window.open(bu,'_blank'); if(!w) toast('Popup bloquée : le PV est archivé dans la GED','err'); }catch(_){}
     _modalDirty=false; closeModal(); toast('PV généré et archivé'+suivi,'ok');
+    try{ gpaProposeFromPv({erp_id:erpId,client_id:client.id||null,prestataire_id:prestId,objet,montant,date:dateVisite,pv_id:(pvDoc&&pvDoc.id)||null}); }catch(_){ }
     const cont=document.getElementById('content'); if(cont && location.hash.indexOf('documents')>=0) viewDocuments(cont);
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='🖨️ Générer & archiver'; }
 }
@@ -13576,6 +13577,34 @@ window.gpaRender=function(c){
     ${body}`;
 };
 /* ── Formulaires ── */
+window.gpaProposeFromPv=function(p){
+  if(!p||!p.erp_id||!p.date) return;
+  const prestNom={}; (state.prestataires||[]).forEach(x=>prestNom[x.id]=x.nom);
+  const mt=p.montant?parseFloat(String(p.montant).replace(/\s/g,'').replace(',','.'))||null:null;
+  const des=(p.objet||'').trim()||'Travaux réceptionnés';
+  setTimeout(()=>{ openModal(`<div class="modal-head"><h2>🛡 Ouvrir la garantie ?</h2><button class="mx" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <p style="font-size:12.5px;color:var(--muted);margin:0 0 10px">Les travaux sont réceptionnés — la garantie court à compter d'aujourd'hui. Tout est pré-rempli depuis le PV :</p>
+      <div style="background:var(--surface-2);border-radius:10px;padding:10px 13px;font-size:12.5px;display:flex;flex-direction:column;gap:4px">
+        <span><b>Ouvrage :</b> ${esc(des)}</span>
+        <span><b>Entreprise :</b> ${esc(prestNom[p.prestataire_id]||'—')}</span>
+        <span><b>Réception :</b> ${fmtDate(p.date)}${mt?` · <b>Marché :</b> ${mt.toLocaleString('fr-FR')} € HT`:''}</span>
+      </div>
+      <div class="fld" style="margin-top:10px"><label>Type de garantie</label><select id="gpp_type">${Object.entries(GPA_TYPES).map(([k,v])=>`<option value="${k}">${v[0]} (${v[1]})</option>`).join('')}</select></div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Plus tard</button>
+      <button class="btn primary" id="gpp_go">🛡 Ouvrir la garantie</button></div>`);
+    document.getElementById('gpp_go').onclick=async()=>{
+      try{
+        const {error}=await sb.from('gpa_ouvrages').insert({erp_id:p.erp_id,client_id:p.client_id,designation:des,
+          prestataire_id:p.prestataire_id||null,type_garantie:document.getElementById('gpp_type').value,
+          date_reception:p.date,montant_marche:mt,source_pv_id:p.pv_id||null});
+        if(error) throw error;
+        closeModal(); toast('Garantie ouverte ✓ — rubrique Garanties GPA','ok');
+      }catch(e){ toast(e.message,'err'); }
+    };
+  },350);
+};
 window.gpaFormOuvrage=function(id){
   const D=window._gpaData||{o:[]}; const o0=D.o.find(x=>x.id===id)||{};
   const prests=(state.prestataires||[]);
