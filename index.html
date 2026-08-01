@@ -84,6 +84,7 @@ h1,h2,h3{font-family:var(--fd);font-weight:600;letter-spacing:-.01em}
 .cal-cell.out{opacity:.4}
 .cal-cell.today{border-color:#2563eb;border-width:2px}
 .cal-cell .d{font-size:11.5px;font-weight:700;color:var(--muted)}
+.cal-cell .nb{display:none}
 .cal-cell.today .d{color:#2563eb}
 .cal-pill{font-size:10.5px;font-weight:600;color:#fff;border-radius:6px;padding:2px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-flex;align-items:center;gap:3px}
 .cal-pill.conv{background:linear-gradient(135deg,#2563eb,#4f46e5)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.28)}
@@ -109,7 +110,7 @@ h1,h2,h3{font-family:var(--fd);font-weight:600;letter-spacing:-.01em}
   .sortseg button{padding:7px 10px;font-size:12px;gap:5px}
   .sortseg button svg{width:13px;height:13px}
 }
-@media(max-width:840px){.cal-cell{min-height:64px}.cal-pill{display:none}.cal-cell .nb{font-size:10px;font-weight:800;color:#fff;background:#2563eb;border-radius:99px;padding:1px 6px;align-self:flex-start}}
+@media(max-width:840px){.cal-cell{min-height:64px}.cal-pill{display:none}.cal-more{display:none}.cal-cell .nb{display:inline-block;font-size:10px;font-weight:800;color:#fff;background:#2563eb;border-radius:99px;padding:1px 6px;align-self:flex-start}}
 .qa{padding:8px 12px 2px}
 .qa-t{display:flex;align-items:center;gap:10px;justify-content:center;font-size:11.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#fff;margin:2px 0 10px;text-align:center}
 .qa-t::before,.qa-t::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.35)}
@@ -758,7 +759,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='692'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='696'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -1282,6 +1283,7 @@ function renderRoute(){
   if(base==='/prestataires') return viewPrestataires(content);
   if(base==='/parametres') return viewParametres(content);
   if(base==='/travaux') return viewTravaux(content);
+  if(base==='/gpa') return viewGpa(content);
   if(base==='/verifications') return viewVerifications(content);
   if(base==='/admin') return viewAdmin(content);
   viewDashboard(content);
@@ -1915,15 +1917,15 @@ async function viewAdmin(c){
           <button class="btn sm" onclick="formCreateDemo()" style="background:#f59e0b;color:#fff;border:none">Créer accès démo</button>
         </div>
         <div style="display:flex;flex-direction:column;gap:8px">
-          ${(users||[]).map((u)=>`<div style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:9px;background:var(--surface-2)">
+          ${(users||[]).map((u)=>`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:8px;border-radius:9px;background:var(--surface-2)">
             <div class="avatar" style="width:32px;height:32px;border-radius:8px;background:#2b3f5c;color:#dbe5f1;display:grid;place-items:center;font-size:12px;font-weight:600;flex:0 0 auto">
               ${(u.nom||u.email||'?').split(' ').map((s)=>s[0]).slice(0,2).join('').toUpperCase()}
             </div>
-            <div style="min-width:0;flex:1">
+            <div style="min-width:0;flex:1 1 170px">
               <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(u.nom||u.email)}</div>
-              <div style="font-size:11.5px;color:var(--muted)">${esc(u.email)}</div>
+              <div style="font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.email)}</div>
             </div>
-            <div style="display:flex;gap:6px;align-items:center">
+            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end;min-width:0;margin-left:auto">
               ${u.is_demo?`<span class="pill moy" style="background:#fef3c7;color:#92400e">Démo${u.demo_expires_at?` · ${new Date(u.demo_expires_at)<new Date()?'expirée':'exp. '+new Date(u.demo_expires_at).toLocaleDateString('fr-FR')}`:' · illimitée'}</span>
               <button class="btn sm" title="Gérer l'expiration de la démo" onclick="formDemoExpiry('${u.id}','${esc(u.email)}','${u.demo_expires_at||''}')">Expiration</button>`:''}
               ${statusPill(u.role,{admin:['','Admin','crit'],consultant:['','Consultant','int'],exploitant:['','Exploitant','ok'],prestataire:['','Prestataire','moy'],lecture:['','Lecture','inf']})}
@@ -3073,7 +3075,7 @@ function getNAV(){ return [
   {sec:'etab',   titre:'Établissement',          ic:NI.etab,      items:[['/clients','Clients',NI.clients],['/erps','ERP',NI.erp],['/plan-maintenance','Plan de maintenance',NI.plan]]},
   {sec:'sitdeg', titre:'Situation dégradée',     ic:NI.alert,     items:[['/photos','Photos et vidéos',NI.cam],['/compte-rendu','Compte rendu',NI.cr]]},
   {sec:'prest',  titre:'Suivi des prestataires', ic:NI.briefcase, items:[['/prestataires','Prestataires',NI.wrench],['/conversations','Conversations',NI.chat],['/pointage','Pointage & journal',NI.clock]]},
-  {sec:'suivi',  titre:'Suivi et conformité',    ic:NI.shield,    items:[['/interventions','Interventions',NI.tools],['/travaux','Travaux',NI.trvx],['/verifications','Vérifications & relances',NI.bell],['/reserves','Levées des réserves',NI.checks],['/tableaux-reserves','Tableaux de réserves',NI.tablo]]},
+  {sec:'suivi',  titre:'Suivi et conformité',    ic:NI.shield,    items:[['/interventions','Interventions',NI.tools],['/travaux','Travaux',NI.trvx],['/gpa','Garanties GPA',NI.checks],['/verifications','Vérifications & relances',NI.bell],['/reserves','Levées des réserves',NI.checks],['/tableaux-reserves','Tableaux de réserves',NI.tablo]]},
   {sec:'ged',    titre:'Gestion documentaire',   ic:NI.folderO,   items:[['/documents','Documents (GED)',NI.folder],['/rapports','Rapports reçus',NI.inbox],['/contrats','Contrats de maintenance',NI.contrat]]},
   {link:['/preparation-cs','Commission de sécurité',NI.landmark]},
   {sec:'admin',  titre:'Administration',         ic:NI.gear,      items: state.profile?.role==='admin' ? [['/admin','Tableau de bord admin',NI.gauge],['/parametres','Paramètres & email',NI.gear]] : [['/parametres','Paramètres & email',NI.gear]]},
@@ -3433,6 +3435,8 @@ async function viewDashboard(c){
     const allDg=(dg.data||[]);
     const pvDone=new Set(allDg.filter(d=>d.categorie==='pv_reception'&&d.source_devis_id).map(d=>d.source_devis_id));
     const devisEnCours=allDg.filter(d=>d.categorie==='devis_signe'&&d.pv_statut!=='clos'&&!pvDone.has(d.id)&&!(d.source_devis_id&&pvDone.has(d.source_devis_id))&&scopeDoc(d));
+    const devisClos=allDg.filter(d=>d.categorie==='devis_signe'&&scopeDoc(d)&&(d.pv_statut==='clos'||pvDone.has(d.id)||(d.source_devis_id&&pvDone.has(d.source_devis_id))));
+    const pvByDevis={}; allDg.filter(d=>d.categorie==='pv_reception'&&d.source_devis_id).forEach(p=>{ pvByDevis[p.source_devis_id]=p; });
     const trvEnd=d=>d.date_intervention_fin||d.date_intervention_prevue;
     const pvAEtablir=devisEnCours.filter(d=>trvEnd(d)&&trvEnd(d)<today);
     const pvRetard=pvAEtablir.filter(d=>(Date.now()-new Date(trvEnd(d)).getTime())/864e5>7);
@@ -3487,14 +3491,38 @@ async function viewDashboard(c){
           <button class="btn sm primary" onclick="pvFromDevis('${d.id}')" title="Ouvrir le PV de réception pré-rempli depuis ce devis">Établir le PV</button>
         </td></tr>`;
     }).join('');
+    const closRows=devisClos.slice().sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||''))).map(d=>{
+      const pv=pvByDevis[d.id]||(d.source_devis_id?pvByDevis[d.source_devis_id]:null);
+      const pJs=(d.fichier_path||'').replace(/'/g,"\\'");
+      const nJs=(d.nom_original||'Devis').replace(/'/g,'\\u2019');
+      const vJs=pv?(pv.fichier_path||'').replace(/'/g,"\\'"):'';
+      const wJs=pv?(pv.nom_original||'PV').replace(/'/g,'\\u2019'):'';
+      return `<tr>
+        <td><b style="font-size:13px">${esc((d.nom_original||'Devis').replace(/\.[a-zA-Z0-9]+$/,''))}</b>
+          <div style="font-size:11.5px;color:var(--muted)">${esc(prestNom[d.prestataire_id]||'Prestataire non renseigné')}</div></td>
+        <td><span style="color:#16a34a;font-weight:600;font-size:12.5px">✓ PV établi${pv&&pv.created_at?' le '+fmtDate(pv.created_at):''}</span></td>
+        <td style="text-align:right;white-space:nowrap">
+          ${pv&&pv.fichier_path?`<button class="btn sm" onclick="previewDoc('${vJs}','${wJs}')" title="Ouvrir le PV de réception">Voir le PV</button> `:''}
+          ${d.fichier_path?`<button class="btn sm ghost" onclick="previewDoc('${pJs}','${nJs}')" title="Ouvrir le devis d'origine">Devis</button>`:''}
+        </td></tr>`;
+    }).join('');
     const pvOpen=(window._dashPvOpen!==false);
-    const pvSection=devisEnCours.length?`<div class="card" id="dash-pv-section" style="overflow:hidden;margin-top:16px;scroll-margin-top:14px"><div class="card-pad" style="padding:0">
+    const pvSection=(devisEnCours.length||devisClos.length)?`<div class="card" id="dash-pv-section" style="overflow:hidden;margin-top:16px;scroll-margin-top:14px"><div class="card-pad" style="padding:0">
       <div onclick="(function(){window._dashPvOpen=!(window._dashPvOpen!==false);const b=document.getElementById('dash-pv-body');const ch=document.getElementById('dash-pv-chev');if(b)b.style.display=(window._dashPvOpen!==false)?'block':'none';if(ch)ch.style.transform=(window._dashPvOpen!==false)?'rotate(90deg)':'rotate(0deg)'})()" title="Cliquer pour replier/déplier" style="background:linear-gradient(135deg,#7c3aed,#7c3aedcc);color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer;user-select:none">
         <span id="dash-pv-chev" style="transition:transform .2s;transform:rotate(${pvOpen?'90':'0'}deg);font-size:18px;line-height:1">›</span>
         <h2 style="font-size:16px;margin:0;color:#fff">Réceptions de travaux à suivre</h2>
-        <span style="margin-left:auto;background:rgba(255,255,255,.22);color:#fff;font-size:12px;font-weight:600;padding:2px 10px;border-radius:999px">${pvAEtablir.length} PV à établir · ${devisEnCours.length} devis signé(s) en cours</span>
+        <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <span style="background:rgba(255,255,255,.22);color:#fff;font-size:12px;font-weight:600;padding:2px 10px;border-radius:999px">${pvAEtablir.length} PV à établir · ${devisEnCours.length} en attente</span>
+          ${devisClos.length?`<span onclick="event.stopPropagation();window._dashPvClosOpen=!window._dashPvClosOpen;const z=document.getElementById('dash-pv-clos');if(z)z.style.display=window._dashPvClosOpen?'block':'none';const b=document.getElementById('dash-pv-body');if(window._dashPvClosOpen&&b)b.style.display='block';" title="Voir les circuits terminés" style="background:#16a34a;color:#fff;font-size:12px;font-weight:700;padding:2px 10px;border-radius:999px;cursor:pointer">✓ ${devisClos.length} clos</span>`:''}
+        </span>
       </div>
-      <div id="dash-pv-body" style="display:${pvOpen?'block':'none'};padding:12px"><div class="tbl-wrap" style="border:none;box-shadow:none;border-radius:0"><table class="tbl"><tbody>${pvRows}</tbody></table></div></div>
+      <div id="dash-pv-body" style="display:${pvOpen?'block':'none'};padding:12px">
+        ${devisEnCours.length?`<div class="tbl-wrap" style="border:none;box-shadow:none;border-radius:0"><table class="tbl"><tbody>${pvRows}</tbody></table></div>`:`<div style="color:var(--muted);font-size:13px;padding:4px 6px">Aucune réception en attente — tous les circuits sont clos. ✓</div>`}
+        <div id="dash-pv-clos" style="display:${window._dashPvClosOpen?'block':'none'};margin-top:10px;border-top:1px dashed var(--line);padding-top:10px">
+          <div style="font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:0 6px 6px">Circuits terminés (devis → PV établi)</div>
+          <div class="tbl-wrap" style="border:none;box-shadow:none;border-radius:0"><table class="tbl"><tbody>${closRows}</tbody></table></div>
+        </div>
+      </div>
     </div></div>`:'';
 
     const verifSection = verifUrgents.length ? `<div class="card" style="overflow:hidden;margin-top:16px"><div class="card-pad" style="padding:0">
@@ -12560,7 +12588,7 @@ window.agRender=function(){
       html+=`<div class="cal-cell${out?' out':''}${iso===today?' today':''}" onclick="agDay('${iso}')">
         <span class="d">${d.getDate()}</span>
         ${ferie?`<span class="cal-pill" title="${esc(ferie)}" style="background:rgba(168,85,247,.75)">${esc(ferie)}</span>`:''}
-        ${list.length?`<span class="nb" style="display:none">${list.length}</span>`:''}
+        ${list.length?`<span class="nb">${list.length}</span>`:''}
         ${list.slice(0,3).map(x=>`<span class="cal-pill${x.type==='conv'?' conv':''}" style="background:${AG_TYPES[x.type].color}">${x.type==='conv'?'<span class="cbadge">💬</span>':''}${esc(x.label)}</span>`).join('')}
         ${list.length>3?`<span class="cal-more">+${list.length-3} autres</span>`:''}
       </div>`;
@@ -13413,6 +13441,243 @@ window.txEcarter=async function(id){
     const c=document.getElementById('content'); if(c) viewTravaux(c);
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
 };
+/* ═══════════ GARANTIES (GPA / biennale / décennale) ═══════════ */
+window._gpaTab={t:'tab'};
+const GPA_TYPES={gpa:['Parfait achèvement','1 an',1], biennale:['Bon fonctionnement','2 ans',2], decennale:['Décennale','10 ans',10]};
+function gpaFin(o){ const d=new Date(o.date_reception); d.setFullYear(d.getFullYear()+(GPA_TYPES[o.type_garantie||'gpa']||[0,0,1])[2]); return d; }
+function gpaJours(o){ return Math.ceil((gpaFin(o).getTime()-Date.now())/864e5); }
+function gpaFrise(o){
+  const deb=new Date(o.date_reception).getTime(), fin=gpaFin(o).getTime();
+  const pct=Math.max(0,Math.min(100,Math.round((Date.now()-deb)/(fin-deb)*100)));
+  const j=gpaJours(o);
+  const col=j<0?'#94a3b8':(j<=60?'#d97706':'#2563eb');
+  return `<div style="margin-top:8px">
+    <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-bottom:3px">
+      <span>Réception ${fmtDate(o.date_reception)}</span>
+      <span style="font-weight:700;color:${col}">${j<0?'Expirée depuis '+(-j)+' j':j+' j restants'}</span>
+      <span>Échéance ${fmtDate(gpaFin(o))}</span></div>
+    <div style="height:8px;border-radius:5px;background:var(--surface-2);position:relative;overflow:hidden">
+      <span style="position:absolute;inset:0;width:${pct}%;background:linear-gradient(90deg,#2563eb,${col});border-radius:5px"></span>
+    </div></div>`;
+}
+function gpaScope(o){
+  if(state.currentErp!=='all') return o.erp_id===state.currentErp;
+  if(state.currentClient!=='all') return o.client_id===state.currentClient||((state.erps||[]).some(e=>e.id===o.erp_id&&e.client_id===state.currentClient));
+  return true;
+}
+async function viewGpa(c){
+  c.innerHTML=`<div class="page-head"><div><h1>Garanties GPA</h1><p class="sub">Parfait achèvement · bon fonctionnement · décennale — réserves et relances jusqu'à l'échéance</p></div>
+    <div class="actions"><button class="btn primary" onclick="gpaFormOuvrage()">＋ Ouvrage sous garantie</button></div></div>${loadingBlock()}`;
+  const [o,r,l]=await Promise.all([
+    sb.from('gpa_ouvrages').select('*').order('date_reception',{ascending:false}),
+    sb.from('gpa_reserves').select('*').order('created_at'),
+    sb.from('gpa_relances').select('*').order('date_envoi')
+  ]);
+  window._gpaData={o:(o.data||[]).filter(gpaScope), r:r.data||[], l:l.data||[]};
+  gpaRender(c);
+}
+window.viewGpa=viewGpa;
+window.gpaRender=function(c){
+  c=c||document.getElementById('content'); const D=window._gpaData; const st=window._gpaTab;
+  const ouv=D.o, resOf=id=>D.r.filter(x=>x.ouvrage_id===id), relOf=id=>D.l.filter(x=>x.ouvrage_id===id);
+  const actifs=ouv.filter(o=>gpaJours(o)>=0);
+  const expire60=actifs.filter(o=>gpaJours(o)<=60);
+  const resOuv=D.r.filter(x=>x.statut!=='levee'&&ouv.some(o=>o.id===x.ouvrage_id));
+  const retenues=ouv.filter(o=>o.montant_marche&&!o.retenue_restituee&&gpaJours(o)<30);
+  const prestNom={}; (state.prestataires||[]).forEach(p=>prestNom[p.id]=p.nom);
+  const tabs=[['tab','Tableau'],['ouv','Ouvrages ('+ouv.length+')'],['res','Réserves ('+resOuv.length+')'],['rel','Relances ('+D.l.length+')']];
+  const kpi=(lab,val,sub,col)=>`<div class="card" style="padding:13px 15px;border-left:3px solid ${col}"><div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700">${lab}</div><div style="font-family:var(--fd);font-size:26px;font-weight:700">${val}</div><div style="font-size:11.5px;color:var(--muted)">${sub}</div></div>`;
+  const pillStatut=s=>({notifiee:'<span class="pill moy">Notifiée</span>',en_cours:'<span class="pill int">En cours</span>',levee:'<span class="pill ok">Levée</span>'}[s]||'');
+  const pillRel=t=>({simple:'<span class="pill inf">Relance simple</span>',recommandee:'<span class="pill moy">Recommandée</span>',mise_en_demeure:'<span class="pill crit">Mise en demeure</span>'}[t]||'');
+  const carteOuvrage=o0=>{
+    const rs=resOf(o0.id), ouvertes=rs.filter(x=>x.statut!=='levee').length, j=gpaJours(o0);
+    const T=GPA_TYPES[o0.type_garantie||'gpa'];
+    return `<div class="card" style="padding:0;overflow:hidden;cursor:pointer" onclick="gpaFormOuvrage('${o0.id}')">
+      <div style="background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;padding:11px 14px;display:flex;align-items:center;gap:10px">
+        <div style="flex:1;min-width:0"><b style="font-size:13.5px;font-family:var(--fd)">${esc(o0.designation)}</b>
+          <div style="font-size:11px;opacity:.85">${esc(prestNom[o0.prestataire_id]||o0.entreprise||'Entreprise non renseignée')}</div></div>
+        <span style="background:rgba(255,255,255,.18);border-radius:7px;padding:2px 9px;font-size:10.5px;font-weight:700;white-space:nowrap">${T[0]} · ${T[1]}</span>
+      </div>
+      <div style="padding:10px 14px 12px">${gpaFrise(o0)}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;align-items:center">
+          ${ouvertes?`<span class="pill moy">${ouvertes} réserve(s) ouverte(s)</span>`:'<span class="pill ok">Aucune réserve ouverte</span>'}
+          ${j>=0&&j<=60?'<span class="pill crit">Visite de fin de garantie à programmer</span>':''}
+          ${o0.montant_marche?`<span class="pill inf">Retenue ${(o0.retenue_pct||5)}% : ${(o0.montant_marche*(o0.retenue_pct||5)/100).toLocaleString('fr-FR')} €${o0.retenue_restituee?' · restituée ✓':''}</span>`:''}
+          <span style="margin-left:auto"><button class="btn sm" onclick="event.stopPropagation();gpaFormReserve('${o0.id}')">＋ Réserve</button>
+          <button class="btn sm" onclick="event.stopPropagation();gpaFormRelance('${o0.id}')">✉ Relance</button></span>
+        </div></div></div>`;
+  };
+  let body='';
+  if(st.t==='tab'){
+    body=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:16px">
+      ${kpi('Sous garantie',actifs.length,'ouvrages actifs','#2563eb')}
+      ${kpi('Échéance < 60 j',expire60.length,'visites à programmer',expire60.length?'#d97706':'#16a34a')}
+      ${kpi('Réserves ouvertes',resOuv.length,'à faire lever',resOuv.length?'#dc2626':'#16a34a')}
+      ${kpi('Retenues à restituer',retenues.length,'5% · échéance +30 j','#7c3aed')}
+    </div>
+    ${expire60.length?`<div class="card" style="padding:12px 14px;margin-bottom:14px;border-left:4px solid #d97706;background:linear-gradient(90deg,#fffbeb,#fff)">
+      <b style="font-size:13px">⚠ Visites de fin de garantie à programmer</b>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px">Inspecter et notifier les réserves <b>avant l'échéance</b> — après, les reprises sont à la charge de l'exploitant.</div>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">${expire60.map(o0=>`<div style="display:flex;align-items:center;gap:8px;font-size:12.5px"><b>${esc(o0.designation)}</b><span style="color:#d97706;font-weight:700">${gpaJours(o0)} j restants</span><span style="color:var(--muted)">échéance ${fmtDate(gpaFin(o0))}</span></div>`).join('')}</div>
+    </div>`:''}
+    ${ouv.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">${ouv.map(carteOuvrage).join('')}</div>`
+      :emptyBlock('🛡','Aucun ouvrage sous garantie','Ajoutez un ouvrage réceptionné — ou créez-le depuis un PV de réception.')}`;
+  } else if(st.t==='ouv'){
+    body=ouv.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">${ouv.map(carteOuvrage).join('')}</div>`:emptyBlock('🛡','Aucun ouvrage','—');
+  } else if(st.t==='res'){
+    const rows=D.r.filter(x=>ouv.some(o0=>o0.id===x.ouvrage_id)).map(x=>{
+      const o0=ouv.find(y=>y.id===x.ouvrage_id);
+      return `<div class="card" style="padding:11px 14px;display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:1;min-width:170px"><b style="font-size:13px">${esc(x.num||'Réserve')}</b> — ${esc(x.description)}
+          <div style="font-size:11.5px;color:var(--muted)">${esc(o0?.designation||'')} · ${esc(x.localisation||'')} · notifiée le ${fmtDate(x.date_notification)}${x.date_levee?' · levée le '+fmtDate(x.date_levee):''}</div></div>
+        ${pillStatut(x.statut)}
+        ${x.photo_path?`<button class="btn sm" onclick="previewDoc('${x.photo_path.replace(/'/g,"\\'")}','Photo réserve','documents')">📷</button>`:''}
+        ${x.statut!=='levee'?`<button class="btn sm primary" onclick="gpaLeverReserve('${x.id}')">Lever ✓</button>`:''}
+      </div>`;}).join('');
+    body=rows||emptyBlock('📋','Aucune réserve','Les réserves notifiées pendant la garantie apparaissent ici.');
+  } else {
+    const rows=D.l.filter(x=>ouv.some(o0=>o0.id===x.ouvrage_id)).slice().reverse().map(x=>{
+      const o0=ouv.find(y=>y.id===x.ouvrage_id);
+      return `<div class="card" style="padding:11px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <div style="flex:1;min-width:170px"><b style="font-size:13px">${esc(o0?.designation||'')}</b>
+          <div style="font-size:11.5px;color:var(--muted)">${esc(x.objet||'')} · envoyée le ${fmtDate(x.date_envoi)}${x.lrar_numero?' · LRAR '+esc(x.lrar_numero):''}</div></div>
+        ${pillRel(x.type)}
+        <button class="btn sm" onclick="gpaCourrierPdf('${x.ouvrage_id}','${x.type}')">📄 Courrier</button>
+      </div>`;}).join('');
+    body=rows||emptyBlock('✉️','Aucune relance','Relance simple → recommandée → mise en demeure, avec courrier PDF.');
+  }
+  c.innerHTML=`<div class="page-head"><div><h1>Garanties GPA</h1><p class="sub">Parfait achèvement · bon fonctionnement · décennale</p></div>
+    <div class="actions"><button class="btn primary" onclick="gpaFormOuvrage()">＋ Ouvrage sous garantie</button></div></div>
+    <div class="eqx-bar" style="margin-top:4px"><div class="eqx-seg">${tabs.map(([k,lab])=>`<button class="${st.t===k?'on':''}" onclick="window._gpaTab.t='${k}';gpaRender()">${lab}</button>`).join('')}</div></div>
+    ${body}`;
+};
+/* ── Formulaires ── */
+window.gpaFormOuvrage=function(id){
+  const D=window._gpaData||{o:[]}; const o0=D.o.find(x=>x.id===id)||{};
+  const prests=(state.prestataires||[]);
+  const erps=(state.erps||[]).filter(e=>state.currentClient==='all'||e.client_id===state.currentClient);
+  openModal(`<div class="modal-head"><h2>${id?'Ouvrage sous garantie':'＋ Ouvrage sous garantie'}</h2><button class="mx" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div class="fld"><label>Désignation <span class="req">*</span></label><input id="g_des" value="${esc(o0.designation||'')}" placeholder="Remplacement BAES bâtiment A"></div>
+    <div class="row2"><div class="fld"><label>Établissement</label><select id="g_erp">${erps.map(e=>`<option value="${e.id}"${e.id===(o0.erp_id||state.currentErp)?' selected':''}>${esc(e.nom)}</option>`).join('')}</select></div>
+      <div class="fld"><label>Type de garantie</label><select id="g_type">${Object.entries(GPA_TYPES).map(([k,v])=>`<option value="${k}"${k===(o0.type_garantie||'gpa')?' selected':''}>${v[0]} (${v[1]})</option>`).join('')}</select></div></div>
+    <div class="row2"><div class="fld"><label>Date de réception <span class="req">*</span></label><input type="date" id="g_rec" value="${o0.date_reception||''}"></div>
+      <div class="fld"><label>Entreprise</label><select id="g_prest"><option value="">— libre —</option>${prests.map(p=>`<option value="${p.id}"${p.id===o0.prestataire_id?' selected':''}>${esc(p.nom)}</option>`).join('')}</select></div></div>
+    <div class="row2"><div class="fld"><label>Montant du marché (€ HT)</label><input type="number" id="g_mt" value="${o0.montant_marche||''}"></div>
+      <div class="fld"><label>Retenue restituée</label><select id="g_ret"><option value="false">Non</option><option value="true"${o0.retenue_restituee?' selected':''}>Oui</option></select></div></div>
+  </div>
+  <div class="modal-foot">${id?`<button class="btn danger" style="margin-right:auto" onclick="gpaDelOuvrage('${id}')">Supprimer</button>`:''}
+    <button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="g_save">${id?'Enregistrer':'Créer'}</button></div>`);
+  document.getElementById('g_save').onclick=async()=>{
+    const des=document.getElementById('g_des').value.trim();
+    const rec=document.getElementById('g_rec').value;
+    if(!des||!rec){ toast('Désignation et date de réception requises','err'); return; }
+    const erpId=document.getElementById('g_erp').value||null;
+    const pl={designation:des,erp_id:erpId,client_id:(state.erps||[]).find(e=>e.id===erpId)?.client_id||null,
+      type_garantie:document.getElementById('g_type').value,date_reception:rec,
+      prestataire_id:document.getElementById('g_prest').value||null,
+      montant_marche:parseFloat(document.getElementById('g_mt').value)||null,
+      retenue_restituee:document.getElementById('g_ret').value==='true'};
+    try{
+      const q=id?sb.from('gpa_ouvrages').update(pl).eq('id',id):sb.from('gpa_ouvrages').insert(pl);
+      const {error}=await q; if(error) throw error;
+      closeModal(); toast('Ouvrage enregistré ✓','ok'); viewGpa(document.getElementById('content'));
+    }catch(e){ toast(e.message,'err'); }
+  };
+};
+window.gpaDelOuvrage=async function(id){
+  if(!confirm('Supprimer cet ouvrage ET ses réserves/relances ?')) return;
+  try{ const {error}=await sb.from('gpa_ouvrages').delete().eq('id',id); if(error) throw error;
+    closeModal(); toast('Supprimé','ok'); viewGpa(document.getElementById('content')); }catch(e){ toast(e.message,'err'); }
+};
+window.gpaFormReserve=function(ouvrageId){
+  openModal(`<div class="modal-head"><h2>＋ Réserve</h2><button class="mx" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div class="row2"><div class="fld"><label>N°</label><input id="gr_num" placeholder="R-01"></div>
+      <div class="fld"><label>Localisation</label><input id="gr_loc" placeholder="2e étage, couloir Est"></div></div>
+    <div class="fld"><label>Description <span class="req">*</span></label><textarea id="gr_desc" rows="3" placeholder="Ferme-porte ne ramène plus le vantail en butée…"></textarea></div>
+    <div class="fld"><label>Photo (optionnelle)</label><input type="file" id="gr_photo" accept="image/*"></div>
+  </div>
+  <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="gr_save">Notifier la réserve</button></div>`);
+  document.getElementById('gr_save').onclick=async()=>{
+    const desc=document.getElementById('gr_desc').value.trim();
+    if(!desc){ toast('Description requise','err'); return; }
+    try{
+      let photo=null; const f=document.getElementById('gr_photo').files[0];
+      if(f){ const up=(typeof compressImage==='function')?await compressImage(f):f;
+        photo='gpa/'+ouvrageId+'/'+Date.now()+'_'+String(f.name).replace(/[^\w.\-]/g,'_');
+        const {error:ue}=await sb.storage.from('documents').upload(photo,up,{contentType:up.type||f.type}); if(ue) throw ue; }
+      const {error}=await sb.from('gpa_reserves').insert({ouvrage_id:ouvrageId,num:document.getElementById('gr_num').value.trim()||null,
+        localisation:document.getElementById('gr_loc').value.trim()||null,description:desc,photo_path:photo});
+      if(error) throw error;
+      closeModal(); toast('Réserve notifiée ✓','ok'); viewGpa(document.getElementById('content'));
+    }catch(e){ toast(e.message,'err'); }
+  };
+};
+window.gpaLeverReserve=async function(id){
+  if(!confirm('Marquer cette réserve comme levée ?')) return;
+  try{ const {error}=await sb.from('gpa_reserves').update({statut:'levee',date_levee:new Date().toISOString().slice(0,10)}).eq('id',id);
+    if(error) throw error; toast('Réserve levée ✓','ok'); viewGpa(document.getElementById('content')); }catch(e){ toast(e.message,'err'); }
+};
+window.gpaFormRelance=function(ouvrageId){
+  const types=[['simple','Relance simple'],['recommandee','Lettre recommandée'],['mise_en_demeure','Mise en demeure']];
+  openModal(`<div class="modal-head"><h2>✉ Relance entreprise</h2><button class="mx" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div class="fld"><label>Niveau</label><select id="gl_type">${types.map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></div>
+    <div class="fld"><label>Objet</label><input id="gl_obj" placeholder="Réserves non levées — ouvrage sous garantie"></div>
+    <div class="fld" id="gl_lrar_wrap" style="display:none"><label>N° LRAR <span style="color:var(--muted-2);font-weight:400;font-size:11px">(preuve d'envoi)</span></label><input id="gl_lrar" placeholder="1A 234 567 8901 2"></div>
+  </div>
+  <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
+    <button class="btn" onclick="gpaCourrierPdf('${ouvrageId}',document.getElementById('gl_type').value)">📄 Courrier PDF</button>
+    <button class="btn primary" id="gl_save">Enregistrer la relance</button></div>`);
+  document.getElementById('gl_type').onchange=function(){ document.getElementById('gl_lrar_wrap').style.display=this.value==='simple'?'none':'block'; };
+  document.getElementById('gl_save').onclick=async()=>{
+    try{
+      const {error}=await sb.from('gpa_relances').insert({ouvrage_id:ouvrageId,type:document.getElementById('gl_type').value,
+        objet:document.getElementById('gl_obj').value.trim()||null,lrar_numero:(document.getElementById('gl_lrar')?.value||'').trim()||null});
+      if(error) throw error;
+      closeModal(); toast('Relance enregistrée ✓','ok'); viewGpa(document.getElementById('content'));
+    }catch(e){ toast(e.message,'err'); }
+  };
+};
+window.gpaCourrierPdf=function(ouvrageId,type){
+  try{
+    const D=window._gpaData; const o0=D.o.find(x=>x.id===ouvrageId); if(!o0){ toast('Ouvrage introuvable','err'); return; }
+    const rs=D.r.filter(x=>x.ouvrage_id===ouvrageId&&x.statut!=='levee');
+    const prestNom={}; (state.prestataires||[]).forEach(p=>prestNom[p.id]=p.nom);
+    const jsPDFCtor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF; if(!jsPDFCtor) throw new Error('PDF indisponible');
+    const doc=new jsPDFCtor({unit:'mm',format:'a4'});
+    const titres={simple:'RELANCE — RÉSERVES SOUS GARANTIE',recommandee:'LETTRE RECOMMANDÉE AVEC A.R.',mise_en_demeure:'MISE EN DEMEURE'};
+    const T=GPA_TYPES[o0.type_garantie||'gpa'];
+    let y=20;
+    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(30,64,175);
+    doc.text(titres[type]||titres.simple,105,y,{align:'center'}); y+=10;
+    doc.setFontSize(9.5); doc.setTextColor(15,23,42); doc.setFont('helvetica','normal');
+    doc.text('À l\'attention de : '+(prestNom[o0.prestataire_id]||o0.entreprise||'l\'entreprise'),20,y); y+=6;
+    doc.text('Objet : réserves non levées — '+o0.designation,20,y); y+=6;
+    doc.text('Garantie de '+T[0].toLowerCase()+' ('+T[1]+') — réception du '+fmtDate(o0.date_reception)+', échéance le '+fmtDate(gpaFin(o0)),20,y); y+=10;
+    const corps={
+      simple:'Nous vous rappelons que les réserves listées ci-dessous, notifiées au titre de la garantie, demeurent non levées à ce jour. Nous vous remercions de programmer leur reprise dans les meilleurs délais.',
+      recommandee:'Malgré notre précédente relance, les réserves listées ci-dessous demeurent non levées. Nous vous demandons de procéder à leur reprise sous quinze (15) jours à compter de la réception de la présente.',
+      mise_en_demeure:'Nous vous mettons en demeure de procéder, sous huit (8) jours à compter de la réception de la présente, à la reprise des réserves listées ci-dessous, notifiées au titre de la garantie. À défaut, nous ferons exécuter les travaux par une entreprise tierce, à vos frais et risques, et solliciterons la retenue de garantie.'
+    };
+    const lignes=doc.splitTextToSize(corps[type]||corps.simple,170);
+    doc.text(lignes,20,y); y+=lignes.length*5+6;
+    doc.setFont('helvetica','bold'); doc.text('Réserves concernées :',20,y); y+=6; doc.setFont('helvetica','normal');
+    (rs.length?rs:[{num:'—',description:'(aucune réserve ouverte enregistrée)',localisation:''}]).forEach(r0=>{
+      const t=doc.splitTextToSize('• '+(r0.num?r0.num+' — ':'')+r0.description+(r0.localisation?' ('+r0.localisation+')':''),168);
+      if(y+t.length*5>270){ doc.addPage(); y=20; }
+      doc.text(t,22,y); y+=t.length*5+2;
+    });
+    y+=8; doc.text('Fait le '+new Date().toLocaleDateString('fr-FR')+'.',20,y); y+=12;
+    doc.text('Pour l\'exploitant,',20,y);
+    doc.setFontSize(7.5); doc.setTextColor(148,163,184);
+    doc.text('SUIVI-CONFORMITÉ · conformite-securite.fr',105,290,{align:'center'});
+    doc.save('courrier-'+(type||'relance')+'-'+String(o0.designation).toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40)+'.pdf');
+    toast('Courrier généré ✓','ok');
+  }catch(e){ toast(e.message||'Génération impossible','err'); }
+};
+
 window.txGoto=function(id){ window._txOpenAfter=id; navigate('/travaux'); };
 
 /* =====================================================================
