@@ -250,6 +250,15 @@ table.tbl .mono{font-family:var(--fd);font-weight:600;font-size:12.5px;color:var
 
 /* Badges / pills */
 /* ── Registre des équipements (eqx) ── */
+.gpa-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px;margin-bottom:16px}
+.gpa-kpis .card > div:nth-child(2){font-family:var(--fd);font-size:26px;font-weight:700;line-height:1.1}
+@media(max-width:640px){
+  .gpa-kpis{grid-template-columns:1fr 1fr;gap:8px}
+  .gpa-kpis .card{padding:10px 12px !important}
+  .gpa-kpis .card > div:first-child{font-size:9px !important;letter-spacing:.08em !important}
+  .gpa-kpis .card > div:nth-child(2){font-size:22px !important}
+  .gpa-kpis .card > div:nth-child(3){font-size:10.5px !important}
+}
 .eqx-search{display:flex;gap:8px;margin:14px 0 10px}
 .eqx-search .in{flex:1;display:flex;align-items:center;gap:8px;background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:9px 12px}
 .eqx-search .in:focus-within{border-color:var(--primary)}
@@ -759,7 +768,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='696'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='697'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -13473,6 +13482,9 @@ async function viewGpa(c){
     sb.from('gpa_reserves').select('*').order('created_at'),
     sb.from('gpa_relances').select('*').order('date_envoi')
   ]);
+  if(!(state.prestataires||[]).length){
+    try{ const {data:pl}=await sb.from('prestataires').select('id,nom').order('nom'); state.prestataires=pl||[]; }catch(_){ }
+  }
   window._gpaData={o:(o.data||[]).filter(gpaScope), r:r.data||[], l:l.data||[]};
   gpaRender(c);
 }
@@ -13483,7 +13495,7 @@ window.gpaRender=function(c){
   const actifs=ouv.filter(o=>gpaJours(o)>=0);
   const expire60=actifs.filter(o=>gpaJours(o)<=60);
   const resOuv=D.r.filter(x=>x.statut!=='levee'&&ouv.some(o=>o.id===x.ouvrage_id));
-  const retenues=ouv.filter(o=>o.montant_marche&&!o.retenue_restituee&&gpaJours(o)<30);
+  const retenues=ouv.filter(o=>o.montant_marche&&o.retenue_pct&&!o.retenue_restituee&&gpaJours(o)<30);
   const prestNom={}; (state.prestataires||[]).forEach(p=>prestNom[p.id]=p.nom);
   const tabs=[['tab','Tableau'],['ouv','Ouvrages ('+ouv.length+')'],['res','Réserves ('+resOuv.length+')'],['rel','Relances ('+D.l.length+')']];
   const kpi=(lab,val,sub,col)=>`<div class="card" style="padding:13px 15px;border-left:3px solid ${col}"><div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700">${lab}</div><div style="font-family:var(--fd);font-size:26px;font-weight:700">${val}</div><div style="font-size:11.5px;color:var(--muted)">${sub}</div></div>`;
@@ -13502,18 +13514,18 @@ window.gpaRender=function(c){
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;align-items:center">
           ${ouvertes?`<span class="pill moy">${ouvertes} réserve(s) ouverte(s)</span>`:'<span class="pill ok">Aucune réserve ouverte</span>'}
           ${j>=0&&j<=60?'<span class="pill crit">Visite de fin de garantie à programmer</span>':''}
-          ${o0.montant_marche?`<span class="pill inf">Retenue ${(o0.retenue_pct||5)}% : ${(o0.montant_marche*(o0.retenue_pct||5)/100).toLocaleString('fr-FR')} €${o0.retenue_restituee?' · restituée ✓':''}</span>`:''}
+          ${(o0.montant_marche&&o0.retenue_pct)?`<span class="pill inf">Retenue ${o0.retenue_pct}% : ${(o0.montant_marche*o0.retenue_pct/100).toLocaleString('fr-FR')} €${o0.retenue_restituee?' · restituée ✓':''}</span>`:''}
           <span style="margin-left:auto"><button class="btn sm" onclick="event.stopPropagation();gpaFormReserve('${o0.id}')">＋ Réserve</button>
           <button class="btn sm" onclick="event.stopPropagation();gpaFormRelance('${o0.id}')">✉ Relance</button></span>
         </div></div></div>`;
   };
   let body='';
   if(st.t==='tab'){
-    body=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:16px">
+    body=`<div class="gpa-kpis">
       ${kpi('Sous garantie',actifs.length,'ouvrages actifs','#2563eb')}
       ${kpi('Échéance < 60 j',expire60.length,'visites à programmer',expire60.length?'#d97706':'#16a34a')}
       ${kpi('Réserves ouvertes',resOuv.length,'à faire lever',resOuv.length?'#dc2626':'#16a34a')}
-      ${kpi('Retenues à restituer',retenues.length,'5% · échéance +30 j','#7c3aed')}
+      ${kpi('Retenues',retenues.length,'à restituer (cas particuliers)','#7c3aed')}
     </div>
     ${expire60.length?`<div class="card" style="padding:12px 14px;margin-bottom:14px;border-left:4px solid #d97706;background:linear-gradient(90deg,#fffbeb,#fff)">
       <b style="font-size:13px">⚠ Visites de fin de garantie à programmer</b>
@@ -13564,7 +13576,12 @@ window.gpaFormOuvrage=function(id){
     <div class="row2"><div class="fld"><label>Date de réception <span class="req">*</span></label><input type="date" id="g_rec" value="${o0.date_reception||''}"></div>
       <div class="fld"><label>Entreprise</label><select id="g_prest"><option value="">— libre —</option>${prests.map(p=>`<option value="${p.id}"${p.id===o0.prestataire_id?' selected':''}>${esc(p.nom)}</option>`).join('')}</select></div></div>
     <div class="row2"><div class="fld"><label>Montant du marché (€ HT)</label><input type="number" id="g_mt" value="${o0.montant_marche||''}"></div>
-      <div class="fld"><label>Retenue restituée</label><select id="g_ret"><option value="false">Non</option><option value="true"${o0.retenue_restituee?' selected':''}>Oui</option></select></div></div>
+      <div class="fld"><label>Retenue de garantie</label><select id="g_pct" onchange="document.getElementById('g_ret_wrap').style.display=this.value?'block':'none'">
+        <option value="">Aucune (défaut)</option>
+        <option value="5"${o0.retenue_pct==5?' selected':''}>5 % — cas particulier</option>
+        <option value="3"${o0.retenue_pct==3?' selected':''}>3 % — cas particulier</option>
+      </select></div></div>
+    <div class="fld" id="g_ret_wrap" style="display:${o0.retenue_pct?'block':'none'}"><label>Retenue restituée</label><select id="g_ret"><option value="false">Non</option><option value="true"${o0.retenue_restituee?' selected':''}>Oui</option></select></div>
   </div>
   <div class="modal-foot">${id?`<button class="btn danger" style="margin-right:auto" onclick="gpaDelOuvrage('${id}')">Supprimer</button>`:''}
     <button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="g_save">${id?'Enregistrer':'Créer'}</button></div>`);
@@ -13577,6 +13594,7 @@ window.gpaFormOuvrage=function(id){
       type_garantie:document.getElementById('g_type').value,date_reception:rec,
       prestataire_id:document.getElementById('g_prest').value||null,
       montant_marche:parseFloat(document.getElementById('g_mt').value)||null,
+      retenue_pct:parseFloat(document.getElementById('g_pct').value)||null,
       retenue_restituee:document.getElementById('g_ret').value==='true'};
     try{
       const q=id?sb.from('gpa_ouvrages').update(pl).eq('id',id):sb.from('gpa_ouvrages').insert(pl);
