@@ -766,7 +766,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='720'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='721'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -1241,7 +1241,7 @@ async function afterLogin(){
 }
 
 async function loadScope(){
-  const { data:cl } = await sb.from('clients').select('id,code_client,raison_sociale,statut').order('raison_sociale');
+  const { data:cl } = await sb.from('clients').select('id,code_client,raison_sociale,statut,logo_path,siren,tva_intra,telephone,email_contact,adresse_siege,code_postal,ville').order('raison_sociale');
   state.clients = cl||[];
   const { data:er } = await sb.from('erps').select('id,code_erp,nom,client_id,statut,qr_token,adresse,ville,code_postal,assurance').order('nom');
   state.erps = er||[];
@@ -1292,6 +1292,7 @@ function renderRoute(){
   if(base==='/travaux') return viewTravaux(content);
   if(base==='/gpa') return viewGpa(content);
   if(base==='/verifications') return viewVerifications(content);
+  if(base==='/organisation') return viewOrganisation(content);
   if(base==='/admin') return viewAdmin(content);
   viewDashboard(content);
 }
@@ -1594,6 +1595,12 @@ window.accountModal=function(){
   const email=(state.user&&state.user.email)||'—';
   openModal(`<div class="modal-head"><h2>👤 Mon compte</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
     <div class="modal-body">
+      <div class="fld"><label>Photo de profil</label>
+        <div style="display:flex;gap:10px;align-items:center">
+          <span id="acAvatar" style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#93c5fd,#2563eb);background-size:cover;background-position:center;display:grid;place-items:center;color:#fff;font-weight:800;font-size:16px"></span>
+          <input type="file" accept="image/*" onchange="accPhotoPick(this)" style="font-size:12px">
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Affichée en haut de l'application. Compressée automatiquement.</div></div>
       <div class="fld"><label>Adresse de connexion</label>
         <input value="${esc(email)}" disabled style="background:var(--surface-2);color:var(--muted)">
         <div style="font-size:11.5px;color:var(--muted);margin-top:4px">Pour changer d'adresse, contacte l'administrateur.</div></div>
@@ -1605,7 +1612,245 @@ window.accountModal=function(){
     </div>
     <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
       <button class="btn primary" id="ac_go" onclick="accountSavePwd()">Enregistrer le nouveau mot de passe</button></div>`);
+  setTimeout(async()=>{ const el=document.getElementById('acAvatar'); if(!el) return; el.textContent=accInitiales();
+    const path=state.profile&&state.profile.photo_path;
+    if(path){ try{ const {data}=await sb.storage.from('documents').createSignedUrl(path,3600);
+      if(data&&data.signedUrl){ el.textContent=''; el.style.backgroundImage='url("'+data.signedUrl+'")'; } }catch(_){ } }
+  },50);
 };
+/* ═══ PÉRIMÈTRE PAR COMPTE : un directeur ne voit que SON établissement ═══ */
+window.applyScopeLock=function(){
+  const p=state.profile||{};
+  if(!p.erp_id) return;
+  const er=(state.erps||[]).find(e=>e.id===p.erp_id);
+  if(er){ state.currentClient=er.client_id; state.currentErp=er.id; }
+  ['scopeClientWrap','scopeErpWrap'].forEach(id=>{
+    const w=document.getElementById(id)||document.querySelector('.scope-sel');
+    if(w){ w.style.pointerEvents='none'; w.style.opacity='.8'; const ch=w.querySelector('.sc-chev'); if(ch) ch.style.display='none'; }
+  });
+  if(window.syncScopeLabels) syncScopeLabels();
+};
+
+/* ═══ AVATAR DU COMPTE ═══ */
+window.accInitiales=function(){
+  const n=(state.profile&&(state.profile.nom||state.profile.email))||(state.user&&state.user.email)||'?';
+  const parts=String(n).replace(/@.*/,'').split(/[\s._-]+/).filter(Boolean);
+  return ((parts[0]||'?')[0]+(parts[1]?parts[1][0]:'')).toUpperCase();
+};
+window.accSyncAvatar=async function(){
+  const el=document.getElementById('tbAvatar'); if(!el) return;
+  el.textContent=accInitiales();
+  el.style.backgroundImage='';
+  const path=state.profile&&state.profile.photo_path;
+  if(path){
+    try{ const {data}=await sb.storage.from('documents').createSignedUrl(path,3600);
+      if(data&&data.signedUrl){ el.textContent=''; el.style.backgroundImage='url("'+data.signedUrl+'")'; }
+    }catch(_){ }
+  }
+};
+window.accPhotoPick=async function(inp){
+  const f=inp.files[0]; if(!f) return;
+  try{
+    let up=f; if(f.type&&f.type.startsWith('image/')&&typeof compressImage==='function') up=await compressImage(f);
+    const path='avatars/'+state.user.id+'/'+Date.now()+'_'+String(f.name).replace(/[^\w.\-]/g,'_');
+    const {error:ue}=await sb.storage.from('documents').upload(path,up,{contentType:up.type||f.type}); if(ue) throw ue;
+    const {error}=await sb.from('profiles').update({photo_path:path}).eq('id',state.user.id); if(error) throw error;
+    state.profile.photo_path=path; accSyncAvatar(); toast('Photo de profil mise à jour ✓','ok');
+  }catch(e){ toast(e.message,'err'); }
+};
+
+/* ═══ PAGE ORGANISATION ═══ */
+window._orgImgSeq=0;
+window.orgImg=async function(elId,path){
+  try{ const {data}=await sb.storage.from('documents').createSignedUrl(path,3600);
+    const el=document.getElementById(elId);
+    if(el&&data&&data.signedUrl){ el.textContent=''; el.style.backgroundImage='url("'+data.signedUrl+'")'; }
+  }catch(_){ }
+};
+window._orgAvatar=function(p,size,extra){
+  const id='oav'+(++window._orgImgSeq);
+  const ini=String(p.nom||'?').split(/\s+/).map(x=>x[0]).slice(0,2).join('').toUpperCase();
+  const html=`<span id="${id}" style="width:${size}px;height:${size}px;border-radius:${Math.round(size*0.24)}px;background:linear-gradient(135deg,#93c5fd,#2563eb);background-size:cover;background-position:center;display:grid;place-items:center;color:#fff;font-weight:800;font-size:${Math.round(size*0.33)}px;flex:0 0 auto;border:2.5px solid #fff;box-shadow:0 2px 8px rgba(15,23,42,.18);${extra||''}">${ini}</span>`;
+  if(p.photo_path) setTimeout(()=>orgImg(id,p.photo_path),0);
+  return html;
+};
+async function viewOrganisation(c){
+  const isAdmin=state.profile?.role==='admin';
+  let clientId=state.currentClient!=='all'?state.currentClient:(state.profile?.client_id||null);
+  if(!clientId){
+    c.innerHTML=`<div class="page-head"><div class="t"><h1>Organisation</h1><p>Identité, organigramme et coordonnées.</p></div></div>
+      <div class="card card-pad" style="text-align:center;color:var(--muted)">Choisis un client dans le sélecteur en haut pour afficher son organisation.</div>`;
+    return;
+  }
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Organisation</h1><p>Identité, organigramme et coordonnées.</p></div></div>${loadingBlock()}`;
+  let cl={}, pers=[], erps=[];
+  try{
+    const [a,b,d]=await Promise.all([
+      sb.from('clients').select('*').eq('id',clientId).maybeSingle(),
+      sb.from('organisation_personnes').select('*').eq('client_id',clientId).order('ordre',{ascending:true}),
+      sb.from('erps').select('id,nom').eq('client_id',clientId).order('nom')
+    ]);
+    cl=a.data||{}; pers=b.data||[]; erps=d.data||[];
+  }catch(_){ }
+  window._orgCtx={clientId,cl,pers,erps};
+  const erpNom={}; erps.forEach(e=>erpNom[e.id]=e.nom);
+  const tetes=pers.filter(p=>!p.parent_id);
+  const equipe=pers.filter(p=>p.parent_id);
+  const mentionsOk=cl.siren&&cl.tva_intra&&(cl.telephone||cl.email_contact);
+  const chip=(t,warn)=>`<span style="display:inline-flex;align-items:center;gap:6px;background:${warn?'#fffbeb':'#eff6ff'};color:${warn?'#92400e':'#1e40af'};border:1px solid ${warn?'#fde68a':'#bfdbfe'};border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700">${t}</span>`;
+  const persLigne=(ic,val,manque)=>`<span style="display:inline-grid;place-items:center;width:16px;height:16px;border-radius:4px;background:linear-gradient(135deg,#2563eb,#1e40af);flex:0 0 auto"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:9px;height:9px">${ic}</svg></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${val?'':'color:#b91c1c;font-weight:600'}">${val?esc(val):esc(manque)}</span>`;
+  const IC_TEL='<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.81.3 1.6.54 2.4a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.68-1.11a2 2 0 0 1 2.11-.45c.8.24 1.59.42 2.4.54a2 2 0 0 1 1.72 2z"/>';
+  const IC_MAIL='<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>';
+  const carte=p=>`<div class="card" style="padding:0;overflow:hidden">
+    <div style="height:6px;background:linear-gradient(90deg,#2563eb,#1e40af)"></div>
+    <div style="padding:12px 13px">
+      <div style="display:flex;gap:10px;align-items:center">
+        ${_orgAvatar(p,52)}
+        <div style="min-width:0"><b style="font-size:13px;color:var(--ink)">${esc(p.nom)}</b>
+          <div style="font-size:10.5px;color:var(--muted)">${esc(p.fonction)}${p.signataire?' · <b style="color:#1e40af">✍ Signataire</b>':''}</div>
+          ${(p.erp_ids||[]).length?`<div style="font-size:10.5px;color:var(--muted-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((p.erp_ids||[]).map(id=>erpNom[id]).filter(Boolean).join(' · '))}</div>`:''}
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:16px 1fr;gap:4px 7px;align-items:center;margin-top:10px;font-size:11.5px;color:#334155">
+        ${persLigne(IC_TEL,p.telephone,'Téléphone manquant')}
+        ${persLigne(IC_MAIL,p.email,'E-mail manquant')}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px">
+        <button class="btn sm" onclick="orgFormPersonne('${p.id}')">Fiche</button>
+        ${p.email?`<button class="btn sm" style="border-color:#bfdbfe;background:#eff6ff;color:#1e40af" onclick="location.href='mailto:${esc(p.email)}'">✉ Écrire</button>`
+          :`<button class="btn sm" style="border-color:#fde68a;background:#fffbeb;color:#92400e" onclick="orgFormPersonne('${p.id}')">Compléter</button>`}
+      </div>
+    </div></div>`;
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Organisation</h1><p>Identité, organigramme et coordonnées — ${esc(cl.raison_sociale||'')}</p></div></div>
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">
+      <div style="background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;padding:14px 16px;display:flex;gap:13px;align-items:center;flex-wrap:wrap">
+        ${(()=>{ const id='oav'+(++window._orgImgSeq);
+          const ini=String(cl.raison_sociale||'?').split(/\s+/).map(x=>x[0]).slice(0,3).join('').toUpperCase();
+          if(cl.logo_path) setTimeout(()=>orgImg(id,cl.logo_path),0);
+          return `<span id="${id}" style="width:52px;height:52px;border-radius:12px;background:#fff;background-size:contain;background-repeat:no-repeat;background-position:center;display:grid;place-items:center;color:#1e40af;font-weight:900;font-size:14px;flex:0 0 auto;box-shadow:0 1px 4px rgba(15,23,42,.2)">${ini}</span>`; })()}
+        <div style="flex:1;min-width:180px">
+          <b style="font-size:15.5px">${esc(cl.raison_sociale||'—')}</b>
+          <div style="font-size:11.5px;opacity:.85;margin-top:2px">${esc([cl.adresse_siege,[cl.code_postal,cl.ville].filter(Boolean).join(' ')].filter(Boolean).join(' · ')||'Adresse à compléter')}</div>
+        </div>
+        <button class="btn sm" style="border:1.5px solid rgba(255,255,255,.8);background:transparent;color:#fff" onclick="orgFormSociete()">✎ Modifier</button>
+      </div>
+      <div style="padding:11px 16px;display:flex;gap:7px;flex-wrap:wrap">
+        ${cl.siren?chip('SIREN '+esc(cl.siren)):chip('SIREN manquant',1)}
+        ${cl.tva_intra?chip('TVA '+esc(cl.tva_intra)):chip('TVA manquante',1)}
+        ${cl.telephone?chip(esc(cl.telephone)):''}
+        ${cl.email_contact?chip(esc(cl.email_contact)):''}
+        ${mentionsOk?`<span style="display:inline-flex;align-items:center;gap:6px;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700">✓ Mentions complètes — courriers conformes</span>`:''}
+      </div>
+    </div>
+    ${tetes.map(t=>`
+      <div style="font-size:10.5px;font-weight:800;letter-spacing:.1em;color:var(--muted);margin:0 0 7px">${esc(t.fonction.toUpperCase())}</div>
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">
+        <div style="background:linear-gradient(135deg,#1e3a8a,#1e40af);color:#fff;padding:14px 16px;display:flex;gap:13px;align-items:center;flex-wrap:wrap">
+          ${_orgAvatar(t,64)}
+          <div style="flex:1;min-width:170px">
+            <b style="font-size:15px">${esc(t.nom)}</b>
+            <div style="font-size:11.5px;opacity:.88;margin-top:2px">${esc(t.fonction)} · ${equipe.filter(x=>x.parent_id===t.id).length} personne(s)${t.signataire?' · ✍ Signataire des courriers':''}</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">
+              ${t.telephone?`<span style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:99px;padding:3px 10px;font-size:10.5px;font-weight:700">${esc(t.telephone)}</span>`:''}
+              ${t.email?`<span style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:99px;padding:3px 10px;font-size:10.5px;font-weight:700">${esc(t.email)}</span>`:''}
+            </div>
+          </div>
+          <button class="btn sm" style="border:1.5px solid rgba(255,255,255,.8);background:transparent;color:#fff" onclick="orgFormPersonne('${t.id}')">✎ Fiche</button>
+        </div>
+      </div>`).join('')}
+    <div style="display:flex;align-items:baseline;gap:8px;margin:0 0 7px">
+      <span style="font-size:10.5px;font-weight:800;letter-spacing:.1em;color:var(--muted)">ÉQUIPE</span>
+      <span style="background:#2563eb;color:#fff;border-radius:99px;padding:1px 8px;font-size:10px;font-weight:800">${equipe.length}</span>
+      <button class="btn sm" style="margin-left:auto;border-color:#bfdbfe;background:#eff6ff;color:#1e40af" onclick="orgFormPersonne()">＋ Ajouter une personne</button>
+    </div>
+    ${equipe.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:11px">${equipe.map(carte).join('')}</div>`
+      :`<div class="card card-pad" style="text-align:center;color:var(--muted)">Aucune personne — ajoute le responsable puis son équipe.</div>`}`;
+}
+window.viewOrganisation=viewOrganisation;
+
+window.orgFormSociete=function(){
+  const {cl,clientId}=window._orgCtx||{}; if(!clientId) return;
+  openModal(`<div class="modal-head"><h2>🏢 Fiche société</h2><button class="mx" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div class="fld"><label>Logo</label><input type="file" id="os_logo" accept="image/*"></div>
+    <div class="row2"><div class="fld"><label>SIREN</label><input id="os_siren" value="${esc(cl.siren||'')}" placeholder="9 chiffres"></div>
+      <div class="fld"><label>TVA intracommunautaire</label><input id="os_tva" value="${esc(cl.tva_intra||'')}" placeholder="FR + 11 caractères"></div></div>
+    <div class="row2"><div class="fld"><label>Téléphone</label><input id="os_tel" value="${esc(cl.telephone||'')}"></div>
+      <div class="fld"><label>E-mail de contact</label><input id="os_mail" value="${esc(cl.email_contact||'')}"></div></div>
+    <div class="fld"><label>Adresse du siège</label><input id="os_adr" value="${esc(cl.adresse_siege||'')}"></div>
+    <div class="row2"><div class="fld"><label>Code postal</label><input id="os_cp" value="${esc(cl.code_postal||'')}"></div>
+      <div class="fld"><label>Ville</label><input id="os_ville" value="${esc(cl.ville||'')}"></div></div>
+    <div id="os_err" style="font-size:12px;color:#dc2626"></div>
+  </div>
+  <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
+    <button class="btn primary" id="os_save">Enregistrer</button></div>`);
+  document.getElementById('os_save').onclick=async()=>{
+    const v=id=>document.getElementById(id).value.trim();
+    const siren=v('os_siren').replace(/\s+/g,''), tva=v('os_tva').replace(/\s+/g,'').toUpperCase();
+    const err=document.getElementById('os_err'); err.textContent='';
+    if(siren&&!/^\d{9}$/.test(siren)){ err.textContent='SIREN invalide : 9 chiffres attendus.'; return; }
+    if(tva&&!/^FR[0-9A-Z]{2}\d{9}$/.test(tva)){ err.textContent='TVA invalide : format FR + 2 caractères + 9 chiffres.'; return; }
+    try{
+      let logo=cl.logo_path||null;
+      const f=document.getElementById('os_logo').files[0];
+      if(f){ let up=f; if(typeof compressImage==='function') up=await compressImage(f);
+        logo='org/'+clientId+'/logo_'+Date.now()+'_'+String(f.name).replace(/[^\w.\-]/g,'_');
+        const {error:ue}=await sb.storage.from('documents').upload(logo,up,{contentType:up.type||f.type}); if(ue) throw ue; }
+      const {error}=await sb.from('clients').update({siren:siren||null,tva_intra:tva||null,telephone:v('os_tel')||null,
+        email_contact:v('os_mail')||null,adresse_siege:v('os_adr')||null,code_postal:v('os_cp')||null,ville:v('os_ville')||null,logo_path:logo}).eq('id',clientId);
+      if(error) throw error;
+      closeModal(); toast('Fiche société enregistrée ✓','ok'); viewOrganisation(document.getElementById('content'));
+    }catch(e){ toast(e.message,'err'); }
+  };
+};
+
+window.orgFormPersonne=function(id){
+  const {pers,erps,clientId}=window._orgCtx||{}; if(!clientId) return;
+  const p0=(pers||[]).find(x=>x.id===id)||{erp_ids:[]};
+  const tetes=(pers||[]).filter(x=>!x.parent_id&&x.id!==id);
+  openModal(`<div class="modal-head"><h2>${id?'✎ Fiche personne':'＋ Ajouter une personne'}</h2><button class="mx" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div class="row2"><div class="fld"><label>Nom complet <span class="req">*</span></label><input id="op_nom" value="${esc(p0.nom||'')}" placeholder="Prénom NOM"></div>
+      <div class="fld"><label>Fonction <span class="req">*</span></label><input id="op_fx" list="op_fxl" value="${esc(p0.fonction||'')}" placeholder="Libre : Directeur, Chef de service…">
+        <datalist id="op_fxl"><option>Directeur régional</option><option>Directeur</option><option>Directrice</option><option>Chef de service</option><option>Responsable maintenance</option><option>Adjoint de direction</option></datalist></div></div>
+    <div class="row2"><div class="fld"><label>Téléphone</label><input id="op_tel" value="${esc(p0.telephone||'')}"></div>
+      <div class="fld"><label>E-mail</label><input id="op_mail" value="${esc(p0.email||'')}"></div></div>
+    <div class="row2"><div class="fld"><label>Rattaché à</label><select id="op_parent"><option value="">— Personne (tête de l'organigramme) —</option>${tetes.map(t=>`<option value="${t.id}"${t.id===p0.parent_id?' selected':''}>${esc(t.nom)} (${esc(t.fonction)})</option>`).join('')}</select></div>
+      <div class="fld"><label>Photo</label><input type="file" id="op_photo" accept="image/*"></div></div>
+    <div class="fld"><label>Établissements couverts</label>
+      <div style="display:flex;flex-direction:column;gap:4px;max-height:130px;overflow:auto;border:1px solid var(--line);border-radius:9px;padding:8px 10px">
+        ${(erps||[]).map(e=>`<label style="display:flex;gap:8px;align-items:center;font-size:12.5px"><input type="checkbox" class="op_erp" value="${e.id}"${(p0.erp_ids||[]).includes(e.id)?' checked':''}>${esc(e.nom)}</label>`).join('')||'<span style="color:var(--muted-2);font-size:12px">Aucun établissement</span>'}
+      </div></div>
+    <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;font-weight:600"><input type="checkbox" id="op_sig"${p0.signataire?' checked':''}>✍ Signataire des courriers (mises en demeure, relances)</label>
+  </div>
+  <div class="modal-foot">${id?`<button class="btn ghost" style="margin-right:auto;color:#b91c1c" onclick="orgDelPersonne('${id}')">Supprimer</button>`:''}
+    <button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="op_save">Enregistrer</button></div>`);
+  document.getElementById('op_save').onclick=async()=>{
+    const v=x=>document.getElementById(x).value.trim();
+    if(!v('op_nom')||!v('op_fx')){ toast('Nom et fonction requis','err'); return; }
+    try{
+      let photo=p0.photo_path||null;
+      const f=document.getElementById('op_photo').files[0];
+      if(f){ let up=f; if(typeof compressImage==='function') up=await compressImage(f);
+        photo='org/'+clientId+'/pers_'+Date.now()+'_'+String(f.name).replace(/[^\w.\-]/g,'_');
+        const {error:ue}=await sb.storage.from('documents').upload(photo,up,{contentType:up.type||f.type}); if(ue) throw ue; }
+      const pl={client_id:clientId,nom:v('op_nom'),fonction:v('op_fx'),telephone:v('op_tel')||null,email:v('op_mail')||null,
+        parent_id:document.getElementById('op_parent').value||null,
+        erp_ids:[...document.querySelectorAll('.op_erp:checked')].map(x=>x.value),
+        signataire:document.getElementById('op_sig').checked,photo_path:photo};
+      const q=id?sb.from('organisation_personnes').update(pl).eq('id',id):sb.from('organisation_personnes').insert(pl);
+      const {error}=await q; if(error) throw error;
+      closeModal(); toast('Personne enregistrée ✓','ok'); viewOrganisation(document.getElementById('content'));
+    }catch(e){ toast(e.message,'err'); }
+  };
+};
+window.orgDelPersonne=async function(id){
+  if(!confirm('Supprimer cette personne de l\u2019organigramme ?')) return;
+  try{ const {error}=await sb.from('organisation_personnes').delete().eq('id',id); if(error) throw error;
+    closeModal(); toast('Personne supprimée','ok'); viewOrganisation(document.getElementById('content'));
+  }catch(e){ toast(e.message,'err'); }
+};
+
 window.accountSavePwd=async function(){
   const p1=(document.getElementById('ac_p1').value||''), p2=(document.getElementById('ac_p2').value||'');
   const msg=document.getElementById('ac_msg'), btn=document.getElementById('ac_go');
@@ -3079,7 +3324,7 @@ const NI={
 };
 function getNAV(){ return [
   {link:['/','Tableau de bord',NI.dash]},
-  {sec:'etab',   titre:'Établissement',          ic:NI.etab,      items:[['/clients','Clients',NI.clients],['/erps','ERP',NI.erp],['/plan-maintenance','Plan de maintenance',NI.plan]]},
+  {sec:'etab',   titre:'Établissement',          ic:NI.etab,      items:[['/clients','Clients',NI.clients],['/erps','ERP',NI.erp],['/organisation','Organisation',NI.clients],['/plan-maintenance','Plan de maintenance',NI.plan]]},
   {sec:'sitdeg', titre:'Situation dégradée',     ic:NI.alert,     items:[['/photos','Photos et vidéos',NI.cam],['/compte-rendu','Compte rendu',NI.cr]]},
   {sec:'prest',  titre:'Suivi des prestataires', ic:NI.briefcase, items:[['/prestataires','Prestataires',NI.wrench],['/conversations','Conversations',NI.chat],['/pointage','Pointage & journal',NI.clock]]},
   {sec:'suivi',  titre:'Suivi et conformité',    ic:NI.shield,    items:[['/interventions','Interventions',NI.tools],['/travaux','Travaux',NI.trvx],['/gpa','Garanties GPA',NI.checks],['/verifications','Vérifications & relances',NI.bell],['/reserves','Levées des réserves',NI.checks],['/tableaux-reserves','Tableaux de réserves',NI.tablo]]},
@@ -3134,13 +3379,15 @@ function renderApp(){
             <svg class="sc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </div>
         </div>
-        <button class="tb-out" title="Mon compte" aria-label="Mon compte" onclick="accountModal()" style="margin-right:2px">👤<span>Mon compte</span></button>
+        <button class="tb-out" title="Mon compte" aria-label="Mon compte" onclick="accountModal()" style="margin-right:2px;display:inline-flex;align-items:center;gap:7px"><span id="tbAvatar" style="width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#93c5fd,#2563eb);background-size:cover;background-position:center;display:grid;place-items:center;color:#fff;font-weight:800;font-size:11px;flex:0 0 auto"></span><span>Mon compte</span></button>
         <button class="tb-out" title="Se déconnecter" aria-label="Se déconnecter" onclick="logout()">${I.out}<span>Déconnexion</span></button>
       </header>
       <main class="content" id="content"></main>
     </div>
   </div>`;
   fillScopeSelectors();
+  if(window.applyScopeLock) applyScopeLock();
+  if(window.accSyncAvatar) accSyncAvatar();
   if(window.fselInit) fselInit();
   if(window.navRestore) navRestore();
   renderRoute();
@@ -14020,7 +14267,7 @@ window.gpaCtrlMove=async function(id){
     gpaRender();
   }catch(e){ toast(e.message,'err'); }
 };
-window.gpaCourrierPdf=function(ouvrageId,type,lrar){
+window.gpaCourrierPdf=async function(ouvrageId,type,lrar){
   try{
     const D=window._gpaData; const o0=D.o.find(x=>x.id===ouvrageId); if(!o0){ toast('Ouvrage introuvable','err'); return; }
     const jsPDFCtor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF; if(!jsPDFCtor) throw new Error('PDF indisponible');
@@ -14033,7 +14280,10 @@ window.gpaCourrierPdf=function(ouvrageId,type,lrar){
     const ctx={type:type||'simple', lrar:lrar||null, delaiJours:type==='mise_en_demeure'?8:15,
       date:new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}),
       exp:{nom:er.nom||cl.raison_sociale||'Exploitant', ville:er.ville||cl.ville||'',
-        signataire:'La Direction',
+        signataire:await (async()=>{ try{
+          const {data:sg}=await sb.from('organisation_personnes').select('nom,fonction').eq('client_id',o0.client_id||er.client_id).eq('signataire',true).limit(1).maybeSingle();
+          return sg?sg.nom+(sg.fonction?', '+sg.fonction:''):'La Direction';
+        }catch(_){ return 'La Direction'; } })(),
         adresse:[er.adresse||cl.adresse_siege, [er.code_postal||cl.code_postal, er.ville||cl.ville].filter(Boolean).join(' ')].filter(Boolean)},
       dest:{nom:pr.nom, adresse:[pr.adresse, [pr.code_postal, pr.ville].filter(Boolean).join(' ')].filter(Boolean)},
       o:{designation:o0.designation, type_lib:gpaTypeLib(o0),
@@ -14114,7 +14364,9 @@ window.gpaCourrierPdf=function(ouvrageId,type,lrar){
     T("Pour l'exploitant,",120,y,{s:10}); y+=5;
     T(ctx.exp.signataire,120,y,{b:1,s:10});
     doc.setDrawColor(226,232,240); doc.line(M,285,M+W,285);
-    T('SUIVI-CONFORMITÉ · conformite-securite.fr — courrier généré le '+ctx.date,105,290,{s:7.3,c:[148,163,184],al:'center'});
+    const mentions=[cl.raison_sociale, cl.siren?'SIREN '+cl.siren:null, cl.tva_intra?'TVA '+cl.tva_intra:null].filter(Boolean).join(' · ');
+    if(mentions) T(mentions,105,288.5,{s:7.3,c:[100,116,139],al:'center'});
+    T('SUIVI-CONFORMITÉ · conformite-securite.fr — courrier généré le '+ctx.date,105,292,{s:7,c:[148,163,184],al:'center'});
     doc.save('courrier-'+(type||'relance')+'-'+String(o0.designation).toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40)+'.pdf');
     toast('Courrier généré ✓','ok');
   }catch(e){ toast(e.message||'Génération impossible','err'); }
@@ -18066,3 +18318,4 @@ boot();
 </script>
 </body>
 </html>
+  
