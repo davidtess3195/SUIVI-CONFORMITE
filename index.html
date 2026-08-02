@@ -379,7 +379,7 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .info-grid .it .v{font-size:14.5px;font-weight:500;margin-top:4px}
 
 /* Toast */
-#toasts{position:fixed;right:16px;bottom:16px;z-index:90;display:flex;flex-direction:column;align-items:flex-end;gap:7px}
+#toasts{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:100001;display:flex;flex-direction:column;align-items:flex-end;gap:7px}
 .toast{
   display:inline-flex;align-items:center;gap:8px;
   padding:9px 13px;border-radius:10px;
@@ -766,7 +766,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='708'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='713'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -9484,6 +9484,19 @@ async function pvForm(pre){
       <div class="fld"><label>Objet des travaux</label><input id="pv_objet" value="${esc(pre.objet||'')}" placeholder="ex : Remise en conformité du désenfumage — bâtiment A"></div>
       <div class="fld"><label>Prestations examinées <span style="font-weight:400;color:var(--muted)">(une par ligne, reprises du devis)</span></label>
         <textarea id="pv_lignes" rows="6" onkeydown="event.stopPropagation()" style="width:100%;border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box" placeholder="Remplacement de 2 exutoires de désenfumage 1 m² — cage A1&#10;Remplacement du treuil de commande — RDC&#10;Essais fonctionnels et remise du rapport"></textarea></div>
+      <div style="border:1px solid var(--line);border-radius:12px;padding:11px 13px;background:var(--surface-2)">
+        <div style="font-weight:700;font-size:12.5px;color:var(--ink)">🛡 Garanties à l'issue de la réception <span style="font-weight:400;color:var(--muted);font-size:11px">(une par équipement reçu)</span></div>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:6px;margin-top:8px;font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.06em">
+          <span>ÉQUIPEMENT / OUVRAGE</span><span>GARANTIE</span></div>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:6px;margin-top:4px">
+          ${[1,2,3,4,5].map(i=>`
+            <input id="pvg_eq_${i}" placeholder="${i===1?'ex : BAES bâtiment A':''}" style="border:1px solid var(--line);border-radius:9px;padding:7px 10px;font-size:12.5px;min-width:0">
+            <div style="display:flex;flex-direction:column;gap:4px"><select id="pvg_t_${i}" onchange="document.getElementById('pvg_d_${i}').style.display=this.value==='fabricant'?'block':'none'" style="border:1px solid var(--line);border-radius:9px;padding:7px;font-size:12px">
+              <option value="">— aucune —</option><option value="gpa">Parfait achèv. · 1 an</option><option value="biennale">Bon fonct. · 2 ans</option><option value="decennale">Décennale · 10 ans</option><option value="fabricant">Fabricant · durée libre</option></select>
+            <input type="number" id="pvg_d_${i}" min="0.5" step="0.5" placeholder="Durée (années)" style="display:none;border:1px solid var(--line);border-radius:9px;padding:6px 8px;font-size:12px"></div>`).join('')}
+        </div>
+        <div style="font-size:10.5px;color:var(--muted);margin-top:7px">Chaque ligne remplie ouvrira automatiquement sa garantie (rubrique Garanties GPA), reliée à ce PV.</div>
+      </div>
       <div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface-2);display:flex;flex-direction:column;gap:10px">
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer">
           <input type="checkbox" id="pv_send_mail" checked style="accent-color:#2563eb"> ✉️ Envoyer le PV par email au prestataire</label>
@@ -10228,7 +10241,22 @@ async function pvGenerate(){
     // Ouverture du PDF pour contrôle/impression
     try{ const bu=URL.createObjectURL(pdfBlob); const w=window.open(bu,'_blank'); if(!w) toast('Popup bloquée : le PV est archivé dans la GED','err'); }catch(_){}
     _modalDirty=false; closeModal(); toast('PV généré et archivé'+suivi,'ok');
-    try{ gpaProposeFromPv({erp_id:erpId,client_id:client.id||null,prestataire_id:prestId,objet,montant,date:dateVisite,pv_id:(pvDoc&&pvDoc.id)||null}); }catch(_){ }
+    try{
+      const rows=[1,2,3,4,5].map(i=>({des:(document.getElementById('pvg_eq_'+i)?.value||'').trim(),
+        t:document.getElementById('pvg_t_'+i)?.value||'',
+        d:parseFloat(document.getElementById('pvg_d_'+i)?.value)||null})).filter(r=>r.des&&r.t);
+      if(rows.length){
+        const payloads=rows.map(r=>({erp_id:erpId,client_id:client.id||null,designation:r.des,prestataire_id:prestId,
+          type_garantie:r.t,duree_annees:r.t==='fabricant'?(r.d||1):null,date_reception:dateVisite,
+          montant_marche:null,source_pv_id:(pvDoc&&pvDoc.id)||null}));
+        sb.from('gpa_ouvrages').insert(payloads).then(({error})=>{
+          if(!error) toast(rows.length+' garantie(s) ouverte(s) ✓ — rubrique Garanties GPA','ok');
+          else toast('Garanties non ouvertes : '+error.message,'err');
+        });
+      } else {
+        gpaProposeFromPv({erp_id:erpId,client_id:client.id||null,prestataire_id:prestId,objet,montant,date:dateVisite,pv_id:(pvDoc&&pvDoc.id)||null});
+      }
+    }catch(_){ }
     const cont=document.getElementById('content'); if(cont && location.hash.indexOf('documents')>=0) viewDocuments(cont);
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='🖨️ Générer & archiver'; }
 }
@@ -13453,9 +13481,10 @@ window.txEcarter=async function(id){
 /* ═══════════ GARANTIES (GPA / biennale / décennale) ═══════════ */
 window._gpaTab={t:'tab'};
 const GPA_TYPES={gpa:['Parfait achèvement','1 an',1], biennale:['Bon fonctionnement','2 ans',2], decennale:['Décennale','10 ans',10], fabricant:['Fabricant / matériel','durée libre',null]};
-function gpaFin(o){ const d=new Date(o.date_reception);
+function gpaFinBase(o){ const d=new Date(o.date_reception);
   const yrs=(o.type_garantie==='fabricant')?(parseFloat(o.duree_annees)||1):((GPA_TYPES[o.type_garantie||'gpa']||[0,0,1])[2]||1);
   d.setMonth(d.getMonth()+Math.round(yrs*12)); return d; }
+function gpaFin(o){ return o.date_fin_etendue?new Date(o.date_fin_etendue):gpaFinBase(o); }
 function gpaTypeLib(o){ const T=GPA_TYPES[o.type_garantie||'gpa']||GPA_TYPES.gpa;
   return o.type_garantie==='fabricant'?`${T[0]} · ${parseFloat(o.duree_annees)||1} an(s)`:`${T[0]} · ${T[1]}`; }
 function gpaJours(o){ return Math.ceil((gpaFin(o).getTime()-Date.now())/864e5); }
@@ -13468,7 +13497,7 @@ function gpaFrise(o){
     <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-bottom:3px">
       <span>Réception ${fmtDate(o.date_reception)}</span>
       <span style="font-weight:700;color:${col}">${j<0?'Expirée depuis '+(-j)+' j':j+' j restants'}</span>
-      <span>Échéance ${fmtDate(gpaFin(o))}</span></div>
+      <span>Échéance ${fmtDate(gpaFin(o))}${o.date_fin_etendue?' · prolongée':''}</span></div>
     <div style="height:8px;border-radius:5px;background:var(--surface-2);position:relative;overflow:hidden">
       <span style="position:absolute;inset:0;width:${pct}%;background:linear-gradient(90deg,#2563eb,${col});border-radius:5px"></span>
     </div></div>`;
@@ -13493,7 +13522,23 @@ async function viewGpa(c){
   try{ const {data:ln}=await sb.from('gpa_liens').select('ouvrage_id, equipements(type), equipement_unites(designation)');
     (ln||[]).forEach(x=>{ const k=x.ouvrage_id; (liens[k]=liens[k]||[]).push({fam:x.equipements?.type||'Équipement', ref:x.equipement_unites?.designation||null}); });
   }catch(_){ }
-  window._gpaData={o:(o.data||[]).filter(gpaScope), r:r.data||[], l:l.data||[], liens};
+  let docsMap={};
+  try{
+    const pvIds=[...new Set((o.data||[]).map(x=>x.source_pv_id).filter(Boolean))];
+    if(pvIds.length){
+      const {data:pvs}=await sb.from('documents').select('id,fichier_path,nom_original,source_devis_id').in('id',pvIds);
+      const dvIds=[...new Set((pvs||[]).map(p=>p.source_devis_id).filter(Boolean))];
+      let dvs=[]; if(dvIds.length){ const {data:d2}=await sb.from('documents').select('id,fichier_path,nom_original').in('id',dvIds); dvs=d2||[]; }
+      const dvBy={}; dvs.forEach(d=>dvBy[d.id]=d);
+      (o.data||[]).forEach(x=>{ if(!x.source_pv_id) return;
+        const pv=(pvs||[]).find(p=>p.id===x.source_pv_id); if(!pv) return;
+        const dv=pv.source_devis_id?dvBy[pv.source_devis_id]:null;
+        docsMap[x.id]={pv:{path:pv.fichier_path,nom:pv.nom_original},
+          devis:dv?{path:dv.fichier_path,nom:dv.nom_original,ref:(String(dv.nom_original||'').match(/[A-Z]{2}\s?\d{4,}/)||[])[0]||null}:null};
+      });
+    }
+  }catch(_){ }
+  window._gpaData={o:(o.data||[]).filter(gpaScope), r:r.data||[], l:l.data||[], liens, docs:docsMap};
   gpaRender(c);
 }
 window.viewGpa=viewGpa;
@@ -13547,11 +13592,22 @@ window.gpaRender=function(c){
       </div>
       <div style="padding:10px 14px 12px">
       <div>${gpaFrise(o0)}</div>
+      ${(()=>{
+        const dm=(D.docs||{})[o0.id]||{};
+        const jq=v=>String(v||'').replace(/'/g,"\\'");
+        const btns=[];
+        if(dm.pv&&dm.pv.path) btns.push(`<button style="border:1px solid #bfdbfe;background:#eff6ff;color:#1e40af;border-radius:8px;padding:6px 4px;font-size:11px;font-weight:700" onclick="event.stopPropagation();previewDoc('${jq(dm.pv.path)}','${jq(dm.pv.nom||'PV de réception')}','documents')">PV de réception</button>`);
+        if(dm.devis&&dm.devis.path) btns.push(`<button style="border:1px solid #bfdbfe;background:#eff6ff;color:#1e40af;border-radius:8px;padding:6px 4px;font-size:11px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="event.stopPropagation();previewDoc('${jq(dm.devis.path)}','${jq(dm.devis.nom||'Devis')}','documents')">Devis${dm.devis.ref?' '+esc(dm.devis.ref):''}</button>`);
+        if(o0.extension_doc_path) btns.push(`<button style="border:1px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:8px;padding:6px 4px;font-size:11px;font-weight:700" onclick="event.stopPropagation();previewDoc('${jq(o0.extension_doc_path)}','${jq(o0.extension_doc_nom||'Justificatif extension')}','documents')">Extension</button>`);
+        return btns.length?`<div style="display:grid;grid-template-columns:repeat(${btns.length},1fr);gap:6px;margin-top:9px">${btns.join('')}</div>`:'';
+      })()}
+      ${o0.date_fin_etendue?`<div style="font-size:10.5px;color:var(--muted);margin-top:5px">Échéance initiale ${fmtDate(gpaFinBase(o0))} → <b style="color:#d97706">prolongée au ${fmtDate(o0.date_fin_etendue)}</b>${o0.extension_motif?' · '+esc(o0.extension_motif):''}${o0.extension_doc_path?` <button class="btn sm ghost" style="padding:1px 7px" onclick="event.stopPropagation();previewDoc('${o0.extension_doc_path.replace(/'/g,"\\'")}','${(o0.extension_doc_nom||'Justificatif').replace(/'/g,'’')}','documents')">📎</button>`:''}</div>`:''}
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;align-items:center">
         ${ouvertes?`<span class="pill moy">${ouvertes} réserve(s) ouverte(s)</span>`:'<span class="pill ok">Aucune réserve ouverte</span>'}
         ${j>=0&&j<=60?'<span class="pill crit">Visite de fin de garantie à programmer</span>':''}
         ${(o0.montant_marche&&o0.retenue_pct)?`<span class="pill inf">Retenue ${o0.retenue_pct}% : ${(o0.montant_marche*o0.retenue_pct/100).toLocaleString('fr-FR')} €${o0.retenue_restituee?' · restituée ✓':''}</span>`:''}
-        <span style="margin-left:auto"><button class="btn sm" onclick="event.stopPropagation();gpaFormReserve('${o0.id}')">＋ Réserve</button>
+        <span style="margin-left:auto"><button class="btn sm ghost" title="Extension de garantie" onclick="event.stopPropagation();gpaFormExtension('${o0.id}')">⏳ Prolonger</button>
+        <button class="btn sm" onclick="event.stopPropagation();gpaFormReserve('${o0.id}')">＋ Réserve</button>
         <button class="btn sm" onclick="event.stopPropagation();gpaFormRelance('${o0.id}')">✉ Courrier</button></span>
       </div></div></div>`;
   };
@@ -13651,7 +13707,7 @@ window.gpaFormOuvrage=function(id){
     <div class="fld"><label>Rattachements aux équipements <span style="color:var(--muted-2);font-weight:400;font-size:11px">(plusieurs possibles)</span></label>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         <select id="g_eq" onchange="gpaLoadUnites()" style="flex:1 1 150px;min-width:0"><option value="">— Équipement —</option></select>
-        <select id="g_un" style="flex:1 1 140px;min-width:0"><option value="">— Toute la famille —</option></select>
+        <select id="g_un" style="flex:1 1 140px;min-width:0"><option value="">— Référence —</option></select>
         <button type="button" class="btn sm primary" onclick="gpaAddLink()">＋ Rattacher</button>
       </div>
       <div id="g_links" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"></div>
@@ -13694,7 +13750,7 @@ window.gpaFormOuvrage=function(id){
   };
   window.gpaLoadUnites=async function(){
     const eq=document.getElementById('g_eq').value; const sel=document.getElementById('g_un'); if(!sel) return;
-    sel.innerHTML='<option value="">— Toute la famille —</option>';
+    sel.innerHTML='<option value="">— Référence —</option>';
     if(!eq) return;
     try{ const {data}=await sb.from('equipement_unites').select('id,designation').eq('equipement_id',eq).order('designation');
       sel.innerHTML+=(data||[]).map(u=>`<option value="${u.id}">${esc(u.designation)}</option>`).join('');
@@ -13740,6 +13796,45 @@ window.gpaDelOuvrage=async function(id){
   if(!confirm('Supprimer cet ouvrage ET ses réserves/relances ?')) return;
   try{ const {error}=await sb.from('gpa_ouvrages').delete().eq('id',id); if(error) throw error;
     closeModal(); toast('Supprimé','ok'); viewGpa(document.getElementById('content')); }catch(e){ toast(e.message,'err'); }
+};
+window.gpaFormExtension=function(id){
+  const o0=(window._gpaData?.o||[]).find(x=>x.id===id); if(!o0) return;
+  const cur=gpaFin(o0).toISOString().slice(0,10);
+  openModal(`<div class="modal-head"><h2>⏳ Extension de garantie</h2><button class="mx" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <p style="font-size:12px;color:var(--muted);margin:0 0 10px">${esc(o0.designation)} — échéance actuelle : <b>${fmtDate(gpaFin(o0))}</b>${o0.date_fin_etendue?' (déjà prolongée)':''}</p>
+    <div class="row2"><div class="fld"><label>Nouvelle échéance <span class="req">*</span></label><input type="date" id="ge_fin" value="${cur}"></div>
+      <div class="fld"><label>Motif</label><select id="ge_motif"><option>Extension commerciale</option><option>Accord de l'entreprise</option><option>Élément remplacé sous garantie</option><option>Autre</option></select></div></div>
+    <div class="fld"><label>Justificatif <span style="color:var(--muted-2);font-weight:400;font-size:11px">(avenant, mail, contrat — optionnel)</span></label><input type="file" id="ge_doc" accept="application/pdf,image/*"></div>
+  </div>
+  <div class="modal-foot">${o0.date_fin_etendue?`<button class="btn ghost" style="margin-right:auto;color:#b91c1c" onclick="gpaExtRemove('${id}')">Annuler la prolongation</button>`:''}
+    <button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="ge_save">Prolonger</button></div>`);
+  document.getElementById('ge_save').onclick=async()=>{
+    const fin=document.getElementById('ge_fin').value;
+    if(!fin){ toast('Nouvelle échéance requise','err'); return; }
+    if(new Date(fin)<=gpaFinBase(o0)&&!confirm('La date choisie n\u2019allonge pas la garantie de base. Continuer ?')) return;
+    try{
+      let path=o0.extension_doc_path||null, nom=o0.extension_doc_nom||null;
+      const f=document.getElementById('ge_doc').files[0];
+      if(f){
+        let up=f;
+        if(f.type==='application/pdf'&&f.size>300*1024&&typeof compressPdf==='function') up=await compressPdf(f);
+        else if(f.type&&f.type.startsWith('image/')&&typeof compressImage==='function') up=await compressImage(f);
+        path='gpa/'+id+'/ext_'+Date.now()+'_'+String(f.name).replace(/[^\w.\-]/g,'_'); nom=f.name;
+        const {error:ue}=await sb.storage.from('documents').upload(path,up,{contentType:up.type||f.type}); if(ue) throw ue;
+      }
+      const {error}=await sb.from('gpa_ouvrages').update({date_fin_etendue:fin,
+        extension_motif:document.getElementById('ge_motif').value,extension_doc_path:path,extension_doc_nom:nom}).eq('id',id);
+      if(error) throw error;
+      closeModal(); toast('Garantie prolongée ✓','ok'); viewGpa(document.getElementById('content'));
+    }catch(e){ toast(e.message,'err'); }
+  };
+};
+window.gpaExtRemove=async function(id){
+  if(!confirm('Revenir à l\u2019échéance de base (supprimer la prolongation) ?')) return;
+  try{ const {error}=await sb.from('gpa_ouvrages').update({date_fin_etendue:null,extension_motif:null,extension_doc_path:null,extension_doc_nom:null}).eq('id',id);
+    if(error) throw error; closeModal(); toast('Prolongation annulée','ok'); viewGpa(document.getElementById('content'));
+  }catch(e){ toast(e.message,'err'); }
 };
 window.gpaFormReserve=function(ouvrageId){
   openModal(`<div class="modal-head"><h2>＋ Réserve</h2><button class="mx" onclick="closeModal()">✕</button></div>
