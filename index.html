@@ -206,7 +206,7 @@ h1,h2,h3{font-family:var(--fd);font-weight:600;letter-spacing:-.01em}
 .search svg{position:absolute;left:12px;width:16px;height:16px;color:#fff;stroke-width:3}
 .search input{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:9px 12px 9px 35px;width:230px;outline:none;color:#fff}.search input::placeholder{color:#8fa2bd}
 .search input:focus{border-color:var(--primary)}
-.content{padding:26px;flex:1;max-width:1320px;width:100%}
+.content{padding:26px;flex:1;max-width:1600px;width:100%;margin:0 auto}
 
 /* ---------- Generic ---------- */
 .page-head{display:flex;align-items:flex-end;gap:16px;margin-bottom:22px;flex-wrap:wrap}
@@ -766,7 +766,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='717'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='718'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
