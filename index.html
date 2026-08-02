@@ -766,7 +766,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='721'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='722'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -1597,7 +1597,7 @@ window.accountModal=function(){
     <div class="modal-body">
       <div class="fld"><label>Photo de profil</label>
         <div style="display:flex;gap:10px;align-items:center">
-          <span id="acAvatar" style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#93c5fd,#2563eb);background-size:cover;background-position:center;display:grid;place-items:center;color:#fff;font-weight:800;font-size:16px"></span>
+          <span id="acAvatar" style="width:72px;height:72px;border-radius:16px;background:linear-gradient(135deg,#93c5fd,#2563eb);background-size:cover;background-position:center;display:grid;place-items:center;color:#fff;font-weight:800;font-size:16px"></span>
           <input type="file" accept="image/*" onchange="accPhotoPick(this)" style="font-size:12px">
         </div>
         <div style="font-size:11px;color:var(--muted);margin-top:4px">Affichée en haut de l'application. Compressée automatiquement.</div></div>
@@ -3379,7 +3379,7 @@ function renderApp(){
             <svg class="sc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </div>
         </div>
-        <button class="tb-out" title="Mon compte" aria-label="Mon compte" onclick="accountModal()" style="margin-right:2px;display:inline-flex;align-items:center;gap:7px"><span id="tbAvatar" style="width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#93c5fd,#2563eb);background-size:cover;background-position:center;display:grid;place-items:center;color:#fff;font-weight:800;font-size:11px;flex:0 0 auto"></span><span>Mon compte</span></button>
+        <button class="tb-out" title="Mon compte" aria-label="Mon compte" onclick="accountModal()" style="margin-right:2px;display:inline-flex;align-items:center;gap:7px"><span id="tbAvatar" style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#93c5fd,#2563eb);background-size:cover;background-position:center;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;flex:0 0 auto;box-shadow:0 1px 4px rgba(15,23,42,.25)"></span><span>Mon compte</span></button>
         <button class="tb-out" title="Se déconnecter" aria-label="Se déconnecter" onclick="logout()">${I.out}<span>Déconnexion</span></button>
       </header>
       <main class="content" id="content"></main>
@@ -18318,4 +18318,3 @@ boot();
 </script>
 </body>
 </html>
-  
