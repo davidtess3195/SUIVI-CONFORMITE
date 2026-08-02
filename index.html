@@ -766,7 +766,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='719'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='720'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -3190,9 +3190,12 @@ window.navSec=function(id,open){
   const el=document.querySelector('.nsec[data-sec="'+id+'"]'); if(!el) return;
   const willOpen=(open===undefined)?!el.classList.contains('open'):!!open;
   if(el.classList.contains('open')===willOpen && open!==undefined) return;
+  if(willOpen){ // accordéon strict : une seule section ouverte
+    document.querySelectorAll('#nav .nsec.open').forEach(x=>{ if(x!==el) x.classList.remove('open'); });
+  }
   el.classList.toggle('open',willOpen);
-  let st=navSecState().filter(x=>x!==id); if(willOpen) st.push(id);
-  try{localStorage.setItem('navOpen',JSON.stringify(st));}catch(_){}
+  try{localStorage.setItem('navOpen',JSON.stringify(willOpen?[id]:[]));}catch(_){}
+  if(window.navBadgeSync) navBadgeSync();
 };
 // Badges agrégés : une section repliée porte la somme des badges de ses entrées
 window.navBadgeSync=function(){
@@ -3205,7 +3208,8 @@ window.navBadgeSync=function(){
   });
 };
 window.navRestore=function(){
-  navSecState().forEach(id=>{ const el=document.querySelector('.nsec[data-sec="'+id+'"]'); if(el) el.classList.add('open'); });
+  const _st=navSecState(); const _last=_st[_st.length-1];
+  if(_last){ const el=document.querySelector('.nsec[data-sec="'+_last+'"]'); if(el) el.classList.add('open'); }
   navBadgeSync();
   var navD=document.getElementById('nav');
   if(navD && !navD._navBound){
