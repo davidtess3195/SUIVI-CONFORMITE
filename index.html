@@ -766,7 +766,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='702'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='706'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -13489,7 +13489,11 @@ async function viewGpa(c){
   if(!(state.prestataires||[]).length){
     try{ const {data:pl}=await sb.from('prestataires').select('id,nom').order('nom'); state.prestataires=pl||[]; }catch(_){ }
   }
-  window._gpaData={o:(o.data||[]).filter(gpaScope), r:r.data||[], l:l.data||[]};
+  let liens={};
+  try{ const {data:ln}=await sb.from('gpa_liens').select('ouvrage_id, equipements(type), equipement_unites(designation)');
+    (ln||[]).forEach(x=>{ const k=x.ouvrage_id; (liens[k]=liens[k]||[]).push({fam:x.equipements?.type||'Équipement', ref:x.equipement_unites?.designation||null}); });
+  }catch(_){ }
+  window._gpaData={o:(o.data||[]).filter(gpaScope), r:r.data||[], l:l.data||[], liens};
   gpaRender(c);
 }
 window.viewGpa=viewGpa;
@@ -13521,25 +13525,37 @@ window.gpaRender=function(c){
   const pillRel=t=>({simple:'<span class="pill inf">Relance simple</span>',recommandee:'<span class="pill moy">Recommandée</span>',mise_en_demeure:'<span class="pill crit">Mise en demeure</span>'}[t]||'');
   const carteOuvrage=o0=>{
     const rs=resOf(o0.id), ouvertes=rs.filter(x=>x.statut!=='levee').length, j=gpaJours(o0);
-    const T=GPA_TYPES[o0.type_garantie||'gpa'];
+    const er=(state.erps||[]).find(x=>x.id===o0.erp_id);
+    const cl=(state.clients||[]).find(x=>x.id===(o0.client_id||er?.client_id));
+    const _sq=(p,s,r)=>`<span style="display:inline-grid;place-items:center;width:${s}px;height:${s}px;border-radius:${r}px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.18);flex:0 0 auto"><svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:${Math.round(s*.58)}px;height:${Math.round(s*.58)}px">${p}</svg></span>`;
+    const P_SH='<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>';
+    const P_WR='<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>';
+    const P_BD='<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/>';
+    const grp={}; ((D.liens||{})[o0.id]||[]).forEach(l=>{ (grp[l.fam]=grp[l.fam]||[]); if(l.ref) grp[l.fam].push(l.ref); });
+    const chips=Object.entries(grp).map(([fam,refs])=>`<span style="display:inline-flex;align-items:center;gap:6px;background:#5b8df5;color:#fff;border-radius:8px;padding:3px 9px;font-size:10.5px;font-weight:700;box-shadow:0 1px 4px rgba(15,23,42,.12)">${_sq(P_SH,16,4)}${esc(fam)} · ${refs.length?'réf '+refs.map(esc).join(', '):'toute la famille'}</span>`).join('');
     return `<div class="card" style="padding:0;overflow:hidden;cursor:pointer" onclick="gpaFormOuvrage('${o0.id}')">
-      <div style="background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;padding:11px 14px;display:flex;align-items:center;gap:10px">
-        <div style="flex:1;min-width:0"><b style="font-size:13.5px;font-family:var(--fd)">${esc(o0.designation)}</b>
-          <div style="font-size:11px;opacity:.85">${esc(prestNom[o0.prestataire_id]||o0.entreprise||'Entreprise non renseignée')}</div>
-          ${(()=>{ const er=(state.erps||[]).find(x=>x.id===o0.erp_id);
-            const cl=(state.clients||[]).find(x=>x.id===(o0.client_id||er?.client_id));
-            const t=[er?.nom, cl?(cl.raison_sociale||cl.nom):null].filter(Boolean).join(' · ');
-            return t?`<div style="font-size:10.5px;opacity:.75;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🏢 ${esc(t)}</div>`:''; })()}</div>
-        <span style="background:rgba(255,255,255,.18);border-radius:7px;padding:2px 9px;font-size:10.5px;font-weight:700;white-space:nowrap">${gpaTypeLib(o0)}</span>
+      <div style="background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;padding:12px 14px">
+      <div style="display:flex;gap:11px;align-items:flex-start">
+        ${_sq(P_SH,42,11)}
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;gap:8px;align-items:center"><b style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cl?(cl.raison_sociale||cl.nom):(o0.designation))}</b>
+            <span style="margin-left:auto;border:1.5px solid rgba(255,255,255,.85);color:#fff;border-radius:99px;padding:1px 9px;font-size:10px;font-weight:800;white-space:nowrap">${esc(gpaTypeLib(o0).toUpperCase())}</span></div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11.5px;opacity:.95;margin-top:5px;min-width:0">
+            ${_sq(P_WR,18,5)}<span>${esc(prestNom[o0.prestataire_id]||o0.entreprise||'—')}</span>
+            <span style="margin-left:6px"></span>${_sq(P_BD,18,5)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(er?.nom||'')}</span></div>
+          ${chips?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${chips}</div>`:''}
+        </div>
       </div>
-      <div style="padding:10px 14px 12px">${gpaFrise(o0)}
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;align-items:center">
-          ${ouvertes?`<span class="pill moy">${ouvertes} réserve(s) ouverte(s)</span>`:'<span class="pill ok">Aucune réserve ouverte</span>'}
-          ${j>=0&&j<=60?'<span class="pill crit">Visite de fin de garantie à programmer</span>':''}
-          ${(o0.montant_marche&&o0.retenue_pct)?`<span class="pill inf">Retenue ${o0.retenue_pct}% : ${(o0.montant_marche*o0.retenue_pct/100).toLocaleString('fr-FR')} €${o0.retenue_restituee?' · restituée ✓':''}</span>`:''}
-          <span style="margin-left:auto"><button class="btn sm" onclick="event.stopPropagation();gpaFormReserve('${o0.id}')">＋ Réserve</button>
-          <button class="btn sm" onclick="event.stopPropagation();gpaFormRelance('${o0.id}')">✉ Relance</button></span>
-        </div></div></div>`;
+      </div>
+      <div style="padding:10px 14px 12px">
+      <div>${gpaFrise(o0)}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;align-items:center">
+        ${ouvertes?`<span class="pill moy">${ouvertes} réserve(s) ouverte(s)</span>`:'<span class="pill ok">Aucune réserve ouverte</span>'}
+        ${j>=0&&j<=60?'<span class="pill crit">Visite de fin de garantie à programmer</span>':''}
+        ${(o0.montant_marche&&o0.retenue_pct)?`<span class="pill inf">Retenue ${o0.retenue_pct}% : ${(o0.montant_marche*o0.retenue_pct/100).toLocaleString('fr-FR')} €${o0.retenue_restituee?' · restituée ✓':''}</span>`:''}
+        <span style="margin-left:auto"><button class="btn sm" onclick="event.stopPropagation();gpaFormReserve('${o0.id}')">＋ Réserve</button>
+        <button class="btn sm" onclick="event.stopPropagation();gpaFormRelance('${o0.id}')">✉ Courrier</button></span>
+      </div></div></div>`;
   };
   let body='';
   if(st.t==='tab'){
@@ -13667,9 +13683,15 @@ window.gpaFormOuvrage=function(id){
     }catch(_){ window._gpaLinks=[]; }
   } gpaRenderLinks(); })();
   window.gpaLoadEquips=async function(){
-    const erp=document.getElementById('g_erp').value; const sel=document.getElementById('g_eq'); if(!sel) return;
-    try{ const {data}=await sb.from('equipements').select('id,type').eq('erp_id',erp).order('type');
-      sel.innerHTML='<option value="">— Équipement —</option>'+(data||[]).map(q=>`<option value="${q.id}">${esc(q.type)}</option>`).join('');
+    const sel=document.getElementById('g_eq'); if(!sel) return;
+    const cid=document.getElementById('g_cli')?.value;
+    const erpIds=(state.erps||[]).filter(x=>!cid||x.client_id===cid).map(x=>x.id);
+    const erpNom={}; (state.erps||[]).forEach(x=>erpNom[x.id]=x.nom);
+    try{ const {data}=await sb.from('equipements').select('id,type,erp_id').in('erp_id',erpIds.length?erpIds:['-']).order('type');
+      const multi=new Set((data||[]).map(q=>q.erp_id)).size>1;
+      sel.innerHTML='<option value="">— Équipement —</option>'+
+        ((data&&data.length)?data.map(q=>`<option value="${q.id}">${esc(q.type)}${multi?' — '+esc((erpNom[q.erp_id]||'').slice(0,28)):''}</option>`).join('')
+        :'<option value="" disabled>Aucun équipement enregistré pour ce client</option>');
     }catch(_){ }
   };
   window.gpaLoadUnites=async function(){
