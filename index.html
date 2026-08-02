@@ -12,6 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
@@ -766,7 +767,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='722'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='723'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -1174,6 +1175,11 @@ async function boot(){
       const h=location.hash.replace(/^#/,'')||'/';
       if(h.startsWith('/qr/')) renderQrPublic(h.split('/')[2]);
     });
+    return;
+  }
+  if(hashNow.startsWith('/fiche-prestataire/')){
+    loadCfg(); initSb();
+    renderFichePrestPublic(decodeURIComponent(hashNow.split('/')[2]||''));
     return;
   }
   if(hashNow.startsWith('/levees/')){
@@ -16258,6 +16264,271 @@ window.equipAddRef=function(){
 
 window.viewPlanMaintenance=viewPlanMaintenance;
 
+const PRESTA_FAMILLES=["SSI - Système de sécurité incendie","Extincteurs","BAES / éclairage de sécurité","Désenfumage","Portes coupe-feu","Portes automatiques","Ascenseur","Alarme intrusion","Vidéosurveillance","Électricité","Gaz","Chauffage / chaudières","Ventilation / VMC","Climatisation","Cuisine professionnelle","Hottes / extraction","Légionelle / eau chaude","Dératisation / désinsectisation","Contrôle d'accès","Appel malade","Groupe électrogène","Paratonnerre","Toiture / étanchéité","Espaces verts","Nettoyage","Autre"];
+function _pubEsc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+async function renderFichePrestPublic(token){
+  document.body.innerHTML='<div id="toasts"></div><div id="pubw" style="min-height:100vh;background:#eef2f7;font-family:Inter,system-ui,sans-serif;padding:14px;display:flex;justify-content:center"><div style="width:100%;max-width:520px" id="pub"></div></div>';
+  const P=document.getElementById('pub');
+  P.innerHTML='<div style="text-align:center;color:#64748b;padding:40px 0">Chargement…</div>';
+  const {data:inv}=await sb.from('prest_invitations').select('*').eq('token',token).maybeSingle();
+  if(!inv){ P.innerHTML='<div style="background:#fff;border-radius:14px;padding:26px;text-align:center;color:#64748b">Lien invalide ou expiré.<br>Contactez l\u2019établissement pour recevoir un nouveau lien.</div>'; return; }
+  if(inv.statut==='creee'||inv.statut==='envoyee'){ sb.from('prest_invitations').update({statut:'ouverte',ouverte_le:new Date().toISOString()}).eq('id',inv.id).then(()=>{}); }
+  const pl=inv.payload||{}; const C=pl.contacts||{};
+  const fld=(id,lab,val,ph,req)=>`<div style="margin-bottom:10px"><label style="display:block;font-size:11px;font-weight:700;color:#334155;margin-bottom:4px">${lab}${req?' <span style="color:#dc2626">*</span>':''}</label><input id="${id}" value="${_pubEsc(val||'')}" placeholder="${ph||''}" style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:9px;padding:9px 11px;font-size:13px"></div>`;
+  const role=(k,titre,req)=>{const c=C[k]||{};return `<div style="border:1px solid #e2e8f0;border-radius:11px;padding:9px 11px;margin-bottom:9px">
+    <div style="font-size:11.5px;font-weight:800;color:#1e40af;margin-bottom:7px">👤 ${titre}${req?' <span style="color:#dc2626">*</span>':' <span style="font-weight:400;color:#94a3b8;font-size:10px">(si applicable)</span>'}</div>
+    ${fld('c_'+k+'_nom','',c.nom,'Prénom NOM')}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${fld('c_'+k+'_tel','',c.telephone,'☎ Fixe')}${fld('c_'+k+'_mob','',c.mobile,'📱 Portable')}</div>
+    ${fld('c_'+k+'_email','',c.email,'E-mail')}</div>`;};
+  const aide=t=>`<div style="font-size:10.5px;color:#64748b;line-height:1.45;margin:-2px 0 9px;background:#f8fafc;border-left:3px solid #bfdbfe;border-radius:0 8px 8px 0;padding:6px 9px">${t}</div>`;
+  const sect=(n,t,inner)=>`<div style="background:#fff;border-radius:14px;box-shadow:0 3px 12px rgba(15,23,42,.06);padding:13px 14px;margin-bottom:12px"><div style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:12.5px;color:#0f172a;margin-bottom:10px"><span style="width:22px;height:22px;border-radius:7px;background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:800">${n}</span> ${t}</div>${inner}</div>`;
+  const drop=(id,lab,req,hint)=>`<div style="margin-bottom:10px"><label style="display:block;font-size:11px;font-weight:700;color:#334155;margin-bottom:4px">${lab}${req?' <span style="color:#dc2626">*</span>':''} ${hint?'<span style="font-weight:400;color:#94a3b8;font-size:10px">'+hint+'</span>':''}</label>
+    <input type="file" id="${id}" multiple accept="application/pdf,image/*" style="width:100%;font-size:12px;border:1.5px dashed ${req?'#93c5fd':'#e2e8f0'};background:${req?'#eff6ff':'#f8fafc'};border-radius:10px;padding:11px;box-sizing:border-box">
+    <div id="${id}_ok" style="font-size:10.5px;color:#166534;margin-top:3px">${((pl.docs||{})[id.replace('f_','')]||[]).length?'✓ '+((pl.docs||{})[id.replace('f_','')]||[]).length+' fichier(s) déjà transmis':''}</div></div>`;
+  const ct=pl.contrat||{};
+  P.innerHTML=`
+  <div style="background:linear-gradient(135deg,#2563eb,#1e40af);border-radius:16px;color:#fff;padding:16px;margin-bottom:14px">
+    <div style="display:flex;gap:10px;align-items:center"><span style="width:40px;height:40px;border-radius:11px;background:#fff;display:grid;place-items:center;color:#1e40af;font-weight:900;font-size:11px">SC</span>
+    <div><b style="font-size:14.5px">Bienvenue chez votre client</b><div style="font-size:11.5px;opacity:.9">${_pubEsc(inv.erp_nom||'')} vous référence comme prestataire</div></div></div>
+    <div style="margin-top:10px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:10px;padding:8px 11px;font-size:11.5px">
+    <b>Nouveau prestataire ?</b> Cette fiche sert à vous référencer. <b>Déjà référencé ?</b> Elle met vos informations à jour.<br>
+    <b>7 étapes · ~3 minutes.</b> Préparez votre <b>attestation d'assurance</b> et vos <b>CGV</b> en PDF.</div>
+    <div style="font-size:10px;opacity:.85;margin-top:6px"><span style="color:#fca5a5">*</span> champs obligatoires — le reste peut être complété plus tard via ce même lien.</div>
+  </div>
+  ${sect(1,'Votre entreprise',aide("Ces informations figureront sur les documents du registre. SIREN et TVA figurent sur vos factures.")
+    +fld('e_rs','Raison sociale',pl.raison_sociale||inv.entreprise,'',1)+fld('e_adr','Adresse',pl.adresse,'N° et rue',1)
+    +'<div style="display:grid;grid-template-columns:110px 1fr;gap:8px">'+fld('e_cp','Code postal',pl.code_postal)+fld('e_ville','Ville',pl.ville)+'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+fld('e_siren','SIREN',pl.siren,'9 chiffres')+fld('e_tva','TVA intracommunautaire',pl.tva_intra,'FR…')+'</div>')}
+  ${sect(2,'Vos contacts',aide("Chaque demande ira <b>directement à la bonne personne</b> : devis → chargé d'affaires · commandes → assistante commerciale · rendez-vous → SAV / Planning.")
+    +role('charge_affaire','Chargé d\u2019affaires',1)+role('assistante','Assistante commerciale')+role('sav','SAV / Planning')
+    +fld('e_astr','N° d\u2019astreinte / urgence',pl.tel_astreinte,'Si différent'))}
+  ${sect(3,'Vos spécialités <span style="font-weight:400;color:#94a3b8;font-size:10.5px">(plusieurs choix)</span>',
+    aide("Touchez pour sélectionner — c'est ce qui permet de vous solliciter sur les bons équipements.")
+    +'<div id="sp_chips" style="display:flex;gap:6px;flex-wrap:wrap">'+PRESTA_FAMILLES.map(f=>{const on=(pl.specialites||[]).includes(f);return `<span class="spc" data-f="${_pubEsc(f)}" style="cursor:pointer;border-radius:99px;padding:5px 12px;font-size:11.5px;font-weight:${on?700:600};${on?'background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff':'border:1px solid #e2e8f0;background:#fff;color:#334155'}">${on?'✓ ':''}${_pubEsc(f)}</span>`;}).join('')+'</div>')}
+  ${sect(4,'Contrat & visites',
+    `<label style="display:flex;gap:9px;align-items:flex-start;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 12px;margin-bottom:4px;font-size:12.5px;font-weight:700;color:#1e40af"><input type="checkbox" id="ct_sd" ${ct.sur_devis?'checked':''} style="margin-top:2px;width:16px;height:16px"> Nous intervenons <u>exclusivement sur devis</u></label>
+    <div style="font-size:10px;color:#94a3b8;margin:2px 0 9px 2px">Cochez si vous n'avez pas de contrat récurrent — les champs ci-dessous deviennent facultatifs.</div>
+    <div style="display:flex;gap:14px;margin:0 0 8px;font-size:12px;font-weight:600;color:#334155"><label><input type="radio" name="ct_t" value="maintenance" ${ct.type!=='cadre'?'checked':''}> Contrat de maintenance</label><label><input type="radio" name="ct_t" value="cadre" ${ct.type==='cadre'?'checked':''}> Contrat cadre</label></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">`+fld('ct_num','N° de contrat',ct.num,'Réf. interne')
+    +`<div style="margin-bottom:10px"><label style="display:block;font-size:11px;font-weight:700;color:#334155;margin-bottom:4px">Périodicité des visites</label><select id="ct_per" style="width:100%;border:1px solid #e2e8f0;border-radius:9px;padding:9px;font-size:13px">${['Annuelle','Semestrielle','Trimestrielle','Mensuelle'].map(x=>`<option ${ct.periodicite===x?'selected':''}>${x}</option>`).join('')}</select></div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div style="margin-bottom:10px"><label style="display:block;font-size:11px;font-weight:700;color:#334155;margin-bottom:4px">Début du contrat</label><input type="date" id="ct_deb" value="${ct.debut||''}" style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:9px;padding:8px;font-size:13px"></div>
+    <div style="margin-bottom:10px"><label style="display:block;font-size:11px;font-weight:700;color:#334155;margin-bottom:4px">Fin de contrat</label><input type="date" id="ct_fin" value="${ct.fin||''}" style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:9px;padding:8px;font-size:13px"><div style="font-size:10px;color:#94a3b8;margin-top:3px">Nous vous préviendrons avant la fin du contrat.</div></div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><label style="display:block;font-size:11px;font-weight:700;color:#334155;margin-bottom:4px">Durée du contrat</label><select id="ct_dur" style="width:100%;border:1px solid #e2e8f0;border-radius:9px;padding:9px;font-size:13px">${['1 an','2 ans','3 ans','4 ans'].map(x=>`<option ${ct.duree===x?'selected':''}>${x}</option>`).join('')}</select></div>
+    <div><label style="display:block;font-size:11px;font-weight:700;color:#334155;margin-bottom:4px">Préavis de résiliation</label><select id="ct_pre" style="width:100%;border:1px solid #e2e8f0;border-radius:9px;padding:9px;font-size:13px">${['1 mois','2 mois','3 mois'].map(x=>`<option ${ct.preavis===x?'selected':''}>${x}</option>`).join('')}</select></div></div>
+    <div style="margin-top:10px"><label style="display:block;font-size:11px;font-weight:700;color:#334155;margin-bottom:4px">Délai d'intervention en urgence</label><select id="ct_urg" style="width:100%;border:1px solid #e2e8f0;border-radius:9px;padding:9px;font-size:13px">${['Sous 4 h','Sous 24 h','Sous 48 h','Sous 72 h','Sur devis uniquement'].map(x=>`<option ${(ct.urgence||'Sous 24 h')===x?'selected':''}>${x}</option>`).join('')}</select></div>`)}
+  ${sect(5,'Votre assurance',aide("Recopiez votre attestation — nous vous relancerons avant son expiration.")
+    +fld('as_nom','Assureur (RC Pro / décennale)',(pl.assurance||{}).assureur,'AXA, Allianz…')
+    +`<div><label style="display:block;font-size:11px;font-weight:700;color:#334155;margin-bottom:4px">Attestation valide jusqu'au</label><input type="date" id="as_fin" value="${(pl.assurance||{}).validite||''}" style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:9px;padding:8px;font-size:13px"></div>`)}
+  ${sect(6,'Vos documents',aide("PDF de préférence (photo lisible acceptée). Vous pouvez déposer <b>plusieurs fichiers</b> par case.")
+    +drop('f_attestation','Attestation d\u2019assurance RC/décennale',1)
+    +drop('f_cgv','Conditions générales de vente (CGV)',1)
+    +drop('f_contrat','Votre contrat',0,'(non requis si exclusivement sur devis)')
+    +drop('f_autres','Autres documents utiles',0,'(qualifications, plaquette, RIB…)'))}
+  ${sect(7,'Observations, remarques',aide("Accès, horaires, consignes, questions — tout ce qui nous aide à bien travailler ensemble.")
+    +`<textarea id="obs" placeholder="Champ libre (facultatif)…" style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:9px;padding:10px 11px;font-size:13px;font-family:inherit;min-height:80px">${_pubEsc(pl.observations||'')}</textarea>`)}
+  <label style="display:flex;gap:9px;align-items:flex-start;background:#fff;border:1px solid #e2e8f0;border-radius:11px;padding:10px 12px;margin-bottom:10px;font-size:12px;font-weight:600;color:#334155"><input type="checkbox" id="certif" style="margin-top:2px;width:16px;height:16px"> Je certifie l'exactitude des informations transmises <span style="color:#dc2626">*</span></label>
+  <div style="font-size:10px;color:#94a3b8;margin-bottom:10px">Vos coordonnées sont utilisées uniquement pour la gestion de la sécurité de l'établissement qui vous référence.</div>
+  <button id="pub_go" style="width:100%;border:none;background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;border-radius:12px;padding:13px;font-size:14px;font-weight:800;cursor:pointer">Envoyer ma fiche au registre</button>
+  <div style="text-align:center;font-size:10.5px;color:#94a3b8;margin:8px 0 20px">Un oubli ? Complétez plus tard via le même lien.<br>Lien personnel et sécurisé · données vérifiées avant publication</div>`;
+  document.querySelectorAll('.spc').forEach(x=>x.onclick=()=>{const on=x.style.color==='rgb(255, 255, 255)';
+    if(on){x.style.cssText='cursor:pointer;border-radius:99px;padding:5px 12px;font-size:11.5px;font-weight:600;border:1px solid #e2e8f0;background:#fff;color:#334155';x.textContent=x.dataset.f;}
+    else{x.style.cssText='cursor:pointer;border-radius:99px;padding:5px 12px;font-size:11.5px;font-weight:700;background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff';x.textContent='✓ '+x.dataset.f;}});
+  document.getElementById('pub_go').onclick=async()=>{
+    const v=id=>{const e=document.getElementById(id);return e?e.value.trim():'';};
+    if(!v('e_rs')||!v('e_adr')){ toast('Raison sociale et adresse requises','err'); return; }
+    if(!v('c_charge_affaire_nom')){ toast('Le chargé d\u2019affaires est requis','err'); return; }
+    if(!document.getElementById('certif').checked){ toast('Merci de certifier l\u2019exactitude des informations','err'); return; }
+    const btn=document.getElementById('pub_go'); btn.disabled=true; btn.textContent='Envoi en cours…';
+    try{
+      const docs=(inv.payload&&inv.payload.docs)||{};
+      for(const key of ['attestation','cgv','contrat','autres']){
+        const files=[...(document.getElementById('f_'+key).files||[])];
+        for(const f of files){
+          let up=f; if(f.type&&f.type.startsWith('image/')&&typeof compressImage==='function') up=await compressImage(f);
+          else if(f.type==='application/pdf'&&typeof compressPdf==='function'){ try{ up=await compressPdf(f); }catch(_){ up=f; } }
+          const path='invit/'+token+'/'+key+'_'+Date.now()+'_'+String(f.name).replace(/[^\w.\-]/g,'_');
+          const {error:ue}=await sb.storage.from('documents').upload(path,up,{contentType:up.type||f.type}); if(ue) throw ue;
+          docs[key]=(docs[key]||[]).concat([{path,nom:f.name}]);
+        }
+      }
+      const cts={};
+      [['charge_affaire'],['assistante'],['sav']].forEach(([k])=>{
+        const nom=v('c_'+k+'_nom'); if(nom||v('c_'+k+'_tel')||v('c_'+k+'_mob')||v('c_'+k+'_email'))
+          cts[k]={nom:nom||null,telephone:v('c_'+k+'_tel')||null,mobile:v('c_'+k+'_mob')||null,email:v('c_'+k+'_email')||null};
+      });
+      const payload={raison_sociale:v('e_rs'),adresse:v('e_adr'),code_postal:v('e_cp'),ville:v('e_ville'),
+        siren:v('e_siren'),tva_intra:v('e_tva'),tel_astreinte:v('e_astr'),contacts:cts,
+        specialites:[...document.querySelectorAll('.spc')].filter(x=>x.textContent.startsWith('✓')).map(x=>x.dataset.f),
+        contrat:{sur_devis:document.getElementById('ct_sd').checked,type:document.querySelector('input[name=ct_t]:checked').value,
+          num:v('ct_num'),periodicite:v('ct_per'),debut:v('ct_deb'),fin:v('ct_fin'),duree:v('ct_dur'),preavis:v('ct_pre'),urgence:v('ct_urg')},
+        assurance:{assureur:v('as_nom'),validite:v('as_fin')},observations:v('obs'),docs};
+      const {error}=await sb.from('prest_invitations').update({payload,statut:'soumise',soumise_le:new Date().toISOString()}).eq('id',inv.id);
+      if(error) throw error;
+      P.innerHTML='<div style="background:#fff;border-radius:16px;padding:34px 22px;text-align:center;box-shadow:0 4px 14px rgba(15,23,42,.07)"><div style="font-size:44px">✅</div><h2 style="font-size:17px;margin:10px 0 6px;color:#0f172a">Merci, votre fiche est transmise</h2><div style="font-size:12.5px;color:#64748b;line-height:1.5">Elle sera vérifiée avant d\u2019entrer au registre de sécurité.<br>Vous recevrez la confirmation de votre référencement.<br><br>Un oubli ? Rouvrez simplement <b>le même lien</b> pour compléter.</div></div>';
+    }catch(e){ toast(e.message||'Envoi impossible','err'); btn.disabled=false; btn.textContent='Envoyer ma fiche au registre'; }
+  };
+}
+window.renderFichePrestPublic=renderFichePrestPublic;
+
+/* ═══ INVITATIONS (unitaire + masse) + FILE DE VALIDATION ═══ */
+window._pinvMail=function(inv,erpNom){
+  const lien='https://conformite-securite.fr/#/fiche-prestataire/'+inv.token;
+  return {sujet:'['+erpNom+'] Votre référencement prestataire — fiche à compléter (3 min)',
+    corps:'Bonjour,\n\nL\u2019établissement '+erpNom+' vous référence comme prestataire dans son registre de sécurité.\n\nMerci de compléter votre fiche en cliquant sur votre lien personnel :\n'+lien+'\n\nComptez environ 3 minutes. Préparez simplement votre attestation d\u2019assurance et vos CGV en PDF. Si vous êtes déjà référencé, ce lien met simplement vos informations à jour.\n\nUn oubli ? Vous pourrez revenir compléter plus tard via le même lien.\n\nCordialement,\n'+erpNom+'\nLien personnel et sécurisé, valable 30 jours.', lien};
+};
+window.pinvEnvoyerMail=async function(id){
+  try{
+    const {data:inv}=await sb.from('prest_invitations').select('*').eq('id',id).maybeSingle();
+    const er=(state.erps||[]).find(e=>e.id===inv.erp_id)||{};
+    const m=_pinvMail(inv,er.nom||'Votre client');
+    const {error}=await sb.from('emails_programmes').insert({type:'prest_invitation',destinataires:inv.email,
+      sujet:m.sujet,corps_html:m.corps.split('\n').map(l=>esc(l)).join('<br>'),send_at:new Date().toISOString(),statut:'a_envoyer'});
+    if(error) throw error;
+    await sb.from('prest_invitations').update({statut:'envoyee',mail_envoye_le:new Date().toISOString()}).eq('id',id);
+    toast('E-mail d\u2019invitation programmé ✓','ok');
+  }catch(e){ toast(e.message,'err'); }
+};
+window.pinvInviteModal=function(){
+  const erps=(state.erps||[]).filter(e=>state.currentClient==='all'||e.client_id===state.currentClient);
+  openModal(`<div class="modal-head"><h2>✉ Inviter des prestataires</h2><button class="mx" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Chaque prestataire recevra <b>son lien personnel</b> pour remplir sa fiche lui-même. Tout arrivera dans ta file de validation.</div>
+    <div class="fld"><label>Établissement de référence</label><select id="pi_erp">${erps.map(e=>`<option value="${e.id}">${esc(e.nom)}</option>`).join('')}</select></div>
+    <div class="fld"><label>Un prestataire (unitaire)</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input id="pi_ent" placeholder="Entreprise *"><input id="pi_nom" placeholder="Nom du contact"></div>
+      <input id="pi_mail" placeholder="E-mail *" style="margin-top:8px;width:100%">
+      <button class="btn sm primary" style="margin-top:8px" onclick="pinvCreate()">Générer le lien</button>
+      <div id="pi_out" style="font-size:12px;margin-top:8px"></div></div>
+    <div class="fld"><label>En masse — collage libre ou fichier Excel (3 colonnes)</label>
+      <textarea id="pi_bulk" rows="4" placeholder="Une ligne par prestataire :\nLF SYSTEMES; Jean DUPONT; j.dupont@lf.fr\nAVISS  contact@aviss.fr" style="width:100%;font-size:12px"></textarea>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+        <input type="file" id="pi_xls" accept=".xlsx,.xls,.csv" style="font-size:11.5px">
+        <button class="btn sm ghost" onclick="pinvModele()">⬇ Modèle Excel</button>
+        <button class="btn sm primary" onclick="pinvAnalyse()">Analyser</button></div>
+      <div id="pi_prev" style="margin-top:8px"></div></div>
+  </div>
+  <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Fermer</button></div>`);
+  document.getElementById('pi_xls').onchange=async function(){
+    const f=this.files[0]; if(!f||!window.XLSX) return;
+    const buf=await f.arrayBuffer(); const wb=XLSX.read(buf);
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});
+    document.getElementById('pi_bulk').value=rows.slice(1).filter(r=>r&&r.length).map(r=>[r[0],r[1],r[2]].filter(Boolean).join('; ')).join('\n');
+    toast('Fichier lu — clique Analyser','ok');
+  };
+};
+window.pinvModele=function(){
+  if(!window.XLSX){ toast('Bibliothèque Excel indisponible','err'); return; }
+  const ws=XLSX.utils.aoa_to_sheet([['Entreprise','Nom et prénom du contact','E-mail'],['LF SYSTEMES','Jean DUPONT','j.dupont@lfsystemes.fr']]);
+  ws['!cols']=[{wch:32},{wch:28},{wch:32}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Prestataires');
+  XLSX.writeFile(wb,'gabarit_prestataires.xlsx');
+};
+window._pinvParse=function(txt){
+  const out=[];
+  txt.split(/\n/).map(l=>l.trim()).filter(Boolean).forEach(l=>{
+    const em=(l.match(/[\w.+-]+@[\w-]+\.[\w.]+/)||[])[0];
+    const reste=l.replace(em||'','').replace(/[<>]/g,'').split(/[;,\t]+/).map(x=>x.trim()).filter(Boolean);
+    out.push({entreprise:reste[0]||'',contact:reste[1]||'',email:em||'',ok:!!em&&!!(reste[0])});
+  });
+  return out;
+};
+window.pinvAnalyse=function(){
+  const rows=_pinvParse(document.getElementById('pi_bulk').value);
+  window._pinvRows=rows;
+  const okN=rows.filter(r=>r.ok).length;
+  document.getElementById('pi_prev').innerHTML=rows.length?`
+    <table style="width:100%;font-size:11.5px;border-collapse:collapse">${rows.map(r=>`<tr style="background:${r.ok?'#f0fdf4':'#fffbeb'}"><td style="padding:4px 6px">${esc(r.entreprise||'—')}</td><td style="padding:4px 6px">${esc(r.contact||'')}</td><td style="padding:4px 6px">${esc(r.email||'e-mail manquant')}</td><td>${r.ok?'✓':'⚠'}</td></tr>`).join('')}</table>
+    <button class="btn sm primary" style="margin-top:8px" onclick="pinvBulkSend()">Envoyer ${okN} invitation(s)</button>`
+    :'<span style="font-size:12px;color:var(--muted)">Rien à analyser.</span>';
+};
+window.pinvCreate=async function(){
+  const ent=document.getElementById('pi_ent').value.trim(), nom=document.getElementById('pi_nom').value.trim(), mail=document.getElementById('pi_mail').value.trim();
+  const erpId=document.getElementById('pi_erp').value;
+  if(!ent||!/@/.test(mail)){ toast('Entreprise et e-mail valide requis','err'); return; }
+  try{
+    const er=(state.erps||[]).find(e=>e.id===erpId)||{};
+    const {data:inv,error}=await sb.from('prest_invitations').insert({client_id:er.client_id,erp_id:erpId,entreprise:ent,contact_nom:nom||null,email:mail}).select('*').maybeSingle();
+    if(error) throw error;
+    const m=_pinvMail(inv,er.nom||'');
+    document.getElementById('pi_out').innerHTML=`<div style="background:var(--surface-2);border-radius:9px;padding:8px 10px">
+      <div style="word-break:break-all;font-size:11px;color:var(--muted)">${esc(m.lien)}</div>
+      <div style="display:flex;gap:6px;margin-top:7px;flex-wrap:wrap">
+        <button class="btn sm" onclick="navigator.clipboard.writeText('${m.lien}');toast('Lien copié ✓','ok')">Copier le lien</button>
+        <button class="btn sm" onclick="window.open('${m.lien}','_blank')">👁 Voir la page</button>
+        <button class="btn sm" onclick="alert(${JSON.stringify(JSON.stringify('Objet : '))}.slice(1,-1)+${JSON.stringify(JSON.stringify(''))} )" style="display:none"></button>
+        <button class="btn sm" onclick="pinvApercuMail('${inv.id}')">👁 Aperçu du mail</button>
+        <button class="btn sm primary" onclick="pinvEnvoyerMail('${inv.id}')">✉ Envoyer le mail</button></div></div>`;
+    toast('Invitation créée ✓','ok');
+  }catch(e){ toast(e.message,'err'); }
+};
+window.pinvApercuMail=async function(id){
+  const {data:inv}=await sb.from('prest_invitations').select('*').eq('id',id).maybeSingle();
+  const er=(state.erps||[]).find(e=>e.id===inv.erp_id)||{};
+  const m=_pinvMail(inv,er.nom||'');
+  alert('Objet : '+m.sujet+'\n\n'+m.corps);
+};
+window.pinvBulkSend=async function(){
+  const rows=(window._pinvRows||[]).filter(r=>r.ok);
+  const erpId=document.getElementById('pi_erp').value;
+  const er=(state.erps||[]).find(e=>e.id===erpId)||{};
+  let n=0;
+  for(const r of rows){
+    try{
+      const {data:inv,error}=await sb.from('prest_invitations').insert({client_id:er.client_id,erp_id:erpId,entreprise:r.entreprise,contact_nom:r.contact||null,email:r.email}).select('*').maybeSingle();
+      if(error) throw error;
+      await pinvEnvoyerMail(inv.id); n++;
+    }catch(e){ toast(r.entreprise+' : '+e.message,'err'); }
+  }
+  toast(n+' invitation(s) envoyée(s) ✓','ok'); closeModal();
+};
+window.pinvValider=async function(id){
+  try{
+    const {data:inv}=await sb.from('prest_invitations').select('*').eq('id',id).maybeSingle();
+    const p=inv.payload||{}; const ct=p.contrat||{};
+    const cts=p.contacts||{};
+    const charge=cts.charge_affaire||{};
+    const pl={nom:p.raison_sociale||inv.entreprise,adresse:p.adresse||null,code_postal:p.code_postal||null,ville:p.ville||null,
+      siren:p.siren||null,tva_intra:p.tva_intra||null,tel_astreinte:p.tel_astreinte||null,
+      telephone:charge.telephone||charge.mobile||null,email_rapports:charge.email||inv.email,
+      type:(p.specialites||[])[0]||null,domaines:(p.specialites||[]).join(', ')||null,
+      contacts:cts,sur_devis:!!ct.sur_devis,contrat_type:ct.type||null,duree_contrat:ct.duree||null,
+      preavis_mois:parseInt(ct.preavis)||null,delai_urgence:ct.urgence||null,fin_contrat:ct.fin||null,
+      cgv_files:(p.docs||{}).cgv||null,autres_files:((p.docs||{}).autres||[]).concat((p.docs||{}).attestation||[]).concat((p.docs||{}).contrat||[]),
+      assurance:Object.assign({},p.assurance||{},{files:(p.docs||{}).attestation||[]}),
+      commentaire:p.observations||null,statut:'actif'};
+    if(inv.client_id) pl.client_ids=[inv.client_id];
+    let pid=inv.prestataire_id;
+    if(pid){ const {error}=await sb.from('prestataires').update(pl).eq('id',pid); if(error) throw error; }
+    else{ const {data:np,error}=await sb.from('prestataires').insert(pl).select('id').maybeSingle(); if(error) throw error; pid=np.id; }
+    await sb.from('prest_invitations').update({statut:'validee',prestataire_id:pid}).eq('id',id);
+    toast('Fiche validée — prestataire au registre ✓','ok');
+    viewPrestataires(document.getElementById('content'));
+  }catch(e){ toast(e.message,'err'); }
+};
+window.pinvEcarter=async function(id){
+  if(!confirm('Écarter cette fiche ?')) return;
+  await sb.from('prest_invitations').update({statut:'ecartee'}).eq('id',id);
+  toast('Fiche écartée','ok'); viewPrestataires(document.getElementById('content'));
+};
+window.pinvVoirFiche=async function(id){
+  const {data:inv}=await sb.from('prest_invitations').select('*').eq('id',id).maybeSingle();
+  const p=inv.payload||{}; const docs=p.docs||{};
+  const dl=(k,lab)=>((docs[k]||[]).length?`<div style="font-size:12px;margin-top:4px"><b>${lab} :</b> ${(docs[k]||[]).map(d=>`<button class="btn sm" onclick="previewDoc('${d.path}','${esc(d.nom)}','documents')">👁 ${esc(d.nom.slice(0,22))}</button>`).join(' ')}</div>`:'');
+  openModal(`<div class="modal-head"><h2>📥 Fiche reçue — ${esc(p.raison_sociale||inv.entreprise)}</h2><button class="mx" onclick="closeModal()">✕</button></div>
+  <div class="modal-body" style="font-size:12.5px;line-height:1.6">
+    <b>${esc(p.raison_sociale||inv.entreprise)}</b> · ${esc(p.adresse||'')} ${esc(p.code_postal||'')} ${esc(p.ville||'')}<br>
+    SIREN ${esc(p.siren||'—')} · TVA ${esc(p.tva_intra||'—')}<br>
+    <b>Spécialités :</b> ${esc((p.specialites||[]).join(', ')||'—')}<br>
+    <b>Chargé d'affaires :</b> ${esc(((p.contacts||{}).charge_affaire||{}).nom||'—')} · ${esc(((p.contacts||{}).charge_affaire||{}).mobile||((p.contacts||{}).charge_affaire||{}).telephone||'')} · ${esc(((p.contacts||{}).charge_affaire||{}).email||'')}<br>
+    <b>Contrat :</b> ${(p.contrat||{}).sur_devis?'Exclusivement sur devis':esc(((p.contrat||{}).type||'')+' · fin '+((p.contrat||{}).fin||'—')+' · préavis '+((p.contrat||{}).preavis||'—')+' · urgence '+((p.contrat||{}).urgence||'—'))}<br>
+    <b>Assurance :</b> ${esc((p.assurance||{}).assureur||'—')} · valide jusqu'au ${esc((p.assurance||{}).validite||'—')}
+    ${dl('attestation','Attestation')}${dl('cgv','CGV')}${dl('contrat','Contrat')}${dl('autres','Autres')}
+    ${p.observations?`<div style="margin-top:6px;background:var(--surface-2);border-radius:8px;padding:8px"><b>Observations :</b> ${esc(p.observations)}</div>`:''}
+  </div>
+  <div class="modal-foot"><button class="btn ghost" style="color:#b91c1c" onclick="pinvEcarter('${inv.id}')">➖ Écarter</button>
+    <button class="btn ghost" onclick="closeModal()">Fermer</button>
+    <button class="btn primary" onclick="closeModal();pinvValider('${inv.id}')">✅ Valider → registre</button></div>`);
+};
 async function viewPrestataires(c, defaultCat){
   if(defaultCat) _prestOnglet = defaultCat;
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Annuaire des intervenants</h1><p>Bureaux de contrôle et prestataires.</p></div>
@@ -16267,7 +16538,7 @@ async function viewPrestataires(c, defaultCat){
         <button class="btn sm" id="tab-bdc" onclick="switchPrestOnglet('bureau_de_controle')" style="border:none;border-radius:8px">Bureaux de contrôle</button>
         <button class="btn sm" id="tab-acces" onclick="switchPrestOnglet('acces')" style="border:none;border-radius:8px">Accès rapports</button>
       </div>
-      <button class="btn primary" onclick="formPrest(_prestOnglet)">${I.plus} Ajouter</button>
+      <button class="btn" onclick="pinvInviteModal()">✉ Inviter</button><button class="btn primary" onclick="formPrest(_prestOnglet)">${I.plus} Ajouter</button>
     </div></div>${loadingBlock()}`;
   try{
     const {data}=await sb.from('prestataires').select('*').order('nom');
@@ -16279,9 +16550,20 @@ async function viewPrestataires(c, defaultCat){
           <button class="btn sm" id="tab-bdc" onclick="switchPrestOnglet('bureau_de_controle')" style="border:none;border-radius:8px">Bureaux de contrôle</button>
           <button class="btn sm" id="tab-acces" onclick="switchPrestOnglet('acces')" style="border:none;border-radius:8px">Accès rapports</button>
         </div>
-        <button class="btn primary" onclick="formPrest(_prestOnglet)">${I.plus} Ajouter</button>
+        <button class="btn" onclick="pinvInviteModal()">✉ Inviter</button><button class="btn primary" onclick="formPrest(_prestOnglet)">${I.plus} Ajouter</button>
       </div></div>
+      <div id="pinv-band"></div>
       <div id="prest-list"></div>`;
+    (async()=>{ try{
+      let q=sb.from('prest_invitations').select('id,entreprise,email,statut,soumise_le,mail_envoye_le').in('statut',['soumise','envoyee','ouverte','creee']).order('created_at',{ascending:false});
+      const {data:invs}=await q; const soum=(invs||[]).filter(x=>x.statut==='soumise');
+      const enc=(invs||[]).filter(x=>x.statut!=='soumise');
+      const B=document.getElementById('pinv-band'); if(!B) return;
+      B.innerHTML=(soum.length?`<div class="card" style="padding:12px 14px;margin-bottom:12px;border-left:4px solid #d97706;background:linear-gradient(90deg,#fffbeb,#fff)">
+        <b style="font-size:13px">📥 ${soum.length} fiche(s) prestataire reçue(s) — à valider</b>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">${soum.map(x=>`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px"><b>${esc(x.entreprise)}</b><span style="color:var(--muted)">${esc(x.email)} · reçue le ${fmtDate(x.soumise_le)}</span><span style="margin-left:auto;display:flex;gap:6px"><button class="btn sm" onclick="pinvVoirFiche('${x.id}')">👁 Fiche reçue</button><button class="btn sm primary" onclick="pinvValider('${x.id}')">✅ Valider</button></span></div>`).join('')}</div></div>`:'')
+      +(enc.length?`<div style="font-size:11px;color:var(--muted);margin:0 0 10px">✉ ${enc.length} invitation(s) en cours ${enc.slice(0,4).map(x=>esc(x.entreprise)+' ('+(x.statut==='ouverte'?'page ouverte':x.statut==='envoyee'?'mail envoyé':'lien créé')+')').join(' · ')}</div>`:'');
+    }catch(_){ } })();
     renderPrestTable(window._prestCache, _prestOnglet);
     highlightPrestTab();
   }catch(e){ c.innerHTML=errBlock(e); }
