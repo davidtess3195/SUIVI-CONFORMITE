@@ -766,7 +766,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='700'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='702'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -5097,7 +5097,7 @@ function renderErpTab(tab,d){
     // Rendu local + rechargement des unités après ajout/modif/suppression
     window._eqPrintCtx={e,d};
     window._eqRerenderLocal=()=>{ eqxRender(w,e,d); };
-    try{ sb.from('gpa_ouvrages').select('*').eq('erp_id',e.id).then(({data})=>{ d.gpa=data||[]; if(w.isConnected) eqxRender(w,e,d); }); }catch(_){ }
+    try{ sb.from('gpa_ouvrages').select('*, gpa_liens(equipement_id,unite_id)').eq('erp_id',e.id).then(({data})=>{ d.gpa=data||[]; if(w.isConnected) eqxRender(w,e,d); }); }catch(_){ }
     window._eqRerender=async()=>{
       try{ const {data}=await sb.from('equipement_unites').select('*').eq('erp_id',e.id).order('created_at'); d.un=data||[]; }catch(_){ }
       eqxRender(w,e,d);
@@ -13525,7 +13525,11 @@ window.gpaRender=function(c){
     return `<div class="card" style="padding:0;overflow:hidden;cursor:pointer" onclick="gpaFormOuvrage('${o0.id}')">
       <div style="background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;padding:11px 14px;display:flex;align-items:center;gap:10px">
         <div style="flex:1;min-width:0"><b style="font-size:13.5px;font-family:var(--fd)">${esc(o0.designation)}</b>
-          <div style="font-size:11px;opacity:.85">${esc(prestNom[o0.prestataire_id]||o0.entreprise||'Entreprise non renseignée')}</div></div>
+          <div style="font-size:11px;opacity:.85">${esc(prestNom[o0.prestataire_id]||o0.entreprise||'Entreprise non renseignée')}</div>
+          ${(()=>{ const er=(state.erps||[]).find(x=>x.id===o0.erp_id);
+            const cl=(state.clients||[]).find(x=>x.id===(o0.client_id||er?.client_id));
+            const t=[er?.nom, cl?(cl.raison_sociale||cl.nom):null].filter(Boolean).join(' · ');
+            return t?`<div style="font-size:10.5px;opacity:.75;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🏢 ${esc(t)}</div>`:''; })()}</div>
         <span style="background:rgba(255,255,255,.18);border-radius:7px;padding:2px 9px;font-size:10.5px;font-weight:700;white-space:nowrap">${gpaTypeLib(o0)}</span>
       </div>
       <div style="padding:10px 14px 12px">${gpaFrise(o0)}
@@ -13617,7 +13621,9 @@ window.gpaFormOuvrage=function(id){
   openModal(`<div class="modal-head"><h2>${id?'Ouvrage sous garantie':'＋ Ouvrage sous garantie'}</h2><button class="mx" onclick="closeModal()">✕</button></div>
   <div class="modal-body">
     <div class="fld"><label>Désignation <span class="req">*</span></label><input id="g_des" value="${esc(o0.designation||'')}" placeholder="Remplacement BAES bâtiment A"></div>
-    <div class="row2"><div class="fld"><label>Établissement</label><select id="g_erp">${erps.map(e=>`<option value="${e.id}"${e.id===(o0.erp_id||state.currentErp)?' selected':''}>${esc(e.nom)}</option>`).join('')}</select></div>
+    <div class="row2"><div class="fld"><label>Client</label><select id="g_cli">${(state.clients||[]).map(cl=>`<option value="${cl.id}"${cl.id===(o0.client_id||(state.currentClient!=='all'?state.currentClient:(state.erps||[]).find(x=>x.id===(o0.erp_id||state.currentErp))?.client_id))?' selected':''}>${esc(cl.raison_sociale||cl.nom||'Client')}</option>`).join('')}</select></div>
+      <div class="fld"><label>Établissement</label><select id="g_erp">${erps.map(e=>`<option value="${e.id}"${e.id===(o0.erp_id||state.currentErp)?' selected':''}>${esc(e.nom)}</option>`).join('')}</select></div></div>
+    <div class="row2">
       <div class="fld"><label>Type de garantie</label><select id="g_type" onchange="document.getElementById('g_dur_wrap').style.display=this.value==='fabricant'?'block':'none'">${Object.entries(GPA_TYPES).map(([k,v])=>`<option value="${k}"${k===(o0.type_garantie||'gpa')?' selected':''}>${v[0]} (${v[1]})</option>`).join('')}</select></div></div>
     <div class="fld" id="g_dur_wrap" style="display:${o0.type_garantie==='fabricant'?'block':'none'}"><label>Durée de la garantie (années) <span class="req">*</span></label><input type="number" id="g_dur" min="0.5" step="0.5" value="${o0.duree_annees||''}" placeholder="Ex : 3"></div>
     <div class="row2"><div class="fld"><label>Date de réception <span class="req">*</span></label><input type="date" id="g_rec" value="${o0.date_reception||''}"></div>
@@ -13628,17 +13634,42 @@ window.gpaFormOuvrage=function(id){
         <option value="5"${o0.retenue_pct==5?' selected':''}>5 % — cas particulier</option>
         <option value="3"${o0.retenue_pct==3?' selected':''}>3 % — cas particulier</option>
       </select></div></div>
-    <div class="row2"><div class="fld"><label>Rattacher à un équipement <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel)</span></label><select id="g_eq" onchange="gpaLoadUnites()"><option value="">— Aucun —</option></select></div>
-      <div class="fld"><label>Unité précise</label><select id="g_un"><option value="">— Toute la famille —</option></select></div></div>
+    <div class="fld"><label>Rattachements aux équipements <span style="color:var(--muted-2);font-weight:400;font-size:11px">(plusieurs possibles)</span></label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <select id="g_eq" onchange="gpaLoadUnites()" style="flex:1 1 150px;min-width:0"><option value="">— Équipement —</option></select>
+        <select id="g_un" style="flex:1 1 140px;min-width:0"><option value="">— Toute la famille —</option></select>
+        <button type="button" class="btn sm primary" onclick="gpaAddLink()">＋ Rattacher</button>
+      </div>
+      <div id="g_links" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"></div>
+    </div>
     <div class="fld" id="g_ret_wrap" style="display:${o0.retenue_pct?'block':'none'}"><label>Retenue restituée</label><select id="g_ret"><option value="false">Non</option><option value="true"${o0.retenue_restituee?' selected':''}>Oui</option></select></div>
   </div>
   <div class="modal-foot">${id?`<button class="btn danger" style="margin-right:auto" onclick="gpaDelOuvrage('${id}')">Supprimer</button>`:''}
     <button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="g_save">${id?'Enregistrer':'Créer'}</button></div>`);
+  window._gpaLinks=[];
+  window.gpaRenderLinks=function(){
+    const z=document.getElementById('g_links'); if(!z) return;
+    z.innerHTML=window._gpaLinks.length?window._gpaLinks.map((l,i)=>`<span class="pill inf" style="display:inline-flex;align-items:center;gap:6px">🛡 ${esc(l.fam)}${l.ref?' · réf '+esc(l.ref):''}<b style="cursor:pointer;opacity:.7" onclick="window._gpaLinks.splice(${i},1);gpaRenderLinks()">✕</b></span>`).join('')
+      :'<span style="font-size:11.5px;color:var(--muted-2)">Aucun rattachement</span>';
+  };
+  window.gpaAddLink=function(){
+    const eqSel=document.getElementById('g_eq'), unSel=document.getElementById('g_un');
+    const eqId=eqSel.value; if(!eqId){ toast('Choisis un équipement','err'); return; }
+    const unId=unSel.value||null;
+    if(window._gpaLinks.some(l=>l.equipement_id===eqId&&l.unite_id===unId)){ toast('Déjà rattaché','err'); return; }
+    window._gpaLinks.push({equipement_id:eqId,unite_id:unId,fam:eqSel.selectedOptions[0].textContent,ref:unId?unSel.selectedOptions[0].textContent:''});
+    unSel.value=''; gpaRenderLinks();
+  };
+  (async()=>{ if(id){
+    try{ const {data}=await sb.from('gpa_liens').select('*, equipements(type), equipement_unites(designation)').eq('ouvrage_id',id);
+      window._gpaLinks=(data||[]).map(l=>({equipement_id:l.equipement_id,unite_id:l.unite_id,
+        fam:l.equipements?.type||'Équipement',ref:l.unite_id?(l.equipement_unites?.designation||'réf'):''}));
+    }catch(_){ window._gpaLinks=[]; }
+  } gpaRenderLinks(); })();
   window.gpaLoadEquips=async function(){
     const erp=document.getElementById('g_erp').value; const sel=document.getElementById('g_eq'); if(!sel) return;
     try{ const {data}=await sb.from('equipements').select('id,type').eq('erp_id',erp).order('type');
-      sel.innerHTML='<option value="">— Aucun —</option>'+(data||[]).map(q=>`<option value="${q.id}"${q.id===o0.equipement_id?' selected':''}>${esc(q.type)}</option>`).join('');
-      if(o0.equipement_id) await gpaLoadUnites();
+      sel.innerHTML='<option value="">— Équipement —</option>'+(data||[]).map(q=>`<option value="${q.id}">${esc(q.type)}</option>`).join('');
     }catch(_){ }
   };
   window.gpaLoadUnites=async function(){
@@ -13646,29 +13677,41 @@ window.gpaFormOuvrage=function(id){
     sel.innerHTML='<option value="">— Toute la famille —</option>';
     if(!eq) return;
     try{ const {data}=await sb.from('equipement_unites').select('id,designation').eq('equipement_id',eq).order('designation');
-      sel.innerHTML+='<option disabled>──</option>'.replace('<option disabled>──</option>','')+(data||[]).map(u=>`<option value="${u.id}"${u.id===o0.unite_id?' selected':''}>${esc(u.designation)}</option>`).join('');
+      sel.innerHTML+=(data||[]).map(u=>`<option value="${u.id}">${esc(u.designation)}</option>`).join('');
     }catch(_){ }
   };
   document.getElementById('g_erp').addEventListener('change',gpaLoadEquips);
+  document.getElementById('g_cli').addEventListener('change',function(){
+    const cid=this.value;
+    const list=(state.erps||[]).filter(x=>x.client_id===cid);
+    document.getElementById('g_erp').innerHTML=list.map(x=>`<option value="${x.id}">${esc(x.nom)}</option>`).join('');
+    window._gpaLinks=[]; gpaRenderLinks(); gpaLoadEquips();
+  });
   gpaLoadEquips();
   document.getElementById('g_save').onclick=async()=>{
     const des=document.getElementById('g_des').value.trim();
     const rec=document.getElementById('g_rec').value;
     if(!des||!rec){ toast('Désignation et date de réception requises','err'); return; }
     const erpId=document.getElementById('g_erp').value||null;
-    const pl={designation:des,erp_id:erpId,client_id:(state.erps||[]).find(e=>e.id===erpId)?.client_id||null,
+    const pl={designation:des,erp_id:erpId,client_id:document.getElementById('g_cli').value||(state.erps||[]).find(e=>e.id===erpId)?.client_id||null,
       type_garantie:document.getElementById('g_type').value,date_reception:rec,
       prestataire_id:document.getElementById('g_prest').value||null,
       montant_marche:parseFloat(document.getElementById('g_mt').value)||null,
       retenue_pct:parseFloat(document.getElementById('g_pct').value)||null,
       retenue_restituee:document.getElementById('g_ret').value==='true',
       duree_annees:document.getElementById('g_type').value==='fabricant'?(parseFloat(document.getElementById('g_dur').value)||null):null,
-      equipement_id:document.getElementById('g_eq').value||null,
-      unite_id:document.getElementById('g_un').value||null};
+      equipement_id:(window._gpaLinks[0]||{}).equipement_id||null,
+      unite_id:(window._gpaLinks[0]||{}).unite_id||null};
     if(pl.type_garantie==='fabricant'&&!pl.duree_annees){ toast('Durée requise pour une garantie fabricant','err'); return; }
     try{
-      const q=id?sb.from('gpa_ouvrages').update(pl).eq('id',id):sb.from('gpa_ouvrages').insert(pl);
-      const {error}=await q; if(error) throw error;
+      let oid=id;
+      if(id){ const {error}=await sb.from('gpa_ouvrages').update(pl).eq('id',id); if(error) throw error; }
+      else { const {data,error}=await sb.from('gpa_ouvrages').insert(pl).select('id').single(); if(error) throw error; oid=data.id; }
+      await sb.from('gpa_liens').delete().eq('ouvrage_id',oid);
+      if(window._gpaLinks.length){
+        const {error:le}=await sb.from('gpa_liens').insert(window._gpaLinks.map(l=>({ouvrage_id:oid,equipement_id:l.equipement_id,unite_id:l.unite_id})));
+        if(le) throw le;
+      }
       closeModal(); toast('Ouvrage enregistré ✓','ok'); viewGpa(document.getElementById('content'));
     }catch(e){ toast(e.message,'err'); }
   };
@@ -15142,9 +15185,17 @@ window.eqxRender=function(w,e,d){
         <div class="bignum"><span class="n">${all.length}</span><span class="l">UNITÉS</span></div>
       </div>
       ${(()=>{
-        const g=(d.gpa||[]).filter(x=>x.equipement_id===eq.id&&(typeof gpaJours==='function'?gpaJours(x)>=0:true));
+        const refOf=uid=>{ const u=(d.un||[]).find(y=>y.id===uid); return u?u.designation:null; };
+        const g=(d.gpa||[]).map(x=>{
+          const liens=(x.gpa_liens||[]).filter(l=>l.equipement_id===eq.id);
+          const legacy=(!x.gpa_liens||!x.gpa_liens.length)&&x.equipement_id===eq.id;
+          if(!liens.length&&!legacy) return null;
+          if(typeof gpaJours==='function'&&gpaJours(x)<0) return null;
+          const refs=liens.map(l=>refOf(l.unite_id)).filter(Boolean);
+          return {x,refs:legacy&&x.unite_id?[refOf(x.unite_id)].filter(Boolean):refs};
+        }).filter(Boolean);
         if(!g.length) return '';
-        return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px">${g.map(x=>`<span style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:99px;padding:3px 11px;font-size:11px;font-weight:700">🛡 ${typeof gpaTypeLib==='function'?gpaTypeLib(x):'Garantie'} — jusqu'au ${fmtDate(gpaFin(x))}${x.unite_id?' (unité)':''}</span>`).join('')}</div>`;
+        return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px">${g.map(({x,refs})=>`<span style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:99px;padding:3px 11px;font-size:11px;font-weight:700">🛡 ${typeof gpaTypeLib==='function'?gpaTypeLib(x):'Garantie'} — jusqu'au ${fmtDate(gpaFin(x))}${refs.length?' · réf '+refs.map(esc).join(', '):''}</span>`).join('')}</div>`;
       })()}
       <div class="eqx-hact">
         <div class="eqx-hchips">${hchip('','Tous')}${Object.keys(c).sort(eqxNivOrder).map(n=>hchip(n,esc(n))).join('')}</div>
