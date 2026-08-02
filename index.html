@@ -766,7 +766,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='713'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='714'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -13704,6 +13704,8 @@ window.gpaFormOuvrage=function(id){
         <option value="5"${o0.retenue_pct==5?' selected':''}>5 % — cas particulier</option>
         <option value="3"${o0.retenue_pct==3?' selected':''}>3 % — cas particulier</option>
       </select></div></div>
+    <div class="fld"><label>PV de réception associé <span style="color:var(--muted-2);font-weight:400;font-size:11px">(relie l'ouvrage au PV et à son devis)</span></label>
+      <select id="g_pv"><option value="">— aucun —</option></select></div>
     <div class="fld"><label>Rattachements aux équipements <span style="color:var(--muted-2);font-weight:400;font-size:11px">(plusieurs possibles)</span></label>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         <select id="g_eq" onchange="gpaLoadUnites()" style="flex:1 1 150px;min-width:0"><option value="">— Équipement —</option></select>
@@ -13756,6 +13758,15 @@ window.gpaFormOuvrage=function(id){
       sel.innerHTML+=(data||[]).map(u=>`<option value="${u.id}">${esc(u.designation)}</option>`).join('');
     }catch(_){ }
   };
+  window.gpaLoadPvs=async function(){
+    const sel=document.getElementById('g_pv'); if(!sel) return;
+    const erp=document.getElementById('g_erp').value;
+    try{ const {data}=await sb.from('documents').select('id,nom_original,date_document').eq('categorie','pv_reception').eq('erp_id',erp).order('created_at',{ascending:false});
+      sel.innerHTML='<option value="">— aucun —</option>'+(data||[]).map(d=>`<option value="${d.id}"${d.id===o0.source_pv_id?' selected':''}>${esc((d.nom_original||'PV').replace(/\.pdf$/i,''))}${d.date_document?' · '+fmtDate(d.date_document):''}</option>`).join('');
+    }catch(_){ }
+  };
+  document.getElementById('g_erp').addEventListener('change',function(){ gpaLoadPvs(); });
+  gpaLoadPvs();
   document.getElementById('g_erp').addEventListener('change',gpaLoadEquips);
   document.getElementById('g_cli').addEventListener('change',function(){
     const cid=this.value;
@@ -13776,6 +13787,7 @@ window.gpaFormOuvrage=function(id){
       retenue_pct:parseFloat(document.getElementById('g_pct').value)||null,
       retenue_restituee:document.getElementById('g_ret').value==='true',
       duree_annees:document.getElementById('g_type').value==='fabricant'?(parseFloat(document.getElementById('g_dur').value)||null):null,
+      source_pv_id:document.getElementById('g_pv').value||null,
       equipement_id:(window._gpaLinks[0]||{}).equipement_id||null,
       unite_id:(window._gpaLinks[0]||{}).unite_id||null};
     if(pl.type_garantie==='fabricant'&&!pl.duree_annees){ toast('Durée requise pour une garantie fabricant','err'); return; }
