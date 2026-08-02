@@ -766,7 +766,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='718'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='719'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -13539,7 +13539,43 @@ async function viewGpa(c){
       });
     }
   }catch(_){ }
-  window._gpaData={o:(o.data||[]).filter(gpaScope), r:r.data||[], l:l.data||[], liens, docs:docsMap};
+  let ctrl=[], devisById={};
+  try{
+    const OS=(o.data||[]).filter(gpaScope);
+    const actifs2=OS.filter(x=>gpaJours(x)>=0);
+    if(actifs2.length){
+      const [{data:dvsAll},{data:ctl}]=await Promise.all([
+        sb.from('documents').select('id,nom_original,tags,prestataire_id,erp_id,client_id,date_document,fichier_path').eq('categorie','devis_signe'),
+        sb.from('gpa_controles').select('*')
+      ]);
+      ctrl=ctl||[]; (dvsAll||[]).forEach(d=>devisById[d.id]=d);
+      const STOP=new Set(['des','les','une','pour','avec','dans','sur','par','remplacement','fourniture','pose','mise','travaux','installation','reparation','ref']);
+      const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      const motsDe=s=>norm(s).split(/[^a-z0-9]+/).filter(w=>w.length>=3&&!STOP.has(w));
+      const kwOf={}; actifs2.forEach(x=>{
+        const set=new Set(motsDe(x.designation));
+        ((liens||{})[x.id]||[]).forEach(li=>motsDe(li.fam).forEach(w=>set.add(w)));
+        kwOf[x.id]=[...set];
+      });
+      const nouveaux=[];
+      (dvsAll||[]).forEach(d=>{
+        const txt=norm((d.nom_original||'')+' '+(d.tags||''));
+        actifs2.forEach(x=>{
+          if(x.erp_id!==d.erp_id) return;
+          if(d.prestataire_id&&x.prestataire_id&&d.prestataire_id===x.prestataire_id) return;
+          const mk=(kwOf[x.id]||[]).filter(w=>txt.includes(w));
+          if(!mk.length) return;
+          if(ctrl.some(cc=>cc.devis_id===d.id&&cc.ouvrage_id===x.id)) return;
+          nouveaux.push({devis_id:d.id,ouvrage_id:x.id,erp_id:d.erp_id,client_id:d.client_id||x.client_id,mots:mk.join(', ')});
+        });
+      });
+      if(nouveaux.length){
+        const {data:ins}=await sb.from('gpa_controles').insert(nouveaux).select('*');
+        ctrl=ctrl.concat(ins||nouveaux);
+      }
+    }
+  }catch(_){ }
+  window._gpaData={o:(o.data||[]).filter(gpaScope), r:r.data||[], l:l.data||[], liens, docs:docsMap, ctrl, devisById};
   gpaRender(c);
 }
 window.viewGpa=viewGpa;
@@ -13551,7 +13587,9 @@ window.gpaRender=function(c){
   const resOuv=D.r.filter(x=>x.statut!=='levee'&&ouv.some(o=>o.id===x.ouvrage_id));
   const retenues=ouv.filter(o=>o.montant_marche&&o.retenue_pct&&!o.retenue_restituee&&gpaJours(o)<30);
   const prestNom={}; (state.prestataires||[]).forEach(p=>prestNom[p.id]=p.nom);
+  const ctrlPend=(D.ctrl||[]).filter(x=>x.statut==='a_controler'&&ouv.some(o=>o.id===x.ouvrage_id));
   const tabs=[['tab','Tableau'],['ouv','Ouvrages ('+ouv.length+')'],['res','Réserves ('+resOuv.length+')'],['rel','Relances ('+D.l.length+')']];
+  if(ctrlPend.length||st.t==='ctrl') tabs.push(['ctrl','À contrôler ('+ctrlPend.length+')']);
   const _ksvg=p=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;opacity:.9">${p}</svg>`;
   const KICO={
     shield:_ksvg('<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>'),
@@ -13613,13 +13651,54 @@ window.gpaRender=function(c){
       </div></div></div>`;
   };
   let body='';
-  if(st.t==='tab'){
+  if(st.t==='ctrl'){
+    const rows=ctrlPend;
+    body=rows.length?rows.map(cc=>{
+      const o0=ouv.find(x=>x.id===cc.ouvrage_id)||{};
+      const dv=(D.devisById||{})[cc.devis_id]||{};
+      const jr=gpaJours(o0);
+      const autres=ouv.filter(x=>x.id!==o0.id&&x.erp_id===cc.erp_id&&gpaJours(x)>=0);
+      return `<div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
+        <div style="background:linear-gradient(90deg,#fffbeb,#fff);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <b style="font-size:13px">⚠ Doute garantie</b>
+          <span style="font-size:11.5px;color:#92400e">mots repérés : <b>${esc(cc.mots||'')}</b></span>
+        </div>
+        <div style="padding:12px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+          <div>
+            <div style="font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--muted-2)">DEVIS</div>
+            <div style="font-weight:700;font-size:12.5px;margin-top:3px;word-break:break-word">${esc((dv.nom_original||'Devis').replace(/\.pdf$/i,''))}</div>
+            <div style="font-size:11.5px;color:var(--muted);margin-top:2px">${esc(prestNom[dv.prestataire_id]||'Prestataire —')}${dv.date_document?' · '+fmtDate(dv.date_document):''}</div>
+            ${dv.fichier_path?`<button class="btn sm" style="margin-top:7px" onclick="previewDoc('${String(dv.fichier_path).replace(/'/g,"\\'")}','${esc(dv.nom_original||'Devis')}','documents')">👁 Visualiser le devis</button>`:''}
+          </div>
+          <div>
+            <div style="font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--muted-2)">GARANTIE SUSPECTÉE</div>
+            <div style="font-weight:700;font-size:12.5px;margin-top:3px">${esc(o0.designation||'—')}</div>
+            <div style="font-size:11.5px;color:var(--muted);margin-top:2px">${esc(prestNom[o0.prestataire_id]||o0.entreprise||'Entreprise —')} · jusqu'au <b>${fmtDate(gpaFin(o0))}</b> (${jr} j)</div>
+            <div style="font-size:11px;color:var(--muted-2);margin-top:2px">${gpaTypeLib(o0)}</div>
+          </div>
+        </div>
+        <div style="border-top:1px solid var(--line);padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn sm primary" onclick="gpaCtrlDecide('${cc.id}','garantie')">✅ Relève de la garantie</button>
+          <button class="btn sm" onclick="gpaCtrlDecide('${cc.id}','hors_garantie')">➖ Hors garantie</button>
+          ${autres.length?`<span style="display:inline-flex;gap:6px;align-items:center;margin-left:auto">
+            <select id="ctrl_mv_${cc.id}" style="font-size:11.5px;padding:5px;border:1px solid var(--line);border-radius:8px;max-width:200px">${autres.map(a=>`<option value="${a.id}">${esc(a.designation)}</option>`).join('')}</select>
+            <button class="btn sm ghost" onclick="gpaCtrlMove('${cc.id}')">🔁 Repositionner</button></span>`:''}
+        </div>
+      </div>`;
+    }).join('')
+    :'<div style="text-align:center;color:var(--muted);padding:30px 0">Aucun devis à contrôler — tout est vérifié.</div>';
+  }
+  else if(st.t==='tab'){
     body=`<div class="gpa-kpis">
       ${kpi('Sous garantie',actifs.length,'ouvrages actifs','shield')}
       ${kpi('Échéance < 60 j',expire60.length,'visites à programmer','clock',true)}
       ${kpi('Réserves ouvertes',resOuv.length,'à faire lever','list',true)}
       ${kpi('Retenues',retenues.length,'à restituer (cas particuliers)','coin')}
     </div>
+    ${ctrlPend.length?`<div class="card" style="padding:12px 14px;margin-bottom:14px;border-left:4px solid #d97706;background:linear-gradient(90deg,#fffbeb,#fff);cursor:pointer" onclick="window._gpaTab.t='ctrl';gpaRender()">
+      <b style="font-size:13px">⚠ ${ctrlPend.length} devis à contrôler</b>
+      <div style="font-size:12px;color:var(--muted);margin-top:3px">Des devis d'entreprises tierces mentionnent des équipements encore sous garantie — vérifiez s'ils relèvent de la reprise gratuite avant d'engager la dépense.</div>
+      <div style="font-size:11.5px;color:#92400e;font-weight:700;margin-top:4px">Ouvrir la rubrique de contrôle ›</div></div>`:''}
     ${expire60.length?`<div class="card" style="padding:12px 14px;margin-bottom:14px;border-left:4px solid #d97706;background:linear-gradient(90deg,#fffbeb,#fff)">
       <b style="font-size:13px">⚠ Visites de fin de garantie à programmer</b>
       <div style="font-size:12px;color:var(--muted);margin-top:2px">Inspecter et notifier les réserves <b>avant l'échéance</b> — après, les reprises sont à la charge de l'exploitant.</div>
@@ -13916,6 +13995,26 @@ window.gpaFormRelance=function(ouvrageId){
       closeModal(); toast('Relance enregistrée ✓','ok'); viewGpa(document.getElementById('content'));
     }catch(e){ toast(e.message,'err'); }
   };
+};
+window.gpaCtrlDecide=async function(id,statut){
+  try{
+    const qui=(window.state&&state.session&&state.session.user&&state.session.user.email)||'utilisateur';
+    const {error}=await sb.from('gpa_controles').update({statut,decide_par:qui,decide_le:new Date().toISOString()}).eq('id',id);
+    if(error) throw error;
+    const cc=(window._gpaData.ctrl||[]).find(x=>x.id===id); if(cc){cc.statut=statut;}
+    toast(statut==='garantie'?'Confirmé : relève de la garantie ✓ — pensez au courrier vers l\u2019entreprise garante':'Classé hors garantie ✓','ok');
+    gpaRender();
+  }catch(e){ toast(e.message,'err'); }
+};
+window.gpaCtrlMove=async function(id){
+  try{
+    const sel=document.getElementById('ctrl_mv_'+id); if(!sel||!sel.value) return;
+    const {error}=await sb.from('gpa_controles').update({ouvrage_id:sel.value}).eq('id',id);
+    if(error) throw error;
+    const cc=(window._gpaData.ctrl||[]).find(x=>x.id===id); if(cc){cc.ouvrage_id=sel.value;}
+    toast('Doute repositionné sur l\u2019autre garantie ✓','ok');
+    gpaRender();
+  }catch(e){ toast(e.message,'err'); }
 };
 window.gpaCourrierPdf=function(ouvrageId,type,lrar){
   try{
