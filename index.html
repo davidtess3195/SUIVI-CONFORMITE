@@ -766,7 +766,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='716'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='717'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -13647,7 +13647,7 @@ window.gpaRender=function(c){
         <div style="flex:1;min-width:170px"><b style="font-size:13px">${esc(o0?.designation||'')}</b>
           <div style="font-size:11.5px;color:var(--muted)">${esc(x.objet||'')} · envoyée le ${fmtDate(x.date_envoi)}${x.lrar_numero?' · LRAR '+esc(x.lrar_numero):''}</div></div>
         ${pillRel(x.type)}
-        <button class="btn sm" onclick="gpaCourrierPdf('${x.ouvrage_id}','${x.type}')">📄 Courrier</button>
+        <button class="btn sm" onclick="gpaCourrierPdf('${x.ouvrage_id}','${x.type}','${esc(x.lrar_numero||'')}')">📄 Courrier</button>
       </div>`;}).join('');
     body=rows||emptyBlock('✉️','Aucune relance','Relance simple → recommandée → mise en demeure, avec courrier PDF.');
   }
@@ -13917,39 +13917,101 @@ window.gpaFormRelance=function(ouvrageId){
     }catch(e){ toast(e.message,'err'); }
   };
 };
-window.gpaCourrierPdf=function(ouvrageId,type){
+window.gpaCourrierPdf=function(ouvrageId,type,lrar){
   try{
     const D=window._gpaData; const o0=D.o.find(x=>x.id===ouvrageId); if(!o0){ toast('Ouvrage introuvable','err'); return; }
-    const rs=D.r.filter(x=>x.ouvrage_id===ouvrageId&&x.statut!=='levee');
-    const prestNom={}; (state.prestataires||[]).forEach(p=>prestNom[p.id]=p.nom);
     const jsPDFCtor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF; if(!jsPDFCtor) throw new Error('PDF indisponible');
+    const er=(state.erps||[]).find(x=>x.id===o0.erp_id)||{};
+    const cl=(state.clients||[]).find(x=>x.id===(o0.client_id||er.client_id))||{};
+    const pr=(state.prestataires||[]).find(x=>x.id===o0.prestataire_id)||{nom:o0.entreprise||'l\u2019entreprise'};
+    const dm=(D.docs||{})[o0.id]||{};
+    const rs=D.r.filter(x=>x.ouvrage_id===ouvrageId&&x.statut!=='levee');
+    if(!lrar&&document.getElementById('gl_lrar')) lrar=document.getElementById('gl_lrar').value.trim();
+    const ctx={type:type||'simple', lrar:lrar||null, delaiJours:type==='mise_en_demeure'?8:15,
+      date:new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}),
+      exp:{nom:er.nom||cl.raison_sociale||'Exploitant', ville:er.ville||cl.ville||'',
+        signataire:'La Direction',
+        adresse:[er.adresse||cl.adresse_siege, [er.code_postal||cl.code_postal, er.ville||cl.ville].filter(Boolean).join(' ')].filter(Boolean)},
+      dest:{nom:pr.nom, adresse:[pr.adresse, [pr.code_postal, pr.ville].filter(Boolean).join(' ')].filter(Boolean)},
+      o:{designation:o0.designation, type_lib:gpaTypeLib(o0),
+        reception:fmtDate(o0.date_reception), echeance:fmtDate(gpaFin(o0))+(o0.date_fin_etendue?' (prolongée)':''),
+        marche:o0.montant_marche?o0.montant_marche.toLocaleString('fr-FR',{minimumFractionDigits:2}):null,
+        devisRef:(dm.devis&&(dm.devis.ref||'joint'))||null,
+        pvRef:dm.pv?String(dm.pv.nom||'').replace(/\.pdf$/i,'').replace(/^PV de réception\s*/i,''):null},
+      reserves:(rs.length?rs:[{num:'—',description:'(aucune réserve ouverte enregistrée à ce jour)',localisation:'',date_notification:null}])
+        .map((r0,i)=>({num:r0.num||('R-'+(i+1)),description:r0.description,localisation:r0.localisation||'—',
+          date:r0.date_notification?fmtDate(r0.date_notification):'—'}))};
     const doc=new jsPDFCtor({unit:'mm',format:'a4'});
-    const titres={simple:'RELANCE — RÉSERVES SOUS GARANTIE',recommandee:'LETTRE RECOMMANDÉE AVEC A.R.',mise_en_demeure:'MISE EN DEMEURE'};
-    const T=GPA_TYPES[o0.type_garantie||'gpa'];
-    let y=20;
-    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(30,64,175);
-    doc.text(titres[type]||titres.simple,105,y,{align:'center'}); y+=10;
-    doc.setFontSize(9.5); doc.setTextColor(15,23,42); doc.setFont('helvetica','normal');
-    doc.text('À l\'attention de : '+(prestNom[o0.prestataire_id]||o0.entreprise||'l\'entreprise'),20,y); y+=6;
-    doc.text('Objet : réserves non levées — '+o0.designation,20,y); y+=6;
-    doc.text('Garantie de '+T[0].toLowerCase()+' ('+T[1]+') — réception du '+fmtDate(o0.date_reception)+', échéance le '+fmtDate(gpaFin(o0)),20,y); y+=10;
-    const corps={
-      simple:'Nous vous rappelons que les réserves listées ci-dessous, notifiées au titre de la garantie, demeurent non levées à ce jour. Nous vous remercions de programmer leur reprise dans les meilleurs délais.',
-      recommandee:'Malgré notre précédente relance, les réserves listées ci-dessous demeurent non levées. Nous vous demandons de procéder à leur reprise sous quinze (15) jours à compter de la réception de la présente.',
-      mise_en_demeure:'Nous vous mettons en demeure de procéder, sous huit (8) jours à compter de la réception de la présente, à la reprise des réserves listées ci-dessous, notifiées au titre de la garantie. À défaut, nous ferons exécuter les travaux par une entreprise tierce, à vos frais et risques, et solliciterons la retenue de garantie.'
-    };
-    const lignes=doc.splitTextToSize(corps[type]||corps.simple,170);
-    doc.text(lignes,20,y); y+=lignes.length*5+6;
-    doc.setFont('helvetica','bold'); doc.text('Réserves concernées :',20,y); y+=6; doc.setFont('helvetica','normal');
-    (rs.length?rs:[{num:'—',description:'(aucune réserve ouverte enregistrée)',localisation:''}]).forEach(r0=>{
-      const t=doc.splitTextToSize('• '+(r0.num?r0.num+' — ':'')+r0.description+(r0.localisation?' ('+r0.localisation+')':''),168);
-      if(y+t.length*5>270){ doc.addPage(); y=20; }
-      doc.text(t,22,y); y+=t.length*5+2;
+    const M=20,W=170; let y=18;
+    const BLEU=[30,64,175],INK=[15,23,42],GRIS=[100,116,139];
+    const T=(t,x,yy,o={})=>{doc.setFont('helvetica',o.b?'bold':o.i?'italic':'normal');doc.setFontSize(o.s||10);doc.setTextColor.apply(doc,o.c||INK);doc.text(String(t),x,yy,o.al?{align:o.al}:undefined);};
+    const wrap=(t,o={})=>{const l=doc.splitTextToSize(String(t),o.w||W);doc.setFont('helvetica',o.b?'bold':'normal');doc.setFontSize(o.s||10);doc.setTextColor.apply(doc,o.c||INK);doc.text(l,o.x||M,y);y+=l.length*(o.lh||4.7);};
+    const TITRES={simple:'RELANCE',recommandee:'LETTRE RECOMMANDÉE AVEC ACCUSÉ DE RÉCEPTION',mise_en_demeure:'MISE EN DEMEURE'};
+    const SOUS={simple:'Réserves non levées — garantie en cours',recommandee:'Réserves non levées — garantie en cours',mise_en_demeure:'Dernier avis avant exécution aux frais et risques'};
+    T(ctx.exp.nom,M,y,{b:1,s:10.5}); y+=4.6;
+    ctx.exp.adresse.forEach(l=>{T(l,M,y,{s:9.5,c:GRIS}); y+=4.2;});
+    let yD=26;
+    T(ctx.dest.nom,120,yD,{b:1,s:10.5}); yD+=4.6;
+    ctx.dest.adresse.forEach(l=>{T(l,120,yD,{s:9.5,c:GRIS}); yD+=4.2;});
+    y=Math.max(y,yD)+6;
+    T((ctx.exp.ville?'Fait à '+ctx.exp.ville+', le ':'Le ')+ctx.date,120,y,{s:9.5}); y+=9;
+    if(ctx.type!=='simple'){ T('Envoi en recommandé avec A.R.'+(ctx.lrar?' — n° '+ctx.lrar:''),120,y,{s:9,i:1,c:GRIS}); y+=7; }
+    doc.setFillColor.apply(doc,BLEU); doc.rect(M,y,W,9,'F');
+    T(TITRES[ctx.type],105,y+6,{b:1,s:11.5,c:[255,255,255],al:'center'}); y+=12;
+    T(SOUS[ctx.type],105,y,{s:9,i:1,c:GRIS,al:'center'}); y+=8;
+    doc.setDrawColor(226,232,240); doc.setFillColor(248,250,252);
+    const refs=[['Ouvrage',ctx.o.designation],['Garantie',ctx.o.type_lib],
+      ['Réception des travaux',ctx.o.reception+(ctx.o.pvRef?'  (PV '+ctx.o.pvRef+')':'')],
+      ['Échéance de la garantie',ctx.o.echeance]];
+    if(ctx.o.devisRef) refs.push(['Marché / devis',ctx.o.devisRef+(ctx.o.marche?' — '+ctx.o.marche+' € HT':'')]);
+    const hR=refs.length*5.4+6;
+    doc.roundedRect(M,y,W,hR,2,2,'FD'); let yy=y+5.5;
+    refs.forEach(kv=>{T(kv[0],M+4,yy,{s:8.5,c:GRIS}); T(kv[1],M+58,yy,{s:9.5,b:1}); yy+=5.4;});
+    y+=hR+7;
+    T('Objet :',M,y,{b:1,s:10}); doc.setFont('helvetica','normal'); doc.text('levée des réserves notifiées au titre de la garantie',M+16,y); y+=8;
+    T('Madame, Monsieur,',M,y); y+=7;
+    const lib=ctx.o.type_lib.toLowerCase();
+    const CORPS={
+      simple:[`Dans le cadre de la garantie de ${lib} attachée à l'ouvrage désigné en référence, les réserves listées ci-dessous, régulièrement notifiées, demeurent non levées à ce jour.`,
+        `Nous vous remercions de bien vouloir programmer leur reprise dans les meilleurs délais et de nous communiquer la date d'intervention envisagée.`],
+      recommandee:[`Malgré notre relance restée sans effet, les réserves listées ci-dessous, régulièrement notifiées au titre de la garantie de ${lib}, demeurent non levées.`,
+        `En conséquence, nous vous demandons de procéder à leur reprise complète dans un délai de ${ctx.delaiJours} jours à compter de la réception de la présente, et de nous confirmer sous huitaine la date de votre intervention.`,
+        `À défaut, nous nous réservons le droit d'engager toute mesure utile à la préservation de nos droits.`],
+      mise_en_demeure:[`Malgré nos relances des précédentes échéances, les réserves listées ci-dessous, régulièrement notifiées au titre de la garantie de ${lib}, demeurent non levées.`,
+        `Par la présente, nous vous METTONS EN DEMEURE de procéder à la reprise complète desdites réserves dans un délai de ${ctx.delaiJours} jours à compter de la réception de ce courrier.`,
+        `À défaut d'exécution dans ce délai, nous ferons procéder aux travaux par une entreprise tierce, à vos frais et risques, conformément aux dispositions applicables, et solliciterons le cas échéant la retenue de garantie ainsi que la réparation de tout préjudice subi.`,
+        `La présente mise en demeure fait courir les intérêts et délais légaux.`]};
+    (CORPS[ctx.type]||CORPS.simple).forEach(par=>{wrap(par); y+=2.2;});
+    y+=2;
+    T('Réserves concernées :',M,y,{b:1,s:10}); y+=5.5;
+    doc.setFillColor.apply(doc,BLEU); doc.rect(M,y,W,6.5,'F');
+    T('N°',M+3,y+4.4,{b:1,s:8.5,c:[255,255,255]});
+    T('Désignation de la réserve',M+18,y+4.4,{b:1,s:8.5,c:[255,255,255]});
+    T('Localisation',M+108,y+4.4,{b:1,s:8.5,c:[255,255,255]});
+    T('Notifiée le',M+146,y+4.4,{b:1,s:8.5,c:[255,255,255]});
+    y+=6.5;
+    ctx.reserves.forEach((r0,i)=>{
+      const lines=doc.splitTextToSize(r0.description,86);
+      const hh=Math.max(6.5,lines.length*4.2+2.6);
+      if(y+hh>262){doc.addPage();y=20;}
+      if(i%2===0){doc.setFillColor(248,250,252);doc.rect(M,y,W,hh,'F');}
+      doc.setDrawColor(226,232,240); doc.rect(M,y,W,hh);
+      T(r0.num,M+3,y+4.4,{s:8.5,b:1});
+      doc.setFont('helvetica','normal');doc.setFontSize(8.8);doc.setTextColor.apply(doc,INK);
+      doc.text(lines,M+18,y+4.2);
+      T(r0.localisation,M+108,y+4.4,{s:8.3,c:GRIS});
+      T(r0.date,M+146,y+4.4,{s:8.3,c:GRIS});
+      y+=hh;
     });
-    y+=8; doc.text('Fait le '+new Date().toLocaleDateString('fr-FR')+'.',20,y); y+=12;
-    doc.text('Pour l\'exploitant,',20,y);
-    doc.setFontSize(7.5); doc.setTextColor(148,163,184);
-    doc.text('SUIVI-CONFORMITÉ · conformite-securite.fr',105,290,{align:'center'});
+    y+=7;
+    if(y>240){doc.addPage();y=22;}
+    wrap('Nous vous rappelons que la levée de chaque réserve devra être constatée contradictoirement et donnera lieu à signature, le cas échéant depuis le lien de levée dématérialisée transmis par nos soins.',{s:9.3,c:GRIS,lh:4.4});
+    y+=3;
+    wrap("Veuillez agréer, Madame, Monsieur, l'expression de nos salutations distinguées."); y+=10;
+    T("Pour l'exploitant,",120,y,{s:10}); y+=5;
+    T(ctx.exp.signataire,120,y,{b:1,s:10});
+    doc.setDrawColor(226,232,240); doc.line(M,285,M+W,285);
+    T('SUIVI-CONFORMITÉ · conformite-securite.fr — courrier généré le '+ctx.date,105,290,{s:7.3,c:[148,163,184],al:'center'});
     doc.save('courrier-'+(type||'relance')+'-'+String(o0.designation).toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40)+'.pdf');
     toast('Courrier généré ✓','ok');
   }catch(e){ toast(e.message||'Génération impossible','err'); }
