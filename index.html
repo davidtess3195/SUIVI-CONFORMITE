@@ -766,7 +766,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='706'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='708'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -13532,20 +13532,18 @@ window.gpaRender=function(c){
     const P_WR='<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>';
     const P_BD='<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/>';
     const grp={}; ((D.liens||{})[o0.id]||[]).forEach(l=>{ (grp[l.fam]=grp[l.fam]||[]); if(l.ref) grp[l.fam].push(l.ref); });
-    const chips=Object.entries(grp).map(([fam,refs])=>`<span style="display:inline-flex;align-items:center;gap:6px;background:#5b8df5;color:#fff;border-radius:8px;padding:3px 9px;font-size:10.5px;font-weight:700;box-shadow:0 1px 4px rgba(15,23,42,.12)">${_sq(P_SH,16,4)}${esc(fam)} · ${refs.length?'réf '+refs.map(esc).join(', '):'toute la famille'}</span>`).join('');
+    const chips=Object.entries(grp).map(([fam,refs])=>`<span style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#5b8df5;color:#fff;border-radius:8px;padding:6px 11px;font-size:11px;line-height:1;box-shadow:0 1px 4px rgba(15,23,42,.12)"><b style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(fam)}</b><span style="font-weight:600;${refs.length?'opacity:.95':'opacity:.85;font-style:italic'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${refs.length?'réf '+refs.map(esc).join(', '):'toute la famille'}</span></span>`).join('');
     return `<div class="card" style="padding:0;overflow:hidden;cursor:pointer" onclick="gpaFormOuvrage('${o0.id}')">
       <div style="background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;padding:12px 14px">
-      <div style="display:flex;gap:11px;align-items:flex-start">
-        ${_sq(P_SH,42,11)}
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;gap:8px;align-items:center"><b style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cl?(cl.raison_sociale||cl.nom):(o0.designation))}</b>
-            <span style="margin-left:auto;border:1.5px solid rgba(255,255,255,.85);color:#fff;border-radius:99px;padding:1px 9px;font-size:10px;font-weight:800;white-space:nowrap">${esc(gpaTypeLib(o0).toUpperCase())}</span></div>
-          <div style="display:flex;align-items:center;gap:6px;font-size:11.5px;opacity:.95;margin-top:5px;min-width:0">
-            ${_sq(P_WR,18,5)}<span>${esc(prestNom[o0.prestataire_id]||o0.entreprise||'—')}</span>
-            <span style="margin-left:6px"></span>${_sq(P_BD,18,5)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(er?.nom||'')}</span></div>
-          ${chips?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${chips}</div>`:''}
-        </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        ${_sq(P_SH,40,11)}
+        <b style="flex:1 1 120px;min-width:0;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cl?(cl.raison_sociale||cl.nom):(o0.designation))}</b>
       </div>
+      <div style="display:grid;grid-template-columns:18px minmax(0,1fr);gap:5px 8px;align-items:center;font-size:11.5px;opacity:.95;margin-top:9px">
+        ${_sq(P_WR,18,5)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(prestNom[o0.prestataire_id]||o0.entreprise||'—')}</span>
+        ${_sq(P_BD,18,5)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(er?.nom||'')}</span>
+      </div>
+      ${chips?`<div style="display:flex;flex-direction:column;gap:5px;margin-top:9px">${chips}</div>`:''}
       </div>
       <div style="padding:10px 14px 12px">
       <div>${gpaFrise(o0)}</div>
