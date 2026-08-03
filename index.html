@@ -767,7 +767,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='730'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='731'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -17601,10 +17601,47 @@ window.toggleAcc=toggleAcc;
 
 /* ----- Spécialités : helpers (référentiels définis plus haut) ----- */
 function prestTypeChip(t,checked){
+  const custom=!(window.PREST_TYPES_PREST||[]).includes(t)&&!(window.PREST_TYPES_BDC||[]).includes(t);
+  const b64=btoa(unescape(encodeURIComponent(t)));
   return `<label style="display:inline-flex;align-items:center;gap:6px;background:${checked?'#dbeafe':'var(--surface-2)'};border:1.5px solid ${checked?'#93c5fd':'var(--line)'};border-radius:8px;padding:6px 11px;cursor:pointer;font-size:13px;transition:.12s;font-weight:${checked?'600':'400'}">
-    <input type="checkbox" name="f_type_cb" value="${esc(t)}"${checked?' checked':''} style="accent-color:var(--primary);width:15px;height:15px" onchange="stylePrestChip(this)"> ${esc(t)}
+    <input type="checkbox" name="f_type_cb" value="${esc(t)}"${checked?' checked':''} style="accent-color:var(--primary);width:15px;height:15px" onchange="stylePrestChip(this)"> ${esc(t)}${custom?`
+    <button type="button" title="Renommer cette spécialité (partout)" onclick="event.preventDefault();event.stopPropagation();prestSpecEdit('${b64}')" style="border:none;background:none;cursor:pointer;color:var(--muted-2);font-size:12px;padding:0 1px">✎</button>
+    <button type="button" title="Supprimer cette spécialité (partout)" onclick="event.preventDefault();event.stopPropagation();prestSpecDel('${b64}')" style="border:none;background:none;cursor:pointer;color:#b91c1c;font-size:13px;padding:0 1px">✕</button>`:''}
   </label>`;
 }
+window._specB64=s=>decodeURIComponent(escape(atob(s)));
+async function _specRewrite(oldT,newT){
+  const {data,error}=await sb.from('prestataires').select('id,type'); if(error) throw error;
+  let n=0;
+  for(const p of (data||[])){
+    const parts=String(p.type||'').split(/[,;]+/).map(s=>s.trim()).filter(Boolean);
+    if(!parts.some(x=>x.toLowerCase()===oldT.toLowerCase())) continue;
+    let np=parts.filter(x=>x.toLowerCase()!==oldT.toLowerCase());
+    if(newT&&!np.some(x=>x.toLowerCase()===newT.toLowerCase())) np.push(newT);
+    const {error:e2}=await sb.from('prestataires').update({type:np.join(', ')||null}).eq('id',p.id);
+    if(e2) throw e2; n++;
+  }
+  return n;
+}
+window.prestSpecEdit=async function(b64){
+  const t=_specB64(b64);
+  const nv=prompt('Nouveau nom pour la spécialité « '+t+' » (appliqué à tous les prestataires) :',t);
+  if(!nv||nv.trim()===''||nv.trim()===t) return;
+  try{ const n=await _specRewrite(t,nv.trim());
+    toast('Spécialité renommée sur '+n+' prestataire(s) ✓','ok');
+    const lb=[...document.querySelectorAll('input[name=f_type_cb]')].find(x=>x.value===t);
+    if(lb) formPrest(window._prestEditing||undefined);
+  }catch(e){ toast(e.message,'err'); }
+};
+window.prestSpecDel=async function(b64){
+  const t=_specB64(b64);
+  if(!confirm('Supprimer la spécialité « '+t+' » de la liste et de tous les prestataires qui la portent ?')) return;
+  try{ const n=await _specRewrite(t,null);
+    toast('Spécialité supprimée ('+n+' prestataire(s) mis à jour) ✓','ok');
+    const cb=[...document.querySelectorAll('input[name=f_type_cb]')].find(x=>x.value===t);
+    if(cb) cb.closest('label').remove();
+  }catch(e){ toast(e.message,'err'); }
+};
 function stylePrestChip(cb){
   const l=cb.closest('label'); if(!l) return;
   const on=cb.checked;
