@@ -767,7 +767,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='723'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='725'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -1177,7 +1177,7 @@ async function boot(){
     });
     return;
   }
-  if(hashNow.startsWith('/fiche-prestataire/')){
+  if(hashNow.startsWith('/fiche-prestataire/')||hashNow.startsWith('/p/')){
     loadCfg(); initSb();
     renderFichePrestPublic(decodeURIComponent(hashNow.split('/')[2]||''));
     return;
@@ -16371,8 +16371,12 @@ async function renderFichePrestPublic(token){
 window.renderFichePrestPublic=renderFichePrestPublic;
 
 /* ═══ INVITATIONS (unitaire + masse) + FILE DE VALIDATION ═══ */
+window._pinvToken=function(){
+  const a='abcdefghijkmnpqrstuvwxyz23456789';
+  return Array.from(crypto.getRandomValues(new Uint8Array(10))).map(b=>a[b%32]).join('');
+};
 window._pinvMail=function(inv,erpNom){
-  const lien='https://conformite-securite.fr/#/fiche-prestataire/'+inv.token;
+  const lien='https://conformite-securite.fr/#/p/'+inv.token;
   return {sujet:'['+erpNom+'] Votre référencement prestataire — fiche à compléter (3 min)',
     corps:'Bonjour,\n\nL\u2019établissement '+erpNom+' vous référence comme prestataire dans son registre de sécurité.\n\nMerci de compléter votre fiche en cliquant sur votre lien personnel :\n'+lien+'\n\nComptez environ 3 minutes. Préparez simplement votre attestation d\u2019assurance et vos CGV en PDF. Si vous êtes déjà référencé, ce lien met simplement vos informations à jour.\n\nUn oubli ? Vous pourrez revenir compléter plus tard via le même lien.\n\nCordialement,\n'+erpNom+'\nLien personnel et sécurisé, valable 30 jours.', lien};
 };
@@ -16381,11 +16385,12 @@ window.pinvEnvoyerMail=async function(id){
     const {data:inv}=await sb.from('prest_invitations').select('*').eq('id',id).maybeSingle();
     const er=(state.erps||[]).find(e=>e.id===inv.erp_id)||{};
     const m=_pinvMail(inv,er.nom||'Votre client');
-    const {error}=await sb.from('emails_programmes').insert({type:'prest_invitation',destinataires:inv.email,
-      sujet:m.sujet,corps_html:m.corps.split('\n').map(l=>esc(l)).join('<br>'),send_at:new Date().toISOString(),statut:'a_envoyer'});
-    if(error) throw error;
+    const html=m.corps.split('\n').map(l=>l.includes('#/fiche-prestataire/')?'<p style="margin:14px 0"><a href="'+l.trim()+'" style="background:#1e40af;color:#fff;padding:11px 20px;border-radius:9px;text-decoration:none;font-weight:700">👉 Compléter ma fiche</a></p>':esc(l)).join('<br>');
+    const {data,error}=await sb.functions.invoke('send-client-email',{body:{to:inv.email,subject:m.sujet,html}});
+    if(error){ let msg=error.message||'Erreur'; try{ const j=await error.context.json(); if(j&&j.error) msg=j.error; }catch(_){} throw new Error(msg); }
+    if(data&&data.error) throw new Error(data.error);
     await sb.from('prest_invitations').update({statut:'envoyee',mail_envoye_le:new Date().toISOString()}).eq('id',id);
-    toast('E-mail d\u2019invitation programmé ✓','ok');
+    toast('E-mail d\u2019invitation envoyé ✓','ok');
   }catch(e){ toast(e.message,'err'); }
 };
 window.pinvInviteModal=function(){
@@ -16447,7 +16452,7 @@ window.pinvCreate=async function(){
   if(!ent||!/@/.test(mail)){ toast('Entreprise et e-mail valide requis','err'); return; }
   try{
     const er=(state.erps||[]).find(e=>e.id===erpId)||{};
-    const {data:inv,error}=await sb.from('prest_invitations').insert({client_id:er.client_id,erp_id:erpId,entreprise:ent,contact_nom:nom||null,email:mail}).select('*').maybeSingle();
+    const {data:inv,error}=await sb.from('prest_invitations').insert({client_id:er.client_id,erp_id:erpId,entreprise:ent,contact_nom:nom||null,email:mail,token:_pinvToken()}).select('*').maybeSingle();
     if(error) throw error;
     const m=_pinvMail(inv,er.nom||'');
     document.getElementById('pi_out').innerHTML=`<div style="background:var(--surface-2);border-radius:9px;padding:8px 10px">
@@ -16474,7 +16479,7 @@ window.pinvBulkSend=async function(){
   let n=0;
   for(const r of rows){
     try{
-      const {data:inv,error}=await sb.from('prest_invitations').insert({client_id:er.client_id,erp_id:erpId,entreprise:r.entreprise,contact_nom:r.contact||null,email:r.email}).select('*').maybeSingle();
+      const {data:inv,error}=await sb.from('prest_invitations').insert({client_id:er.client_id,erp_id:erpId,entreprise:r.entreprise,contact_nom:r.contact||null,email:r.email,token:_pinvToken()}).select('*').maybeSingle();
       if(error) throw error;
       await pinvEnvoyerMail(inv.id); n++;
     }catch(e){ toast(r.entreprise+' : '+e.message,'err'); }
