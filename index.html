@@ -767,7 +767,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='733'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='734'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -17621,7 +17621,7 @@ window.toggleAcc=toggleAcc;
 
 /* ----- Spécialités : helpers (référentiels définis plus haut) ----- */
 function prestTypeChip(t,checked){
-  const custom=!(window.PREST_TYPES_PREST||[]).includes(t)&&!(window.PREST_TYPES_BDC||[]).includes(t);
+  const custom=true; // ✎/✕ disponibles sur toutes les spécialités (demande du 03/08)
   const b64=btoa(unescape(encodeURIComponent(t)));
   return `<label style="display:inline-flex;align-items:center;gap:6px;background:${checked?'#dbeafe':'var(--surface-2)'};border:1.5px solid ${checked?'#93c5fd':'var(--line)'};border-radius:8px;padding:6px 11px;cursor:pointer;font-size:13px;transition:.12s;font-weight:${checked?'600':'400'}">
     <input type="checkbox" name="f_type_cb" value="${esc(t)}"${checked?' checked':''} style="accent-color:var(--primary);width:15px;height:15px" onchange="stylePrestChip(this)"> ${esc(t)}${custom?`
