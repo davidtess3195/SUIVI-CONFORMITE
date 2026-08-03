@@ -767,7 +767,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='734'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='735'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -7230,7 +7230,7 @@ function afficherPhotos(rows){
           : (imgUrl
               ? (isVid
                   ? `<video src="${imgUrl}" controls preload="metadata" style="width:100%;height:190px;object-fit:cover;display:block;background:#000"></video>`
-                  : `<img data-src="${imgUrl}" class="lazy-photo" onclick="phDiapo(\'${pid}\')" style="width:100%;height:190px;object-fit:cover;display:block;cursor:zoom-in">`)
+                  : `<img data-src="${imgUrl}" class="lazy-photo" onclick="phDiapo('${pid}')" style="width:100%;height:190px;object-fit:cover;display:block;cursor:zoom-in">`)
               : `<div style="height:140px;display:grid;place-items:center;color:var(--muted-2)">${I.photo}</div>`)}
         ${isNote?`<span style="position:absolute;top:6px;left:6px;background:var(--primary);color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;z-index:2">📝 Note</span>`:(isVid?`<span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,.65);color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;z-index:2">🎬 Vidéo</span>`:'')}
         ${(isVid||isNote)?'':`<label title="Sélectionner pour le rapport" style="position:absolute;top:6px;right:6px;display:grid;place-items:center;width:26px;height:26px;border-radius:7px;background:rgba(255,255,255,.92);box-shadow:0 1px 4px rgba(0,0,0,.18);cursor:pointer;z-index:2">
