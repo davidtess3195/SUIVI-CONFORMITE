@@ -348,7 +348,7 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .modal-head .x{margin-left:auto;width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--muted)}
 .modal-head .x:hover{background:var(--surface-2)}
 .modal-body{padding:18px 22px 22px;overflow:auto;flex:1 1 auto;min-height:0}
-.modal-foot{display:flex;gap:10px;justify-content:flex-end;padding:14px 22px;flex:0 0 auto;border-top:1px solid var(--line)}
+.modal-foot{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;padding:14px 22px;flex:0 0 auto;border-top:1px solid var(--line)}
 
 /* Forms */
 .fld{margin-bottom:14px}
@@ -767,7 +767,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='729'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='730'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -7210,7 +7210,7 @@ function afficherPhotos(rows){
           : (imgUrl
               ? (isVid
                   ? `<video src="${imgUrl}" controls preload="metadata" style="width:100%;height:190px;object-fit:cover;display:block;background:#000"></video>`
-                  : `<img data-src="${imgUrl}" class="lazy-photo" style="width:100%;height:190px;object-fit:cover;display:block;cursor:zoom-in">`)
+                  : `<img data-src="${imgUrl}" class="lazy-photo" onclick="phDiapo(\'${pid}\')" style="width:100%;height:190px;object-fit:cover;display:block;cursor:zoom-in">`)
               : `<div style="height:140px;display:grid;place-items:center;color:var(--muted-2)">${I.photo}</div>`)}
         ${isNote?`<span style="position:absolute;top:6px;left:6px;background:var(--primary);color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;z-index:2">📝 Note</span>`:(isVid?`<span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,.65);color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;z-index:2">🎬 Vidéo</span>`:'')}
         ${(isVid||isNote)?'':`<label title="Sélectionner pour le rapport" style="position:absolute;top:6px;right:6px;display:grid;place-items:center;width:26px;height:26px;border-radius:7px;background:rgba(255,255,255,.92);box-shadow:0 1px 4px rgba(0,0,0,.18);cursor:pointer;z-index:2">
@@ -8236,10 +8236,40 @@ function dzDrop(e){
   modalAjoutPhoto(raw[0]);
 }
 window.dzDrop=dzDrop;
+window.phDiapo=async function(pid){
+  const rows=(window._photosCache||[]).filter(p=>p.photo_path&&!isVideoPath(p.photo_path)&&p.type!=='note');
+  let idx=rows.findIndex(p=>String(p.id)===String(pid)); if(idx<0) idx=0;
+  const ov=document.createElement('div'); ov.id='phdiapo';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(8,12,20,.94);z-index:100002;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:18px;touch-action:pan-y';
+  ov.innerHTML='<button id="pd_x" style="position:absolute;top:12px;right:14px;width:42px;height:42px;border:none;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;font-size:19px;cursor:pointer">\u2715</button>'
+    +'<button id="pd_prev" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);width:44px;height:64px;border:none;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;font-size:24px;cursor:pointer">\u25C0</button>'
+    +'<button id="pd_next" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);width:44px;height:64px;border:none;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;font-size:24px;cursor:pointer">\u25B6</button>'
+    +'<img id="pd_img" style="max-width:92vw;max-height:78vh;object-fit:contain;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.5)">'
+    +'<div id="pd_leg" style="color:#e2e8f0;font-size:12.5px;margin-top:12px;text-align:center;max-width:640px"></div>';
+  document.body.appendChild(ov);
+  async function show(i){
+    idx=(i+rows.length)%rows.length; const p=rows[idx];
+    let url='';
+    try{ const {data}=await sb.storage.from('urgent-photos').createSignedUrl(p.photo_path,3600); url=(data&&data.signedUrl)||''; }catch(_){ }
+    document.getElementById('pd_img').src=url;
+    document.getElementById('pd_leg').innerHTML=esc(p.commentaire||'')+(p.localisation?' \u00b7 '+esc(p.localisation):'')+' <span style="color:#94a3b8">('+(idx+1)+'/'+rows.length+')</span>';
+  }
+  const close=()=>{ document.removeEventListener('keydown',onKey); ov.remove(); };
+  const onKey=e=>{ if(e.key==='Escape')close(); if(e.key==='ArrowLeft')show(idx-1); if(e.key==='ArrowRight')show(idx+1); };
+  document.addEventListener('keydown',onKey);
+  document.getElementById('pd_x').onclick=close;
+  ov.onclick=e=>{ if(e.target===ov) close(); };
+  document.getElementById('pd_prev').onclick=()=>show(idx-1);
+  document.getElementById('pd_next').onclick=()=>show(idx+1);
+  let tx=null;
+  ov.addEventListener('touchstart',e=>{tx=e.touches[0].clientX},{passive:true});
+  ov.addEventListener('touchend',e=>{ if(tx==null)return; const d=e.changedTouches[0].clientX-tx; if(Math.abs(d)>45) show(idx+(d<0?1:-1)); tx=null; },{passive:true});
+  show(idx);
+};
 function dzFiles(files){
   if(!files[0]) return;
   if(isVideoFile(files[0])){ modalAjoutVideo(files[0]); return; }
-  modalAjoutPhoto(files[0]);
+  modalAjoutPhoto([...files].filter(f=>!isVideoFile(f)));
 }
 window.dzFiles=dzFiles;
 function isVideoFile(f){ return (f && (f.type||'').startsWith('video/')) || /\.(mp4|mov|m4v|webm|avi|mkv|ogv|ogg|3gp|qt)$/i.test((f&&f.name)||''); }
@@ -8247,13 +8277,14 @@ function isVideoPath(p){ return /\.(mp4|mov|m4v|webm|avi|mkv|ogv|ogg|3gp|qt)$/i.
 window.isVideoFile=isVideoFile; window.isVideoPath=isVideoPath;
 
 function modalAjoutPhoto(file){
+  if(Array.isArray(file)){ const arr=file; file=arr[0]; setTimeout(()=>{ const s=document.getElementById('ap_save'); if(s) s._files=arr; },0); }
   const erpOpts=state.erps.map(e=>`<option value="${e.id}"${state.currentErp===e.id?' selected':''}>${esc(e.nom)}</option>`).join('');
   openModal(`<div class="modal-head"><h2>Ajouter une photo</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
   <div class="modal-body">
     ${file?`<div style="background:#000;border-radius:10px;overflow:hidden;margin-bottom:14px;max-height:220px;display:flex;align-items:center;justify-content:center">
       <img id="ap_preview" style="max-width:100%;max-height:220px;object-fit:contain;display:block"></div>`:''}
     <div class="fld"><label>Photo<span class="req">*</span></label>
-      <input id="ap_file" type="file" accept="image/*,.heic,.heif" onchange="apPreview(this)"${file?' style="display:none"':''}></div>
+      <input id="ap_file" type="file" accept="image/*,.heic,.heif" multiple onchange="apPreview(this)"${file?' style="display:none"':''}></div>
     <div class="fld"><label>ERP<span class="req">*</span></label>
       <select id="ap_erp"><option value="">— choisir —</option>${erpOpts}</select></div>
     <div class="fld"><label>Commentaire<span class="req">*</span></label>
@@ -8285,34 +8316,39 @@ function modalAjoutPhoto(file){
   $('#ap_save').onclick=async()=>{
     const erp=$('#ap_erp').value, com=$('#ap_com').value.trim();
     const fileEl=$('#ap_file');
-    const f = fileEl?.files[0] || $('#ap_save')._file;
+    let fList=[...(fileEl?.files||[])];
+    if(!fList.length&&$('#ap_save')._files) fList=$('#ap_save')._files.slice();
+    if(!fList.length&&$('#ap_save')._file) fList.push($('#ap_save')._file);
+    const f=fList[0];
     if(!erp){toast('Choisis un ERP','err');return;}
     if(!com){toast('Ajoute un commentaire','err');return;}
     if(!f){toast('Sélectionne une photo','err');return;}
     const btn=$('#ap_save'); btn.disabled=true;
     btn.innerHTML='<div class="spin" style="width:18px;height:18px;border-width:2px;border-color:#fff;border-top-color:transparent;display:inline-block"></div> Envoi…';
     try{
-      // Conversion HEIC automatique
-      const fConv = await convertIfHeic(f);
-      if(!fConv){ toast('Photo HEIC non convertible — convertissez-la en JPEG depuis votre iPhone','err'); btn.disabled=false; btn.innerHTML='Enregistrer'; return; }
-      // Compression (plus légère, reste nette)
-      const sizeBefore=fConv.size;
-      const fFinal = await compressImage(fConv);
-      if(fFinal.size < sizeBefore){ const g=Math.round((1-fFinal.size/sizeBefore)*100); toast(`Photo compressée −${g}% (${Math.round(fFinal.size/1024)} Ko)`,'ok'); }
-      const ext  = (fFinal.type==='image/jpeg') ? 'jpg' : (fFinal.name.split('.').pop().toLowerCase()||'jpg');
-      const path = `${erp}/${Date.now()}.${ext}`;
-      const {error:upErr}=await sb.storage.from('urgent-photos').upload(path, fFinal, {contentType: fFinal.type||'image/jpeg'});
-      if(upErr) throw upErr;
-      const {error:insErr}=await sb.from('photos_urgentes').insert({
-        erp_id:erp, photo_path:path, commentaire:com,
-        mission:$('#ap_mis').value||null, niveau_urgence:'urgent',
-        localisation:$('#ap_loc').value.trim()||null, statut:'recue',
-        conversation_id:$('#ap_conv')?.value||null
-      });
-      if(insErr) throw insErr;
+      let nOk=0;
+      for(let i=0;i<fList.length;i++){
+        const fi=fList[i];
+        const fConv = await convertIfHeic(fi);
+        if(!fConv){ toast((fi.name||'Photo')+' : HEIC non convertible','err'); continue; }
+        const fFinal = await compressImage(fConv);
+        const ext  = (fFinal.type==='image/jpeg') ? 'jpg' : (fFinal.name.split('.').pop().toLowerCase()||'jpg');
+        const path = `${erp}/${Date.now()}_${i}.${ext}`;
+        const {error:upErr}=await sb.storage.from('urgent-photos').upload(path, fFinal, {contentType: fFinal.type||'image/jpeg'});
+        if(upErr) throw upErr;
+        const {error:insErr}=await sb.from('photos_urgentes').insert({
+          erp_id:erp, photo_path:path, commentaire:com,
+          mission:$('#ap_mis').value||null, niveau_urgence:'urgent',
+          localisation:$('#ap_loc').value.trim()||null, statut:'recue',
+          conversation_id:$('#ap_conv')?.value||null
+        });
+        if(insErr) throw insErr;
+        nOk++;
+      }
+      if(!nOk) throw new Error('Aucune photo enregistrée');
       _modalDirty=false;
       closeModal();
-      toast('Photo enregistrée ✓','ok');
+      toast(nOk>1?nOk+' photos enregistrées ✓':'Photo enregistrée ✓','ok');
       // Recharger la galerie
       await chargerEtAfficherPhotos();
     }catch(e){
