@@ -767,7 +767,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='725'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='729'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -6998,6 +6998,7 @@ const PREST_TYPES_PREST=[
   // Services & formation
   'Dératisation / désinsectisation','Formation sécurité incendie','Formation sécurité'
 ];
+window.PREST_TYPES_PREST=PREST_TYPES_PREST;
 // Thématiques photos = spécialités prestataires, sauf les formations
 const MISSIONS_LIST = [...PREST_TYPES_PREST.filter(m=>!['Formation sécurité incendie','Formation sécurité'].includes(m)), 'Mise hors tension', 'Électricité', 'Divers', 'Autre'];
 
@@ -16289,10 +16290,10 @@ async function renderFichePrestPublic(token){
   P.innerHTML=`
   <div style="background:linear-gradient(135deg,#2563eb,#1e40af);border-radius:16px;color:#fff;padding:16px;margin-bottom:14px">
     <div style="display:flex;gap:10px;align-items:center"><span style="width:40px;height:40px;border-radius:11px;background:#fff;display:grid;place-items:center;color:#1e40af;font-weight:900;font-size:11px">SC</span>
-    <div><b style="font-size:14.5px">Bienvenue chez votre client</b><div style="font-size:11.5px;opacity:.9">${_pubEsc(inv.erp_nom||'')} vous référence comme prestataire</div></div></div>
+    <div><b style="font-size:14.5px">Bienvenue chez votre client</b><div style="font-size:11.5px;opacity:.9">${_pubEsc((inv.listes||{}).erp_nom||inv.erp_nom||'Votre établissement')} vous référence comme prestataire</div></div></div>
     <div style="margin-top:10px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:10px;padding:8px 11px;font-size:11.5px">
     <b>Nouveau prestataire ?</b> Cette fiche sert à vous référencer. <b>Déjà référencé ?</b> Elle met vos informations à jour.<br>
-    <b>7 étapes · ~3 minutes.</b> Préparez votre <b>attestation d'assurance</b> et vos <b>CGV</b> en PDF.</div>
+    <b>7 étapes · ~3 minutes.</b> Préparez votre <b>attestation d'assurance</b>, vos <b>CGV</b> et votre <b>contrat</b> en PDF.</div>
     <div style="font-size:10px;opacity:.85;margin-top:6px"><span style="color:#fca5a5">*</span> champs obligatoires — le reste peut être complété plus tard via ce même lien.</div>
   </div>
   ${sect(1,'Votre entreprise',aide("Ces informations figureront sur les documents du registre. SIREN et TVA figurent sur vos factures.")
@@ -16304,7 +16305,12 @@ async function renderFichePrestPublic(token){
     +fld('e_astr','N° d\u2019astreinte / urgence',pl.tel_astreinte,'Si différent'))}
   ${sect(3,'Vos spécialités <span style="font-weight:400;color:#94a3b8;font-size:10.5px">(plusieurs choix)</span>',
     aide("Touchez pour sélectionner — c'est ce qui permet de vous solliciter sur les bons équipements.")
-    +'<div id="sp_chips" style="display:flex;gap:6px;flex-wrap:wrap">'+PRESTA_FAMILLES.map(f=>{const on=(pl.specialites||[]).includes(f);return `<span class="spc" data-f="${_pubEsc(f)}" style="cursor:pointer;border-radius:99px;padding:5px 12px;font-size:11.5px;font-weight:${on?700:600};${on?'background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff':'border:1px solid #e2e8f0;background:#fff;color:#334155'}">${on?'✓ ':''}${_pubEsc(f)}</span>`;}).join('')+'</div>')}
+    +'<div id="sp_chips" style="display:flex;gap:6px;flex-wrap:wrap">'+(()=>{let base=(window.PREST_TYPES_PREST&&PREST_TYPES_PREST.length?PREST_TYPES_PREST:PRESTA_FAMILLES);
+    const ref=((inv.listes||{}).specialites||[]).filter(s=>!base.some(b=>b.toLowerCase()===s.toLowerCase()));
+    base=base.concat(ref);
+    const perso=(pl.specialites||[]).filter(s=>!base.includes(s));
+    return base.concat(perso).map(f=>{const on=(pl.specialites||[]).includes(f);return `<span class="spc" data-f="${_pubEsc(f)}" style="cursor:pointer;border-radius:99px;padding:5px 12px;font-size:11.5px;font-weight:${on?700:600};${on?'background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff':'border:1px solid #e2e8f0;background:#fff;color:#334155'}">${on?'✓ ':''}${_pubEsc(f)}</span>`;}).join('');})()+'</div>'
+    +'<div style="display:flex;gap:7px;margin-top:9px"><input id="sp_autre" placeholder="Autre spécialité non listée…" style="flex:1;border:1px solid #e2e8f0;border-radius:9px;padding:8px 11px;font-size:12.5px"><button id="sp_add" style="border:1px solid #bfdbfe;background:#eff6ff;color:#1e40af;border-radius:9px;padding:8px 13px;font-size:12px;font-weight:700;cursor:pointer">＋ Ajouter</button></div>')}
   ${sect(4,'Contrat & visites',
     `<label style="display:flex;gap:9px;align-items:flex-start;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 12px;margin-bottom:4px;font-size:12.5px;font-weight:700;color:#1e40af"><input type="checkbox" id="ct_sd" ${ct.sur_devis?'checked':''} style="margin-top:2px;width:16px;height:16px"> Nous intervenons <u>exclusivement sur devis</u></label>
     <div style="font-size:10px;color:#94a3b8;margin:2px 0 9px 2px">Cochez si vous n'avez pas de contrat récurrent — les champs ci-dessous deviennent facultatifs.</div>
@@ -16330,9 +16336,20 @@ async function renderFichePrestPublic(token){
   <div style="font-size:10px;color:#94a3b8;margin-bottom:10px">Vos coordonnées sont utilisées uniquement pour la gestion de la sécurité de l'établissement qui vous référence.</div>
   <button id="pub_go" style="width:100%;border:none;background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff;border-radius:12px;padding:13px;font-size:14px;font-weight:800;cursor:pointer">Envoyer ma fiche au registre</button>
   <div style="text-align:center;font-size:10.5px;color:#94a3b8;margin:8px 0 20px">Un oubli ? Complétez plus tard via le même lien.<br>Lien personnel et sécurisé · données vérifiées avant publication</div>`;
-  document.querySelectorAll('.spc').forEach(x=>x.onclick=()=>{const on=x.style.color==='rgb(255, 255, 255)';
+  const _spWire=x=>{x.onclick=()=>{const on=x.style.color==='rgb(255, 255, 255)';
     if(on){x.style.cssText='cursor:pointer;border-radius:99px;padding:5px 12px;font-size:11.5px;font-weight:600;border:1px solid #e2e8f0;background:#fff;color:#334155';x.textContent=x.dataset.f;}
-    else{x.style.cssText='cursor:pointer;border-radius:99px;padding:5px 12px;font-size:11.5px;font-weight:700;background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff';x.textContent='✓ '+x.dataset.f;}});
+    else{x.style.cssText='cursor:pointer;border-radius:99px;padding:5px 12px;font-size:11.5px;font-weight:700;background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff';x.textContent='✓ '+x.dataset.f;}};};
+  document.querySelectorAll('.spc').forEach(_spWire);
+  const spAdd=document.getElementById('sp_add');
+  if(spAdd) spAdd.onclick=()=>{
+    const inp=document.getElementById('sp_autre'); const v=inp.value.trim(); if(!v) return;
+    const exist=[...document.querySelectorAll('.spc')].find(x=>x.dataset.f.toLowerCase()===v.toLowerCase());
+    if(exist){ if(!exist.textContent.startsWith('✓')) exist.click(); inp.value=''; return; }
+    const s=document.createElement('span'); s.className='spc'; s.dataset.f=v;
+    s.style.cssText='cursor:pointer;border-radius:99px;padding:5px 12px;font-size:11.5px;font-weight:700;background:linear-gradient(135deg,#2563eb,#1e40af);color:#fff';
+    s.textContent='✓ '+v; _spWire(s);
+    document.getElementById('sp_chips').appendChild(s); inp.value='';
+  };
   document.getElementById('pub_go').onclick=async()=>{
     const v=id=>{const e=document.getElementById(id);return e?e.value.trim():'';};
     if(!v('e_rs')||!v('e_adr')){ toast('Raison sociale et adresse requises','err'); return; }
@@ -16371,20 +16388,35 @@ async function renderFichePrestPublic(token){
 window.renderFichePrestPublic=renderFichePrestPublic;
 
 /* ═══ INVITATIONS (unitaire + masse) + FILE DE VALIDATION ═══ */
+window._pinvErpNom=function(er){
+  const n=String((er&&er.nom)||'');
+  const p=n.replace(/^ERP[\s-]*\d*\s*[-–—]*\s*/i,'').trim();
+  return p||n;
+};
+window._pinvListes=async function(){
+  try{
+    const {data}=await sb.from('prestataires').select('type');
+    const base=window.PREST_TYPES_PREST||[];
+    const perso=new Set();
+    (data||[]).forEach(p=>String(p.type||'').split(/[,;]+/).map(s=>s.trim()).filter(Boolean)
+      .forEach(t=>{ if(!base.some(b=>b.toLowerCase()===t.toLowerCase())) perso.add(t); }));
+    return {specialites:[...perso].sort()};
+  }catch(_){ return {specialites:[]}; }
+};
 window._pinvToken=function(){
   const a='abcdefghijkmnpqrstuvwxyz23456789';
   return Array.from(crypto.getRandomValues(new Uint8Array(10))).map(b=>a[b%32]).join('');
 };
 window._pinvMail=function(inv,erpNom){
   const lien='https://conformite-securite.fr/#/p/'+inv.token;
-  return {sujet:'['+erpNom+'] Votre référencement prestataire — fiche à compléter (3 min)',
-    corps:'Bonjour,\n\nL\u2019établissement '+erpNom+' vous référence comme prestataire dans son registre de sécurité.\n\nMerci de compléter votre fiche en cliquant sur votre lien personnel :\n'+lien+'\n\nComptez environ 3 minutes. Préparez simplement votre attestation d\u2019assurance et vos CGV en PDF. Si vous êtes déjà référencé, ce lien met simplement vos informations à jour.\n\nUn oubli ? Vous pourrez revenir compléter plus tard via le même lien.\n\nCordialement,\n'+erpNom+'\nLien personnel et sécurisé, valable 30 jours.', lien};
+  return {sujet:'['+erpNom+'] Référencement prestataire — fiche à compléter ou mise à jour de vos informations (3 min)',
+    corps:'Bonjour,\n\nL\u2019établissement '+erpNom+' vous référence comme prestataire dans son registre de sécurité.\n\nMerci de compléter votre fiche en cliquant sur votre lien personnel :\n'+lien+'\n\nComptez environ 3 minutes. Préparez simplement votre attestation d\u2019assurance et vos CGV en PDF. Si vous êtes déjà référencé, ce lien met simplement vos informations à jour.\n\nUn oubli ? Vous pourrez revenir compléter plus tard via le même lien.\n\nCordialement,\nLa Direction\n'+erpNom+'\nLien personnel et sécurisé, valable 30 jours.', lien};
 };
 window.pinvEnvoyerMail=async function(id){
   try{
     const {data:inv}=await sb.from('prest_invitations').select('*').eq('id',id).maybeSingle();
     const er=(state.erps||[]).find(e=>e.id===inv.erp_id)||{};
-    const m=_pinvMail(inv,er.nom||'Votre client');
+    const m=_pinvMail(inv,_pinvErpNom(er)||'Votre client');
     const html=m.corps.split('\n').map(l=>l.includes('#/fiche-prestataire/')?'<p style="margin:14px 0"><a href="'+l.trim()+'" style="background:#1e40af;color:#fff;padding:11px 20px;border-radius:9px;text-decoration:none;font-weight:700">👉 Compléter ma fiche</a></p>':esc(l)).join('<br>');
     const {data,error}=await sb.functions.invoke('send-client-email',{body:{to:inv.email,subject:m.sujet,html}});
     if(error){ let msg=error.message||'Erreur'; try{ const j=await error.context.json(); if(j&&j.error) msg=j.error; }catch(_){} throw new Error(msg); }
@@ -16452,9 +16484,9 @@ window.pinvCreate=async function(){
   if(!ent||!/@/.test(mail)){ toast('Entreprise et e-mail valide requis','err'); return; }
   try{
     const er=(state.erps||[]).find(e=>e.id===erpId)||{};
-    const {data:inv,error}=await sb.from('prest_invitations').insert({client_id:er.client_id,erp_id:erpId,entreprise:ent,contact_nom:nom||null,email:mail,token:_pinvToken()}).select('*').maybeSingle();
+    const {data:inv,error}=await sb.from('prest_invitations').insert({client_id:er.client_id,erp_id:erpId,entreprise:ent,contact_nom:nom||null,email:mail,token:_pinvToken(),listes:Object.assign(await _pinvListes(),{erp_nom:_pinvErpNom(er)})}).select('*').maybeSingle();
     if(error) throw error;
-    const m=_pinvMail(inv,er.nom||'');
+    const m=_pinvMail(inv,_pinvErpNom(er)||'');
     document.getElementById('pi_out').innerHTML=`<div style="background:var(--surface-2);border-radius:9px;padding:8px 10px">
       <div style="word-break:break-all;font-size:11px;color:var(--muted)">${esc(m.lien)}</div>
       <div style="display:flex;gap:6px;margin-top:7px;flex-wrap:wrap">
@@ -16469,17 +16501,18 @@ window.pinvCreate=async function(){
 window.pinvApercuMail=async function(id){
   const {data:inv}=await sb.from('prest_invitations').select('*').eq('id',id).maybeSingle();
   const er=(state.erps||[]).find(e=>e.id===inv.erp_id)||{};
-  const m=_pinvMail(inv,er.nom||'');
+  const m=_pinvMail(inv,_pinvErpNom(er)||'');
   alert('Objet : '+m.sujet+'\n\n'+m.corps);
 };
 window.pinvBulkSend=async function(){
+  window._pinvListesCache=await _pinvListes();
   const rows=(window._pinvRows||[]).filter(r=>r.ok);
   const erpId=document.getElementById('pi_erp').value;
   const er=(state.erps||[]).find(e=>e.id===erpId)||{};
   let n=0;
   for(const r of rows){
     try{
-      const {data:inv,error}=await sb.from('prest_invitations').insert({client_id:er.client_id,erp_id:erpId,entreprise:r.entreprise,contact_nom:r.contact||null,email:r.email,token:_pinvToken()}).select('*').maybeSingle();
+      const {data:inv,error}=await sb.from('prest_invitations').insert({client_id:er.client_id,erp_id:erpId,entreprise:r.entreprise,contact_nom:r.contact||null,email:r.email,token:_pinvToken(),listes:Object.assign({},window._pinvListesCache||await _pinvListes(),{erp_nom:_pinvErpNom(er)})}).select('*').maybeSingle();
       if(error) throw error;
       await pinvEnvoyerMail(inv.id); n++;
     }catch(e){ toast(r.entreprise+' : '+e.message,'err'); }
