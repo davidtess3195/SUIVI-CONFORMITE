@@ -767,7 +767,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='731'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='733'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
@@ -6115,23 +6115,42 @@ window.interSetSort=function(dir){
   if(box) box.innerHTML=interTable(interSortRows(window._interData||[]));
 };
 function quickIntervention(){ formInter(); } window.quickIntervention=quickIntervention;
-function interDomChange(){ const sel=$('#f_dom_sel'), inp=$('#f_dom'); if(!sel||!inp) return; inp.style.display = sel.value==='__autre__' ? 'block' : 'none'; if(sel.value==='__autre__') inp.focus(); }
+function interDomChange(){ const sel=$('#f_dom_sel'), inp=$('#f_dom'); if(!sel||!inp) return; if(sel.value==='__autre__'){ inp.style.display='block'; inp.focus(); } else if(sel.value){ domChipAdd(sel.value); } sel.value=''; }
 window.interDomChange=interDomChange;
 function buildDomSel(domaines, currentDomaine){
-  const allGeneric=[...PREST_TYPES_BDC,...PREST_TYPES_PREST];
-  const inList=domaines.includes(currentDomaine||'')||allGeneric.includes(currentDomaine||'');
-  const domCustom=!!(currentDomaine && !inList);
-  const pmOpts=domaines.map(d=>`<option value="${esc(d)}"${currentDomaine===d?' selected':''}>${esc(d)}</option>`).join('');
-  const domOpt=t=>`<option value="${esc(t)}"${currentDomaine===t?' selected':''}>${esc(t)}</option>`;
-  return {html:`<select id="f_dom_sel" onchange="interDomChange()">
-      <option value="">— choisir —</option>
-      ${domaines.length?`<optgroup label="📋 Plan de maintenance ERP">${pmOpts}</optgroup>`:''}
-      <optgroup label="Bureaux de contrôle">${PREST_TYPES_BDC.map(domOpt).join('')}</optgroup>
-      <optgroup label="Prestataires">${PREST_TYPES_PREST.map(domOpt).join('')}</optgroup>
-      <option value="__autre__"${domCustom?' selected':''}>✏️ Autre (préciser)…</option>
+  const cur=String(currentDomaine||'').split(/[,;]+/).map(s=>s.trim()).filter(Boolean);
+  const opt=t=>`<option value="${esc(t)}">${esc(t)}</option>`;
+  const chips=cur.map(t=>domChipHtml(t)).join('');
+  return {html:`<div id="f_dom_chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:${cur.length?'7px':'0'}">${chips}</div>
+    <select id="f_dom_sel" onchange="interDomChange()">
+      <option value="">— ajouter une spécialité —</option>
+      ${domaines.length?`<optgroup label="📋 Plan de maintenance ERP">${domaines.map(opt).join('')}</optgroup>`:''}
+      <optgroup label="Bureaux de contrôle">${PREST_TYPES_BDC.map(opt).join('')}</optgroup>
+      <optgroup label="Prestataires">${PREST_TYPES_PREST.map(opt).join('')}</optgroup>
+      <option value="__autre__">✏️ Autre (préciser)…</option>
     </select>
-    <input id="f_dom" value="${esc(domCustom?currentDomaine:'')}" placeholder="Préciser le domaine / la spécialité" style="margin-top:6px;display:${domCustom?'block':'none'}">`, domCustom};
+    <input id="f_dom" placeholder="Préciser puis Entrée pour ajouter" style="margin-top:6px;display:none"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();domChipAdd(this.value);this.value='';this.style.display='none';}">
+    <div style="font-size:10.5px;color:var(--muted-2);margin-top:4px">Plusieurs spécialités possibles — chaque choix s'ajoute en étiquette, ✕ pour retirer.</div>`, domCustom:false};
 }
+function domChipHtml(t){
+  return `<span data-v="${esc(t)}" style="display:inline-flex;align-items:center;gap:6px;background:#dbeafe;border:1.5px solid #93c5fd;border-radius:8px;padding:5px 10px;font-size:12.5px;font-weight:600">${esc(t)}
+    <button type="button" onclick="this.parentElement.remove()" style="border:none;background:none;cursor:pointer;color:#1e40af;font-size:13px;padding:0;line-height:1">✕</button></span>`;
+}
+window.domChipAdd=function(t){
+  t=String(t||'').trim(); if(!t) return;
+  const w=document.getElementById('f_dom_chips'); if(!w) return;
+  if([...w.querySelectorAll('[data-v]')].some(x=>x.dataset.v.toLowerCase()===t.toLowerCase())) return;
+  w.insertAdjacentHTML('beforeend',domChipHtml(t)); w.style.marginBottom='7px';
+};
+window.getInterDomaine=function(){
+  const w=document.getElementById('f_dom_chips');
+  if(w){ const vals=[...w.querySelectorAll('[data-v]')].map(x=>x.dataset.v);
+    const inp=document.getElementById('f_dom');
+    if(inp&&inp.value.trim()&&!vals.some(v=>v.toLowerCase()===inp.value.trim().toLowerCase())) vals.push(inp.value.trim());
+    return vals.join(', ')||null; }
+  const el=document.getElementById('f_dom'); return el?(el.value.trim()||null):null;
+};
 window.interErpChange=async function(){
   const newErpId=document.getElementById('f_erp')?.value;
   const domWrap=document.getElementById('f_dom_wrap');
@@ -6180,7 +6199,7 @@ async function formInter(erpId,it,mode){
     if(_prog && !it.id && !$('#f_date').value){toast('Indiquez la date convenue avec le prestataire','err');$('#f_date').focus();return;}
     _modalDirty=false;
     const domSel=$('#f_dom_sel').value;
-    const domaine = domSel==='__autre__' ? ($('#f_dom').value.trim()||null) : (domSel||null);
+    const domaine = getInterDomaine();
     const payload={erp_id,type:$('#f_type').value,domaine,objet:$('#f_obj').value||null,
       prestataire_id:$('#f_prest').value||null,date_prevue:$('#f_date').value||null,heure_prevue:$('#f_heure')?.value||null};
     if(it.id)payload.statut=$('#f_statut').value;
@@ -6273,7 +6292,7 @@ async function formInter(erpId,it,mode){
     const erpAdresse=[erpObj.adresse,erpObj.code_postal&&erpObj.ville?erpObj.code_postal+' '+erpObj.ville:erpObj.code_postal||erpObj.ville].filter(Boolean).join(', ');
     const typeInter=$('#f_type').value;
     const domSel2=$('#f_dom_sel')?.value;
-    const domaineInter=domSel2==='__autre__'?($('#f_dom')?.value.trim()||''):domSel2;
+    const domaineInter=getInterDomaine()||'';
     const datePrevue=$('#f_date').value;
     const commentaire=$('#f_obj').value||'';
     const typeLabel={preventive:'Préventive',corrective:'Corrective',travaux:'Travaux',visite:'Visite',commission_securite:'Commission de sécurité'}[typeInter]||typeInter;
@@ -6982,6 +7001,7 @@ const PREST_TYPES_BDC=[
   'Barrière',
   'Désenfumage mesure des débits'
 ];
+window.PREST_TYPES_BDC=PREST_TYPES_BDC;
 const PREST_TYPES_PREST=[
   // Sécurité incendie — libellés alignés sur le registre des équipements
   'Extincteur','RIA','Sprinklers','Porte coupe-feu','Clapet coupe-feu',
