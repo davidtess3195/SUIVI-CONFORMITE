@@ -3,7 +3,7 @@
 <head>
 <script>try{var _sp=new URLSearchParams(location.search),_q=_sp.get('qr'),_c=_sp.get('c');if(_q){try{localStorage.removeItem('qr_prest_sess');}catch(e){}if(_c)window.__qrCode=_c;history.replaceState(null,'',location.pathname);location.hash='#/qr/'+_q;}}catch(_){}</script>
 <meta charset="UTF-8">
-<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="robots" content="index, follow">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -767,7 +767,7 @@ function isLocalUrl(url){
   return url.startsWith('file://')||url.includes('localhost')||url.includes('127.0.0.1');
 }
 
-window.APP_BUILD='735'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
+window.APP_BUILD='736'; console.log('%cSUIVI-CONFORMITÉ — build '+window.APP_BUILD,'color:#2563eb;font-weight:bold');
 let sb = null;
 function initSb(){
   if(!SUPABASE_ANON_KEY) return false;
