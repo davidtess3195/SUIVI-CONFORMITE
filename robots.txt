@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://conformite-securite.fr/sitemap.xml
