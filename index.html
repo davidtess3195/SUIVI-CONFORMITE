@@ -9438,18 +9438,18 @@ window.crEmailSend=async function(){
   const tos=[...new Set([...cbs,...extra].map(e=>e.trim()).filter(Boolean))];
   if(!tos.length){ toast('Sélectionnez ou saisissez au moins un email','err'); return; }
   const btn=document.getElementById('cr_send_btn');
-  if(btn){ btn.disabled=true; btn.textContent='Envoi en cours…'; }
+  if(btn){ btn.disabled=true; btn.textContent='Préparation du PDF…'; }
   const vurls=[...document.querySelectorAll('.cr-vid-cb:checked')].map(c=>c.value);
+  // Chaque étape a un délai maximum : plus jamais de bouton bloqué sans explication.
+  const avecDelai=(p,ms,label)=>Promise.race([p, new Promise((_,rej)=>setTimeout(()=>rej(new Error(label+' : délai dépassé ('+(ms/1000)+' s). Vérifiez votre connexion.')),ms))]);
   try{
-    // Archivage d'une copie dans les documents du client (traçabilité)
-    const arch=document.getElementById('cr_mail_archive');
-    if(arch && arch.checked) await crArchiveCopy();
-    // ENVOI RÉEL via la fonction send-client-email (SMTP OVH), PDF en pièce jointe.
+    // 1) PDF en pièce jointe (base64) — 20 s max
     let attachments=null;
     if(window._crMailBlob){
-      const b64=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]||''); r.onerror=()=>rej(new Error('Lecture du PDF impossible')); r.readAsDataURL(window._crMailBlob); });
+      const b64=await avecDelai(new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]||''); r.onerror=()=>rej(new Error('Lecture du PDF impossible')); r.readAsDataURL(window._crMailBlob); }), 20000, 'Préparation du PDF');
       if(b64) attachments=[{filename:(window._crMailFile&&window._crMailFile.name)||'compte_rendu.pdf', content:b64, contentType:'application/pdf'}];
     }
+    if(btn) btn.textContent='Envoi de l\'email…';
     const subject=window._crMailSubject||'Compte rendu';
     const html=`<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">
       <div style="background:#1e3a5f;padding:20px 24px;border-radius:8px 8px 0 0"><h2 style="color:#fff;margin:0;font-size:18px">${esc(subject)}</h2></div>
@@ -9459,10 +9459,17 @@ window.crEmailSend=async function(){
         ${vurls.length?`<p style="margin:0 0 16px;color:#1e293b"><b>Vidéo(s) :</b><br>${vurls.map(u=>`<a href="${esc(u)}" style="color:#2563eb">${esc(u)}</a>`).join('<br>')}</p>`:''}
         <p style="margin:0;color:#64748b;font-size:13px">Cordialement,<br><b>PREVA CONSEILS</b><br>5 rue Marceline 95110 SANNOIS<br>Tél : 01.34.17.61.33 — contact@preva-conseils.fr</p>
       </div></div>`;
-    const {error}=await sb.functions.invoke('send-client-email',{body:attachments?{to:tos,subject,html,attachments}:{to:tos,subject,html}});
+    // 2) ENVOI RÉEL — 90 s max
+    const {error}=await avecDelai(sb.functions.invoke('send-client-email',{body:attachments?{to:tos,subject,html,attachments}:{to:tos,subject,html}}), 90000, 'Envoi de l\'email');
     if(error) throw error;
     toast('✓ Email envoyé à : '+tos.join(', '),'ok');
     if(btn){ btn.textContent='✓ Envoyé'; }
+    // 3) Archivage APRÈS l'envoi (ne bloque jamais l'email) — 45 s max, échec non bloquant
+    const arch=document.getElementById('cr_mail_archive');
+    if(arch && arch.checked){
+      try{ await avecDelai(crArchiveCopy(), 45000, 'Archivage'); }
+      catch(ea){ toast('Email envoyé, mais archivage impossible : '+(ea.message||ea),'err'); }
+    }
   }catch(e){
     console.error('crEmailSend error:', e);
     if(btn){ btn.disabled=false; btn.textContent='✉️ Envoyer par email'; }
