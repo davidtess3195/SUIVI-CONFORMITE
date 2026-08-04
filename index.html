@@ -8251,7 +8251,7 @@ async function generateReportPDF(f){
     <div class="modal-foot" style="flex-wrap:wrap"><button class="btn ghost" onclick="closeModal()">Fermer</button>
       <a class="btn" href="${url}" download="${fname}.pdf">⬇️ Télécharger</a>
       <button class="btn" onclick="crShareWithVideo()">📤 Envoyer avec la vidéo</button>
-      <button class="btn primary" onclick="crEmailSend()">✉️ Envoyer par email</button></div>`,'modal-wide');
+      <button class="btn primary" id="cr_send_btn" onclick="crEmailSend()">✉️ Envoyer par email</button></div>`,'modal-wide');
   toast('Aperçu prêt','ok');
 }
 window.generateReportPDF=generateReportPDF;
@@ -9437,18 +9437,44 @@ window.crEmailSend=async function(){
   const extra=((document.getElementById('cr_mail_extra')?.value)||'').split(/[,;\s]+/).map(s=>s.trim()).filter(s=>/^.+@.+\..+$/.test(s));
   const tos=[...new Set([...cbs,...extra].map(e=>e.trim()).filter(Boolean))];
   if(!tos.length){ toast('Sélectionnez ou saisissez au moins un email','err'); return; }
-  // Archivage d'une copie dans les documents du client (traçabilité)
-  const arch=document.getElementById('cr_mail_archive');
-  if(arch && arch.checked) await crArchiveCopy();
-  // Téléchargement du PDF pour pièce jointe
-  if(window._crMailFile){ const a=document.createElement('a'); a.href=window._crMailFile.url; a.download=window._crMailFile.name; document.body.appendChild(a); a.click(); a.remove(); }
-  const subj=encodeURIComponent(window._crMailSubject||'Compte rendu');
+  const btn=document.getElementById('cr_send_btn');
+  if(btn){ btn.disabled=true; btn.textContent='Envoi en cours…'; }
   const vurls=[...document.querySelectorAll('.cr-vid-cb:checked')].map(c=>c.value);
-  let bodyTxt="Bonjour,\n\nVeuillez trouver ci-joint le compte rendu.\n\n(Le PDF vient d'être téléchargé sur votre appareil : merci de le joindre à cet email.)\n";
-  if(vurls.length){ bodyTxt += "\nVidéo(s) :\n"+vurls.join('\n')+"\n"; }
-  bodyTxt += "\nCordialement,\nPREVA CONSEILS\n5 rue Marceline 95110 SANNOIS\nTél : 01.34.17.61.33 — contact@preva-conseils.fr";
-  const body=encodeURIComponent(bodyTxt);
-  window.location.href=`mailto:${tos.join(',')}?subject=${subj}&body=${body}`;
+  try{
+    // Archivage d'une copie dans les documents du client (traçabilité)
+    const arch=document.getElementById('cr_mail_archive');
+    if(arch && arch.checked) await crArchiveCopy();
+    // ENVOI RÉEL via la fonction send-client-email (SMTP OVH), PDF en pièce jointe.
+    let attachments=null;
+    if(window._crMailBlob){
+      const b64=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]||''); r.onerror=()=>rej(new Error('Lecture du PDF impossible')); r.readAsDataURL(window._crMailBlob); });
+      if(b64) attachments=[{filename:(window._crMailFile&&window._crMailFile.name)||'compte_rendu.pdf', content:b64, contentType:'application/pdf'}];
+    }
+    const subject=window._crMailSubject||'Compte rendu';
+    const html=`<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">
+      <div style="background:#1e3a5f;padding:20px 24px;border-radius:8px 8px 0 0"><h2 style="color:#fff;margin:0;font-size:18px">${esc(subject)}</h2></div>
+      <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:24px">
+        <p style="margin:0 0 16px;color:#1e293b">Bonjour,</p>
+        <p style="margin:0 0 16px;color:#1e293b">Veuillez trouver ci-joint le compte rendu au format PDF.</p>
+        ${vurls.length?`<p style="margin:0 0 16px;color:#1e293b"><b>Vidéo(s) :</b><br>${vurls.map(u=>`<a href="${esc(u)}" style="color:#2563eb">${esc(u)}</a>`).join('<br>')}</p>`:''}
+        <p style="margin:0;color:#64748b;font-size:13px">Cordialement,<br><b>PREVA CONSEILS</b><br>5 rue Marceline 95110 SANNOIS<br>Tél : 01.34.17.61.33 — contact@preva-conseils.fr</p>
+      </div></div>`;
+    const {error}=await sb.functions.invoke('send-client-email',{body:attachments?{to:tos,subject,html,attachments}:{to:tos,subject,html}});
+    if(error) throw error;
+    toast('✓ Email envoyé à : '+tos.join(', '),'ok');
+    if(btn){ btn.textContent='✓ Envoyé'; }
+  }catch(e){
+    console.error('crEmailSend error:', e);
+    if(btn){ btn.disabled=false; btn.textContent='✉️ Envoyer par email'; }
+    toast('Envoi automatique impossible ('+(e.message||e)+') — ouverture de votre messagerie en secours.','err');
+    // Repli : téléchargement du PDF + brouillon dans la messagerie (à joindre manuellement)
+    if(window._crMailFile){ const a=document.createElement('a'); a.href=window._crMailFile.url; a.download=window._crMailFile.name; document.body.appendChild(a); a.click(); a.remove(); }
+    const subj=encodeURIComponent(window._crMailSubject||'Compte rendu');
+    let bodyTxt="Bonjour,\n\nVeuillez trouver ci-joint le compte rendu.\n\n(Le PDF vient d'être téléchargé sur votre appareil : merci de le joindre à cet email.)\n";
+    if(vurls.length){ bodyTxt += "\nVidéo(s) :\n"+vurls.join('\n')+"\n"; }
+    bodyTxt += "\nCordialement,\nPREVA CONSEILS\n5 rue Marceline 95110 SANNOIS\nTél : 01.34.17.61.33 — contact@preva-conseils.fr";
+    window.location.href=`mailto:${tos.join(',')}?subject=${subj}&body=${encodeURIComponent(bodyTxt)}`;
+  }
 };
 window.crShareWithVideo=async function(){
   const vurls=[...document.querySelectorAll('.cr-vid-cb:checked')].map(c=>c.value);
