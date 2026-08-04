@@ -9459,9 +9459,28 @@ window.crEmailSend=async function(){
         ${vurls.length?`<p style="margin:0 0 16px;color:#1e293b"><b>Vidéo(s) :</b><br>${vurls.map(u=>`<a href="${esc(u)}" style="color:#2563eb">${esc(u)}</a>`).join('<br>')}</p>`:''}
         <p style="margin:0;color:#64748b;font-size:13px">Cordialement,<br><b>PREVA CONSEILS</b><br>5 rue Marceline 95110 SANNOIS<br>Tél : 01.34.17.61.33 — contact@preva-conseils.fr</p>
       </div></div>`;
-    // 2) ENVOI RÉEL — 90 s max
-    const {error}=await avecDelai(sb.functions.invoke('send-client-email',{body:attachments?{to:tos,subject,html,attachments}:{to:tos,subject,html}}), 90000, 'Envoi de l\'email');
-    if(error) throw error;
+    // 2) ENVOI RÉEL — appel HTTP direct (fetch brut + AbortController).
+    // On NE passe PAS par sb.functions.invoke : son verrou interne de session
+    // peut suspendre la requête indéfiniment (même contournement que la vue agent).
+    const payload = attachments?{to:tos,subject,html,attachments}:{to:tos,subject,html};
+    const ctl=new AbortController();
+    const tmr=setTimeout(()=>ctl.abort(), 90000);
+    try{
+      const tk=(typeof agToken==='function')?agToken():{token:null};
+      const resp=await fetch(SUPABASE_URL+'/functions/v1/send-client-email',{
+        method:'POST',
+        headers:{'Content-Type':'application/json', apikey:SUPABASE_ANON_KEY, Authorization:'Bearer '+(tk.token||SUPABASE_ANON_KEY)},
+        body:JSON.stringify(payload),
+        signal:ctl.signal
+      });
+      clearTimeout(tmr);
+      const out=await resp.json().catch(()=>({}));
+      if(!resp.ok || out.error) throw new Error(out.error||('HTTP '+resp.status));
+    }catch(e2){
+      clearTimeout(tmr);
+      if(e2 && e2.name==='AbortError') throw new Error('Envoi de l\'email : délai dépassé (90 s). Vérifiez votre connexion.');
+      throw e2;
+    }
     toast('✓ Email envoyé à : '+tos.join(', '),'ok');
     if(btn){ btn.textContent='✓ Envoyé'; }
     // 3) Archivage APRÈS l'envoi (ne bloque jamais l'email) — 45 s max, échec non bloquant
