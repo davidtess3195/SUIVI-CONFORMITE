@@ -8256,16 +8256,37 @@ function dzDrop(e){
   modalAjoutPhoto(raw[0]);
 }
 window.dzDrop=dzDrop;
+// Cl\u00E9 de regroupement d'un constat : photos ajout\u00E9es ensemble (m\u00EAme ERP,
+// m\u00EAme commentaire, m\u00EAme th\u00E9matique et m\u00EAme localisation).
+function _photoGroupKey(p){
+  return [p.erp_id||'', (p.commentaire||'').trim(), (p.mission||'').trim(), (p.localisation||'').trim()].join('\u00A6');
+}
+window._photoGroupKey=_photoGroupKey;
+// Renvoie les photos (tri\u00E9es chronologiquement) du m\u00EAme constat que `pid`.
+function photosDuConstat(pid){
+  const all=(window._photosCache||[]).filter(p=>p.photo_path&&!isVideoPath(p.photo_path)&&p.type!=='note');
+  const cur=all.find(p=>String(p.id)===String(pid));
+  let rows = cur ? all.filter(p=>_photoGroupKey(p)===_photoGroupKey(cur)) : all.slice();
+  rows.sort((a,b)=>String(a.created_at||'').localeCompare(String(b.created_at||'')));
+  return rows;
+}
+window.photosDuConstat=photosDuConstat;
+
 window.phDiapo=async function(pid){
-  const rows=(window._photosCache||[]).filter(p=>p.photo_path&&!isVideoPath(p.photo_path)&&p.type!=='note');
+  // On ne fait d\u00E9filer que les photos du constat cliqu\u00E9 (celles ins\u00E9r\u00E9es ensemble),
+  // pas toute la biblioth\u00E8que.
+  const rows=photosDuConstat(pid);
+  if(!rows.length){ toast('Photo non disponible','err'); return; }
   let idx=rows.findIndex(p=>String(p.id)===String(pid)); if(idx<0) idx=0;
+  const multi=rows.length>1;
   const ov=document.createElement('div'); ov.id='phdiapo';
   ov.style.cssText='position:fixed;inset:0;background:rgba(8,12,20,.94);z-index:100002;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:18px;touch-action:pan-y';
   ov.innerHTML='<button id="pd_x" style="position:absolute;top:12px;right:14px;width:42px;height:42px;border:none;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;font-size:19px;cursor:pointer">\u2715</button>'
-    +'<button id="pd_prev" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);width:44px;height:64px;border:none;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;font-size:24px;cursor:pointer">\u25C0</button>'
-    +'<button id="pd_next" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);width:44px;height:64px;border:none;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;font-size:24px;cursor:pointer">\u25B6</button>'
-    +'<img id="pd_img" style="max-width:92vw;max-height:78vh;object-fit:contain;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.5)">'
-    +'<div id="pd_leg" style="color:#e2e8f0;font-size:12.5px;margin-top:12px;text-align:center;max-width:640px"></div>';
+    +(multi?'<button id="pd_prev" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);width:44px;height:64px;border:none;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;font-size:24px;cursor:pointer">\u25C0</button>':'')
+    +(multi?'<button id="pd_next" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);width:44px;height:64px;border:none;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;font-size:24px;cursor:pointer">\u25B6</button>':'')
+    +'<img id="pd_img" style="max-width:92vw;max-height:72vh;object-fit:contain;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.5)">'
+    +'<div id="pd_leg" style="color:#e2e8f0;font-size:12.5px;margin-top:12px;text-align:center;max-width:640px"></div>'
+    +'<button id="pd_cr" style="margin-top:16px;border:none;border-radius:12px;background:var(--primary);color:#fff;font-size:14px;font-weight:600;padding:11px 18px;cursor:pointer">\uD83D\uDCC4 Compte rendu de ce constat ('+rows.length+' photo'+(rows.length>1?'s':'')+')</button>';
   document.body.appendChild(ov);
   async function show(i){
     idx=(i+rows.length)%rows.length; const p=rows[idx];
@@ -8275,15 +8296,24 @@ window.phDiapo=async function(pid){
     document.getElementById('pd_leg').innerHTML=esc(p.commentaire||'')+(p.localisation?' \u00b7 '+esc(p.localisation):'')+' <span style="color:#94a3b8">('+(idx+1)+'/'+rows.length+')</span>';
   }
   const close=()=>{ document.removeEventListener('keydown',onKey); ov.remove(); };
-  const onKey=e=>{ if(e.key==='Escape')close(); if(e.key==='ArrowLeft')show(idx-1); if(e.key==='ArrowRight')show(idx+1); };
+  const onKey=e=>{ if(e.key==='Escape')close(); if(multi&&e.key==='ArrowLeft')show(idx-1); if(multi&&e.key==='ArrowRight')show(idx+1); };
   document.addEventListener('keydown',onKey);
   document.getElementById('pd_x').onclick=close;
   ov.onclick=e=>{ if(e.target===ov) close(); };
-  document.getElementById('pd_prev').onclick=()=>show(idx-1);
-  document.getElementById('pd_next').onclick=()=>show(idx+1);
+  if(multi){
+    document.getElementById('pd_prev').onclick=()=>show(idx-1);
+    document.getElementById('pd_next').onclick=()=>show(idx+1);
+  }
+  // G\u00E9n\u00E9rer un compte rendu contenant uniquement les photos de ce constat.
+  const crBtn=document.getElementById('pd_cr');
+  if(crBtn) crBtn.onclick=()=>{
+    try{ _photoSel.clear(); rows.forEach(p=>_photoSel.add(p.id)); }catch(_){ }
+    close();
+    if(typeof openReportModal==='function') openReportModal();
+  };
   let tx=null;
   ov.addEventListener('touchstart',e=>{tx=e.touches[0].clientX},{passive:true});
-  ov.addEventListener('touchend',e=>{ if(tx==null)return; const d=e.changedTouches[0].clientX-tx; if(Math.abs(d)>45) show(idx+(d<0?1:-1)); tx=null; },{passive:true});
+  ov.addEventListener('touchend',e=>{ if(!multi||tx==null)return; const d=e.changedTouches[0].clientX-tx; if(Math.abs(d)>45) show(idx+(d<0?1:-1)); tx=null; },{passive:true});
   show(idx);
 };
 function dzFiles(files){
