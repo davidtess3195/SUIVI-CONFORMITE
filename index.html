@@ -8238,7 +8238,7 @@ async function generateReportPDF(f){
     <div class="modal-body" style="padding-top:8px">
       <iframe src="${url}#toolbar=1&view=FitH" style="width:100%;height:58vh;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>
       <div style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
-        <div style="font-size:12.5px;font-weight:600;margin-bottom:6px">✉️ Envoyer par email — sélectionnez les destinataires</div>
+        <div style="font-size:12.5px;font-weight:600;margin-bottom:6px">✉️ Envoyer par email — sélectionnez les destinataires <span style="color:#16a34a;font-weight:700">· envoi automatique ✓</span></div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${recipHtml}</div>
         <input id="cr_mail_extra" placeholder="Ajouter d'autres emails (séparés par des virgules)" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink)">
         ${(f.videos&&f.videos.length)?`<div style="margin-top:10px">
