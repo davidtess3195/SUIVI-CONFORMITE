@@ -8367,7 +8367,10 @@ function modalAjoutPhoto(file){
     const erp=$('#ap_erp').value, com=$('#ap_com').value.trim();
     const fileEl=$('#ap_file');
     let fList=[...(fileEl?.files||[])];
-    if(!fList.length&&$('#ap_save')._files) fList=$('#ap_save')._files.slice();
+    // Si une sélection complète a été mémorisée (glisser-déposer ou aperçu),
+    // on l'utilise dès qu'elle contient plus de photos que l'input courant.
+    const staged=$('#ap_save')._files;
+    if(staged && staged.length>fList.length) fList=staged.slice();
     if(!fList.length&&$('#ap_save')._file) fList.push($('#ap_save')._file);
     const f=fList[0];
     if(!erp){toast('Choisis un ERP','err');return;}
@@ -8552,12 +8555,14 @@ function modalAjoutVideo(file){
 window.modalAjoutVideo=modalAjoutVideo;
 
 async function apPreview(inp){
-  const f=inp.files[0]; if(!f) return;
-  // Convertir HEIC avant la prévisualisation
-  const fOk = await convertIfHeic(f);
-  // Mettre à jour l'input avec le fichier converti
-  try{ const dt=new DataTransfer(); dt.items.add(fOk); inp.files=dt.files; }catch(ex){}
-  $('#ap_save')._file = fOk;
+  // On conserve TOUTES les photos sélectionnées (le téléphone peut en fournir plusieurs).
+  const files=[...(inp.files||[])]; if(!files.length) return;
+  $('#ap_save')._files = files;   // sauvegarde de toute la sélection
+  $('#ap_save')._file  = files[0];
+  // Conversion HEIC uniquement pour l'aperçu de la 1re photo ;
+  // chaque photo est de toute façon reconvertie au moment de l'enregistrement.
+  let fOk = files[0];
+  try{ fOk = await convertIfHeic(files[0]) || files[0]; }catch(ex){}
   const r=new FileReader();
   r.onload=e=>{
     const img=$('#ap_preview');
