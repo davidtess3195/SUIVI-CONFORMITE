@@ -7201,8 +7201,20 @@ function afficherPhotos(rows){
   }
 
   window._photosFiltered = filtered.map(p=>p.id);
+
+  // Regroupement par constat : les photos ajoutées ensemble (même établissement,
+  // même commentaire, même thématique, même localisation) forment UNE seule fiche.
+  const groups=[]; const _gIdx={};
+  filtered.forEach(p=>{
+    const groupable = p.photo_path && !isVideoPath(p.photo_path) && p.type!=='note';
+    if(!groupable){ groups.push({main:p, items:[p]}); return; }
+    const k=_photoGroupKey(p);
+    if(k in _gIdx){ groups[_gIdx[k]].items.push(p); return; }
+    _gIdx[k]=groups.length; groups.push({main:p, items:[p]});
+  });
+
   g.innerHTML = `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:9px 12px">
-      <span style="font-size:13px;color:var(--muted)">${filtered.length} photo(s) · <b id="ph-count" style="color:var(--ink)">${_photoSel.size}</b> sélectionnée(s)</span>
+      <span style="font-size:13px;color:var(--muted)">${groups.length} fiche(s) · ${filtered.length} photo(s) · <b id="ph-count" style="color:var(--ink)">${_photoSel.size}</b> sélectionnée(s)</span>
       ${nbFait?`<button class="btn sm" onclick="window._photosShowFait=!window._photosShowFait;afficherPhotos(window._photosCache||[])" style="${window._photosShowFait?'background:#dcfce7;border-color:#86efac;color:#15803d;':''}display:inline-flex;align-items:center;gap:6px">
         <span style="width:8px;height:8px;border-radius:50%;background:#22c55e"></span>
         ${window._photosShowFait?'Masquer les traitées':'Traitées — classées chez le client ('+nbFait+')'}
@@ -7215,15 +7227,18 @@ function afficherPhotos(rows){
       </div>
     </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr))">
-  ${filtered.map(p=>{
+  ${groups.map(gr=>{
+    const p = gr.main, nb = gr.items.length;
+    const ids = gr.items.map(x=>x.id), idsCsv = ids.join(',');
     const imgUrl = p.photo_path ? publicPhoto(p.photo_path) : null;
     const isVid = isVideoPath(p.photo_path);
     const isNote = !p.photo_path;
     const u = URG[p.niveau_urgence] || URG.info;
     const pid = p.id, erpId = p.erp_id;
+    const selAll = ids.every(x=>_photoSel.has(x));
     const comm = (p.commentaire||'').replace(/'/g,'\x27').replace(/"/g,'\x22');
     const loc  = (p.localisation||'').replace(/'/g,'\x27').replace(/"/g,'\x22');
-    return `<div class="card" style="overflow:hidden;display:flex;flex-direction:column;${_photoSel.has(pid)?'box-shadow:0 0 0 2px var(--primary)':''}">
+    return `<div class="card" style="overflow:hidden;display:flex;flex-direction:column;${selAll?'box-shadow:0 0 0 2px var(--primary)':''}">
       <div style="position:relative;background:${isNote?'var(--surface-2)':'#0b0f14'};min-height:140px">
         ${isNote
           ? `<div style="height:190px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-weight:700;font-size:15px;text-align:center;padding:16px;border-bottom:1px solid var(--line)">Note complémentaire</div>`
@@ -7232,24 +7247,26 @@ function afficherPhotos(rows){
                   ? `<video src="${imgUrl}" controls preload="metadata" style="width:100%;height:190px;object-fit:cover;display:block;background:#000"></video>`
                   : `<img data-src="${imgUrl}" class="lazy-photo" onclick="phDiapo('${pid}')" style="width:100%;height:190px;object-fit:cover;display:block;cursor:zoom-in">`)
               : `<div style="height:140px;display:grid;place-items:center;color:var(--muted-2)">${I.photo}</div>`)}
+        ${nb>1?`<span style="position:absolute;bottom:6px;left:6px;background:rgba(0,0,0,.68);color:#fff;font-size:11px;font-weight:600;padding:2px 9px;border-radius:999px;z-index:2">📷 ${nb} photos</span>`:''}
         ${isNote?`<span style="position:absolute;top:6px;left:6px;background:var(--primary);color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;z-index:2">📝 Note</span>`:(isVid?`<span style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,.65);color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;z-index:2">🎬 Vidéo</span>`:'')}
         ${(isVid||isNote)?'':`<label title="Sélectionner pour le rapport" style="position:absolute;top:6px;right:6px;display:grid;place-items:center;width:26px;height:26px;border-radius:7px;background:rgba(255,255,255,.92);box-shadow:0 1px 4px rgba(0,0,0,.18);cursor:pointer;z-index:2">
-          <input type="checkbox" class="ph-sel" ${_photoSel.has(pid)?'checked':''} onclick="event.stopPropagation();togglePhotoSel('${pid}',this.checked)" style="width:17px;height:17px;accent-color:var(--primary);cursor:pointer;margin:0">
+          <input type="checkbox" class="ph-sel" ${selAll?'checked':''} onclick="event.stopPropagation();togglePhotoSelGroup('${idsCsv}',this.checked)" style="width:17px;height:17px;accent-color:var(--primary);cursor:pointer;margin:0">
         </label>`}
       </div>
       <div class="card-pad" style="padding:13px;flex:1;display:flex;flex-direction:column;gap:4px">
+        ${nb>1?`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:2px">${gr.items.slice(0,5).map(x=>`<img src="${publicPhoto(x.photo_path)}" loading="lazy" onclick="phDiapo('${x.id}')" style="width:46px;height:36px;object-fit:cover;border-radius:6px;cursor:zoom-in;border:1px solid var(--line)">`).join('')}${nb>5?`<span style="font-size:11px;color:var(--muted);align-self:center">+${nb-5}</span>`:''}</div>`:''}
         ${p.mission ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span class="pill inf" style="font-size:11px">Sujet : ${esc(p.mission)}</span></div>` : ''}
         <div style="font-weight:700;color:var(--ink);font-size:13.5px;margin-top:3px">${esc(clientName(p.erp_id)||'Client non rattaché')}</div>
         ${p.conversation_id?`<div style="margin-top:4px"><span onclick="event.stopPropagation();openConversationById('${p.conversation_id}')" title="Ouvrir la conversation" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#0891b2;background:rgba(8,145,178,.08);border:1px solid rgba(8,145,178,.25);padding:3px 9px;border-radius:999px;cursor:pointer">💬 Conversation associée →</span></div>`:''}
         ${(()=>{ const t=p.traitement||''; const col=t==='fait'?'#22c55e':t==='en_cours'?'#f59e0b':'#ef4444';
           return `<div style="display:flex;align-items:center;gap:8px;margin-top:3px;flex-wrap:wrap">
             <span style="width:11px;height:11px;border-radius:50%;background:${col};flex:0 0 auto;box-shadow:0 0 0 3px ${col}22"></span>
-            <select onchange="setPhotoTraitement('${pid}',this.value)" style="font-size:12px;padding:5px 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font-family:inherit;cursor:pointer;flex:1;min-width:150px">
+            <select onchange="setPhotoTraitementGroup('${idsCsv}',this.value)" style="font-size:12px;padding:5px 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font-family:inherit;cursor:pointer;flex:1;min-width:150px">
               <option value=""${t===''?' selected':''}>En attente de traitement</option>
               <option value="en_cours"${t==='en_cours'?' selected':''}>En cours</option>
               <option value="fait"${t==='fait'?' selected':''}>Fait</option>
             </select>
-            ${t==='fait' ? `<input type="date" value="${esc(p.traitement_date||'')}" title="Date de réalisation" onchange="setPhotoTraitementDate('${pid}',this.value)" style="font-size:12px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font-family:inherit;cursor:pointer">` : ''}
+            ${t==='fait' ? `<input type="date" value="${esc(p.traitement_date||'')}" title="Date de réalisation" onchange="setPhotoTraitementDateGroup('${idsCsv}',this.value)" style="font-size:12px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font-family:inherit;cursor:pointer">` : ''}
           </div>`; })()}
         <div style="font-size:12.5px;color:var(--primary);font-weight:600;margin-top:4px">Constat du ${fmtDate(p.date_photo || p.created_at)}</div>
         <b style="font-size:14px;margin-top:4px">${esc(p.commentaire)||'<span style="color:var(--muted)">Sans commentaire</span>'}</b>
@@ -7257,7 +7274,7 @@ function afficherPhotos(rows){
         <div style="display:flex;gap:7px;margin-top:auto;padding-top:12px;flex-wrap:wrap">
           <button class="btn sm" onclick="editPhoto('${pid}')">Modifier</button>
           <button class="btn sm primary" data-action="comment" data-id="${pid}">💬 Commentaire</button>
-          <button class="btn sm danger" data-action="delete" data-id="${pid}" data-path="${esc(p.photo_path||'')}">🗑</button>
+          <button class="btn sm danger" data-action="delete" data-id="${idsCsv}" data-path="${esc(p.photo_path||'')}">🗑</button>
         </div>
       </div>
     </div>`;
@@ -7271,10 +7288,9 @@ function afficherPhotos(rows){
       const src = img.dataset.src;
       img.src = src;
       img.style.cursor = 'zoom-in';
-      img.addEventListener('click', function(e){
-        e.stopPropagation();
-        zoomPhoto(this.dataset.src || this.src);
-      });
+      // Le clic est géré par l'attribut onclick (phDiapo, diaporama du constat).
+      // Ne PAS ajouter de second gestionnaire zoomPhoto : il ouvrait une
+      // visionneuse à UNE seule photo par-dessus le diaporama.
       img.onerror = function(){ this.style.display='none'; };
     });
 
@@ -7288,7 +7304,7 @@ function afficherPhotos(rows){
         if(!btn) return;
         const {action, id, path, erpid, comm, loc} = btn.dataset;
         if(action==='vue')     setPhotoStatut(id,'vue');
-        if(action==='delete')  deletePhoto(id, path);
+        if(action==='delete')  deletePhotoGroup(id);
         if(action==='comment') commentPhoto(id);
       });
     }
@@ -7360,6 +7376,61 @@ async function deletePhoto(id,path){
   }catch(e){toast(e.message,'err');}
 }
 window.deletePhoto=deletePhoto;
+
+/* ===== Variantes « constat » : l'action s'applique à toutes les photos de la fiche ===== */
+window.togglePhotoSelGroup=function(idsCsv,on){
+  String(idsCsv).split(',').filter(Boolean).forEach(id=>{ if(on)_photoSel.add(id); else _photoSel.delete(id); });
+  updatePhotoSelUI();
+  afficherPhotos(window._photosCache||[]);
+};
+async function setPhotoTraitementGroup(idsCsv,val){
+  const ids=String(idsCsv).split(',').filter(Boolean); if(!ids.length) return;
+  try{
+    const p0=(window._photosCache||[]).find(x=>x.id===ids[0]);
+    const upd={ traitement: val||null };
+    if(!val){ upd.traitement_date=null; }
+    else if(p0 && !p0.traitement_date){ upd.traitement_date=new Date().toISOString().slice(0,10); }
+    const { error } = await sb.from('photos_urgentes').update(upd).in('id',ids);
+    if(error) throw error;
+    (window._photosCache||[]).forEach(p=>{ if(ids.includes(p.id)){ p.traitement=upd.traitement; if('traitement_date' in upd) p.traitement_date=upd.traitement_date; } });
+    if(val==='fait' && !window._photosShowFait){
+      const e=state.erps.find(x=>x.id===(p0&&p0.erp_id)); const cl=e?state.clients.find(c=>c.id===e.client_id):null;
+      const nom=cl?(cl.raison_sociale||cl.nom_commercial||'le client'):'le client';
+      toast('Constat traité — classé dans le dossier de '+nom+'.','ok');
+    }
+    afficherPhotos(window._photosCache||[]);
+  }catch(e){
+    if((e.message||'').toLowerCase().includes('traitement')||(e.message||'').toLowerCase().includes('column')){
+      toast("Ajoutez la colonne 'traitement' à la table photos_urgentes (voir SQL).",'err');
+    } else { toast(e.message||'Erreur','err'); }
+  }
+}
+window.setPhotoTraitementGroup=setPhotoTraitementGroup;
+async function setPhotoTraitementDateGroup(idsCsv,val){
+  const ids=String(idsCsv).split(',').filter(Boolean); if(!ids.length) return;
+  try{
+    const { error } = await sb.from('photos_urgentes').update({traitement_date: val||null}).in('id',ids);
+    if(error) throw error;
+    (window._photosCache||[]).forEach(p=>{ if(ids.includes(p.id)) p.traitement_date=val||null; });
+  }catch(e){ toast(e.message||'Erreur','err'); }
+}
+window.setPhotoTraitementDateGroup=setPhotoTraitementDateGroup;
+async function deletePhotoGroup(idsCsv){
+  const ids=String(idsCsv).split(',').filter(Boolean); if(!ids.length) return;
+  const rows=(window._photosCache||[]).filter(p=>ids.includes(p.id));
+  const n=rows.length||ids.length;
+  if(!confirm(n>1?('Supprimer définitivement ce constat et ses '+n+' photos ?'):'Supprimer définitivement cette photo ?')) return;
+  try{
+    const paths=rows.map(r=>r.photo_path).filter(Boolean);
+    if(paths.length) await sb.storage.from('urgent-photos').remove(paths);
+    await sb.from('photos_urgentes').delete().in('id',ids);
+    window._photosCache=(window._photosCache||[]).filter(p=>!ids.includes(p.id));
+    ids.forEach(i=>_photoSel.delete(i));
+    toast(n>1?'Constat supprimé':'Photo supprimée','ok');
+    afficherPhotos(window._photosCache);
+  }catch(e){toast(e.message,'err');}
+}
+window.deletePhotoGroup=deletePhotoGroup;
 
 /* ===== Sélection de photos + génération de rapport PDF (1 page A4) ===== */
 function updatePhotoSelUI(){
@@ -8215,10 +8286,17 @@ async function editPhoto(id){
       const updates={commentaire:$('#ep_com').value.trim()||null, mission:$('#ep_mis').value||null,
         niveau_urgence:$('#ep_urg').value, localisation:$('#ep_loc').value.trim()||null, statut:$('#ep_sta').value,
         date_photo:$('#ep_date').value||null, conversation_id:$('#ep_conv').value||null};
-      await sb.from('photos_urgentes').update(updates).eq('id',id);
-      if(window._photosCache){ const idx=window._photosCache.findIndex(x=>x.id===id);
-        if(idx>=0) window._photosCache[idx]={...window._photosCache[idx],...updates}; }
-      _modalDirty=false; closeModal(); toast('Photo mise à jour','ok');
+      // Appliquer la modification à TOUTES les photos du même constat
+      // (sinon la fiche se scinderait en plusieurs cartes).
+      let gIds=[id];
+      if(p.photo_path && !isVideoPath(p.photo_path) && p.type!=='note'){
+        const k=_photoGroupKey(p);
+        const grp=(window._photosCache||[]).filter(x=>x.photo_path&&!isVideoPath(x.photo_path)&&x.type!=='note'&&_photoGroupKey(x)===k).map(x=>x.id);
+        if(grp.length) gIds=grp;
+      }
+      await sb.from('photos_urgentes').update(updates).in('id',gIds);
+      if(window._photosCache){ window._photosCache=window._photosCache.map(x=>gIds.includes(x.id)?{...x,...updates}:x); }
+      _modalDirty=false; closeModal(); toast(gIds.length>1?'Constat mis à jour ('+gIds.length+' photos)':'Photo mise à jour','ok');
       afficherPhotos(window._photosCache||[]);
     }catch(e){toast(e.message,'err');}
   };
@@ -8235,8 +8313,15 @@ async function commentPhoto(id){
   $('#cp_save').onclick=async()=>{
     try{
       const val=$('#cp_com').value.trim()||null;
-      await sb.from('photos_urgentes').update({commentaire:val}).eq('id',id);
-      const ph=(window._photosCache||[]).find(x=>x.id===id); if(ph) ph.commentaire=val;
+      // Le commentaire s'applique à toutes les photos du même constat.
+      let gIds=[id];
+      if(p.photo_path && !isVideoPath(p.photo_path) && p.type!=='note'){
+        const k=_photoGroupKey(p);
+        const grp=(window._photosCache||[]).filter(x=>x.photo_path&&!isVideoPath(x.photo_path)&&x.type!=='note'&&_photoGroupKey(x)===k).map(x=>x.id);
+        if(grp.length) gIds=grp;
+      }
+      await sb.from('photos_urgentes').update({commentaire:val}).in('id',gIds);
+      (window._photosCache||[]).forEach(x=>{ if(gIds.includes(x.id)) x.commentaire=val; });
       _modalDirty=false; closeModal(); toast('Commentaire enregistré','ok'); afficherPhotos(window._photosCache||[]);
     }catch(e){ toast(e.message,'err'); }
   };
