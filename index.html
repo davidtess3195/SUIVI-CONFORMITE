@@ -7555,6 +7555,7 @@ async function openReportModal(mode){
         <option>Levée des réserves</option>
         <option>Observations</option>
         <option>Remarques</option>
+        <option>Non conformité</option>
         <option>Votre avis</option>
         <option value="__autre__">Autre (saisir)…</option>
       </select>
@@ -7697,7 +7698,7 @@ async function viewCompteRendu(c){
           <select id="rp_obj_sel" style="${ist}" onchange="onReportObj()">
             <option value="">— choisir —</option>
             <option>Visite</option><option>Travaux divers</option><option>Dépannage</option><option>Réparation</option>
-            <option>Levée des réserves</option><option>Observations</option><option>Remarques</option><option>Votre avis</option>
+            <option>Levée des réserves</option><option>Observations</option><option>Remarques</option><option>Non conformité</option><option>Votre avis</option>
             <option value="__autre__">Autre (saisir)…</option>
           </select>
           <input id="rp_obj" placeholder="Préciser l'objet…" autocomplete="off" style="${ist};margin-top:8px;display:none"></div>
@@ -8226,6 +8227,8 @@ async function generateReportPDF(f){
   window._crArchived=false;
   window._crArchive={clientId:f.clientId||null, erpId:f.erpId||null, fname:fname+'.pdf', titre:f.titre||'Compte rendu'};
   window._crMailSubject=(f.titre||'Compte rendu')+(f.objet?(' — '+f.objet):'');
+  // Informations reprises dans le corps de l'email d'envoi
+  window._crMailMeta={ titre:f.titre||'Compte rendu', erp:f.erp||'', objet:f.objet||'', date:f.date||'', nb:(f.photos||[]).length };
   const recips=f.recipients||[];
   const selEmail=(f.selectedContactEmail||'').toLowerCase();
   const recipHtml = recips.length
@@ -9451,13 +9454,27 @@ window.crEmailSend=async function(){
     }
     if(btn) btn.textContent='Envoi de l\'email…';
     const subject=window._crMailSubject||'Compte rendu';
-    const html=`<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">
-      <div style="background:#1e3a5f;padding:20px 24px;border-radius:8px 8px 0 0"><h2 style="color:#fff;margin:0;font-size:18px">${esc(subject)}</h2></div>
-      <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:24px">
+    const meta=window._crMailMeta||{};
+    const ligne=(lab,val)=>val?`<tr><td style="padding:9px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:bold;width:38%;color:#475569">${lab}</td><td style="padding:9px 12px;border:1px solid #e2e8f0;color:#1e293b">${val}</td></tr>`:'';
+    const html=`<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:auto">
+      <div style="background:#1e3a5f;padding:22px 26px;border-radius:8px 8px 0 0">
+        <h2 style="color:#ffffff;margin:0;font-size:19px">PREVA CONSEILS</h2>
+        <p style="color:#93b4d8;margin:4px 0 0;font-size:13px">${esc(meta.titre||subject)}</p>
+      </div>
+      <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:26px">
         <p style="margin:0 0 16px;color:#1e293b">Bonjour,</p>
-        <p style="margin:0 0 16px;color:#1e293b">Veuillez trouver ci-joint le compte rendu au format PDF.</p>
-        ${vurls.length?`<p style="margin:0 0 16px;color:#1e293b"><b>Vidéo(s) :</b><br>${vurls.map(u=>`<a href="${esc(u)}" style="color:#2563eb">${esc(u)}</a>`).join('<br>')}</p>`:''}
-        <p style="margin:0;color:#64748b;font-size:13px">Cordialement,<br><b>PREVA CONSEILS</b><br>5 rue Marceline 95110 SANNOIS<br>Tél : 01.34.17.61.33 — contact@preva-conseils.fr</p>
+        <p style="margin:0 0 18px;color:#1e293b;line-height:1.5">Veuillez trouver ci-joint le compte rendu établi${meta.erp?` pour l'établissement <b>${esc(meta.erp)}</b>`:''}.</p>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:18px;font-size:14px">
+          ${ligne('Établissement', meta.erp?esc(meta.erp):'')}
+          ${ligne('Objet', meta.objet?esc(meta.objet):'')}
+          ${ligne('Date du rapport', meta.date?esc(meta.date):'')}
+          ${ligne('Nombre de remarques', meta.nb?`<b>${meta.nb}</b> — détaillées dans le document PDF joint`:'')}
+        </table>
+        ${vurls.length?`<p style="margin:0 0 18px;color:#1e293b;font-size:14px"><b>Vidéo(s) :</b><br>${vurls.map(u=>`<a href="${esc(u)}" style="color:#2563eb">${esc(u)}</a>`).join('<br>')}</p>`:''}
+        <p style="margin:0 0 18px;color:#1e293b;font-size:14px">Le détail complet des constats figure dans le <b>document PDF joint</b> à ce message.</p>
+        <p style="margin:0 0 4px;color:#1e293b;font-size:14px">Nous restons à votre disposition pour toute précision et vous prions de bien vouloir nous confirmer la prise en compte de cette demande.</p>
+        <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0 14px">
+        <p style="margin:0;color:#64748b;font-size:12.5px;line-height:1.6">Cordialement,<br><b style="color:#1e3a5f">PREVA CONSEILS</b><br>5 rue Marceline — 95110 SANNOIS<br>Tél : 01.34.17.61.33 · contact@preva-conseils.fr</p>
       </div></div>`;
     // 2) ENVOI RÉEL — appel HTTP direct (fetch brut + AbortController).
     // On NE passe PAS par sb.functions.invoke : son verrou interne de session
