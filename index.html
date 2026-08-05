@@ -4656,13 +4656,14 @@ async function loadClientDossier(id, erps){
     </div>`;
   const docBucket=d=>{ const t=d.tags||''; return (t.indexOf('cat:')>=0||t.indexOf('source:rapports')>=0)?'rapports':'documents'; };
   const docTrash=(d,bk)=>`<button title="Supprimer ce document" onclick="event.stopPropagation();docDelete('${d.id}','${d.fichier_path||''}','${bk}')" style="flex:0 0 auto;border:none;background:transparent;color:var(--muted-2);cursor:pointer;font-size:14px;padding:5px 7px;border-radius:7px">🗑</button>`;
+  const docRelanceBtn=(d,bk)=>{ const sn=(d.nom_original||d.type||'document.pdf').replace(/'/g,'\\u2019'); return d.fichier_path?`<button title="Relancer (renvoyer par e-mail)" onclick="event.stopPropagation();docRelance('${d.id}','${d.fichier_path}','${bk}','${sn}')" style="flex:0 0 auto;border:none;background:transparent;color:var(--primary);cursor:pointer;font-size:14px;padding:5px 7px;border-radius:7px">🔔</button>`:''; };
   const docItem=d=>{ const nm=(d.nom_original||d.type||'document.pdf'); const safe=nm.replace(/'/g,'\\u2019'); const bk=docBucket(d);
     return `<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:8px;background:var(--surface-2)">
       <div onclick="previewDoc('${d.fichier_path}','${safe}','${bk}')" style="display:flex;align-items:center;gap:9px;flex:1;min-width:0;cursor:pointer;padding:3px 2px">
         <span style="font-size:17px;flex:0 0 auto">📄</span>
         <div style="min-width:0;flex:1"><div style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nm)}</div>
         <div style="font-size:11px;color:var(--muted)">${fmtDate(d.date_document||d.created_at)}</div></div>
-      </div>${docTrash(d,bk)}
+      </div>${docRelanceBtn(d,bk)}${docTrash(d,bk)}
     </div>`; };
   const docItemTyped=d=>{ const nm=(d.nom_original||d.type||'document.pdf'); const safe=nm.replace(/'/g,'\\u2019'); const bk=docBucket(d);
     return `<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:8px;background:var(--surface-2)">
@@ -4670,7 +4671,7 @@ async function loadClientDossier(id, erps){
         <span style="font-size:17px;flex:0 0 auto">📄</span>
         <div style="min-width:0;flex:1"><div style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nm)}</div>
         <div style="font-size:11px;color:var(--muted)">${esc(d.type||'Document')} · ${fmtDate(d.date_document||d.created_at)}</div></div>
-      </div>${docTrash(d,bk)}
+      </div>${docRelanceBtn(d,bk)}${docTrash(d,bk)}
     </div>`; };
 
   const convItem=cv=>`<div onclick="formConversation((window._dossierConvs||{})['${cv.id}'])" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;background:var(--surface-2)">
@@ -8024,6 +8025,7 @@ async function viewCompteRendu(c){
 
   c.innerHTML=`
     <div class="page-head"><div class="t"><h1>Compte rendu</h1><p>Remplissez les champs et générez un PDF propre et professionnel.</p></div></div>
+    <div id="cr_relances"></div>
     <div style="display:flex;flex-direction:column;gap:16px;max-width:900px">
 
       <div class="card"><div class="card-pad">
@@ -8093,11 +8095,14 @@ async function viewCompteRendu(c){
         <div id="rp_att_list" style="margin-top:10px"></div>
       </div></div>
 
-      <div style="display:flex;justify-content:flex-end;gap:10px;padding-bottom:20px">
+      <div style="display:flex;justify-content:flex-end;gap:10px;padding-bottom:20px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-right:auto">🔔 M'alerter pour relance après
+          <input id="cr_relance_days" type="number" min="0" value="0" style="width:64px;padding:7px 8px;border:1px solid var(--line);border-radius:8px;font-family:inherit;text-align:center"> jours
+          <span style="color:var(--muted-2);font-size:11.5px">(0 = aucune alerte)</span></label>
         <button class="btn primary" id="cr_go" onclick="crGenerate()">📄 Générer le compte rendu (PDF)</button>
       </div>
     </div>`;
-  renderReportAttList(); renderReportDestChips(); crRenderPhotos(); crUpdatePolitesse();
+  renderReportAttList(); renderReportDestChips(); crRenderPhotos(); crUpdatePolitesse(); loadCrRelances();
 }
 window.viewCompteRendu=viewCompteRendu;
 
@@ -8316,13 +8321,16 @@ window.crGenerate=async function(){
     let chosenName='', chosenEmail='';
     if(cvSel && cvSel.value && cvSel.value!=='__autre__'){ chosenName=cvSel.value; chosenEmail=(cvSel.options[cvSel.selectedIndex]?.dataset?.email)||''; }
     else if(cvSel && cvSel.value==='__autre__'){ chosenName=$('#cr_attn_free')?.value.trim()||''; }
-    const pmail=chosenEmail||pk.email;
-    if(!pmail){ toast('Ce prestataire n\'a pas d\'e-mail enregistré','err'); return; }
+    // Toutes les adresses connues du prestataire → sélectionnables (cases à cocher) à l'envoi
+    let prestRecs=(pk.contacts||[]).filter(c=>c.email).map(c=>({email:c.email,label:pk.nom+(c.nom?' — '+c.nom:'')}));
+    if(chosenEmail && !prestRecs.some(r=>r.email.toLowerCase()===chosenEmail.toLowerCase())) prestRecs.unshift({email:chosenEmail,label:pk.nom+(chosenName?' — '+chosenName:'')});
+    if(!prestRecs.length && pk.email) prestRecs=[{email:pk.email,label:pk.nom}];
+    if(!prestRecs.length){ toast('Ce prestataire n\'a pas d\'e-mail enregistré','err'); return; }
     // Le client (et ses contacts) sont ajoutés EN COPIE, pré-cochés et décochables à l'envoi
     const clientCopies=recipients.filter(r=>r&&r.email).map(r=>({email:r.email,label:(r.label||'Client')+' — copie'}));
-    recipients=[{email:pmail,label:pk.nom}].concat(clientCopies);
+    recipients=prestRecs.concat(clientCopies);
     { const seen=new Set(); recipients=recipients.filter(r=>{const k=(r.email||'').toLowerCase(); if(!k||seen.has(k))return false; seen.add(k); return true;}); }
-    selEmail=''; // pré-cocher tous les destinataires (prestataire + client en copie)
+    selEmail=''; // toutes les adresses pré-cochées (plusieurs adresses prestataire + client en copie)
     destNom=[civ, chosenName||pk.contact].filter(Boolean).join(' ');
     dests=[{dest:pk.nom, addr:[], destNom}];
   }
@@ -8349,7 +8357,7 @@ window.crGenerate=async function(){
       redacteur:$('#cr_red')?.value.trim()||'',
       obs:$('#cr_obs')?.value.trim()||'',
       politesse:$('#cr_pol')?.value.trim()||'',
-      photos, requirePhoto:false, attachments:_reportAttachments.slice(), recipients, selectedContactEmail:selEmail, clientId:cid, erpId:erpId||null, erpAddr, videos
+      photos, requirePhoto:false, attachments:_reportAttachments.slice(), recipients, selectedContactEmail:selEmail, clientId:cid, erpId:erpId||null, erpAddr, videos, relanceDays:parseInt($('#cr_relance_days')?.value,10)||0
     });
     toast('Compte rendu généré','ok');
   }catch(e){ toast(e.message||'Erreur de génération','err'); }
@@ -8660,7 +8668,8 @@ async function generateReportPDF(f){
   window._crMailFile={url,name:fname+'.pdf'};
   window._crMailBlob=blob;
   window._crArchived=false;
-  window._crArchive={clientId:f.clientId||null, erpId:f.erpId||null, fname:fname+'.pdf', titre:f.titre||'Compte rendu'};
+  let _relLe=null; if(f.relanceDays && Number(f.relanceDays)>0){ const d=new Date(); d.setDate(d.getDate()+Number(f.relanceDays)); _relLe=d.toISOString().slice(0,10); }
+  window._crArchive={clientId:f.clientId||null, erpId:f.erpId||null, fname:fname+'.pdf', titre:f.titre||'Compte rendu', relanceLe:_relLe};
   window._crMailSubject=(f.titre||'Compte rendu')+(f.objet?(' — '+f.objet):'');
   // Informations reprises dans le corps de l'email d'envoi
   window._crMailMeta={ titre:f.titre||'Compte rendu', erp:f.erp||'', objet:f.objet||'', date:f.date||'', nb:(f.photos||[]).length };
@@ -9972,6 +9981,80 @@ window.crShareWithVideo=async function(){
     toast("Le partage de fichiers n'est pas supporté par ce navigateur. Utilisez « Envoyer par email » (PDF + lien vidéo), de préférence sur mobile pour le partage direct.",'err');
   }
 };
+/* ===== Relances des comptes rendus (alerte dans l'application) ===== */
+window.loadCrRelances=async function(){
+  const box=document.getElementById('cr_relances'); if(!box) return;
+  const today=new Date().toISOString().slice(0,10);
+  let rows=[];
+  try{ const {data}=await sb.from('documents').select('id,client_id,type,nom_original,fichier_path,tags,relance_le').eq('relance_faite',false).not('relance_le','is',null).lte('relance_le',today).order('relance_le',{ascending:true}); rows=data||[]; }catch(e){ box.innerHTML=''; return; }
+  if(!rows.length){ box.innerHTML=''; return; }
+  const clientName=id=>{ const c=(state.clients||[]).find(x=>x.id===id); return c?(c.raison_sociale||c.nom_commercial||'Client'):'Client'; };
+  const bucketOf=d=>{ const t=d.tags||''; return (t.indexOf('cat:')>=0||t.indexOf('source:rapports')>=0)?'rapports':'documents'; };
+  const item=d=>{ const nm=(d.nom_original||d.type||'document.pdf'); const sn=nm.replace(/'/g,'\\u2019'); const bk=bucketOf(d);
+    const retard=Math.max(0,Math.floor((Date.now()-new Date(d.relance_le).getTime())/864e5));
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid #fed7aa;border-radius:10px;background:#fff;margin-bottom:7px">
+      <span style="font-size:18px">🔔</span>
+      <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nm)}</div>
+      <div style="font-size:12px;color:var(--muted)">${esc(clientName(d.client_id))} · relance prévue le ${new Date(d.relance_le).toLocaleDateString('fr-FR')}${retard>0?` · <span style="color:#b45309;font-weight:600">en retard de ${retard} j</span>`:''}</div></div>
+      <button class="btn sm primary" onclick="docRelance('${d.id}','${d.fichier_path||''}','${bk}','${sn}')">🔔 Relancer</button>
+      <button class="btn sm" onclick="relanceClose('${d.id}')" title="Réponse reçue — clôturer l'alerte">✓ Clôturer</button>
+    </div>`; };
+  box.innerHTML=`<div class="card" style="border-color:#fdba74;background:#fff7ed;margin-bottom:16px"><div class="card-pad">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><b style="font-size:14px;color:#9a3412">🔔 Relances à faire (${rows.length})</b>
+        <span style="font-size:12px;color:#9a3412;margin-left:auto">Comptes rendus sans réponse dans le délai fixé</span></div>
+      ${rows.map(item).join('')}
+    </div></div>`;
+};
+window.relanceClose=async function(id){
+  try{ const {error}=await sb.from('documents').update({relance_faite:true}).eq('id',id); if(error) throw error; toast('Relance clôturée','ok'); loadCrRelances(); }
+  catch(e){ toast(e.message||'Erreur','err'); }
+};
+/* Renvoi d'un document par e-mail (relance manuelle) */
+window.docRelance=async function(docId, path, bucket, name){
+  if(!path){ toast('Fichier introuvable','err'); return; }
+  const cid=window._dossierClientId||null;
+  const emails=[];
+  try{ let clId=cid;
+    if(!clId){ try{ const {data:d}=await sb.from('documents').select('client_id').eq('id',docId).maybeSingle(); clId=d&&d.client_id; }catch(_){}}
+    if(clId){ try{ const {data:cl}=await sb.from('clients').select('email').eq('id',clId).maybeSingle(); if(cl&&cl.email) emails.push(cl.email); }catch(_){}
+      try{ const {data:cts}=await sb.from('client_contacts').select('email').eq('client_id',clId); (cts||[]).forEach(c=>c.email&&emails.push(c.email)); }catch(_){}
+      window._crRelClient=clId;
+    }
+  }catch(_){}
+  const uniq=[...new Set(emails.map(e=>(e||'').trim()).filter(Boolean))];
+  openModal(`<div class="modal-head"><h2>🔔 Relancer — ${esc(name||'document')}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body">
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">Renvoie le document en pièce jointe avec un message de relance. Ajustez les destinataires si besoin (séparés par des virgules).</div>
+      <div class="fld"><label>Destinataires</label><textarea id="rl_to" rows="2" style="width:100%;box-sizing:border-box">${esc(uniq.join(', '))}</textarea></div>
+      <div class="fld"><label>Message</label><textarea id="rl_msg" rows="5" style="width:100%;box-sizing:border-box">Bonjour,
+
+Sauf erreur de notre part, nous n'avons pas eu de retour concernant le document ci-joint. Pourriez-vous nous confirmer sa bonne réception et la suite donnée ?
+
+Bien cordialement,
+PREVA CONSEILS</textarea></div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="rl_send">Envoyer la relance</button></div>`);
+  document.getElementById('rl_send').onclick=async()=>{
+    const tos=(document.getElementById('rl_to').value||'').split(/[,;\s]+/).map(s=>s.trim()).filter(s=>/^.+@.+\..+$/.test(s));
+    if(!tos.length){ toast('Indiquez au moins un e-mail valide','err'); return; }
+    const btn=document.getElementById('rl_send'); btn.disabled=true; btn.textContent='Préparation…';
+    try{
+      const {data,error}=await sb.storage.from(bucket||'documents').createSignedUrl(path,600); if(error) throw error;
+      const r=await fetch(data.signedUrl); const blob=await r.blob();
+      const b64=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(',')[1]||'');fr.onerror=()=>rej(new Error('lecture PDF'));fr.readAsDataURL(blob);});
+      btn.textContent='Envoi…';
+      const msg=(document.getElementById('rl_msg').value||'').replace(/</g,'&lt;').replace(/\n/g,'<br>');
+      const html=`<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:auto"><div style="background:#1e3a5f;padding:18px 24px;border-radius:8px 8px 0 0"><h2 style="color:#fff;margin:0;font-size:17px">PREVA CONSEILS — Relance</h2></div><div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:22px;color:#1e293b;font-size:14px;line-height:1.55">${msg}</div></div>`;
+      const tk=(typeof agToken==='function')?agToken():{token:null};
+      const resp=await fetch(SUPABASE_URL+'/functions/v1/send-client-email',{method:'POST',headers:{'Content-Type':'application/json',apikey:SUPABASE_ANON_KEY,Authorization:'Bearer '+(tk.token||SUPABASE_ANON_KEY)},body:JSON.stringify({to:tos,subject:'Relance — '+(name||'Document'),html,attachments:[{filename:name||'document.pdf',content:b64,contentType:'application/pdf'}]})});
+      const out=await resp.json().catch(()=>({})); if(!resp.ok||out.error) throw new Error(out.error||('HTTP '+resp.status));
+      try{ await sb.from('documents').update({relance_faite:true}).eq('id',docId); }catch(_){}
+      toast('Relance envoyée à : '+tos.join(', '),'ok'); closeModal();
+      if(typeof loadCrRelances==='function') loadCrRelances();
+      if(window._dossierClientId) loadClientDossier(window._dossierClientId, window._dossierErps||[]);
+    }catch(e){ btn.disabled=false; btn.textContent='Envoyer la relance'; toast('Envoi impossible : '+(e.message||e),'err'); }
+  };
+};
 window.crArchiveCopy=async function(){
   const a=window._crArchive; const blob=window._crMailBlob;
   if(!a||!a.clientId||!blob){ return; }
@@ -9981,9 +10064,9 @@ window.crArchiveCopy=async function(){
     const path = folder+'/'+Date.now()+'_'+(a.fname||'compte_rendu.pdf').replace(/[^\w.\-]/g,'_');
     const {error:upErr}=await sb.storage.from('documents').upload(path, blob, {contentType:'application/pdf'});
     if(upErr) throw upErr;
-    await sb.from('documents').insert({client_id:a.clientId, erp_id:a.erpId||null, type:'Compte rendu', date_document:new Date().toISOString().slice(0,10), fichier_path:path, nom_original:a.fname||(a.titre+'.pdf')});
+    await sb.from('documents').insert({client_id:a.clientId, erp_id:a.erpId||null, type:'Compte rendu', date_document:new Date().toISOString().slice(0,10), fichier_path:path, nom_original:a.fname||(a.titre+'.pdf'), relance_le:a.relanceLe||null});
     window._crArchived=true;
-    toast('Copie archivée dans les documents du client','ok');
+    toast(a.relanceLe?('Copie archivée · relance programmée le '+new Date(a.relanceLe).toLocaleDateString('fr-FR')):'Copie archivée dans les documents du client','ok');
   }catch(e){ toast('Archivage impossible : '+(e.message||e),'err'); }
 };
 // Catégorie (axe tri email : rapport/devis/facture/autre) déduite du type GED choisi
