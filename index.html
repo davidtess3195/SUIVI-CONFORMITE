@@ -4030,6 +4030,17 @@ function cxStyle(){
   .cx-line svg{color:var(--muted-2);flex:0 0 auto}
   .cx-card-foot{display:flex;align-items:center;justify-content:space-between;gap:8px}
   .cx-empty-row{padding:34px 20px;text-align:center;color:var(--muted)}
+  .ex-list-h{display:grid;grid-template-columns:1fr 260px 120px 96px;gap:16px;padding:13px 20px;border-bottom:1px solid var(--line);background:var(--surface-2);font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+  .ex-row{display:grid;grid-template-columns:1fr 260px 120px 96px;gap:16px;padding:14px 20px;align-items:center;border-bottom:1px solid var(--line-2);cursor:pointer;transition:.12s}
+  .ex-row:last-child{border-bottom:none}
+  .ex-row:hover{background:var(--surface-2)}
+  .ex-cn{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+  .ex-qr{justify-self:end}
+  @media(max-width:760px){
+    .ex-list-h{display:none}
+    .ex-row{grid-template-columns:1fr auto;gap:10px}
+    .ex-row .ex-ct,.ex-row .ex-st{display:none}
+  }
   @media(max-width:760px){
     .cx-kpis{grid-template-columns:1fr}
     .cx-list-h{display:none}
@@ -5134,14 +5145,72 @@ async function viewErps(c){
       : emptyBlock(I.erp,'Aucun ERP','Créez un établissement et son QR code de pointage sera généré automatiquement.',`<button class="btn primary" onclick="formErp()">${I.plus} Créer un ERP</button>`);
     return;
   }
+  cxStyle();
   const clientName=id=>state.clients.find(x=>x.id===id)?.raison_sociale||'';
-  c.innerHTML+=`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Code</th><th>Nom</th><th>Client</th><th>Statut</th><th></th></tr></thead><tbody>
-    ${erps.map(e=>`<tr onclick="navigate('/erps/${e.id}')"><td class="mono">${esc(e.code_erp)}</td><td><b>${esc(e.nom)}</b>${(()=>{const s=assurEtat(e.assurance);return s&&s.days<=60?` <span title="${s.txt}" style="display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:1px;background:${s.days<0?'var(--majeur)':'var(--moyen)'}"></span>`:'';})()}</td>
-      <td>${esc(clientName(e.client_id))}</td>
-      <td>${statusPill(e.statut,{validee:['','Validée','ok'],brouillon:['','Brouillon','inf'],a_completer:['','À compléter','moy'],archive:['','Archivé','inf']})}</td>
-      <td style="text-align:right"><button class="btn sm" onclick="event.stopPropagation();showQR('${e.qr_token}')">${I.qr} QR</button></td></tr>`).join('')}
-    </tbody></table></div>`;
+  const total=erps.length;
+  const valides=erps.filter(e=>e.statut==='validee').length;
+  const afin=erps.filter(e=>e.statut==='brouillon'||e.statut==='a_completer').length;
+  c.innerHTML+=`
+    <div class="cx-kpis">
+      <div class="cx-kpi"><div class="ic" style="background:#eff4ff;color:#2563eb"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg></div><div><div class="v">${total}</div><div class="l">ERP au total</div></div></div>
+      <div class="cx-kpi"><div class="ic" style="background:#dcfce7;color:#16a34a"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div><div class="v">${valides}</div><div class="l">ERP validés</div></div></div>
+      <div class="cx-kpi"><div class="ic" style="background:#fef3c7;color:#d97706"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div><div><div class="v">${afin}</div><div class="l">À finaliser</div></div></div>
+    </div>
+    <div class="cx-toolbar">
+      <div class="cx-search"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="ex_q" oninput="_erpRender()" placeholder="Rechercher un ERP, un code, un client…"></div>
+      <select id="ex_status" class="cx-filter" onchange="_erpRender()"><option value="all">Tous les statuts</option><option value="validee">Validés</option><option value="brouillon">Brouillons</option><option value="a_completer">À compléter</option><option value="archive">Archivés</option></select>
+      <select id="ex_sort" class="cx-filter" onchange="_erpRender()"><option value="az">Trier : A → Z</option><option value="za">Trier : Z → A</option></select>
+      <div class="cx-seg"><button id="ex_vlist" class="on" onclick="_erpView('list')">▤ Liste</button><button id="ex_vcards" onclick="_erpView('cards')">▦ Cartes</button></div>
+    </div>
+    <div class="cx-list" id="ex_list"><div class="ex-list-h"><div>ERP</div><div>Client</div><div>Statut</div><div></div></div><div id="ex_list_body"></div></div>
+    <div class="cx-cards" id="ex_cards_wrap" style="display:none"><div id="ex_cards" style="display:contents"></div></div>`;
+  window._erpData=erps.map(e=>{ const s=window.assurEtat?window.assurEtat(e.assurance):null;
+    return {id:e.id,code:e.code_erp||'',nom:e.nom||'',client:clientName(e.client_id),statut:e.statut||'brouillon',qr:e.qr_token||'',
+      warn:!!(s&&s.days<=60), warnTxt:s?s.txt:'', warnColor:(s&&s.days<0)?'var(--majeur)':'var(--moyen)'};});
+  _erpRender();
 }
+function cxPillErp(s){ s=s||'brouillon';
+  if(s==='validee') return '<span class="cx-pill cx-ok"><span class="cx-dot"></span>Validée</span>';
+  if(s==='a_completer') return '<span class="cx-pill cx-brn">À compléter</span>';
+  if(s==='archive') return '<span class="cx-pill cx-arch">Archivé</span>';
+  return '<span class="cx-pill cx-arch">Brouillon</span>'; }
+function exWarn(d){ return d.warn?` <span title="${esc(d.warnTxt)}" style="display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:1px;background:${d.warnColor}"></span>`:''; }
+window._erpView=function(v){
+  const l=document.getElementById('ex_list'), c=document.getElementById('ex_cards_wrap');
+  if(l) l.style.display=(v==='cards')?'none':'';
+  if(c) c.style.display=(v==='cards')?'grid':'none';
+  const b1=document.getElementById('ex_vlist'), b2=document.getElementById('ex_vcards');
+  if(b1) b1.classList.toggle('on',v!=='cards');
+  if(b2) b2.classList.toggle('on',v==='cards');
+};
+window._erpRender=function(){
+  const data=window._erpData||[];
+  const q=(document.getElementById('ex_q')?.value||'').toLowerCase().trim();
+  const st=document.getElementById('ex_status')?.value||'all';
+  const sort=document.getElementById('ex_sort')?.value||'az';
+  let list=data.filter(d=>{
+    if(st!=='all' && (d.statut||'brouillon')!==st) return false;
+    if(q){ const hay=(d.nom+' '+d.code+' '+d.client).toLowerCase(); if(!hay.includes(q)) return false; }
+    return true;
+  });
+  list.sort((a,b)=> sort==='za'? b.nom.localeCompare(a.nom,'fr') : a.nom.localeCompare(b.nom,'fr'));
+  const qrBtn=d=>`<button class="btn sm" onclick="event.stopPropagation();showQR('${d.qr}')">${I.qr} QR</button>`;
+  const rows=list.map(d=>`<div class="ex-row" onclick="navigate('/erps/${d.id}')">
+      <div class="cx-cli"><div class="cx-av">${CX_BUILDING}</div><div style="min-width:0"><div class="cx-nm">${esc(d.nom)}${exWarn(d)}</div>${d.code?`<span class="cx-code">${esc(d.code)}</span>`:''}</div></div>
+      <div class="ex-ct"><div class="ex-cn">${d.client?esc(d.client):'<span class="cx-empty">—</span>'}</div></div>
+      <div class="ex-st">${cxPillErp(d.statut)}</div>
+      <div class="ex-qr">${qrBtn(d)}</div>
+    </div>`).join('') || '<div class="cx-empty-row">Aucun ERP ne correspond.</div>';
+  const le=document.getElementById('ex_list_body'); if(le) le.innerHTML=rows;
+  const cards=list.map(d=>`<div class="cx-card" onclick="navigate('/erps/${d.id}')">
+      <div class="cx-card-top"><div class="cx-av">${CX_BUILDING}</div><div style="min-width:0"><div class="cx-nm">${esc(d.nom)}${exWarn(d)}</div>${d.code?`<div class="cx-code2">${esc(d.code)}</div>`:''}</div></div>
+      <div class="cx-card-info">
+        <div class="cx-line">${CX_PERSON}${d.client?esc(d.client):'<span style="color:var(--muted-2)">Sans client</span>'}</div>
+      </div>
+      <div class="cx-card-foot">${cxPillErp(d.statut)}${qrBtn(d)}</div>
+    </div>`).join('') || '<div class="cx-empty-row" style="grid-column:1/-1">Aucun ERP ne correspond.</div>';
+  const ce=document.getElementById('ex_cards'); if(ce) ce.innerHTML=cards;
+};
 
 window.prestGaranties=function(p,duTravaux,auTravaux){
   const i=(p&&p.assurance)||{};
