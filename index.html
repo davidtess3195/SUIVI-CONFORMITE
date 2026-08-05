@@ -8318,8 +8318,11 @@ window.crGenerate=async function(){
     else if(cvSel && cvSel.value==='__autre__'){ chosenName=$('#cr_attn_free')?.value.trim()||''; }
     const pmail=chosenEmail||pk.email;
     if(!pmail){ toast('Ce prestataire n\'a pas d\'e-mail enregistré','err'); return; }
-    recipients=[{email:pmail,label:pk.nom}];
-    selEmail=pmail;
+    // Le client (et ses contacts) sont ajoutés EN COPIE, pré-cochés et décochables à l'envoi
+    const clientCopies=recipients.filter(r=>r&&r.email).map(r=>({email:r.email,label:(r.label||'Client')+' — copie'}));
+    recipients=[{email:pmail,label:pk.nom}].concat(clientCopies);
+    { const seen=new Set(); recipients=recipients.filter(r=>{const k=(r.email||'').toLowerCase(); if(!k||seen.has(k))return false; seen.add(k); return true;}); }
+    selEmail=''; // pré-cocher tous les destinataires (prestataire + client en copie)
     destNom=[civ, chosenName||pk.contact].filter(Boolean).join(' ');
     dests=[{dest:pk.nom, addr:[], destNom}];
   }
