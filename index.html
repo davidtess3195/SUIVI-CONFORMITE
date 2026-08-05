@@ -8132,8 +8132,16 @@ window.crDestTypeChange=function(){
 };
 window.crPrestPick=function(){
   const pid=document.getElementById('cr_prest')?.value; const pk=(window._crPrestPick||{})[pid];
-  const info=document.getElementById('cr_prest_info'); if(!info) return;
-  info.innerHTML = pk ? (pk.email?`✉️ ${esc(pk.email)}${pk.contact?' · '+esc(pk.contact):''}`:'<span style="color:var(--majeur)">Aucun e-mail enregistré pour ce prestataire</span>') : '';
+  const info=document.getElementById('cr_prest_info');
+  if(info) info.innerHTML = pk ? (pk.email?`✉️ ${esc(pk.email)}${pk.contact?' · 👤 '+esc(pk.contact):''}`:'<span style="color:var(--majeur)">Aucun e-mail enregistré pour ce prestataire</span>') : '';
+  // Alimente « À l'attention de » avec les contacts du prestataire (nom + e-mail)
+  const csel=document.getElementById('cr_contact');
+  if(csel && pk){
+    csel.innerHTML='<option value="">— (optionnel) —</option>';
+    (pk.contacts||[]).forEach(ct=>{ const nm=ct.nom||ct.email||''; if(!nm) return; const label=nm+(ct.email?` <${ct.email}>`:''); csel.innerHTML+=`<option value="${esc(nm)}" data-email="${esc(ct.email||'')}">${esc(label)}</option>`; });
+    csel.innerHTML+='<option value="__autre__">Autre (saisir)…</option>';
+    crContactChange();
+  }
 };
 async function crBuildPrestSelect(){
   const sel=document.getElementById('cr_prest'); if(!sel) return;
@@ -8155,7 +8163,7 @@ async function crBuildPrestSelect(){
   const linkedIds=new Set(links.filter(l=>(erpId&&l.erp_id===erpId)||(cid&&l.client_id===cid)).map(l=>l.prestataire_id));
   window._crPrestPick={};
   const mk=p=>{ const cs=contactsOf(p); const primary=cs.find(c=>c.email)||cs[0]||{email:'',nom:''};
-    window._crPrestPick[p.id]={nom:p.nom||'',email:primary.email||'',contact:primary.nom||''};
+    window._crPrestPick[p.id]={nom:p.nom||'',email:primary.email||'',contact:primary.nom||'',contacts:cs};
     return `<option value="${esc(p.id)}">${esc([p.nom,primary.email].filter(Boolean).join(' · '))}</option>`; };
   const linked=prest.filter(p=>linkedIds.has(p.id));
   const autres=prest.filter(p=>!linkedIds.has(p.id));
@@ -8304,13 +8312,24 @@ window.crGenerate=async function(){
   if(destType==='prestataire'){
     const pid=$('#cr_prest')?.value; const pk=(window._crPrestPick||{})[pid];
     if(!pid||!pk){ toast('Sélectionnez un prestataire','err'); return; }
-    if(!pk.email){ toast('Ce prestataire n\'a pas d\'e-mail enregistré','err'); return; }
-    recipients=[{email:pk.email,label:pk.nom}];
-    selEmail=pk.email;
-    destNom=pk.contact||'';
+    const cvSel=document.getElementById('cr_contact');
+    let chosenName='', chosenEmail='';
+    if(cvSel && cvSel.value && cvSel.value!=='__autre__'){ chosenName=cvSel.value; chosenEmail=(cvSel.options[cvSel.selectedIndex]?.dataset?.email)||''; }
+    else if(cvSel && cvSel.value==='__autre__'){ chosenName=$('#cr_attn_free')?.value.trim()||''; }
+    const pmail=chosenEmail||pk.email;
+    if(!pmail){ toast('Ce prestataire n\'a pas d\'e-mail enregistré','err'); return; }
+    recipients=[{email:pmail,label:pk.nom}];
+    selEmail=pmail;
+    destNom=[civ, chosenName||pk.contact].filter(Boolean).join(' ');
     dests=[{dest:pk.nom, addr:[], destNom}];
   }
   const erpId=$('#cr_erp')?.value; const erpNom=erpId?(state.erps.find(e=>e.id===erpId)?.nom||''):client.raison_sociale;
+  // Adresse de l'établissement concerné (pour l'afficher dans le compte rendu)
+  let erpAddr=[];
+  if(erpId){ const e=state.erps.find(x=>x.id===erpId)||{}; let l1=e.adresse, cp=e.code_postal, v=e.ville;
+    if(!l1 && !v){ try{ const {data}=await sb.from('erps').select('adresse,code_postal,ville').eq('id',erpId).maybeSingle(); if(data){ l1=data.adresse; cp=data.code_postal; v=data.ville; } }catch(_){ } }
+    erpAddr=[l1, [cp,v].filter(Boolean).join(' ')].filter(Boolean);
+  }
   let videos=[];
   try{ const erpIds=state.erps.filter(e=>e.client_id===cid).map(e=>e.id);
     if(erpIds.length){ const {data:vd}=await sb.from('photos_urgentes').select('photo_path,commentaire,mission,created_at').in('erp_id',erpIds).order('created_at',{ascending:false});
@@ -8327,7 +8346,7 @@ window.crGenerate=async function(){
       redacteur:$('#cr_red')?.value.trim()||'',
       obs:$('#cr_obs')?.value.trim()||'',
       politesse:$('#cr_pol')?.value.trim()||'',
-      photos, requirePhoto:false, attachments:_reportAttachments.slice(), recipients, selectedContactEmail:selEmail, clientId:cid, erpId:erpId||null, videos
+      photos, requirePhoto:false, attachments:_reportAttachments.slice(), recipients, selectedContactEmail:selEmail, clientId:cid, erpId:erpId||null, erpAddr, videos
     });
     toast('Compte rendu généré','ok');
   }catch(e){ toast(e.message||'Erreur de génération','err'); }
@@ -8500,6 +8519,15 @@ async function generateReportPDF(f){
   const body=f.obs?f.obs:bodyDefault;
   const bodyLines=doc.splitTextToSize(body, PW-2*M);
   doc.text(bodyLines, M, y); y+=bodyLines.length*4.8+5;
+
+  // Établissement concerné + adresse
+  if(f.erp && f.erpAddr && f.erpAddr.length){
+    doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor(30);
+    doc.text('Établissement concerné :', M, y); y+=4.8;
+    doc.setFont('helvetica','normal'); doc.setTextColor(60);
+    [f.erp, ...f.erpAddr].forEach(l=>{ const ls=doc.splitTextToSize(String(l), PW-2*M); doc.text(ls, M, y); y+=ls.length*4.4; });
+    y+=5;
+  }
 
   // Formule de politesse (adaptée à la civilité)
   if(f.politesse){
