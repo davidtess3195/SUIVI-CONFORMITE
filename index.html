@@ -3409,6 +3409,7 @@ function renderApp(){
   if(window.navRestore) navRestore();
   renderRoute();
   if(typeof updateRapportsBadge==='function') updateRapportsBadge();
+  if(typeof updatePhotosBadge==='function') updatePhotosBadge();
   const navEl=document.getElementById('nav');
   if(navEl && !navEl._closeBound){ navEl._closeBound=true; navEl.addEventListener('click',e=>{ if(e.target.closest('a')) toggleSidebar(false); }); }
 }
@@ -3434,6 +3435,7 @@ function onScope(kind,val){
     navigate(val==='all' ? '/erps' : '/erps/'+val); return;
   }
   renderRoute();
+  if(typeof updatePhotosBadge==='function') updatePhotosBadge();
 }
 window.onScope=onScope; window.navigate=navigate;
 function toggleSidebar(open){
@@ -5681,7 +5683,7 @@ async function viewErp(c,id){
     erpxStyle();
     const openResHdr=(re.data||[]).filter(r=>!['cloturee','levee','rejetee'].includes(r.statut)).length;
     const heroTags=[`<span class="fx-tag">${esc(e.code_erp)}</span>`, (cl&&cl.raison_sociale)?`<span class="fx-tag">${esc(cl.raison_sociale)}</span>`:'', e.type_erp?`<span class="fx-tag">Type ${esc(e.type_erp)}${e.categorie?' · '+esc(e.categorie)+'ᵉ cat.':''}</span>`:'', `<span class="fx-tag ok">● Fiche validée</span>`].filter(Boolean).join('');
-    const tabsDef=[['apercu','Aperçu','Synthèse'],['oblig','Vérification',(d.ob.length||0)+' points'],['equip','Équipements','Inventaire'],['inter','Interventions','Planifier'],['reserves','Réserves',openResHdr+' ouverte'+(openResHdr>1?'s':'')],['rapports','Rapports','Documents']];
+    const tabsDef=[['apercu','Aperçu','Synthèse'],['oblig','Vérification',(data.ob.length||0)+' points'],['equip','Équipements','Inventaire'],['inter','Interventions','Planifier'],['reserves','Réserves',openResHdr+' ouverte'+(openResHdr>1?'s':'')],['rapports','Rapports','Documents']];
     c.innerHTML=`
       <div class="fx-crumb"><span class="lnk" onclick="navigate('/erps')">ERP</span> › ${esc(e.code_erp)}</div>
       <div class="fx-hero"><div class="fx-htop">
@@ -7737,6 +7739,7 @@ async function setPhotoTraitement(id,val){
       toast('Photo traitée — classée dans le dossier de '+nom+'.','ok');
     }
     afficherPhotos(window._photosCache||[]);
+    if(window.updatePhotosBadge) updatePhotosBadge();
   }catch(e){
     if((e.message||'').toLowerCase().includes('traitement')||(e.message||'').toLowerCase().includes('column')){
       toast("Ajoutez la colonne 'traitement' à la table photos_urgentes (voir SQL).",'err');
@@ -7788,6 +7791,7 @@ async function setPhotoTraitementGroup(idsCsv,val){
       toast('Constat traité — classé dans le dossier de '+nom+'.','ok');
     }
     afficherPhotos(window._photosCache||[]);
+    if(window.updatePhotosBadge) updatePhotosBadge();
   }catch(e){
     if((e.message||'').toLowerCase().includes('traitement')||(e.message||'').toLowerCase().includes('column')){
       toast("Ajoutez la colonne 'traitement' à la table photos_urgentes (voir SQL).",'err');
@@ -7817,6 +7821,7 @@ async function deletePhotoGroup(idsCsv){
     ids.forEach(i=>_photoSel.delete(i));
     toast(n>1?'Constat supprimé':'Photo supprimée','ok');
     afficherPhotos(window._photosCache);
+    if(window.updatePhotosBadge) updatePhotosBadge();
   }catch(e){toast(e.message,'err');}
 }
 window.deletePhotoGroup=deletePhotoGroup;
@@ -9432,6 +9437,21 @@ async function updateRapportsBadge(){
   }catch(_){}
 }
 window.updateRapportsBadge=updateRapportsBadge;
+async function updatePhotosBadge(){
+  try{
+    const {data}=await sb.from('photos_urgentes').select('erp_id,statut,traitement');
+    let rows=data||[];
+    if(state.currentErp!=='all'){ rows=rows.filter(p=>p.erp_id===state.currentErp); }
+    else if(state.currentClient!=='all'){ const ids=state.erps.filter(e=>e.client_id===state.currentClient).map(e=>e.id); rows=rows.filter(p=>ids.includes(p.erp_id)); }
+    const n=rows.filter(p=>['recue','a_traiter','vue'].includes(p.statut) && p.traitement!=='fait').length;
+    const b=document.getElementById('badge-photos');
+    if(b){ if(n>0){ b.style.display='grid'; b.textContent=n; } else b.style.display='none'; }
+    const mb=document.getElementById('mob-badge-photos');
+    if(mb){ mb.textContent=n; mb.style.display=n>0?'grid':'none'; }
+    if(window.navBadgeSync) navBadgeSync();
+  }catch(_){}
+}
+window.updatePhotosBadge=updatePhotosBadge;
 async function viewRapports(c){
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Rapports reçus</h1><p>Chargement…</p></div></div>${loadingBlock()}`;
   try{
