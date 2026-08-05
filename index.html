@@ -4617,6 +4617,7 @@ async function loadClientDossier(id, erps){
   try{ const r=await sb.from('documents').select('id,type,nom_original,fichier_path,date_document,created_at,tags').eq('client_id',id).order('date_document',{ascending:false}); docs=r.data||[]; }catch(e){}
   try{ const r=await sb.from('conversations').select('*').eq('client_id',id).order('date_conv',{ascending:false}); convs=r.data||[]; }catch(e){}
   window._dossierConvs=window._dossierConvs||{}; convs.forEach(cv=>{ window._dossierConvs[cv.id]=cv; });
+  window._dossierClientId=id; window._dossierErps=erps||[];
   const photos=phs.filter(p=>p.photo_path);
   const notes =phs.filter(p=>!p.photo_path);
   const crs   =docs.filter(d=>d.type==='Compte rendu');
@@ -4641,17 +4642,22 @@ async function loadClientDossier(id, erps){
       <div style="font-size:11px;color:var(--muted)">${fmtDate(p.date_photo||p.created_at)}${p.traitement_date?' · Fait le '+fmtDate(p.traitement_date):''}</div>
     </div>`;
   const docBucket=d=>{ const t=d.tags||''; return (t.indexOf('cat:')>=0||t.indexOf('source:rapports')>=0)?'rapports':'documents'; };
-  const docItem=d=>{ const nm=(d.nom_original||d.type||'document.pdf'); const safe=nm.replace(/'/g,'\\u2019');
-    return `<div onclick="previewDoc('${d.fichier_path}','${safe}','${docBucket(d)}')" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;background:var(--surface-2)">
-      <span style="font-size:17px;flex:0 0 auto">📄</span>
-      <div style="min-width:0;flex:1"><div style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nm)}</div>
-      <div style="font-size:11px;color:var(--muted)">${fmtDate(d.date_document||d.created_at)}</div></div>
+  const docTrash=(d,bk)=>`<button title="Supprimer ce document" onclick="event.stopPropagation();docDelete('${d.id}','${d.fichier_path||''}','${bk}')" style="flex:0 0 auto;border:none;background:transparent;color:var(--muted-2);cursor:pointer;font-size:14px;padding:5px 7px;border-radius:7px">🗑</button>`;
+  const docItem=d=>{ const nm=(d.nom_original||d.type||'document.pdf'); const safe=nm.replace(/'/g,'\\u2019'); const bk=docBucket(d);
+    return `<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:8px;background:var(--surface-2)">
+      <div onclick="previewDoc('${d.fichier_path}','${safe}','${bk}')" style="display:flex;align-items:center;gap:9px;flex:1;min-width:0;cursor:pointer;padding:3px 2px">
+        <span style="font-size:17px;flex:0 0 auto">📄</span>
+        <div style="min-width:0;flex:1"><div style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nm)}</div>
+        <div style="font-size:11px;color:var(--muted)">${fmtDate(d.date_document||d.created_at)}</div></div>
+      </div>${docTrash(d,bk)}
     </div>`; };
-  const docItemTyped=d=>{ const nm=(d.nom_original||d.type||'document.pdf'); const safe=nm.replace(/'/g,'\\u2019');
-    return `<div onclick="previewDoc('${d.fichier_path}','${safe}','${docBucket(d)}')" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;background:var(--surface-2)">
-      <span style="font-size:17px;flex:0 0 auto">📄</span>
-      <div style="min-width:0;flex:1"><div style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nm)}</div>
-      <div style="font-size:11px;color:var(--muted)">${esc(d.type||'Document')} · ${fmtDate(d.date_document||d.created_at)}</div></div>
+  const docItemTyped=d=>{ const nm=(d.nom_original||d.type||'document.pdf'); const safe=nm.replace(/'/g,'\\u2019'); const bk=docBucket(d);
+    return `<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:8px;background:var(--surface-2)">
+      <div onclick="previewDoc('${d.fichier_path}','${safe}','${bk}')" style="display:flex;align-items:center;gap:9px;flex:1;min-width:0;cursor:pointer;padding:3px 2px">
+        <span style="font-size:17px;flex:0 0 auto">📄</span>
+        <div style="min-width:0;flex:1"><div style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nm)}</div>
+        <div style="font-size:11px;color:var(--muted)">${esc(d.type||'Document')} · ${fmtDate(d.date_document||d.created_at)}</div></div>
+      </div>${docTrash(d,bk)}
     </div>`; };
 
   const convItem=cv=>`<div onclick="formConversation((window._dossierConvs||{})['${cv.id}'])" style="display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;background:var(--surface-2)">
@@ -4681,6 +4687,17 @@ async function loadClientDossier(id, erps){
     card('Divers', '📁', '#64748b', divers.map(docItemTyped), 'Aucun autre document');
 }
 window.loadClientDossier=loadClientDossier;
+window.docDelete=async function(docId,path,bucket){
+  if(!docId){ toast('Document introuvable','err'); return; }
+  if(!confirm('Supprimer définitivement ce document du dossier ?')) return;
+  try{
+    if(path){ try{ await sb.storage.from(bucket||'documents').remove([path]); }catch(_){ } }
+    const {error}=await sb.from('documents').delete().eq('id',docId);
+    if(error) throw error;
+    toast('Document supprimé','ok');
+    if(window._dossierClientId) loadClientDossier(window._dossierClientId, window._dossierErps||[]);
+  }catch(e){ toast(e.message||'Suppression impossible','err'); }
+};
 
 /* =====================================================================
    CONVERSATIONS (mémo d'échanges + audio + agenda)
