@@ -8041,7 +8041,7 @@ async function viewCompteRendu(c){
           <select id="rp_obj_sel" style="${ist}" onchange="onReportObj()">
             <option value="">— choisir —</option>
             <option>Visite</option><option>Travaux divers</option><option>Dépannage</option><option>Réparation</option>
-            <option>Levée des réserves</option><option>Observations</option><option>Remarques</option><option>Non conformité</option><option>Votre avis</option>
+            <option>Levée des réserves</option><option>Observations</option><option>Remarques</option><option>Non conformité</option><option>Demande d'intervention</option><option>Votre avis</option>
             <option value="__autre__">Autre (saisir)…</option>
           </select>
           <input id="rp_obj" placeholder="Préciser l'objet…" autocomplete="off" style="${ist};margin-top:8px;display:none"></div>
@@ -8049,6 +8049,11 @@ async function viewCompteRendu(c){
 
       <div class="card"><div class="card-pad">
         <h3 style="margin:0 0 12px;font-size:14px;color:var(--primary)">2 · Destinataire</h3>
+        <div class="fld"><label>Type de destinataire</label>
+          <select id="cr_dest_type" style="${ist}" onchange="crDestTypeChange()"><option value="client">Client</option><option value="prestataire">Prestataire</option></select></div>
+        <div class="fld" id="cr_prest_fld" style="display:none"><label>Prestataire <span style="color:var(--muted-2);font-weight:400;font-size:11px">(rattaché à l'établissement / client)</span></label>
+          <select id="cr_prest" style="${ist}" onchange="crPrestPick()"><option value="">— choisir un prestataire —</option></select>
+          <div id="cr_prest_info" style="font-size:12px;color:var(--muted);margin-top:5px"></div></div>
         <div class="fld"><label>Destinataire</label>
           <div id="cr_dest_box" style="border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--surface-2);font-size:13px;color:var(--muted)">Le client sélectionné ci-dessus sera le destinataire.</div></div>
         <div class="row2">
@@ -8116,7 +8121,51 @@ window.crOnClient=async function(){
     csel.innerHTML+=`<option value="__autre__">Autre (saisir)…</option>`;
   }
   crContactChange();
+  if(document.getElementById('cr_dest_type')?.value==='prestataire') crBuildPrestSelect();
 };
+/* Compte rendu adressé à un prestataire */
+window.crDestTypeChange=function(){
+  const isP=(document.getElementById('cr_dest_type')?.value==='prestataire');
+  const pf=document.getElementById('cr_prest_fld'); if(pf) pf.style.display=isP?'':'none';
+  const db=document.getElementById('cr_dest_box'); const dbFld=db?db.closest('.fld'):null; if(dbFld) dbFld.style.display=isP?'none':'';
+  if(isP) crBuildPrestSelect();
+};
+window.crPrestPick=function(){
+  const pid=document.getElementById('cr_prest')?.value; const pk=(window._crPrestPick||{})[pid];
+  const info=document.getElementById('cr_prest_info'); if(!info) return;
+  info.innerHTML = pk ? (pk.email?`✉️ ${esc(pk.email)}${pk.contact?' · '+esc(pk.contact):''}`:'<span style="color:var(--majeur)">Aucun e-mail enregistré pour ce prestataire</span>') : '';
+};
+async function crBuildPrestSelect(){
+  const sel=document.getElementById('cr_prest'); if(!sel) return;
+  if(!window._crPrestCache){
+    window._crPrestCache={prest:[],links:[]};
+    try{ const {data}=await sb.from('prestataires').select('id,nom,categorie,contacts'); window._crPrestCache.prest=data||[]; }catch(_){}
+    try{ const {data}=await sb.from('interventions').select('prestataire_id,erp_id,client_id'); (data||[]).forEach(x=>{ if(x.prestataire_id) window._crPrestCache.links.push(x); }); }catch(_){}
+    try{ const {data}=await sb.from('contrats').select('prestataire_id,erp_id,client_id'); (data||[]).forEach(x=>{ if(x.prestataire_id) window._crPrestCache.links.push(x); }); }catch(_){}
+  }
+  const {prest,links}=window._crPrestCache;
+  const contactsOf=p=>{ const out=[]; const c=p.contacts;
+    if(c && typeof c==='object' && !Array.isArray(c)){
+      for(const [role,v] of Object.entries(c)){ if(role==='autres'||!v||typeof v!=='object') continue; if(v.email||v.nom) out.push({nom:v.nom||'',email:v.email||''}); }
+      if(Array.isArray(c.autres)) c.autres.forEach(a=>{ if(a&&(a.email||a.nom)) out.push({nom:a.nom||'',email:a.email||''}); });
+    } else if(Array.isArray(c)){ c.forEach(a=>{ if(a&&(a.email||a.nom)) out.push({nom:a.nom||'',email:a.email||''}); }); }
+    return out; };
+  const cid=document.getElementById('cr_client')?.value;
+  const erpId=document.getElementById('cr_erp')?.value;
+  const linkedIds=new Set(links.filter(l=>(erpId&&l.erp_id===erpId)||(cid&&l.client_id===cid)).map(l=>l.prestataire_id));
+  window._crPrestPick={};
+  const mk=p=>{ const cs=contactsOf(p); const primary=cs.find(c=>c.email)||cs[0]||{email:'',nom:''};
+    window._crPrestPick[p.id]={nom:p.nom||'',email:primary.email||'',contact:primary.nom||''};
+    return `<option value="${esc(p.id)}">${esc([p.nom,primary.email].filter(Boolean).join(' · '))}</option>`; };
+  const linked=prest.filter(p=>linkedIds.has(p.id));
+  const autres=prest.filter(p=>!linkedIds.has(p.id));
+  let html='<option value="">— choisir un prestataire —</option>';
+  if(linked.length) html+='<optgroup label="Rattachés à cet établissement / client">'+linked.map(mk).join('')+'</optgroup>';
+  if(autres.length) html+='<optgroup label="Autres prestataires">'+autres.map(mk).join('')+'</optgroup>';
+  if(!prest.length) html='<option value="">Aucun prestataire enregistré</option>';
+  sel.innerHTML=html; crPrestPick();
+}
+window.crBuildPrestSelect=crBuildPrestSelect;
 window.crContactChange=function(){
   const cv=$('#cr_contact')?.value; const free=document.getElementById('cr_attn_free');
   if(free) free.style.display = (cv==='__autre__')?'block':'none';
@@ -8245,10 +8294,22 @@ window.crGenerate=async function(){
   // Email du contact sélectionné (pour présélection dans le modal d'envoi)
   const cselEl=document.getElementById('cr_contact');
   const selectedContactEmail=(cv&&cv!=='__autre__'&&cselEl)?((cselEl.options[cselEl.selectedIndex]?.dataset?.email)||''):'';
-  const destNom=[civ,cname].filter(Boolean).join(' ');
+  let destNom=[civ,cname].filter(Boolean).join(' ');
   const salut = civ==='Monsieur'?'Monsieur':(civ==='Madame'?'Madame':'Madame, Monsieur');
   const addr=[client.adresse_siege, [client.code_postal,client.ville].filter(Boolean).join(' ')].filter(Boolean);
-  const dests=[{dest:client.raison_sociale, addr, destNom}];
+  let dests=[{dest:client.raison_sociale, addr, destNom}];
+  let selEmail=selectedContactEmail;
+  // Destinataire = prestataire : on adresse le compte rendu au prestataire (l'établissement reste le sujet)
+  const destType=$('#cr_dest_type')?.value||'client';
+  if(destType==='prestataire'){
+    const pid=$('#cr_prest')?.value; const pk=(window._crPrestPick||{})[pid];
+    if(!pid||!pk){ toast('Sélectionnez un prestataire','err'); return; }
+    if(!pk.email){ toast('Ce prestataire n\'a pas d\'e-mail enregistré','err'); return; }
+    recipients=[{email:pk.email,label:pk.nom}];
+    selEmail=pk.email;
+    destNom=pk.contact||'';
+    dests=[{dest:pk.nom, addr:[], destNom}];
+  }
   const erpId=$('#cr_erp')?.value; const erpNom=erpId?(state.erps.find(e=>e.id===erpId)?.nom||''):client.raison_sociale;
   let videos=[];
   try{ const erpIds=state.erps.filter(e=>e.client_id===cid).map(e=>e.id);
@@ -8266,7 +8327,7 @@ window.crGenerate=async function(){
       redacteur:$('#cr_red')?.value.trim()||'',
       obs:$('#cr_obs')?.value.trim()||'',
       politesse:$('#cr_pol')?.value.trim()||'',
-      photos, requirePhoto:false, attachments:_reportAttachments.slice(), recipients, selectedContactEmail, clientId:cid, erpId:erpId||null, videos
+      photos, requirePhoto:false, attachments:_reportAttachments.slice(), recipients, selectedContactEmail:selEmail, clientId:cid, erpId:erpId||null, videos
     });
     toast('Compte rendu généré','ok');
   }catch(e){ toast(e.message||'Erreur de génération','err'); }
