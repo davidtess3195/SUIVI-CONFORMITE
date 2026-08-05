@@ -6499,9 +6499,8 @@ async function formInter(erpId,it,mode){
   </div>
   <div class="modal-foot">${it.id?'<button class="btn danger" id="del" style="margin-right:auto">Supprimer</button>':''}${it.id&&(it.type==='travaux'||it.type==='corrective')?`<button class="btn sm" title="Générer le PV de réception de travaux" onclick="pvFromInter('${it.id}')">PV réception</button>`:''}${(!it.id&&_prog)?'':`<button class="btn primary" id="btn_email_inter" style="gap:6px">Demande par email</button><button class="btn sm" id="btn_sms_inter">💬 Par SMS</button>`}<button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">${it.id?'Enregistrer':(_prog?'Programmer':'Créer')}</button></div>`);
   if(erpId){const s=$('#f_erp'); if(s)s.value=erpId;}
-  $('#save').onclick=async()=>{
+  async function doInterSave(){
     const erp_id=$('#f_erp').value; if(!erp_id){toast('Sélectionne un ERP','err');return;}
-    if(_prog && !it.id && !$('#f_date').value){toast('Indiquez la date convenue avec le prestataire','err');$('#f_date').focus();return;}
     _modalDirty=false;
     const domSel=$('#f_dom_sel').value;
     const domaine = getInterDomaine();
@@ -6526,6 +6525,45 @@ async function formInter(erpId,it,mode){
         toast('Erreur lors de l\'enregistrement. Merci de r\u00e9essayer.','err');
       }
     }
+  };
+  // Récapitulatif à vérifier avant de programmer (flux « Programmer une intervention »)
+  function interProgramRecap(){
+    const erpSel=$('#f_erp'); const erpTxt=(erpSel&&erpSel.selectedIndex>=0)?erpSel.options[erpSel.selectedIndex].text:'—';
+    const typeLabel={preventive:'Préventive',corrective:'Corrective',travaux:'Travaux',visite:'Visite',commission_securite:'Commission de sécurité'}[$('#f_type').value]||$('#f_type').value;
+    const dom=getInterDomaine()||'—';
+    const prestSel=$('#f_prest'); const prestTxt=(prestSel&&prestSel.value)?prestSel.options[prestSel.selectedIndex].text:'Non renseigné';
+    const com=($('#f_obj').value||'').trim()||'—';
+    const dv=$('#f_date').value; const dstr=dv?new Date(dv).toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}):'—';
+    const hv=($('#f_heure')&&$('#f_heure').value)||'';
+    const row=(k,v)=>`<div style="display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--line-2)"><div style="width:130px;flex:0 0 auto;color:var(--muted);font-size:13px">${k}</div><div style="flex:1;font-weight:600;font-size:13.5px;color:var(--ink)">${esc(v)}</div></div>`;
+    const ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;z-index:100050;background:rgba(8,12,20,.55);display:flex;align-items:center;justify-content:center;padding:18px';
+    ov.innerHTML=`<div style="background:var(--surface);border-radius:16px;max-width:460px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">📅</span><h3 style="margin:0;font-family:var(--fd);font-size:17px">Vérifiez avant de programmer</h3></div>
+      <div style="padding:8px 20px 4px">
+        ${row('Établissement',erpTxt)}
+        ${row('Type',typeLabel)}
+        ${row('Spécialité',dom)}
+        ${row('Prestataire',prestTxt)}
+        ${row('Date',dstr+(hv?(' · '+hv):''))}
+        <div style="display:flex;gap:12px;padding:9px 0"><div style="width:130px;flex:0 0 auto;color:var(--muted);font-size:13px">Commentaire</div><div style="flex:1;font-size:13.5px;color:var(--ink);white-space:pre-wrap">${esc(com)}</div></div>
+      </div>
+      <div style="padding:2px 20px 12px;font-size:12px;color:var(--muted)">Elle sera enregistrée comme <b>programmée</b> à cette date.</div>
+      <div style="padding:14px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px">
+        <button class="btn ghost" id="rec_edit">← Modifier</button>
+        <button class="btn primary" id="rec_ok">✓ Confirmer la programmation</button>
+      </div></div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click',e=>{ if(e.target===ov) ov.remove(); });
+    ov.querySelector('#rec_edit').onclick=()=>ov.remove();
+    ov.querySelector('#rec_ok').onclick=()=>{ ov.remove(); doInterSave(); };
+  }
+  $('#save').onclick=async()=>{
+    const erp_id=$('#f_erp').value; if(!erp_id){toast('Sélectionne un ERP','err');return;}
+    if(_prog && !it.id && !$('#f_date').value){toast('Indiquez la date convenue avec le prestataire','err');$('#f_date').focus();return;}
+    if(_prog && !it.id){ interProgramRecap(); return; }
+    doInterSave();
   };
   const del=$('#del'); if(del)del.onclick=async()=>{ if(!confirm('Supprimer cette intervention ?'))return;
     await sb.from('interventions').delete().eq('id',it.id); closeModal(); toast('Supprimée','ok'); renderRoute(); };
