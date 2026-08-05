@@ -16132,7 +16132,80 @@ async function csEnvoyerAssistance(catKey,catLabel,erpId){
 }
 window.csEnvoyerAssistance=csEnvoyerAssistance;
 
+// ── Pictogrammes du plan de maintenance ──
+const PMI={
+  baes:'<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/>',
+  commission:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>',
+  extincteur:'<path d="M15 3h2a1 1 0 0 1 1 1v1"/><path d="M9 6a4 4 0 0 1 4-4"/><rect x="7" y="6" width="6" height="15" rx="2"/><path d="M13 10h3"/>',
+  portecf:'<rect x="4" y="3" width="14" height="18" rx="1"/><circle cx="14" cy="12" r="1"/><path d="M4 21h16"/>',
+  clapet:'<rect x="3" y="6" width="18" height="12" rx="1"/><path d="M3 12h18"/><path d="M8 6v12"/><path d="M16 6v12"/>',
+  ria:'<path d="M12 2s5 5.5 5 10a5 5 0 0 1-10 0c0-4.5 5-10 5-10z"/>',
+  sprinkler:'<path d="M12 2v6"/><circle cx="12" cy="10" r="2"/><path d="M12 12c-4 0-7 3-7 7"/><path d="M12 12c4 0 7 3 7 7"/><path d="M12 12v8"/>',
+  ssi:'<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  derat:'<circle cx="11" cy="13" r="5"/><path d="M11 8V6a3 3 0 0 1 6 0"/><path d="M16 13h5"/><path d="M6 13H1"/><path d="M11 18v3"/>',
+  coulissante:'<rect x="3" y="4" width="8" height="16" rx="1"/><rect x="13" y="4" width="8" height="16" rx="1"/><line x1="7" y1="12" x2="7" y2="13"/><line x1="17" y1="12" x2="17" y2="13"/>',
+  portail:'<path d="M3 20V9l4-3 4 3v11"/><path d="M13 20V9l4-3 4 3v11"/><path d="M2 20h20"/><path d="M3 13h8"/><path d="M13 13h8"/>',
+  desnat:'<path d="M9 6a2 2 0 1 1 2 3H2"/><path d="M12.5 4a2.5 2.5 0 1 1 2 4H2"/><path d="M15 17a2 2 0 1 0 2-3H2"/>',
+  desmeca:'<circle cx="12" cy="12" r="2.5"/><path d="M12 9.5c1.5-3 4.5-3.5 5.5-1.5S16 12 12 12"/><path d="M12 14.5c-1.5 3-4.5 3.5-5.5 1.5S8 12 12 12"/><path d="M9.5 12C6.5 10.5 6 7.5 8 6.5S12 8 12 12"/>',
+  ascenseur:'<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 2v20"/><path d="M8 8l1.5-2L11 8"/><path d="M13 16l1.5 2 1.5-2"/>',
+  cuisson:'<path d="M8 3v3"/><path d="M12 3v3"/><path d="M16 3v3"/><rect x="4" y="9" width="16" height="11" rx="2"/><circle cx="9" cy="14.5" r="1.5"/><circle cx="15" cy="14.5" r="1.5"/>',
+  thermo:'<path d="M14 4a2 2 0 0 0-4 0v10a4 4 0 1 0 4 0z"/><line x1="12" y1="10" x2="12" y2="14"/>',
+  parking:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/>',
+  outil:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.3 2.3-2-2 2.3-2.3z"/>'
+};
+function pmIcon(type){
+  const t=(type||'').toLowerCase();
+  let k='outil', fam='f-neutre';
+  if(/commission/.test(t)){k='commission';fam='f-commission';}
+  else if(/baes|éclairage|eclairage|baeh/.test(t)){k='baes';fam='f-elec';}
+  else if(/thermograph/.test(t)){k='thermo';fam='f-elec';}
+  else if(/extincteur/.test(t)){k='extincteur';fam='f-feu';}
+  else if(/clapet/.test(t)){k='clapet';fam='f-feu';}
+  else if(/porte coupe|coupe-feu|coupe feu/.test(t)){k='portecf';fam='f-feu';}
+  else if(/cuisson|cuisine|hotte/.test(t)){k='cuisson';fam='f-feu';}
+  else if(/sprinkl/.test(t)){k='sprinkler';fam='f-eau';}
+  else if(/\bria\b|robinet/.test(t)){k='ria';fam='f-eau';}
+  else if(/ssi|centrale|alarme|détection|detection/.test(t)){k='ssi';fam='f-alarme';}
+  else if(/dérat|derat|désinsect|desinsect|nuisible|3d\b/.test(t)){k='derat';fam='f-sanit';}
+  else if(/coulissante|coulissant/.test(t)){k='coulissante';fam='f-acces';}
+  else if(/portail|portillon/.test(t)){k='portail';fam='f-acces';}
+  else if(/ascenseur|monte-charge/.test(t)){k='ascenseur';fam='f-acces';}
+  else if(/parking|stationnement/.test(t)){k='parking';fam='f-acces';}
+  else if(/désenfumage méca|desenfumage meca|mécanique|mecanique|ventilat/.test(t)){k='desmeca';fam='f-fumee';}
+  else if(/désenfumage|desenfumage|exutoire|naturel/.test(t)){k='desnat';fam='f-fumee';}
+  return {svg:PMI[k],fam};
+}
+function pmxStyle(){ if(document.getElementById('pmx-style'))return; const st=document.createElement('style'); st.id='pmx-style'; st.textContent=`
+.pmx-count{font-size:12.5px;color:var(--muted);margin-right:6px}
+.pmx-count b{color:var(--primary);font-weight:700}
+.pmx-row{display:flex;align-items:center;gap:13px;padding:11px 14px;border-bottom:1px solid var(--line-2);transition:background .12s}
+.pmx-row:last-child{border-bottom:none}
+.pmx-row:hover{background:#f9fbfd}
+.pmx-row.sel{background:linear-gradient(90deg,rgba(37,99,235,.06),transparent 60%)}
+.pmx-chk{width:19px;height:19px;flex-shrink:0;cursor:pointer;accent-color:var(--primary)}
+.pmx-ico{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;flex-shrink:0}
+.pmx-ico svg{width:21px;height:21px}
+.pmx-ico.f-elec{background:#fef3c7;color:#b45309}
+.pmx-ico.f-feu{background:#fee2e2;color:#dc2626}
+.pmx-ico.f-eau{background:#dbeafe;color:#2563eb}
+.pmx-ico.f-alarme{background:#ede9fe;color:#7c3aed}
+.pmx-ico.f-acces{background:#e0f2fe;color:#0369a1}
+.pmx-ico.f-fumee{background:#f1f5f9;color:#475569}
+.pmx-ico.f-sanit{background:#dcfce7;color:#16a34a}
+.pmx-ico.f-commission{background:#e0e7ff;color:#3730a3}
+.pmx-ico.f-neutre{background:#eef2f7;color:#64748b}
+.pmx-nm{flex:1;min-width:0}
+.pmx-nm b{font-size:13.8px;font-weight:700;display:block;line-height:1.25}
+.pmx-nm .loc{font-size:11.5px;color:var(--muted-2,#94a3b8);margin-top:1px}
+.pmx-tag{font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:7px;white-space:nowrap;background:#eef2f7;color:#475569}
+.pmx-tag.commission{background:#e0e7ff;color:#3730a3}
+.pmx-peri{font-size:12.5px;font-weight:700;color:var(--primary);white-space:nowrap;min-width:70px;text-align:right}
+.pmx-att{display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:600;color:var(--ok,#16a34a);white-space:nowrap}
+.pmx-acts{display:flex;gap:6px;flex-shrink:0}
+`; document.head.appendChild(st); }
+
 async function viewPlanMaintenance(c){
+  pmxStyle();
   const PM_BASE=['Appareils de cuisson','Ascenseur','BAES / éclairage de sécurité','Clapet coupe-feu','Désenfumage mécanique','Désenfumage naturel','Extincteur','Parking','Porte coupe-feu','RIA','Sprinklers','SSI / centrale incendie','Thermographie électrique'];
   const periList=['journalière','hebdomadaire','mensuelle','bimestrielle','trimestrielle','semestrielle','annuelle','biannuelle','triennale','quadriennale','quinquennale','décennale'];
   // Bibliothèque persistante en localStorage
@@ -16160,21 +16233,27 @@ async function viewPlanMaintenance(c){
       list.innerHTML='<div style="text-align:center;color:var(--muted);padding:24px 0">Aucun équipement — utilisez le formulaire ci-dessus pour en ajouter.</div>';
       return;
     }
-    list.innerHTML=window._pmItems.map((it,i)=>`
-      <div id="pm_item_${i}" style="border-bottom:1px solid var(--line)">
-        <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:${it.checked?'var(--primary-light,#eff6ff)':''}">
-          <input type="checkbox" ${it.checked?'checked':''} onchange="window._pmItems[${i}].checked=this.checked;pmRender()" style="width:20px;height:20px;flex-shrink:0;cursor:pointer">
-          <div style="flex:1;min-width:0">
-            <b style="font-size:13.5px">${esc(it.type)}</b>
-            ${it.localisation?`<span style="color:var(--muted);font-size:11px;margin-left:6px">${esc(it.localisation)}</span>`:''}
+    const pcl='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+    const tr='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+    const okv='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><path d="M20 6L9 17l-5-5"/></svg>';
+    list.innerHTML=window._pmItems.map((it,i)=>{
+      const ic=pmIcon(it.type);
+      return `<div id="pm_item_${i}">
+        <div class="pmx-row${it.checked?' sel':''}">
+          <input type="checkbox" class="pmx-chk" ${it.checked?'checked':''} onchange="window._pmItems[${i}].checked=this.checked;pmRender()">
+          <div class="pmx-ico ${ic.fam}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ic.svg}</svg></div>
+          <div class="pmx-nm"><b>${esc(it.type)}</b>${it.localisation?`<div class="loc">${esc(it.localisation)}</div>`:''}</div>
+          ${it.acteur?`<span class="pmx-tag${it.acteur==='Commission'?' commission':''}">${esc(it.acteur)}</span>`:''}
+          ${it.periodicite?`<span class="pmx-peri">${esc(it.periodicite)}</span>`:''}
+          ${it.attestation?`<span class="pmx-att">${okv} attest.</span>`:''}
+          <div class="pmx-acts">
+            <button class="btn sm" onclick="pmEditRow(${i})" title="Modifier">${pcl}</button>
+            <button class="btn sm danger" onclick="window._pmItems.splice(${i},1);window.pmRender()" title="Supprimer">${tr}</button>
           </div>
-          ${it.acteur?`<span style="background:#e0e7ff;color:#3730a3;font-size:11px;padding:2px 8px;border-radius:5px;font-weight:600;white-space:nowrap">${esc(it.acteur)}</span>`:''}
-          ${it.periodicite?`<span style="font-size:12px;font-weight:600;color:var(--primary);white-space:nowrap">${esc(it.periodicite)}</span>`:''}
-          ${it.attestation?'<span style="color:var(--ok,#16a34a);font-size:13px;white-space:nowrap">✓ attest.</span>':''}
-          <button class="btn sm" onclick="pmEditRow(${i})" style="flex-shrink:0" title="Modifier">✏️</button>
-          <button class="btn sm danger" onclick="window._pmItems.splice(${i},1);window.pmRender()" style="flex-shrink:0" title="Supprimer">🗑</button>
         </div>
-      </div>`).join('');
+      </div>`;}).join('');
+    const cnt=document.getElementById('pm_count');
+    if(cnt){ const sel=window._pmItems.filter(i=>i.checked).length; cnt.innerHTML=`<b>${sel}</b> sélectionné(s) sur ${window._pmItems.length}`; }
   }
 
   c.innerHTML=`<div class="page-head"><div class="t">
@@ -16232,6 +16311,7 @@ async function viewPlanMaintenance(c){
 
   <!-- Liste des équipements -->
   <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+    <span class="pmx-count" id="pm_count"></span>
     <button class="btn ghost" onclick="window._pmItems.forEach(i=>i.checked=true);pmRender()">Tout cocher</button>
     <button class="btn ghost" onclick="window._pmItems.forEach(i=>i.checked=false);pmRender()">Tout décocher</button>
     <button class="btn ghost" onclick="if(confirm('Vider la bibliothèque ?')){window._pmItems=[];pmRender()}" style="margin-left:auto">🗑 Vider</button>
