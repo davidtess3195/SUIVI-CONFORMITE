@@ -2333,9 +2333,20 @@ async function viewAdmin(c){
       <div id="rgpd-actions" style="display:none;margin-top:12px">
         <button class="btn danger" onclick="lancerPurgeRGPD('tout')">🗑 Purger toutes les catégories > 5 ans</button>
       </div>
+    </div>
+
+    <!-- Corbeille globale -->
+    <div class="card card-pad" style="margin-top:16px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+        <h2 style="font-size:16px;margin:0">🗑 Corbeille — documents supprimés</h2>
+        <span class="pill" style="margin-left:auto;background:var(--surface-2);color:var(--muted);border:1px solid var(--line)">Purge auto : 30 jours</span>
+      </div>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:12px">Documents envoyés à la corbeille, tous clients confondus. Les éléments de plus de <b>30 jours</b> sont purgés automatiquement.</p>
+      <div id="admin-trash"><div class="skel" style="height:60px"></div></div>
     </div>`;
     renderFieldRanking('mois');
     dpAdminSection();
+    loadAdminTrash();
   }catch(e){ c.innerHTML=errBlock(e); }
 }
 
@@ -4614,18 +4625,20 @@ async function loadClientDossier(id, erps){
   const erpIds=(erps||[]).map(e=>e.id);
   let phs=[], docs=[], convs=[];
   try{ if(erpIds.length){ const r=await sb.from('photos_urgentes').select('id,erp_id,photo_path,commentaire,date_photo,created_at,traitement,traitement_date,mission').in('erp_id',erpIds).eq('traitement','fait').order('created_at',{ascending:false}); phs=r.data||[]; } }catch(e){}
-  try{ const r=await sb.from('documents').select('id,type,nom_original,fichier_path,date_document,created_at,tags').eq('client_id',id).order('date_document',{ascending:false}); docs=r.data||[]; }catch(e){}
+  try{ const r=await sb.from('documents').select('id,type,nom_original,fichier_path,date_document,created_at,tags,deleted_at').eq('client_id',id).order('date_document',{ascending:false}); docs=r.data||[]; }catch(e){}
   try{ const r=await sb.from('conversations').select('*').eq('client_id',id).order('date_conv',{ascending:false}); convs=r.data||[]; }catch(e){}
   window._dossierConvs=window._dossierConvs||{}; convs.forEach(cv=>{ window._dossierConvs[cv.id]=cv; });
   window._dossierClientId=id; window._dossierErps=erps||[];
   const photos=phs.filter(p=>p.photo_path);
   const notes =phs.filter(p=>!p.photo_path);
-  const crs   =docs.filter(d=>d.type==='Compte rendu');
-  const raps  =docs.filter(d=>d.type==='Rapport');
-  const devis =docs.filter(d=>d.type==='Devis');
-  const factures=docs.filter(d=>d.type==='Facture');
+  const liveDocs=docs.filter(d=>!d.deleted_at);
+  const deletedDocs=docs.filter(d=>d.deleted_at);
+  const crs   =liveDocs.filter(d=>d.type==='Compte rendu');
+  const raps  =liveDocs.filter(d=>d.type==='Rapport');
+  const devis =liveDocs.filter(d=>d.type==='Devis');
+  const factures=liveDocs.filter(d=>d.type==='Facture');
   const diversTypes=['Compte rendu','Rapport','Devis','Facture'];
-  const divers=docs.filter(d=>!diversTypes.includes(d.type));
+  const divers=liveDocs.filter(d=>!diversTypes.includes(d.type));
 
   const sub=(d)=>fmtDate(d) ;
   const photoItem=p=>{ const isV=isVideoPath(p.photo_path); const url=publicPhoto(p.photo_path);
@@ -4676,6 +4689,27 @@ async function loadClientDossier(id, erps){
       </div>
     </div>`;
 
+  // Élément de la corbeille : restaurer ou supprimer définitivement
+  const trashItem=d=>{ const nm=(d.nom_original||d.type||'document.pdf'); const bk=docBucket(d);
+    return `<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:8px;background:var(--surface-2)">
+      <span style="font-size:16px;flex:0 0 auto;opacity:.6">📄</span>
+      <div style="min-width:0;flex:1"><div style="font-size:12.5px;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:line-through">${esc(nm)}</div>
+      <div style="font-size:11px;color:var(--muted-2)">${esc(d.type||'Document')} · supprimé le ${fmtDate(d.deleted_at)}</div></div>
+      <button title="Restaurer" onclick="docRestore('${d.id}')" style="flex:0 0 auto;border:none;background:#dcfce7;color:#15803d;cursor:pointer;font-size:11.5px;font-weight:700;padding:5px 9px;border-radius:7px">↩ Restaurer</button>
+      <button title="Supprimer définitivement" onclick="docPurge('${d.id}','${d.fichier_path||''}','${bk}')" style="flex:0 0 auto;border:none;background:transparent;color:var(--muted-2);cursor:pointer;font-size:14px;padding:5px 7px;border-radius:7px">🗑</button>
+    </div>`; };
+  const corbeille = deletedDocs.length ? `<div style="grid-column:1/-1">
+      <div class="card" style="padding:0;overflow:hidden;border-color:#fecaca">
+        <div style="display:flex;align-items:center;gap:9px;padding:11px 14px;background:#64748b;color:#fff">
+          <span style="font-size:16px">🗑</span><span style="font-weight:700;font-size:13.5px">Corbeille</span>
+          <span style="margin-left:auto;background:rgba(255,255,255,.25);border-radius:999px;padding:1px 9px;font-size:12px;font-weight:700">${deletedDocs.length}</span>
+        </div>
+        <div style="padding:8px 9px;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:6px">
+          ${deletedDocs.map(trashItem).join('')}
+        </div>
+        <div style="padding:6px 14px 12px;font-size:11.5px;color:var(--muted)">Les documents supprimés restent restaurables ici. « Supprimer définitivement » efface le fichier sans retour possible.</div>
+      </div></div>` : '';
+
   box.innerHTML =
     card('Conversations', '💬', '#0891b2', convs.map(convItem), 'Aucune conversation') +
     card('Notes', '📝', '#f59e0b', notes.map(noteItem), 'Aucune note traitée') +
@@ -4684,19 +4718,86 @@ async function loadClientDossier(id, erps){
     card('Rapports', '📋', '#7c3aed', raps.map(docItem), 'Aucun rapport archivé') +
     card('Devis', '📝', '#d97706', devis.map(docItem), 'Aucun devis archivé') +
     card('Factures', '🧾', '#16a34a', factures.map(docItem), 'Aucune facture archivée') +
-    card('Divers', '📁', '#64748b', divers.map(docItemTyped), 'Aucun autre document');
+    card('Divers', '📁', '#64748b', divers.map(docItemTyped), 'Aucun autre document') +
+    corbeille;
 }
 window.loadClientDossier=loadClientDossier;
+// Suppression douce : le document part à la corbeille (restaurable)
 window.docDelete=async function(docId,path,bucket){
   if(!docId){ toast('Document introuvable','err'); return; }
-  if(!confirm('Supprimer définitivement ce document du dossier ?')) return;
+  if(!confirm('Envoyer ce document à la corbeille ?')) return;
+  try{
+    const {error}=await sb.from('documents').update({deleted_at:new Date().toISOString()}).eq('id',docId);
+    if(error) throw error;
+    toast('Document déplacé dans la corbeille','ok');
+    if(window._dossierClientId) loadClientDossier(window._dossierClientId, window._dossierErps||[]);
+  }catch(e){ toast(e.message||'Suppression impossible','err'); }
+};
+// Restauration depuis la corbeille
+window.docRestore=async function(docId){
+  if(!docId) return;
+  try{
+    const {error}=await sb.from('documents').update({deleted_at:null}).eq('id',docId);
+    if(error) throw error;
+    toast('Document restauré','ok');
+    if(window._dossierClientId) loadClientDossier(window._dossierClientId, window._dossierErps||[]);
+  }catch(e){ toast(e.message||'Restauration impossible','err'); }
+};
+// Suppression DÉFINITIVE (fichier + entrée) depuis la corbeille
+window.docPurge=async function(docId,path,bucket){
+  if(!docId) return;
+  if(!confirm('Supprimer DÉFINITIVEMENT ce document ? Cette action est irréversible.')) return;
   try{
     if(path){ try{ await sb.storage.from(bucket||'documents').remove([path]); }catch(_){ } }
     const {error}=await sb.from('documents').delete().eq('id',docId);
     if(error) throw error;
-    toast('Document supprimé','ok');
+    toast('Document supprimé définitivement','ok');
     if(window._dossierClientId) loadClientDossier(window._dossierClientId, window._dossierErps||[]);
   }catch(e){ toast(e.message||'Suppression impossible','err'); }
+};
+
+/* ===== Corbeille globale (Administration) ===== */
+function _docBucketOf(d){ const t=d.tags||''; return (t.indexOf('cat:')>=0||t.indexOf('source:rapports')>=0)?'rapports':'documents'; }
+window.loadAdminTrash=async function(){
+  const box=document.getElementById('admin-trash'); if(!box) return;
+  let rows=[];
+  try{ const r=await sb.from('documents').select('id,client_id,type,nom_original,fichier_path,date_document,deleted_at,tags').not('deleted_at','is',null).order('deleted_at',{ascending:true}); rows=r.data||[]; }
+  catch(e){ box.innerHTML=`<div style="color:var(--muted);font-size:13px">Corbeille indisponible : ${esc(e.message||'')}</div>`; return; }
+  // Purge automatique des éléments de plus de 30 jours
+  const limite=Date.now()-30*864e5;
+  const aPurger=rows.filter(d=>{ const t=new Date(d.deleted_at).getTime(); return !isNaN(t) && t<limite; });
+  let purges=0;
+  for(const d of aPurger){
+    try{ if(d.fichier_path){ try{ await sb.storage.from(_docBucketOf(d)).remove([d.fichier_path]); }catch(_){ } }
+      const {error}=await sb.from('documents').delete().eq('id',d.id); if(!error) purges++;
+    }catch(_){ }
+  }
+  if(purges) rows=rows.filter(d=>!aPurger.includes(d));
+  const clientName=id=>{ const c=(state.clients||[]).find(x=>x.id===id); return c?(c.raison_sociale||c.nom_commercial||'Client'):'Client inconnu'; };
+  const days=iso=>{ const t=new Date(iso).getTime(); if(isNaN(t)) return ''; const n=Math.floor((Date.now()-t)/864e5); return n<=0?'aujourd’hui':(n+' j'); };
+  if(!rows.length){ box.innerHTML=`<div style="color:var(--muted);font-size:13px;padding:6px 2px">Corbeille vide.${purges?` (${purges} élément(s) de plus de 30 jours purgé(s) automatiquement)`:''}</div>`; return; }
+  const items=rows.map(d=>{ const nm=d.nom_original||d.type||'document.pdf'; const bk=_docBucketOf(d);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--line-2);border-radius:9px;background:var(--surface-2)">
+      <span style="font-size:16px;flex:0 0 auto;opacity:.6">📄</span>
+      <div style="min-width:0;flex:1">
+        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nm)}</div>
+        <div style="font-size:11.5px;color:var(--muted)">${esc(clientName(d.client_id))} · ${esc(d.type||'Document')} · supprimé il y a ${days(d.deleted_at)}</div>
+      </div>
+      <button onclick="admTrashRestore('${d.id}')" style="flex:0 0 auto;border:none;background:#dcfce7;color:#15803d;cursor:pointer;font-size:12px;font-weight:700;padding:6px 11px;border-radius:8px">↩ Restaurer</button>
+      <button onclick="admTrashPurge('${d.id}','${d.fichier_path||''}','${bk}')" title="Supprimer définitivement" style="flex:0 0 auto;border:1px solid #fecaca;background:#fef2f2;color:#b91c1c;cursor:pointer;font-size:12px;font-weight:700;padding:6px 11px;border-radius:8px">Supprimer</button>
+    </div>`; }).join('');
+  box.innerHTML=`<div style="display:flex;flex-direction:column;gap:7px">${items}</div>
+    ${purges?`<div style="font-size:11.5px;color:var(--muted);margin-top:8px">${purges} élément(s) de plus de 30 jours purgé(s) automatiquement.</div>`:''}`;
+};
+window.admTrashRestore=async function(id){
+  try{ const {error}=await sb.from('documents').update({deleted_at:null}).eq('id',id); if(error) throw error; toast('Document restauré','ok'); loadAdminTrash(); }
+  catch(e){ toast(e.message||'Restauration impossible','err'); }
+};
+window.admTrashPurge=async function(id,path,bucket){
+  if(!confirm('Supprimer DÉFINITIVEMENT ce document ? Cette action est irréversible.')) return;
+  try{ if(path){ try{ await sb.storage.from(bucket||'documents').remove([path]); }catch(_){ } }
+    const {error}=await sb.from('documents').delete().eq('id',id); if(error) throw error; toast('Document supprimé définitivement','ok'); loadAdminTrash(); }
+  catch(e){ toast(e.message||'Suppression impossible','err'); }
 };
 
 /* =====================================================================
