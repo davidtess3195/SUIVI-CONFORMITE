@@ -5611,6 +5611,49 @@ async function deleteErp(id){
 }
 window.deleteErp=deleteErp;
 
+function erpxStyle(){ if(document.getElementById('erpx-style'))return; const st=document.createElement('style'); st.id='erpx-style'; st.textContent=`
+.fx-crumb{font-size:12.5px;color:var(--muted);margin-bottom:12px}.fx-crumb .lnk{color:var(--primary);cursor:pointer}
+.fx-hero{background:linear-gradient(135deg,#0e1b2e,#16263d);border-radius:20px;padding:22px 24px;color:#fff;box-shadow:var(--sh-l);margin-bottom:16px;position:relative;overflow:hidden}
+.fx-hero:after{content:"";position:absolute;right:-40px;top:-40px;width:200px;height:200px;background:radial-gradient(circle,rgba(37,99,235,.35),transparent 70%)}
+.fx-htop{display:flex;align-items:flex-start;gap:16px;position:relative;z-index:1;flex-wrap:wrap}
+.fx-bldg{width:58px;height:58px;border-radius:16px;background:linear-gradient(135deg,#2563eb,#1d4ed8);display:grid;place-items:center;flex:0 0 auto;color:#fff;box-shadow:0 8px 20px rgba(37,99,235,.45)}
+.fx-bldg svg{width:30px;height:30px}
+.fx-hero h1{font-family:var(--fd);font-size:23px;font-weight:700;margin:0;line-height:1.15;letter-spacing:-.3px}
+.fx-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
+.fx-tag{font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:999px;background:rgba(255,255,255,.12);color:#dbeafe;border:1px solid rgba(255,255,255,.15)}
+.fx-tag.ok{background:rgba(34,197,94,.2);color:#bbf7d0;border-color:rgba(34,197,94,.3)}
+.fx-hactions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;position:relative;z-index:1}
+.fx-hactions .btn{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.18);color:#fff}
+.fx-hactions .btn.primary{background:var(--primary);border-color:var(--primary)}
+.fx-hactions .btn.danger{background:rgba(239,68,68,.16);border-color:rgba(239,68,68,.35);color:#fecaca}
+.fx-tabs{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:18px}
+.fx-tabs button{padding:13px 8px;border-radius:14px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--sh);cursor:pointer;text-align:center;display:flex;flex-direction:column;align-items:center;gap:3px;transition:.14s;font-family:inherit}
+.fx-tabs button:hover{border-color:var(--primary);transform:translateY(-2px)}
+.fx-tabs button.active{background:var(--primary);border-color:var(--primary);box-shadow:0 8px 20px rgba(37,99,235,.32)}
+.fx-tabs .lbl{font-family:var(--fd);font-size:14px;font-weight:700;color:var(--ink)}
+.fx-tabs .sub2{font-size:11px;font-weight:600;color:var(--muted)}
+.fx-tabs button.active .lbl,.fx-tabs button.active .sub2{color:#fff}
+.fx-cols{display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start}
+.fx-idg{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line-2);border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+.fx-idg .cell{background:var(--surface);padding:13px 15px}
+.fx-idg .k{font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted-2)}
+.fx-idg .v{font-size:15px;font-weight:600;margin-top:5px;color:var(--ink)}
+.fx-idg .v.big{font-family:var(--fd);font-size:20px}
+.fx-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px}
+.fx-chip.amber{background:#fef3c7;color:#b45309}.fx-chip.ok{background:#dcfce7;color:#15803d}.fx-chip.grey{background:#f1f5f9;color:#64748b}
+.fx-state{border-radius:12px;padding:12px 14px;font-size:13px;margin-top:10px}
+.fx-state.warn{background:#fffbeb;border:1px solid #fde68a}.fx-state.red{background:#fef2f2;border:1px solid #fecaca}.fx-state.ok{background:#f0fdf4;border:1px solid #bbf7d0}
+.fx-vg{border-radius:14px;padding:14px;border:1px solid var(--line);background:var(--surface);box-shadow:var(--sh);margin-bottom:12px}
+.fx-vg .top{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.3px}
+.fx-vg .big{font-family:var(--fd);font-size:26px;font-weight:700;margin-top:6px}
+.fx-vg .foot{font-size:12px;color:var(--muted);margin-top:3px}
+.fx-dot{display:flex;align-items:center;gap:8px;font-size:13px;margin-top:9px}
+.fx-dot .d{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.fx-ct{display:flex;align-items:center;gap:13px;padding:12px 0;border-top:1px solid var(--line-2)}
+.fx-ct:first-of-type{border-top:none}
+.fx-ct .av{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-family:var(--fd);font-weight:700;color:#fff;flex:0 0 auto;font-size:14px}
+@media(max-width:900px){.fx-cols{grid-template-columns:1fr}.fx-idg{grid-template-columns:repeat(2,1fr)}.fx-tabs{grid-template-columns:repeat(3,1fr)}}
+`; document.head.appendChild(st); }
 async function viewErp(c,id){
   c.innerHTML=loadingBlock();
   const myHash=location.hash;
@@ -5635,17 +5678,24 @@ async function viewErp(c,id){
     const linkedDocIds=new Set((csh.data||[]).map(p=>p.documents&&p.documents.id).filter(Boolean));
     const pvSansPassage=(pvDocs.data||[]).filter(d=>!linkedDocIds.has(d.id));
     const data={e,cl,eq:eq.data||[],ob:ob.data||[],it:it.data||[],re:re.data||[],rap:rap.data||[],cc:cc.data||[],un:un.data||[],csh:csh.data||[],pvSansPassage};
-    c.innerHTML=`<div class="page-head"><div class="t">
-      <div style="font-size:12.5px;color:var(--muted);margin-bottom:6px"><span class="lnk" onclick="navigate('/erps')">ERP</span> / ${esc(e.code_erp)}</div>
-      <div class="dh"><div class="ic">${I.erp}</div><div><h1>${esc(e.nom)}</h1>
-        <div class="meta"><span>${esc(e.code_erp)}</span><span>${esc(cl?.raison_sociale||'')}</span>${e.type_erp?'<span>Type '+esc(e.type_erp)+(e.categorie?' · '+esc(e.categorie)+' cat.':'')+'</span>':''}</div></div></div></div>
-      <div class="actions"><button class="btn" onclick="ficheIdModal('${e.client_id}','${id}')">Fiche d'identité</button>
-        <button class="btn" onclick="showQR('${e.qr_token}')">${I.qr} QR code</button>
-        <button class="btn" onclick='formErp(${JSON.stringify(e).replace(/'/g,"&#39;")})'>Modifier</button>
-        <button class="btn danger" onclick="deleteErp('${id}')">🗑 Supprimer</button></div></div>
-      <div class="tabs">
-        ${[['apercu','Aperçu'],['oblig','Vérification'],['equip','Équipements'],['inter','Interventions'],['reserves','Réserves'],['rapports','Rapports']].map(t=>`<button class="${tab===t[0]?'active':''}" onclick="navigate('/erps/${id}?t=${t[0]}')">${t[1]}</button>`).join('')}
-      </div><div id="erptab"></div>`;
+    erpxStyle();
+    const openResHdr=(re.data||[]).filter(r=>!['cloturee','levee','rejetee'].includes(r.statut)).length;
+    const heroTags=[`<span class="fx-tag">${esc(e.code_erp)}</span>`, (cl&&cl.raison_sociale)?`<span class="fx-tag">${esc(cl.raison_sociale)}</span>`:'', e.type_erp?`<span class="fx-tag">Type ${esc(e.type_erp)}${e.categorie?' · '+esc(e.categorie)+'ᵉ cat.':''}</span>`:'', `<span class="fx-tag ok">● Fiche validée</span>`].filter(Boolean).join('');
+    const tabsDef=[['apercu','Aperçu','Synthèse'],['oblig','Vérification',(d.ob.length||0)+' points'],['equip','Équipements','Inventaire'],['inter','Interventions','Planifier'],['reserves','Réserves',openResHdr+' ouverte'+(openResHdr>1?'s':'')],['rapports','Rapports','Documents']];
+    c.innerHTML=`
+      <div class="fx-crumb"><span class="lnk" onclick="navigate('/erps')">ERP</span> › ${esc(e.code_erp)}</div>
+      <div class="fx-hero"><div class="fx-htop">
+        <div class="fx-bldg">${I.erp}</div>
+        <div><h1>${esc(e.nom)}</h1><div class="fx-meta">${heroTags}</div></div>
+        <div class="fx-hactions">
+          <button class="btn" onclick="ficheIdModal('${e.client_id}','${id}')">Fiche d'identité</button>
+          <button class="btn" onclick="showQR('${e.qr_token}')">QR code</button>
+          <button class="btn primary" onclick='formErp(${JSON.stringify(e).replace(/'/g,"&#39;")})'>Modifier</button>
+          <button class="btn danger" onclick="deleteErp('${id}')">Supprimer</button>
+        </div>
+      </div></div>
+      <div class="fx-tabs">${tabsDef.map(t=>`<button class="${tab===t[0]?'active':''}" onclick="navigate('/erps/${id}?t=${t[0]}')"><span class="lbl">${t[1]}</span><span class="sub2">${t[2]}</span></button>`).join('')}</div>
+      <div id="erptab"></div>`;
     renderErpTab(tab,data);
   }catch(err){ if(location.hash===myHash) c.innerHTML=errBlock(err); }
 }
@@ -5670,83 +5720,78 @@ function renderErpTab(tab,d){
   }
   if(tab==='apercu'){
     const adresseFull=[e.adresse,e.code_postal&&e.ville?e.code_postal+' '+e.ville:e.code_postal||e.ville].filter(Boolean).join(', ')||'—';
-    w.innerHTML=`<div class="info-grid">
-      <div class="it"><div class="k">Adresse</div><div class="v">${esc(adresseFull)}</div></div>
-      <div class="it"><div class="k">Type / catégorie</div><div class="v">${esc(e.type_erp)||'—'} ${e.categorie?'· '+esc(e.categorie):''}</div></div>
-      <div class="it"><div class="k">Niveaux</div><div class="v">${esc(e.niveaux)||'—'}</div></div>
-      <div class="it"><div class="k">Effectif public</div><div class="v">${e.effectif_public??'—'}</div></div>
-      <div class="it"><div class="k">Effectif salarié</div><div class="v">${e.effectif_salarie??'—'}</div></div>
-      <div class="it"><div class="k">Locaux à sommeil</div><div class="v">${e.locaux_sommeil?'Oui':'Non'}</div></div>
-      <div class="it"><div class="k">EAS</div><div class="v">${e.eas?'Oui':'Non'}</div></div>
-      <div class="it"><div class="k">Activité</div><div class="v">${esc(e.activite)||'—'}</div></div>
-      <div class="it"><div class="k">Vérifications</div><div class="v">${d.ob.length}</div></div>
-      <div class="it"><div class="k">Réserves ouvertes</div><div class="v">${d.re.filter(r=>!['cloturee','levee','rejetee'].includes(r.statut)).length}</div></div>
-    </div>
-    ${(()=>{ const a=e.assurance||{}; const has=a.compagnie||a.police||a.echeance;
-      const st=assurEtat(a);
-      return `<div class="card" style="margin-top:14px;padding:12px 16px">
+    const openRes=d.re.filter(r=>!['cloturee','levee','rejetee'].includes(r.statut)).length;
+    const a=e.assurance||{}; const hasA=a.compagnie||a.police||a.echeance; const stA=assurEtat(a);
+    const hasMairie=(e.mairie_nom||e.mairie_email||e.mairie_telephone);
+    const avPal=['#2563eb','#7c3aed','#0891b2','#16a34a','#d97706','#be185d'];
+    const initials=s=>String(s||'?').split(/\s+/).filter(Boolean).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+    const chip=(v,cls)=>`<span class="fx-chip ${cls}">${v}</span>`;
+    const naRen='<span style="color:var(--muted-2)">À renseigner</span>';
+    const vig=[];
+    if(!hasA) vig.push(['#ef4444','Assurance non renseignée']); else if(stA&&stA.cls==='crit') vig.push(['#ef4444','Assurance : '+stA.txt]); else if(stA&&stA.cls==='moy') vig.push(['#f59e0b','Assurance : '+stA.txt]);
+    if(!d.csh.length) vig.push(['#f59e0b','Aucun passage de commission']);
+    if(openRes>0) vig.push(['#ef4444',openRes+' réserve(s) ouverte(s)']);
+    if(e.effectif_public==null||e.effectif_salarie==null||!e.activite) vig.push(['#f59e0b','Effectifs / activité à compléter']);
+    const pvTag=t=>(((t||'').indexOf('cat:')>=0)||((t||'').indexOf('source:rapports')>=0))?'rapports':'documents';
+    w.innerHTML=`<div class="fx-cols"><div>
+      <div class="card"><div class="card-pad">
+        <h3 style="margin:0 0 14px;font-size:14px">Identité de l'établissement</h3>
+        <div class="fx-idg">
+          <div class="cell" style="grid-column:span 2"><div class="k">Adresse</div><div class="v">${esc(adresseFull)}</div></div>
+          <div class="cell"><div class="k">Niveaux</div><div class="v big">${esc(e.niveaux)||'—'}</div></div>
+          <div class="cell"><div class="k">Locaux à sommeil</div><div class="v">${e.locaux_sommeil?chip('Oui','amber'):chip('Non','grey')}</div></div>
+          <div class="cell"><div class="k">EAS</div><div class="v">${e.eas?chip('Oui','amber'):chip('Non','grey')}</div></div>
+          <div class="cell"><div class="k">Effectif public</div><div class="v">${e.effectif_public??naRen}</div></div>
+          <div class="cell"><div class="k">Effectif salarié</div><div class="v">${e.effectif_salarie??naRen}</div></div>
+          <div class="cell"><div class="k">Activité</div><div class="v">${esc(e.activite)||naRen}</div></div>
+        </div>
+      </div></div>
+
+      <div class="card" style="margin-top:16px"><div class="card-pad">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <h3 style="margin:0;font-size:14px;font-weight:600">🛡️ Assurance de l'établissement</h3>
-          ${st?statusPill(st.cls,{crit:['',st.txt,'crit'],moy:['',st.txt,'moy'],ok:['',st.txt,'ok']}):''}
-          <button class="btn sm" style="margin-left:auto" onclick="sinOpen(null,'${e.id}')" title="Générer un dossier sinistre pour l'assureur">⚠️ Dossier sinistre</button>
-          <button class="btn sm" onclick='formErp(${JSON.stringify(e).replace(/'/g,"&#39;")})'>${has?'Modifier':'Renseigner'}</button>
+          <h3 style="margin:0;font-size:14px">Assurance de l'établissement</h3>
+          ${stA?statusPill(stA.cls,{crit:['',stA.txt,'crit'],moy:['',stA.txt,'moy'],ok:['',stA.txt,'ok']}):''}
+          <div style="margin-left:auto;display:flex;gap:8px">
+            <button class="btn sm" onclick="sinOpen(null,'${e.id}')">Dossier sinistre</button>
+            <button class="btn sm primary" onclick='formErp(${JSON.stringify(e).replace(/'/g,"&#39;")})'>${hasA?'Modifier':'Renseigner'}</button>
+          </div>
         </div>
-        ${has?`<div style="font-size:12.5px;color:var(--muted);margin-top:7px;line-height:1.7">
-          ${a.compagnie?`<b style="color:var(--ink)">${esc(a.compagnie)}</b>`:''}${a.police?' · police n° '+esc(a.police):''}${a.nature?' · '+esc(a.nature):''}
-          ${a.courtier?`<br>Courtier : ${esc(a.courtier)}${a.courtier_contact?' — '+esc(a.courtier_contact):''}`:''}
-          ${a.garanties?`<br>Garanties : ${esc(a.garanties)}`:''}
-        </div>`:`<div style="font-size:12.5px;color:var(--muted-2);margin-top:6px">Compagnie, n° de police, courtier et échéance — indispensables au dossier sinistre.</div>`}
-      </div>`;})()}
-    <div class="card" style="margin-top:18px;padding:0;overflow:hidden">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line,#e2e8f0)">
-        <h3 style="margin:0;font-size:14px;font-weight:600">⚖️ Commission de sécurité</h3>
-        <div style="display:flex;gap:8px">
-          <button class="btn sm" onclick='csMairieModal(${JSON.stringify(e).replace(/'/g,"&#39;")})'>🏛️ Coordonnées mairie</button>
-          <button class="btn sm primary" onclick="csPassageModal('${e.id}','${esc(e.nom)}')">+ Ajouter un passage</button>
+        ${hasA?`<div style="font-size:12.5px;color:var(--muted);margin-top:9px;line-height:1.7">${a.compagnie?`<b style="color:var(--ink)">${esc(a.compagnie)}</b>`:''}${a.police?' · police n° '+esc(a.police):''}${a.nature?' · '+esc(a.nature):''}${a.courtier?`<br>Courtier : ${esc(a.courtier)}${a.courtier_contact?' — '+esc(a.courtier_contact):''}`:''}${a.garanties?`<br>Garanties : ${esc(a.garanties)}`:''}</div>`
+          :`<div class="fx-state red"><b>Non renseignée.</b> Compagnie, n° de police, courtier et échéance — indispensables au dossier sinistre.</div>`}
+      </div></div>
+
+      <div class="card" style="margin-top:16px;padding:0;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;flex-wrap:wrap;gap:8px">
+          <h3 style="margin:0;font-size:14px">Commission de sécurité</h3>
+          <div style="display:flex;gap:8px">
+            <button class="btn sm" onclick='csMairieModal(${JSON.stringify(e).replace(/'/g,"&#39;")})'>Coordonnées mairie</button>
+            <button class="btn sm primary" onclick="csPassageModal('${e.id}','${esc(e.nom)}')">+ Ajouter un passage</button>
+          </div>
         </div>
+        ${hasMairie?`<div style="padding:0 18px 12px;font-size:12.5px;color:var(--muted)">${esc(e.mairie_nom)||'Mairie'}${e.mairie_contact?' — '+esc(e.mairie_contact):''}${e.mairie_email?' · <a href="mailto:'+esc(e.mairie_email)+'" style="color:var(--primary)">'+esc(e.mairie_email)+'</a>':''}${e.mairie_telephone?' · '+esc(e.mairie_telephone):''}</div>`:''}
+        ${(d.pvSansPassage||[]).length?`<div style="padding:12px 18px;border-top:1px solid var(--line-2);background:rgba(37,99,235,.05)"><div style="font-size:12px;color:var(--muted);margin-bottom:8px">PV déposé(s) en GED — pas encore rattaché(s) à un passage :</div><div style="display:flex;flex-direction:column;gap:6px">${d.pvSansPassage.map(pv=>`<div style="display:flex;align-items:center;gap:10px"><span style="flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(pv.nom_original)}</span><button class="btn sm primary" onclick="previewDoc('${esc(pv.fichier_path)}','${esc(pv.nom_original||'')}','${pvTag(pv.tags)}')">Voir</button></div>`).join('')}</div></div>`:''}
+        ${d.csh.length?`<div class="tbl-wrap" style="border-top:1px solid var(--line-2)"><table class="tbl"><thead><tr><th>Date</th><th>Avis</th><th>Commentaire</th><th></th></tr></thead><tbody>${d.csh.map(p=>`<tr><td><b>${fmtDate(p.date_passage)}</b></td><td>${p.avis?`<span style="font-weight:700;color:${p.avis==='favorable'?'#16a34a':'#dc2626'}">${p.avis==='favorable'?'Favorable':'Défavorable'}</span>${p.prescriptions?' <span style="font-size:11.5px;color:var(--muted)">avec prescriptions</span>':''}`:'<span style="color:var(--muted)">—</span>'}</td><td style="font-size:12.5px;color:var(--muted)">${esc(p.commentaire)||'—'}</td><td style="text-align:right;white-space:nowrap">${p.documents&&p.documents.fichier_path?`<button class="btn sm" onclick="previewDoc('${esc(p.documents.fichier_path)}','${esc(p.documents.nom_original||'')}','${pvTag(p.documents.tags)}')">Voir</button>`:`<button class="btn sm" onclick="csPassageLinkDoc('${p.id}','${e.id}')">Lier un PV</button>`} <button class="btn sm danger" onclick="csPassageDel('${p.id}','${e.id}')">🗑</button></td></tr>`).join('')}</tbody></table></div>`:`<div style="padding:16px 18px;color:var(--muted);font-size:13px;border-top:1px solid var(--line-2)">Aucun passage enregistré — cliquez « + Ajouter un passage » (saisie rétroactive possible).</div>`}
       </div>
-      ${(!e.mairie_nom&&!e.mairie_email&&!e.mairie_telephone)?'':`<div style="padding:10px 16px;border-bottom:1px solid var(--line,#e2e8f0);font-size:12.5px;color:var(--muted)">
-        🏛️ ${esc(e.mairie_nom)||'Mairie'}${e.mairie_contact?' — '+esc(e.mairie_contact):''}${e.mairie_email?' · <a href="mailto:'+esc(e.mairie_email)+'" style="color:var(--primary)">'+esc(e.mairie_email)+'</a>':''}${e.mairie_telephone?' · '+esc(e.mairie_telephone):''}
-      </div>`}
-      ${(d.pvSansPassage||[]).length?`<div style="padding:12px 16px;border-bottom:1px solid var(--line,#e2e8f0);background:rgba(37,99,235,.05)">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">📄 PV déposé(s) en GED — pas encore rattaché(s) à un passage de l'historique :</div>
-        <div style="display:flex;flex-direction:column;gap:6px">
-          ${d.pvSansPassage.map(pv=>`<div style="display:flex;align-items:center;gap:10px">
-            <span style="flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(pv.nom_original)}</span>
-            <button class="btn sm primary" onclick="previewDoc('${esc(pv.fichier_path)}','${esc(pv.nom_original||'')}','${(((pv.tags||'').indexOf('cat:')>=0)||((pv.tags||'').indexOf('source:rapports')>=0))?'rapports':'documents'}')">👁 Voir</button>
-          </div>`).join('')}
+
+      <div class="card" style="margin-top:16px;padding:0;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px">
+          <h3 style="margin:0;font-size:14px">Contacts du client</h3>
+          <button class="btn sm primary" onclick="editContact({},${JSON.stringify(e.client_id)})">+ Ajouter</button>
         </div>
-      </div>`:''}
-      ${d.csh.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Date</th><th>Avis</th><th>Commentaire</th><th></th></tr></thead><tbody>
-        ${d.csh.map(p=>`<tr>
-          <td><b>${fmtDate(p.date_passage)}</b></td>
-          <td>${p.avis?`<span style="font-weight:700;color:${p.avis==='favorable'?'#16a34a':'#dc2626'}">${p.avis==='favorable'?'✅ Favorable':'❌ Défavorable'}</span>${p.prescriptions?' <span style="font-size:11.5px;color:var(--muted)">avec prescriptions</span>':' <span style="font-size:11.5px;color:var(--muted)">sans prescriptions</span>'}`:'<span style="color:var(--muted)">— non précisé</span>'}</td>
-          <td style="font-size:12.5px;color:var(--muted)">${esc(p.commentaire)||'—'}</td>
-          <td style="text-align:right;white-space:nowrap">
-            ${p.documents&&p.documents.fichier_path?`<button class="btn sm" onclick="previewDoc('${esc(p.documents.fichier_path)}','${esc(p.documents.nom_original||'')}','${(((p.documents.tags||'').indexOf('cat:')>=0)||((p.documents.tags||'').indexOf('source:rapports')>=0))?'rapports':'documents'}')">👁 Voir le rapport</button>`:`<button class="btn sm" onclick="csPassageLinkDoc('${p.id}','${e.id}')">🔗 Lier un PV</button>`}
-            <button class="btn sm danger" onclick="csPassageDel('${p.id}','${e.id}')">🗑</button>
-          </td>
-        </tr>`).join('')}
-      </tbody></table></div>`
-      :`<div style="padding:20px 16px;color:var(--muted);font-size:13px">Aucun passage enregistré — cliquez « + Ajouter un passage » (les années antérieures peuvent être saisies rétroactivement).</div>`}
+        ${d.cc.length?`<div style="padding:0 18px 14px">${d.cc.map((ct,i)=>{const nom=[ct.prenom,ct.nom].filter(Boolean).join(' ')||'—';const rc=(typeof ROLE_CLIENT!=='undefined'&&ROLE_CLIENT)||{};const tel=[ct.telephone,ct.mobile].filter(Boolean).join(' · ');return `<div class="fx-ct"><div class="av" style="background:${avPal[i%avPal.length]}">${initials(nom)}</div><div style="min-width:0"><div style="font-weight:700;font-size:14px">${esc(nom)}</div><div style="font-size:12px;color:var(--muted)">${esc(rc[ct.role_suivi]||ct.role_suivi||'')}</div></div><div style="margin-left:auto;text-align:right;font-size:12.5px">${ct.email?`<a href="mailto:${esc(ct.email)}" style="color:var(--primary);font-weight:600;text-decoration:none">${esc(ct.email)}</a><br>`:''}${tel?`<span style="color:var(--muted)">${esc(tel)}</span>`:''}<button class="btn sm" style="margin-left:8px" onclick='editContact(${JSON.stringify(ct).replace(/'/g,"&#39;")},${JSON.stringify(e.client_id)})'>Modifier</button></div></div>`;}).join('')}</div>`:`<div style="padding:16px 18px;color:var(--muted);font-size:13px">Aucun contact — cliquez sur Ajouter.</div>`}
+      </div>
     </div>
-    <div class="card" style="margin-top:18px;padding:0;overflow:hidden">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line,#e2e8f0)">
-        <h3 style="margin:0;font-size:14px;font-weight:600">Contacts du client</h3>
-        <button class="btn sm primary" onclick="editContact({},${JSON.stringify(e.client_id)})">+ Ajouter</button>
-      </div>
-      ${d.cc.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Nom</th><th>Rôle</th><th>Email</th><th>Tél / Mobile</th><th></th></tr></thead><tbody>
-        ${d.cc.map(ct=>{const nom=[ct.prenom,ct.nom].filter(Boolean).join(' ')||'—'; const rc=(typeof ROLE_CLIENT!=='undefined'&&ROLE_CLIENT)||{}; return `<tr>
-          <td><b>${esc(nom)}</b></td>
-          <td>${esc(rc[ct.role_suivi]||ct.role_suivi||'—')}</td>
-          <td>${ct.email?`<a href="mailto:${esc(ct.email)}" style="color:var(--primary)">${esc(ct.email)}</a>`:'—'}</td>
-          <td>${[ct.telephone,ct.mobile].filter(Boolean).join(' / ')||'—'}</td>
-          <td style="text-align:right;white-space:nowrap">
-            <button class="btn sm" onclick='editContact(${JSON.stringify(ct).replace(/'/g,"&#39;")},${JSON.stringify(e.client_id)})'>Modifier</button>
-          </td></tr>`;}).join('')}
-        </tbody></table></div>`
-      :`<div style="padding:20px 16px;color:var(--muted);font-size:13px">Aucun contact — cliquez sur Ajouter.</div>`}
-    </div>`;
+
+    <div>
+      <div class="fx-vg" style="background:linear-gradient(135deg,#eff6ff,#fff);border-color:#bfdbfe"><div class="top">VÉRIFICATIONS RÉGLEMENTAIRES</div><div class="big" style="color:#1d4ed8">${d.ob.length}</div><div class="foot">points de contrôle suivis</div></div>
+      <div class="fx-vg"><div class="top">RÉSERVES OUVERTES</div><div class="big" style="color:${openRes?'#b45309':'#16a34a'}">${openRes}</div><div class="foot">${openRes?'à traiter':'Aucune réserve en cours'}</div></div>
+      ${vig.length?`<div class="fx-vg" style="border-color:#fecaca"><div class="top" style="color:#b91c1c">POINTS DE VIGILANCE</div>${vig.map(v=>`<div class="fx-dot"><span class="d" style="background:${v[0]}"></span>${esc(v[1])}</div>`).join('')}</div>`:''}
+      <div class="fx-vg"><div class="top">ACTIONS RAPIDES</div><div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+        <button class="btn" style="justify-content:flex-start" onclick="modalAjoutPhoto()">Nouveau constat</button>
+        <button class="btn" style="justify-content:flex-start" onclick="formInter('${e.id}',null,'programmer')">Programmer une intervention</button>
+        <button class="btn" style="justify-content:flex-start" onclick="navigate('/compte-rendu')">Générer un compte rendu</button>
+      </div></div>
+    </div></div>`;
   }
   else if(tab==='oblig'){
     w.innerHTML=`<div style="display:flex;margin-bottom:14px"><button class="btn primary" style="margin-left:auto" onclick="formOblig('${e.id}')">${I.plus} Nouvelle vérification</button></div>
