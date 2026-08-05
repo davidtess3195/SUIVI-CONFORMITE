@@ -16981,6 +16981,8 @@ window.pinvInviteModal=function(){
   <div class="modal-body">
     <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Chaque prestataire recevra <b>son lien personnel</b> pour remplir sa fiche lui-même. Tout arrivera dans ta file de validation.</div>
     <div class="fld"><label>Établissement de référence</label><select id="pi_erp">${erps.map(e=>`<option value="${e.id}">${esc(e.nom)}</option>`).join('')}</select></div>
+    <div class="fld"><label>Prestataire déjà enregistré <span style="font-weight:400;color:var(--muted)">(rattaché à l'établissement / client — pré-remplit les champs)</span></label>
+      <select id="pi_pick" style="width:100%"><option value="">— Chargement…</option></select></div>
     <div class="fld"><label>Un prestataire (unitaire)</label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input id="pi_ent" placeholder="Entreprise *"><input id="pi_nom" placeholder="Nom du contact"></div>
       <input id="pi_mail" placeholder="E-mail *" style="margin-top:8px;width:100%">
@@ -16995,6 +16997,46 @@ window.pinvInviteModal=function(){
       <div id="pi_prev" style="margin-top:8px"></div></div>
   </div>
   <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Fermer</button></div>`);
+  // Sélecteur « prestataire déjà enregistré » : rattachés à l'ERP/client, avec nom + e-mail
+  (async()=>{
+    let prest=[], links=[];
+    try{ const {data}=await sb.from('prestataires').select('id,nom,categorie,contacts'); prest=data||[]; }catch(_){}
+    try{ const {data}=await sb.from('interventions').select('prestataire_id,erp_id,client_id'); (data||[]).forEach(x=>{ if(x.prestataire_id) links.push(x); }); }catch(_){}
+    try{ const {data}=await sb.from('contrats').select('prestataire_id,erp_id,client_id'); (data||[]).forEach(x=>{ if(x.prestataire_id) links.push(x); }); }catch(_){}
+    const contactsOf=p=>{ const out=[]; const c=p.contacts;
+      if(c && typeof c==='object' && !Array.isArray(c)){
+        for(const [role,v] of Object.entries(c)){ if(role==='autres'||!v||typeof v!=='object') continue; if(v.email||v.nom) out.push({nom:v.nom||'',email:v.email||''}); }
+        if(Array.isArray(c.autres)) c.autres.forEach(a=>{ if(a&&(a.email||a.nom)) out.push({nom:a.nom||'',email:a.email||''}); });
+      } else if(Array.isArray(c)){ c.forEach(a=>{ if(a&&(a.email||a.nom)) out.push({nom:a.nom||'',email:a.email||''}); }); }
+      if(!out.length) out.push({nom:'',email:''});
+      return out; };
+    window._pinvPickMap={};
+    const build=(erpId)=>{
+      const sel=document.getElementById('pi_pick'); if(!sel) return;
+      const cid=(state.erps.find(e=>e.id===erpId)||{}).client_id;
+      const linkedIds=new Set(links.filter(l=>l.erp_id===erpId||(cid&&l.client_id===cid)).map(l=>l.prestataire_id));
+      window._pinvPickMap={};
+      const mk=p=>contactsOf(p).map((ct,i)=>{ const key=p.id+'|'+i; window._pinvPickMap[key]={ent:p.nom||'',nom:ct.nom||'',mail:ct.email||''};
+        const lbl=[p.nom, ct.nom, ct.email].filter(Boolean).join(' · ');
+        return `<option value="${esc(key)}">${esc(lbl)}</option>`; }).join('');
+      const linked=prest.filter(p=>linkedIds.has(p.id));
+      const autres=prest.filter(p=>!linkedIds.has(p.id));
+      let html='<option value="">— Nouveau prestataire (saisie manuelle) —</option>';
+      if(linked.length) html+='<optgroup label="Rattachés à cet établissement / client">'+linked.map(mk).join('')+'</optgroup>';
+      if(autres.length) html+='<optgroup label="Autres prestataires">'+autres.map(mk).join('')+'</optgroup>';
+      if(!prest.length) html='<option value="">Aucun prestataire enregistré</option>';
+      sel.innerHTML=html;
+    };
+    const erpSel=document.getElementById('pi_erp');
+    build(erpSel?erpSel.value:'');
+    if(erpSel) erpSel.addEventListener('change',e=>build(e.target.value));
+    const pick=document.getElementById('pi_pick');
+    if(pick) pick.addEventListener('change',function(){
+      const d=window._pinvPickMap[this.value]; if(!d) return;
+      const ent=document.getElementById('pi_ent'), nom=document.getElementById('pi_nom'), mail=document.getElementById('pi_mail');
+      if(ent) ent.value=d.ent; if(nom) nom.value=d.nom; if(mail) mail.value=d.mail;
+    });
+  })();
   document.getElementById('pi_xls').onchange=async function(){
     const f=this.files[0]; if(!f||!window.XLSX) return;
     const buf=await f.arrayBuffer(); const wb=XLSX.read(buf);
