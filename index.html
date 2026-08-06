@@ -11999,6 +11999,7 @@ window.trvDetail=async function(id){
         <button class="btn" style="white-space:nowrap" onclick="trvPdf('${esc(t.id)}')">📄 PDF</button>
         <button class="btn" style="white-space:nowrap" onclick="trvSmsModal('${esc(t.id)}')">📱 SMS…</button>
         <button class="btn" style="white-space:nowrap" onclick="trvSendCur()">✍ Technicien…</button>
+        <button class="btn" style="white-space:nowrap" onclick="trvMailPrest('${esc(t.id)}')">✉ E-mail prestataire…</button>
         <button class="btn primary" style="white-space:nowrap" onclick="trvAffect('${esc(t.id)}')">Répartir aux prestataires…</button>`}</div>`);
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
 };
@@ -12072,13 +12073,14 @@ window.trvPdf=async function(tabId){
     toast('PDF téléchargé — '+b.done+'/'+b.total+' levées à jour','ok');
   }catch(e){ toast('Erreur PDF : '+(e.message||e),'err'); }
 };
-window.trvPdfBuild=async function(tabId){
+window.trvPdfBuild=async function(tabId,selIds){
   {
-    const [{data:t},{data:rows}]=await Promise.all([
+    const [{data:t},{data:rowsAll}]=await Promise.all([
       sb.from('tableaux_reserves').select('*').eq('id',tabId).maybeSingle(),
       sb.from('reserves').select('*').eq('tableau_id',tabId).order('numero')
     ]);
     if(!t) throw new Error('tableau introuvable');
+    const rows=(selIds&&selIds.length)?(rowsAll||[]).filter(r=>selIds.includes(r.id)):(rowsAll||[]);
     const erp=(state.erps||[]).find(x=>x.id===t.erp_id)||{};
     const cli=(state.clients||[]).find(x=>x.id===t.client_id)||{};
     let docSrc=null;
@@ -12785,6 +12787,172 @@ window.trvCreate=async function(){
 /* ── Envoi du tableau au technicien (accès temporaire + lien magique) ── */
 window.trvSendCur=function(){ const c=window._trvCur||{}; trvSendModal(c.tabId,c.erpId,c.erpNom,c.org,c.nb); };
 window.trvNotifyCur=function(){ const c=window._trvCur||{}; trvNotify(c.erpNom,c.nb,c.org); };
+
+/* ── Envoi des réserves par e-mail à un prestataire (contacts pré-remplis + aperçu) ── */
+window._tmpSel={}; window._tmpRows=[]; window._tmpMeta={};
+window.trvPrestEmails=function(p){
+  const out=[], seen={};
+  const push=(email,label)=>{ if(!email) return; const e=String(email).trim(); if(!e||seen[e.toLowerCase()]) return; seen[e.toLowerCase()]=true; out.push({email:e,label:label||e}); };
+  if(p.email_rapports) push(p.email_rapports,'Email rapports');
+  let c=p&&p.contacts; if(typeof c==='string'){ try{ c=JSON.parse(c); }catch(_){ c=null; } }
+  const RL={charge_affaire:"Chargé d'affaire",planning:'Planning',sav:'SAV',technicien_1:'Technicien 1',technicien_2:'Technicien 2',technicien_3:'Technicien 3'};
+  if(c && !Array.isArray(c)){
+    for(const [role,val] of Object.entries(c)){
+      if(role==='autres') continue;
+      if(val&&val.email) push(val.email,(RL[role]||role.replace(/_/g,' '))+(val.nom?' — '+val.nom:''));
+    }
+    if(Array.isArray(c.autres)) c.autres.forEach(a=>{ if(a&&a.email) push(a.email,(a.intitule||'Autre')+(a.nom?' — '+a.nom:'')); });
+  } else if(Array.isArray(c)){
+    c.forEach(a=>{ if(a&&a.email) push(a.email,a.intitule||a.nom||'Contact'); });
+  }
+  return out;
+};
+window.trvMailRecipients=function(){
+  const extra=((document.getElementById('tmp_extra')||{}).value||'').split(/[,;\s]+/).map(s=>s.trim()).filter(Boolean);
+  const set={}; Object.keys(window._tmpSel||{}).forEach(e=>{ set[e.toLowerCase()]=e; }); extra.forEach(e=>{ set[e.toLowerCase()]=e; });
+  return Object.values(set);
+};
+window.trvMailSelectedRows=function(){ const all=window._tmpRows||[]; const s=window._tmpRowSel; if(!s) return all; return all.filter(r=>s[r.id]); };
+window.trvMailRowToggle=function(inp){ if(inp.checked) window._tmpRowSel[inp.value]=true; else delete window._tmpRowSel[inp.value]; trvMailPreview(); };
+window.trvBuildMailHtml=function(intro,attest){
+  const m=window._tmpMeta||{}, rows=trvMailSelectedRows();
+  const introHtml=esc(intro||'').replace(/\n/g,'<br>');
+  const trs=rows.map(r=>{
+    const etat=r.etat_levee==='levee'?'<span style="color:#16a34a;font-weight:700">Levée</span>':r.etat_levee==='partielle'?'<span style="color:#d97706;font-weight:700">Partielle</span>':'<span style="color:#dc2626;font-weight:700">À lever</span>';
+    return '<tr>'
+      +'<td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center;color:#1e293b">'+(r.numero||'—')+'</td>'
+      +'<td style="padding:8px 10px;border:1px solid #e2e8f0;color:#1e293b">'+esc(r.libelle||'')+(r.localisation?'<br><span style="font-size:11px;color:#64748b">'+esc(r.localisation)+'</span>':'')+(r.recidive?' <span style="background:rgba(220,38,38,.1);color:#dc2626;border-radius:5px;padding:0 5px;font-size:10px;font-weight:800">RÉCIDIVE</span>':'')+'</td>'
+      +'<td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center;white-space:nowrap">'+etat+'</td>'
+    +'</tr>';
+  }).join('');
+  return '<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:auto">'
+    +'<div style="background:#1e3a5f;padding:22px 26px;border-radius:8px 8px 0 0">'
+      +'<h2 style="color:#fff;margin:0;font-size:19px">PREVA CONSEILS</h2>'
+      +'<p style="color:#93b4d8;margin:4px 0 0;font-size:13px">Réserves à lever'+(m.org?' — '+esc(m.org):'')+'</p>'
+    +'</div>'
+    +'<div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:26px;background:#fff">'
+      +'<p style="margin:0 0 16px;color:#1e293b;line-height:1.5">'+introHtml+'</p>'
+      +'<table style="width:100%;border-collapse:collapse;margin-bottom:8px;font-size:13px">'
+        +'<tr><td style="padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:bold;width:38%;color:#475569">Établissement</td><td style="padding:8px 10px;border:1px solid #e2e8f0;color:#1e293b">'+esc(m.erpNom||'')+'</td></tr>'
+        +(m.org?'<tr><td style="padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:bold;color:#475569">Organisme</td><td style="padding:8px 10px;border:1px solid #e2e8f0;color:#1e293b">'+esc(m.org)+'</td></tr>':'')
+        +(m.dateInter?'<tr><td style="padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:bold;color:#475569">Date d\'intervention</td><td style="padding:8px 10px;border:1px solid #e2e8f0;color:#1e293b">'+esc(m.dateInter)+'</td></tr>':'')
+        +'<tr><td style="padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:bold;color:#475569">Nombre de réserves</td><td style="padding:8px 10px;border:1px solid #e2e8f0;color:#1e293b"><b>'+rows.length+'</b></td></tr>'
+      +'</table>'
+      +'<table style="width:100%;border-collapse:collapse;margin:14px 0;font-size:13px">'
+        +'<thead><tr>'
+          +'<th style="padding:8px 10px;background:#1e3a5f;color:#fff;border:1px solid #1e3a5f;width:42px">N°</th>'
+          +'<th style="padding:8px 10px;background:#1e3a5f;color:#fff;border:1px solid #1e3a5f;text-align:left">Réserve</th>'
+          +'<th style="padding:8px 10px;background:#1e3a5f;color:#fff;border:1px solid #1e3a5f;width:80px">État</th>'
+        +'</tr></thead>'
+        +'<tbody>'+(trs||'<tr><td colspan="3" style="padding:10px;border:1px solid #e2e8f0;color:#64748b;text-align:center">Aucune réserve</td></tr>')+'</tbody>'
+      +'</table>'
+      +((attest&&attest.trim())?'<div style="margin:14px 0;background:#fff8e1;border:1px solid #f0c36d;border-radius:8px;padding:12px 14px;font-size:13px;color:#8a5a00;line-height:1.5">⚠ '+esc(attest).replace(/\n/g,'<br>')+'</div>':'')
+      +'<p style="margin:14px 0 4px;color:#1e293b;font-size:14px">Nous restons à votre disposition pour toute précision et vous prions de bien vouloir nous confirmer la prise en compte de cette demande.</p>'
+      +'<hr style="border:none;border-top:1px solid #e2e8f0;margin:18px 0 12px">'
+      +'<p style="margin:0;color:#64748b;font-size:12.5px;line-height:1.6">Cordialement,<br><b style="color:#1e3a5f">PREVA CONSEILS</b><br>5 rue Marceline — 95110 SANNOIS<br>Tél : 01.34.17.61.33 · contact@preva-conseils.fr</p>'
+    +'</div>'
+  +'</div>';
+};
+window.trvMailPreview=function(){
+  const prev=document.getElementById('tmp_preview'); if(!prev) return;
+  const intro=(document.getElementById('tmp_intro')||{}).value||'';
+  const attest=(document.getElementById('tmp_attest')||{}).value||'';
+  prev.innerHTML=trvBuildMailHtml(intro,attest);
+  const to=trvMailRecipients(), toEl=document.getElementById('tmp_to');
+  if(toEl) toEl.innerHTML=to.length?to.map(e=>esc(e)).join(', '):'<span style="color:#d97706">Aucun destinataire sélectionné</span>';
+};
+window.trvMailToggle=function(inp){
+  if(inp.checked) window._tmpSel[inp.value]=true; else delete window._tmpSel[inp.value];
+  const card=inp.closest('label'); if(card){ card.style.borderColor=inp.checked?'#2563eb':'var(--line)'; card.style.background=inp.checked?'rgba(37,99,235,.07)':'var(--surface)'; }
+  trvMailPreview();
+};
+window.trvMailPrestChange=function(){
+  const pid=(document.getElementById('tmp_prest')||{}).value, host=document.getElementById('tmp_list'); if(!host) return;
+  const p=(window._prestCache||[]).find(x=>x.id===pid);
+  window._tmpSel={};
+  if(!p){ host.innerHTML='<span style="font-size:12px;color:var(--muted)">Sélectionne un prestataire pour charger ses contacts.</span>'; trvMailPreview(); return; }
+  const list=trvPrestEmails(p);
+  if(!list.length){ host.innerHTML='<span style="font-size:12px;color:#d97706">Aucun e-mail en fiche pour ce prestataire — ajoute des destinataires ci-dessous.</span>'; trvMailPreview(); return; }
+  list.forEach(x=>{ window._tmpSel[x.email]=true; });
+  host.innerHTML=list.map(x=>'<label style="display:inline-flex;align-items:center;gap:6px;border:1.5px solid #2563eb;background:rgba(37,99,235,.07);border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;user-select:none">'
+    +'<input type="checkbox" value="'+esc(x.email)+'" checked onchange="trvMailToggle(this)" style="accent-color:#2563eb;width:14px;height:14px">✉ <b>'+esc(x.label)+'</b> · '+esc(x.email)+'</label>').join('');
+  trvMailPreview();
+};
+window.trvMailPrest=async function(tabId){
+  try{
+    const [tR,rR]=await Promise.all([
+      sb.from('tableaux_reserves').select('*').eq('id',tabId).maybeSingle(),
+      sb.from('reserves').select('*').eq('tableau_id',tabId).order('numero')
+    ]);
+    const t=tR.data; if(!t){ toast('Tableau introuvable','err'); return; }
+    if(!window._prestCache || !window._prestCache.length){
+      try{ const {data}=await sb.from('prestataires').select('*').order('nom'); window._prestCache=data||[]; }catch(_){ window._prestCache=[]; }
+    }
+    const erp=(state.erps||[]).find(x=>x.id===t.erp_id), erpNom=(erp?erp.nom:'')||'';
+    const dateInter=t.date_intervention?new Date(t.date_intervention+'T00:00:00').toLocaleDateString('fr-FR'):'';
+    window._tmpRows=rR.data||[];
+    window._tmpMeta={erpNom:erpNom,org:t.organisme||'',dateInter:dateInter,titre:t.titre||''};
+    window._tmpSel={};
+    window._tmpRowSel={}; (window._tmpRows||[]).forEach(r=>{ window._tmpRowSel[r.id]=true; });
+    const rowChecks=(window._tmpRows||[]).map(r=>'<label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;cursor:pointer;padding:5px 0;border-bottom:1px solid var(--line)"><input type="checkbox" checked value="'+esc(r.id)+'" onchange="trvMailRowToggle(this)" style="accent-color:#2563eb;margin-top:2px;flex:0 0 auto;width:14px;height:14px"><span><b>N°'+(r.numero||'—')+'</b> '+esc(r.libelle||'')+(r.recidive?' <span style="background:rgba(220,38,38,.1);color:#dc2626;border-radius:5px;padding:0 5px;font-size:10px;font-weight:800">RÉCIDIVE</span>':'')+'</span></label>').join('');
+    const all=window._prestCache, opt=p=>'<option value="'+p.id+'">'+esc(p.nom)+'</option>';
+    const prests=all.filter(p=>p.categorie!=='bureau_de_controle'), bureaux=all.filter(p=>p.categorie==='bureau_de_controle');
+    const popts='<option value="">— Choisir un prestataire —</option>'
+      +(prests.length?'<optgroup label="Prestataires">'+prests.map(opt).join('')+'</optgroup>':'')
+      +(bureaux.length?'<optgroup label="Bureaux de contrôle">'+bureaux.map(opt).join('')+'</optgroup>':'');
+    const defSujet='Réserves à lever — '+erpNom+(t.organisme?' ('+t.organisme+(dateInter?' du '+dateInter:'')+')':'');
+    const defIntro='Bonjour,\n\nDans le cadre du suivi de conformité de l\'établissement '+erpNom+', veuillez trouver ci-dessous la liste des réserves'+(t.organisme?' relevées par '+t.organisme:'')+(dateInter?' lors de l\'intervention du '+dateInter:'')+'.\n\nNous vous remercions de bien vouloir procéder à leur levée dans les meilleurs délais et de nous transmettre les justificatifs correspondants.';
+    const defAttest='À la fin des travaux, il conviendra de nous fournir une attestation de réalisation / de levée des réserves correspondante.';
+    openModal('<div class="modal-head"><h2>Envoyer les réserves par e-mail</h2><button class="x" onclick="trvDetail(\''+esc(tabId)+'\')">'+I.x+'</button></div>'
+      +'<div class="modal-body" style="display:flex;flex-direction:column;gap:12px">'
+        +'<div style="background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.25);border-radius:10px;padding:9px 12px;font-size:12.5px"><b>'+esc(t.organisme||'Tableau')+'</b> — '+esc(erpNom)+' · '+(window._tmpRows.length)+' réserve(s).</div>'
+        +'<div class="fld" style="margin:0"><label>Prestataire destinataire</label><select id="tmp_prest" onchange="trvMailPrestChange()">'+popts+'</select></div>'
+        +'<div class="fld" style="margin:0"><label>Contacts du prestataire <span style="font-weight:400;color:var(--muted)">(tous pré-cochés — décoche au besoin)</span></label><div id="tmp_list" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"><span style="font-size:12px;color:var(--muted)">Sélectionne un prestataire pour charger ses contacts.</span></div></div>'
+        +'<div class="fld" style="margin:0"><label>Autres destinataires <span style="font-weight:400;color:var(--muted)">(emails séparés par des virgules)</span></label><input id="tmp_extra" oninput="trvMailPreview()" placeholder="nom@exemple.fr, autre@exemple.fr"></div>'
+        +'<div class="fld" style="margin:0"><label>Objet</label><input id="tmp_subj" value="'+esc(defSujet)+'" oninput="trvMailPreview()"></div>'
+        +'<div class="fld" style="margin:0"><label>Message d\'introduction</label><textarea id="tmp_intro" rows="5" onkeydown="event.stopPropagation()" oninput="trvMailPreview()" style="width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;font-family:inherit">'+esc(defIntro)+'</textarea></div>'
+        +'<div class="fld" style="margin:0"><label>Réserves à inclure dans le mail <span style="font-weight:400;color:var(--muted)">(toutes cochées par défaut)</span></label><div id="tmp_rows" style="display:flex;flex-direction:column;max-height:180px;overflow:auto;border:1px solid var(--line);border-radius:9px;padding:2px 10px">'+rowChecks+'</div></div>'
+        +'<div class="fld" style="margin:0"><label>Mention attestation <span style="font-weight:400;color:var(--muted)">(fin de travaux — modifiable, laisser vide pour retirer)</span></label><textarea id="tmp_attest" rows="2" onkeydown="event.stopPropagation()" oninput="trvMailPreview()" style="width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;font-family:inherit">'+esc(defAttest)+'</textarea></div>'
+        +'<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer"><input type="checkbox" id="tmp_pdf" checked style="accent-color:#2563eb;width:15px;height:15px">📎 Joindre le PDF du tableau (réserves sélectionnées)</label>'
+        +'<div style="border-top:1px solid var(--line);padding-top:10px">'
+          +'<div style="font-size:12px;color:var(--muted);margin-bottom:6px">À : <span id="tmp_to"></span></div>'
+          +'<label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Aperçu du mail</label>'
+          +'<div id="tmp_preview" style="background:#eef1f6;border:1px solid var(--line);border-radius:10px;padding:16px;max-height:420px;overflow:auto"></div>'
+        +'</div>'
+      +'</div>'
+      +'<div class="modal-foot"><button class="btn ghost" onclick="trvDetail(\''+esc(tabId)+'\')">Annuler</button>'
+        +'<button class="btn primary" id="tmp_go" onclick="trvMailSend(\''+esc(tabId)+'\')">Envoyer l\'e-mail</button></div>');
+    trvMailPreview();
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+window.trvMailSend=async function(tabId){
+  const to=trvMailRecipients(), emailRe=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if(!trvMailSelectedRows().length){ toast('Sélectionne au moins une réserve à inclure','err'); return; }
+  if(!to.length){ toast('Sélectionne au moins un destinataire','err'); return; }
+  const bad=to.find(e=>!emailRe.test(e));
+  if(bad){ toast('E-mail invalide : '+bad,'err'); return; }
+  const subject=((document.getElementById('tmp_subj')||{}).value||'').trim()||('Réserves à lever — '+(window._tmpMeta.erpNom||''));
+  const intro=(document.getElementById('tmp_intro')||{}).value||'';
+  const attest=(document.getElementById('tmp_attest')||{}).value||'';
+  const html=trvBuildMailHtml(intro,attest);
+  const btn=document.getElementById('tmp_go'); if(btn){ btn.disabled=true; btn.textContent='Envoi…'; }
+  try{
+    const body={to:to,subject:subject,html:html,replyTo:'rapports@conformite-securite.fr'};
+    if((document.getElementById('tmp_pdf')||{}).checked){
+      if(btn) btn.textContent='PDF…';
+      try{
+        const pb=await trvPdfBuild(tabId,Object.keys(window._tmpRowSel||{}));
+        const b64=(pb.doc.output('datauristring')||'').split(',')[1];
+        if(b64) body.attachments=[{filename:pb.fname,content:b64,contentType:'application/pdf'}];
+      }catch(pe){ toast('PDF non joint : '+(pe.message||pe),'err'); }
+      if(btn) btn.textContent='Envoi…';
+    }
+    const {error}=await sb.functions.invoke('send-client-email',{body:body});
+    if(error) throw error;
+    toast('E-mail envoyé à '+to.length+' destinataire'+(to.length>1?'s':'')+' ✓','ok');
+    trvDetail(tabId);
+  }catch(e){ toast('Échec de l\'envoi : '+(e.message||e),'err'); if(btn){ btn.disabled=false; btn.textContent='Envoyer l\'e-mail'; } }
+};
 window.trvSendModal=async function(tabId,erpId,erpNom,org,nb){
   closeModal();
   if(!window._prestCache || !window._prestCache.length){
