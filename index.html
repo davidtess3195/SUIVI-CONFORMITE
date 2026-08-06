@@ -1290,6 +1290,7 @@ function renderRoute(){
   if(base==='/plan-maintenance') return viewPlanMaintenance(content);
   if(base==='/agenda') return viewAgenda(content);
   if(base==='/historique-sms') return viewHistoSms(content);
+  if(base==='/historique-emails') return viewHistoEmails(content);
   if(base==='/acces-rapports') return viewAccesRapports(content);
   if(base==='/tableaux-reserves') return viewTableauxReserves(content);
   if(base==='/preparation-cs') return viewPreparationCS(content);
@@ -3370,6 +3371,7 @@ function renderApp(){
         <button type="button" class="qa-tile" onclick="pvForm({})">${NI.pv}<span>PV réception</span></button>
         <button type="button" class="qa-tile" onclick="navigate('/agenda')">${NI.cal}<span>Agenda</span></button>
         <button type="button" class="qa-tile" onclick="navigate('/historique-sms')">${NI.hist}<span>Historique SMS</span></button>
+        <button type="button" class="qa-tile" onclick="navigate('/historique-emails')">${NI.inbox}<span>Historique e-mails</span></button>
         <button type="button" class="qa-tile" onclick="navigate('/acces-rapports')">${NI.keyl}<span>Accès rapports</span></button>
       </div></div>
       ${NAV.slice(1).map(g=> g.link ? navLink(g.link) : `
@@ -13831,6 +13833,80 @@ window.hsRender=function(rows){
         </div>
         <div style="font-size:12.5px;color:var(--ink);opacity:.85;white-space:pre-line;word-break:break-word">${esc(r.message||'')}</div>
         <div style="font-size:11px;color:var(--muted);margin-top:5px">par ${esc(r.created_by||'—')}</div>
+      </div>`;
+    }).join('')}
+    </div>`).join('');
+};
+
+/* ── Historique des e-mails (lecture de emails_log) ── */
+window.viewHistoEmails=async function(c){
+  // Prestataires (pour le sélecteur) + contacts clients (pour le filtre ERP)
+  if(!window._prestCache || !window._prestCache.length){ try{ const {data}=await sb.from('prestataires').select('*').order('nom'); window._prestCache=data||[]; }catch(_){ window._prestCache=window._prestCache||[]; } }
+  if(!window._heClientContacts){ try{ const {data}=await sb.from('client_contacts').select('client_id,email'); const idx={}; (data||[]).forEach(x=>{ if(x.email){ (idx[x.client_id]=idx[x.client_id]||[]).push(String(x.email).toLowerCase()); } }); window._heClientContacts=idx; }catch(_){ window._heClientContacts={}; } }
+  const prests=(window._prestCache||[]).slice().sort((a,b)=>(a.nom||'').localeCompare(b.nom||''));
+  const erps=(state.erps||[]).slice().sort((a,b)=>(a.nom||'').localeCompare(b.nom||''));
+  const pOpts='<option value="">Tous les prestataires</option>'+prests.map(p=>'<option value="'+p.id+'">'+esc(p.nom)+'</option>').join('');
+  const eOpts='<option value="">Tous les ERP / clients</option>'+erps.map(e=>'<option value="'+e.id+'">'+esc(e.nom)+'</option>').join('');
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Historique des e-mails</h1><p>Tous les e-mails envoyés depuis l'application.</p></div>
+    <div class="actions"><button class="btn" onclick="navigate('/historique-emails')">↻ Actualiser</button></div></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+      <select id="he_f_prest" onchange="heApplyFilters()" style="flex:1;min-width:180px">${pOpts}</select>
+      <select id="he_f_erp" onchange="heApplyFilters()" style="flex:1;min-width:180px">${eOpts}</select>
+      <button class="btn" onclick="var a=document.getElementById('he_f_prest'),b=document.getElementById('he_f_erp');if(a)a.value='';if(b)b.value='';heApplyFilters()">Réinitialiser</button>
+    </div>
+    <div id="he_count" style="font-size:12px;color:var(--muted);margin:0 2px 6px"></div>
+    <div id="he_box"><div style="display:grid;place-items:center;padding:30px"><div class="spin"></div></div></div>`;
+  try{
+    const {data,error}=await sb.from('emails_log').select('id,type,destinataire,sujet,statut,erreur,created_at').order('created_at',{ascending:false}).limit(300);
+    if(error) throw error;
+    window._heRows=data||[];
+    heApplyFilters();
+  }catch(e){ document.getElementById('he_box').innerHTML='<div class="card card-pad" style="color:var(--danger,#dc2626)">Erreur de chargement : '+esc(e.message||e)+'</div>'; }
+};
+window.heApplyFilters=function(){
+  let rows=(window._heRows||[]).slice();
+  const pid=(document.getElementById('he_f_prest')||{}).value||'';
+  const eid=(document.getElementById('he_f_erp')||{}).value||'';
+  if(pid){
+    const p=(window._prestCache||[]).find(x=>x.id===pid);
+    const emails=p?trvPrestEmails(p).map(x=>(x.email||'').toLowerCase()).filter(Boolean):[];
+    rows=rows.filter(r=>{ const d=(r.destinataire||'').toLowerCase(); return emails.some(e=>d.includes(e)); });
+  }
+  if(eid){
+    const e=(state.erps||[]).find(x=>x.id===eid);
+    const nom=((e&&e.nom)||'').toLowerCase().trim();
+    const ccEmails=(e&&e.client_id&&window._heClientContacts&&window._heClientContacts[e.client_id])||[];
+    rows=rows.filter(r=>{ const s=(r.sujet||'').toLowerCase(); const d=(r.destinataire||'').toLowerCase(); return (nom&&s.includes(nom))||ccEmails.some(x=>d.includes(x)); });
+  }
+  const cnt=document.getElementById('he_count');
+  if(cnt) cnt.textContent=(pid||eid)?(rows.length+' e-mail'+(rows.length>1?'s':'')+' filtré'+(rows.length>1?'s':'')):((window._heRows||[]).length+' e-mail'+((window._heRows||[]).length>1?'s':''));
+  heRender(rows);
+};
+window.heRender=function(rows){
+  const box=document.getElementById('he_box'); if(!box) return;
+  if(!rows.length){ box.innerHTML='<div class="card card-pad" style="color:var(--muted)">Aucun e-mail pour le moment.</div>'; return; }
+  const chip=r=>{
+    const s=(r.statut||'').toLowerCase();
+    if(s==='envoye'||s==='sent') return '<span style="background:rgba(22,163,74,.1);color:#16a34a;border:1px solid rgba(22,163,74,.35);border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700">✓ envoyé</span>';
+    if(s==='erreur'||s==='error'||s==='failed') return '<span style="background:rgba(220,38,38,.08);color:#dc2626;border:1px solid rgba(220,38,38,.35);border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700">✕ échec</span>';
+    return '<span style="background:rgba(217,119,6,.1);color:#d97706;border:1px solid rgba(217,119,6,.35);border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700">'+esc(r.statut||'—')+'</span>';
+  };
+  const TYPES={client_email:'E-mail',relance:'Relance',acces_rapports:'Accès rapports',rapport:'Rapport'};
+  const badge=r=>{ const t=r.type||'autre'; return '<span style="background:rgba(37,99,235,.08);color:#2563eb;border-radius:6px;padding:2px 7px;font-size:10.5px;font-weight:700">'+esc(TYPES[t]||t)+'</span>'; };
+  const byDay={};
+  rows.forEach(r=>{ const d=new Date(r.created_at); const k=d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}); (byDay[k]=byDay[k]||[]).push(r); });
+  box.innerHTML=Object.entries(byDay).map(([day,list])=>`
+    <div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:capitalize;margin:16px 2px 8px">${esc(day)}</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+    ${list.map(r=>{
+      const tm=new Date(r.created_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+      return `<div class="card" style="padding:11px 14px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px">
+          <b style="font-size:13px;word-break:break-word">${esc(r.sujet||'(sans objet)')}</b>
+          ${badge(r)}<span style="flex:1"></span><span style="font-size:11px;color:var(--muted)">${tm}</span>${chip(r)}
+        </div>
+        <div style="font-size:12.5px;color:var(--ink);opacity:.85;word-break:break-word">${esc(r.destinataire||'')}</div>
+        ${r.erreur?'<div style="font-size:11.5px;color:#dc2626;margin-top:5px;white-space:pre-line;word-break:break-word">'+esc(r.erreur)+'</div>':''}
       </div>`;
     }).join('')}
     </div>`).join('');
