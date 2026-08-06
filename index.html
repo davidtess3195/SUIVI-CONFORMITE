@@ -12481,6 +12481,11 @@ window.gedOcrRun=async function(docId){
             <div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.4);border-radius:11px;padding:13px 15px;font-size:13.5px">
               ✅ Avis <b style="color:${muni.avis==='favorable'?'#16a34a':'#dc2626'}">${muni.avis==='favorable'?'Favorable':(muni.avis==='defavorable'?'Défavorable':'non précisé')}</b>${muni.prescriptions_liste.length?` — <b>${muni.prescriptions_liste.length} prescription(s)</b> ajoutée(s) comme réserves`:''}${muni.date_passage?' — visite du '+esc(muni.date_passage.split('-').reverse().join('/')):''}<br>
               <span style="font-size:12px;color:var(--muted)">Le tableau est prêt en statut <b style="color:#d97706">⏳ À VALIDER</b> — relis les textes avant de l'envoyer au prestataire.</span></div>
+            ${muni.prescriptions_liste.length?`<div style="margin-top:14px">
+              <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px">Aperçu du tableau extrait</div>
+              <div class="tbl-wrap" style="max-height:320px;overflow:auto"><table class="tbl"><thead><tr><th style="width:52px">N°</th><th>Prescription / réserve</th></tr></thead><tbody>
+                ${muni.prescriptions_liste.map((t,i)=>`<tr><td><b>P${i+1}</b></td><td style="font-size:12.5px;white-space:pre-wrap">${esc(t)}</td></tr>`).join('')}
+              </tbody></table></div></div>`:''}
           </div>
           <div class="modal-foot"><button class="btn" onclick="closeModal()">Plus tard</button>
             <button class="btn primary" onclick="closeModal();trvDetail('${esc(tab.id)}')">Vérifier et valider le tableau</button></div>`);
@@ -12538,6 +12543,11 @@ window.gedOcrRun=async function(docId){
           ✅ <b>${parsed.observations.length} observation(s)</b> lue(s) dans le scan (${esc(parsed.organisme)}) : <b>${parsed.observations.map(o=>'NS'+o.numero).join(', ')}</b><br>
           <span style="font-size:12px;color:var(--muted)">S'il manque des numéros dans cette liste, la qualité du scan est en cause — relance la lecture ou saisis-les avec « ＋ Ajouter une observation ».</span><br>
           Le tableau est prêt en statut <b style="color:#d97706">⏳ À VALIDER</b> — relis bien les textes : la lecture optique d'un scan peut comporter des coquilles, corrige-les avec ✏ avant validation.</div>
+        ${parsed.observations.length?`<div style="margin-top:14px">
+          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px">Aperçu du tableau extrait</div>
+          <div class="tbl-wrap" style="max-height:320px;overflow:auto"><table class="tbl"><thead><tr><th style="width:58px">N°</th><th>Localisation</th><th>Observation</th><th style="width:90px">Réf.</th></tr></thead><tbody>
+            ${parsed.observations.map(o=>`<tr><td><b>NS${o.numero||''}</b></td><td style="font-size:12px">${esc(o.localisation)||'—'}</td><td style="font-size:12.5px;white-space:pre-wrap">${esc(o.descriptif)}</td><td style="font-size:12px">${esc(o.article_ref)||'—'}</td></tr>`).join('')}
+          </tbody></table></div></div>`:''}
       </div>
       <div class="modal-foot"><button class="btn" onclick="closeModal()">Plus tard</button>
         <button class="btn primary" onclick="closeModal();trvDetail('${esc(tab.id)}')">Vérifier et valider le tableau</button></div>`);
