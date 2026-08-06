@@ -5609,25 +5609,60 @@ window.csPassageDel=async function(passageId,erpId){
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
 };
 window.csMairieModal=function(e){
-  openModal(`<div class="modal-head"><h2>🏛️ Coordonnées mairie — ${esc(e.nom)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+  let cts=Array.isArray(e.mairie_contacts)?e.mairie_contacts.slice():[];
+  if(!cts.length && (e.mairie_contact||e.mairie_telephone)){ cts=[{nom:e.mairie_contact||'',ligne_directe:e.mairie_telephone||'',portable:'',email:e.mairie_email||''}]; }
+  window._mairieContacts=cts;
+  openModal(`<div class="modal-head"><h2>Coordonnées mairie — ${esc(e.nom)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
     <div class="modal-body">
       <div class="fld"><label>Mairie</label><input id="cs_mnom" placeholder="Mairie de..." value="${esc(e.mairie_nom)}"></div>
-      <div class="fld"><label>Contact (service, nom)</label><input id="cs_mcontact" placeholder="Service sécurité / M. Dupont" value="${esc(e.mairie_contact)}"></div>
-      <div class="row2"><div class="fld"><label>Email</label><input id="cs_memail" type="email" value="${esc(e.mairie_email)}"></div>
-        <div class="fld"><label>Téléphone</label><input id="cs_mtel" value="${esc(e.mairie_telephone)}"></div></div>
-      <div class="fld" style="margin-bottom:0"><label>Adresse</label><input id="cs_madr" value="${esc(e.mairie_adresse)}"></div>
+      <div class="row2"><div class="fld"><label>Code postal</label><input id="cs_mcp" value="${esc(e.mairie_code_postal)}"></div>
+        <div class="fld"><label>Ville</label><input id="cs_mville" value="${esc(e.mairie_ville)}"></div></div>
+      <div class="fld"><label>Adresse</label><input id="cs_madr" value="${esc(e.mairie_adresse)}"></div>
+      <div class="row2"><div class="fld"><label>Email (général)</label><input id="cs_memail" type="email" value="${esc(e.mairie_email)}"></div>
+        <div class="fld"><label>Téléphone standard</label><input id="cs_mtel" value="${esc(e.mairie_telephone)}"></div></div>
+      <div style="display:flex;align-items:center;gap:10px;margin:18px 0 10px"><h3 style="margin:0;font-size:14px;font-family:var(--fd)">Contacts</h3>
+        <button class="btn sm primary" style="margin-left:auto" onclick="csMairieAddContact()">${I.plus} Ajouter un contact</button></div>
+      <div id="cs_contacts"></div>
     </div>
     <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
       <button class="btn primary" id="cs_go" onclick="csMairieSave('${e.id}')">Enregistrer</button></div>`);
+  csMairieRenderContacts();
 };
+window.csMairieRenderContacts=function(){
+  const box=document.getElementById('cs_contacts'); if(!box) return;
+  const cts=window._mairieContacts||[];
+  if(!cts.length){ box.innerHTML='<div style="font-size:12.5px;color:var(--muted);padding:4px 2px">Aucun contact — cliquez « Ajouter un contact ».</div>'; return; }
+  box.innerHTML=cts.map((ct,i)=>`
+    <div class="card" style="padding:12px 13px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px"><b style="font-size:12px;color:var(--muted)">Contact ${i+1}</b>
+        <button class="btn sm danger" style="margin-left:auto" onclick="csMairieRemoveContact(${i})">Retirer</button></div>
+      <div class="fld" style="margin-bottom:9px"><label>Nom / service</label><input id="cs_ct_nom_${i}" value="${esc(ct.nom)}" placeholder="Service sécurité / M. Dupont"></div>
+      <div class="row2"><div class="fld"><label>Ligne directe</label><input id="cs_ct_ld_${i}" value="${esc(ct.ligne_directe)}"></div>
+        <div class="fld"><label>Téléphone portable</label><input id="cs_ct_port_${i}" value="${esc(ct.portable)}"></div></div>
+      <div class="fld" style="margin-bottom:0"><label>Email</label><input id="cs_ct_mail_${i}" type="email" value="${esc(ct.email)}"></div>
+    </div>`).join('');
+};
+window.csMairieReadContacts=function(){
+  const cts=window._mairieContacts||[];
+  const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  return cts.map((_,i)=>({nom:g('cs_ct_nom_'+i),ligne_directe:g('cs_ct_ld_'+i),portable:g('cs_ct_port_'+i),email:g('cs_ct_mail_'+i)}))
+    .filter(c=>c.nom||c.ligne_directe||c.portable||c.email);
+};
+window.csMairieAddContact=function(){ window._mairieContacts=csMairieReadContacts(); window._mairieContacts.push({nom:'',ligne_directe:'',portable:'',email:''}); csMairieRenderContacts(); };
+window.csMairieRemoveContact=function(i){ window._mairieContacts=csMairieReadContacts(); window._mairieContacts.splice(i,1); csMairieRenderContacts(); };
 window.csMairieSave=async function(erpId){
   const btn=document.getElementById('cs_go'); btn.disabled=true; btn.textContent='Enregistrement…';
+  const v=id=>{const el=document.getElementById(id);return el&&el.value.trim()?el.value.trim():null;};
+  const contacts=csMairieReadContacts();
   const payload={
-    mairie_nom:document.getElementById('cs_mnom').value.trim()||null,
-    mairie_contact:document.getElementById('cs_mcontact').value.trim()||null,
-    mairie_email:document.getElementById('cs_memail').value.trim()||null,
-    mairie_telephone:document.getElementById('cs_mtel').value.trim()||null,
-    mairie_adresse:document.getElementById('cs_madr').value.trim()||null,
+    mairie_nom:v('cs_mnom'),
+    mairie_code_postal:v('cs_mcp'),
+    mairie_ville:v('cs_mville'),
+    mairie_adresse:v('cs_madr'),
+    mairie_email:v('cs_memail'),
+    mairie_telephone:v('cs_mtel'),
+    mairie_contacts:contacts,
+    mairie_contact:contacts.length?(contacts[0].nom||null):null,
   };
   try{
     const {error}=await sb.from('erps').update(payload).eq('id',erpId);
@@ -5778,7 +5813,7 @@ function renderErpTab(tab,d){
     const adresseFull=[e.adresse,e.code_postal&&e.ville?e.code_postal+' '+e.ville:e.code_postal||e.ville].filter(Boolean).join(', ')||'—';
     const openRes=d.re.filter(r=>!['cloturee','levee','rejetee'].includes(r.statut)).length;
     const a=e.assurance||{}; const hasA=a.compagnie||a.police||a.echeance; const stA=assurEtat(a);
-    const hasMairie=(e.mairie_nom||e.mairie_email||e.mairie_telephone);
+    const hasMairie=(e.mairie_nom||e.mairie_email||e.mairie_telephone||(Array.isArray(e.mairie_contacts)&&e.mairie_contacts.length));
     const avPal=['#2563eb','#7c3aed','#0891b2','#16a34a','#d97706','#be185d'];
     const initials=s=>String(s||'?').split(/\s+/).filter(Boolean).map(w=>w[0]).slice(0,2).join('').toUpperCase();
     const chip=(v,cls)=>`<span class="fx-chip ${cls}">${v}</span>`;
@@ -5824,7 +5859,17 @@ function renderErpTab(tab,d){
             <button class="btn sm primary" onclick="csPassageModal('${e.id}','${esc(e.nom)}')">+ Ajouter un passage</button>
           </div>
         </div>
-        ${hasMairie?`<div style="padding:0 18px 12px;font-size:12.5px;color:var(--muted)">${esc(e.mairie_nom)||'Mairie'}${e.mairie_contact?' — '+esc(e.mairie_contact):''}${e.mairie_email?' · <a href="mailto:'+esc(e.mairie_email)+'" style="color:var(--primary)">'+esc(e.mairie_email)+'</a>':''}${e.mairie_telephone?' · '+esc(e.mairie_telephone):''}</div>`:''}
+        ${hasMairie?(()=>{
+          const cpv=[e.mairie_code_postal,e.mairie_ville].filter(Boolean).map(esc).join(' ');
+          const mailL=e.mairie_email?'<a href="mailto:'+esc(e.mairie_email)+'" style="color:var(--primary)">'+esc(e.mairie_email)+'</a>':'';
+          const cts=Array.isArray(e.mairie_contacts)?e.mairie_contacts:[];
+          const ctHtml=cts.length?('<div style="margin-top:8px;display:flex;flex-direction:column;gap:5px">'+cts.map(ct=>{
+            const tel=[ct.ligne_directe,ct.portable].filter(Boolean).map(esc).join(' · ');
+            const cm=ct.email?'<a href="mailto:'+esc(ct.email)+'" style="color:var(--primary)">'+esc(ct.email)+'</a>':'';
+            return '<div style="font-size:12.5px"><b style="color:var(--ink)">'+(esc(ct.nom)||'Contact')+'</b>'+(tel?' — '+tel:'')+(cm?' · '+cm:'')+'</div>';
+          }).join('')+'</div>'):'';
+          return '<div style="padding:0 18px 12px;font-size:12.5px;color:var(--muted)"><b style="color:var(--ink)">'+(esc(e.mairie_nom)||'Mairie')+'</b>'+(cpv?' · '+cpv:'')+(e.mairie_adresse?'<br>'+esc(e.mairie_adresse):'')+((mailL||e.mairie_telephone)?'<br>'+mailL+(mailL&&e.mairie_telephone?' · ':'')+(e.mairie_telephone?'Tél. '+esc(e.mairie_telephone):''):'')+ctHtml+'</div>';
+        })():''}
         ${(d.pvSansPassage||[]).length?`<div style="padding:12px 18px;border-top:1px solid var(--line-2);background:rgba(37,99,235,.05)"><div style="font-size:12px;color:var(--muted);margin-bottom:8px">PV déposé(s) en GED — pas encore rattaché(s) à un passage :</div><div style="display:flex;flex-direction:column;gap:6px">${d.pvSansPassage.map(pv=>`<div style="display:flex;align-items:center;gap:10px"><span style="flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(pv.nom_original)}</span><button class="btn sm primary" onclick="previewDoc('${esc(pv.fichier_path)}','${esc(pv.nom_original||'')}','${pvTag(pv.tags)}')">Voir</button></div>`).join('')}</div></div>`:''}
         ${d.csh.length?`<div class="tbl-wrap" style="border-top:1px solid var(--line-2)"><table class="tbl"><thead><tr><th>Date</th><th>Avis</th><th>Commentaire</th><th></th></tr></thead><tbody>${d.csh.map(p=>`<tr><td><b>${fmtDate(p.date_passage)}</b></td><td>${p.avis?`<span style="font-weight:700;color:${p.avis==='favorable'?'#16a34a':'#dc2626'}">${p.avis==='favorable'?'Favorable':'Défavorable'}</span>${p.prescriptions?' <span style="font-size:11.5px;color:var(--muted)">avec prescriptions</span>':''}`:'<span style="color:var(--muted)">—</span>'}</td><td style="font-size:12.5px;color:var(--muted)">${esc(p.commentaire)||'—'}</td><td style="text-align:right;white-space:nowrap">${p.documents&&p.documents.fichier_path?`<button class="btn sm" onclick="previewDoc('${esc(p.documents.fichier_path)}','${esc(p.documents.nom_original||'')}','${pvTag(p.documents.tags)}')">Voir</button>`:`<button class="btn sm" onclick="csPassageLinkDoc('${p.id}','${e.id}')">Lier un PV</button>`} <button class="btn sm danger" onclick="csPassageDel('${p.id}','${e.id}')">🗑</button></td></tr>`).join('')}</tbody></table></div>`:`<div style="padding:16px 18px;color:var(--muted);font-size:13px;border-top:1px solid var(--line-2)">Aucun passage enregistré — cliquez « + Ajouter un passage » (saisie rétroactive possible).</div>`}
       </div>
