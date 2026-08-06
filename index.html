@@ -12011,7 +12011,10 @@ window.trvEditRes=async function(rid,tabId){
     if(!r){toast('Observation introuvable','err');return;}
     openModal(`<div class="modal-head"><h2>Modifier l'observation N°${r.numero||''}</h2><button class="x" onclick="trvDetail('${esc(tabId)}')">${I.x}</button></div>
       <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
-        <div class="fld" style="margin:0"><label>Localisation</label><input id="ter_loc" value="${esc(r.localisation||'')}"></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <div class="fld" style="margin:0;flex:0 0 90px"><label>N°</label><input id="ter_num" type="number" min="1" step="1" value="${esc(r.numero||'')}"></div>
+          <div class="fld" style="margin:0;flex:1;min-width:150px"><label>Localisation / thème</label><input id="ter_loc" value="${esc(r.localisation||'')}"></div>
+        </div>
         <div class="fld" style="margin:0"><label>Descriptif</label><textarea id="ter_desc" rows="3" onkeydown="event.stopPropagation()" style="width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;font-family:inherit">${esc(r.libelle||'')}</textarea></div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
           <div class="fld" style="margin:0;flex:1;min-width:150px"><label>Date de 1er signalement</label><input id="ter_d1" type="date" value="${esc(r.date_premier_signalement||'')}"></div>
@@ -12033,6 +12036,8 @@ window.trvEditSave=async function(rid,tabId){
       recidive:!!document.getElementById('ter_rec').checked
     };
     if(!patch.libelle){toast('Le descriptif est obligatoire','err');return;}
+    const numv=parseInt((document.getElementById('ter_num')||{}).value,10);
+    if(!isNaN(numv)&&numv>0) patch.numero=numv;
     const {error}=await sb.from('reserves').update(patch).eq('id',rid);
     if(error) throw error;
     toast('Observation mise à jour ✓','ok');
@@ -12860,11 +12865,23 @@ window.trvMailPreview=function(){
   prev.innerHTML=trvBuildMailHtml(intro,attest);
   const to=trvMailRecipients(), toEl=document.getElementById('tmp_to');
   if(toEl) toEl.innerHTML=to.length?to.map(e=>esc(e)).join(', '):'<span style="color:#d97706">Aucun destinataire sélectionné</span>';
+  const cc=trvMailCc(), ccEl=document.getElementById('tmp_ccline');
+  if(ccEl) ccEl.innerHTML=cc.length?cc.map(e=>esc(e)).join(', '):'<span style="color:var(--muted)">—</span>';
 };
 window.trvMailToggle=function(inp){
   if(inp.checked) window._tmpSel[inp.value]=true; else delete window._tmpSel[inp.value];
   const card=inp.closest('label'); if(card){ card.style.borderColor=inp.checked?'#2563eb':'var(--line)'; card.style.background=inp.checked?'rgba(37,99,235,.07)':'var(--surface)'; }
   trvMailPreview();
+};
+window.trvMailCcToggle=function(inp){
+  if(inp.checked) window._tmpCc[inp.value]=true; else delete window._tmpCc[inp.value];
+  const card=inp.closest('label'); if(card){ card.style.borderColor=inp.checked?'#2563eb':'var(--line)'; card.style.background=inp.checked?'rgba(37,99,235,.07)':'var(--surface)'; }
+  trvMailPreview();
+};
+window.trvMailCc=function(){
+  const to=trvMailRecipients().map(e=>e.toLowerCase()); const out={};
+  Object.keys(window._tmpCc||{}).forEach(e=>{ if(!to.includes(e.toLowerCase())) out[e.toLowerCase()]=e; });
+  return Object.values(out);
 };
 window.trvMailPrestChange=function(){
   const pid=(document.getElementById('tmp_prest')||{}).value, host=document.getElementById('tmp_list'); if(!host) return;
@@ -12895,6 +12912,10 @@ window.trvMailPrest=async function(tabId){
     window._tmpSel={};
     window._tmpRowSel={}; (window._tmpRows||[]).forEach(r=>{ window._tmpRowSel[r.id]=true; });
     const rowChecks=(window._tmpRows||[]).map(r=>'<label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;cursor:pointer;padding:5px 0;border-bottom:1px solid var(--line)"><input type="checkbox" checked value="'+esc(r.id)+'" onchange="trvMailRowToggle(this)" style="accent-color:#2563eb;margin-top:2px;flex:0 0 auto;width:14px;height:14px"><span><b>N°'+(r.numero||'—')+'</b> '+esc(r.libelle||'')+(r.recidive?' <span style="background:rgba(220,38,38,.1);color:#dc2626;border-radius:5px;padding:0 5px;font-size:10px;font-weight:800">RÉCIDIVE</span>':'')+'</span></label>').join('');
+    window._tmpCc={};
+    let erpContacts=[];
+    if(erp && erp.client_id){ try{ const {data}=await sb.from('client_contacts').select('civilite,prenom,nom,fonction,email').eq('client_id',erp.client_id).order('nom'); erpContacts=(data||[]).filter(c=>c&&c.email); }catch(_){ } }
+    const ccChecks=erpContacts.length?erpContacts.map(c=>{ const nm=[c.civilite,c.prenom,c.nom].filter(Boolean).join(' ')||c.email; return '<label style="display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;user-select:none"><input type="checkbox" value="'+esc(c.email)+'" onchange="trvMailCcToggle(this)" style="accent-color:#2563eb;width:14px;height:14px">👤 <b>'+esc(nm)+'</b>'+(c.fonction?' · '+esc(c.fonction):'')+' · '+esc(c.email)+'</label>'; }).join(''):'<span style="font-size:12px;color:var(--muted)">Aucun contact avec e-mail pour cet établissement.</span>';
     const all=window._prestCache, opt=p=>'<option value="'+p.id+'">'+esc(p.nom)+'</option>';
     const prests=all.filter(p=>p.categorie!=='bureau_de_controle'), bureaux=all.filter(p=>p.categorie==='bureau_de_controle');
     const popts='<option value="">— Choisir un prestataire —</option>'
@@ -12909,6 +12930,7 @@ window.trvMailPrest=async function(tabId){
         +'<div class="fld" style="margin:0"><label>Prestataire destinataire</label><select id="tmp_prest" onchange="trvMailPrestChange()">'+popts+'</select></div>'
         +'<div class="fld" style="margin:0"><label>Contacts du prestataire <span style="font-weight:400;color:var(--muted)">(tous pré-cochés — décoche au besoin)</span></label><div id="tmp_list" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"><span style="font-size:12px;color:var(--muted)">Sélectionne un prestataire pour charger ses contacts.</span></div></div>'
         +'<div class="fld" style="margin:0"><label>Autres destinataires <span style="font-weight:400;color:var(--muted)">(emails séparés par des virgules)</span></label><input id="tmp_extra" oninput="trvMailPreview()" placeholder="nom@exemple.fr, autre@exemple.fr"></div>'
+        +'<div class="fld" style="margin:0"><label>En copie — contacts de l\'ERP <span style="font-weight:400;color:var(--muted)">(coche pour mettre en copie)</span></label><div id="tmp_cc" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">'+ccChecks+'</div></div>'
         +'<div class="fld" style="margin:0"><label>Objet</label><input id="tmp_subj" value="'+esc(defSujet)+'" oninput="trvMailPreview()"></div>'
         +'<div class="fld" style="margin:0"><label>Message d\'introduction</label><textarea id="tmp_intro" rows="5" onkeydown="event.stopPropagation()" oninput="trvMailPreview()" style="width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13px;font-family:inherit">'+esc(defIntro)+'</textarea></div>'
         +'<div class="fld" style="margin:0"><label>Réserves à inclure dans le mail <span style="font-weight:400;color:var(--muted)">(toutes cochées par défaut)</span></label><div id="tmp_rows" style="display:flex;flex-direction:column;max-height:180px;overflow:auto;border:1px solid var(--line);border-radius:9px;padding:2px 10px">'+rowChecks+'</div></div>'
@@ -12916,6 +12938,7 @@ window.trvMailPrest=async function(tabId){
         +'<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer"><input type="checkbox" id="tmp_pdf" checked style="accent-color:#2563eb;width:15px;height:15px">📎 Joindre le PDF du tableau (réserves sélectionnées)</label>'
         +'<div style="border-top:1px solid var(--line);padding-top:10px">'
           +'<div style="font-size:12px;color:var(--muted);margin-bottom:6px">À : <span id="tmp_to"></span></div>'
+          +'<div style="font-size:12px;color:var(--muted);margin-bottom:6px">Copie : <span id="tmp_ccline"></span></div>'
           +'<label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Aperçu du mail</label>'
           +'<div id="tmp_preview" style="background:#eef1f6;border:1px solid var(--line);border-radius:10px;padding:16px;max-height:420px;overflow:auto"></div>'
         +'</div>'
@@ -12931,6 +12954,9 @@ window.trvMailSend=async function(tabId){
   if(!to.length){ toast('Sélectionne au moins un destinataire','err'); return; }
   const bad=to.find(e=>!emailRe.test(e));
   if(bad){ toast('E-mail invalide : '+bad,'err'); return; }
+  const cc=trvMailCc();
+  const badcc=cc.find(e=>!emailRe.test(e));
+  if(badcc){ toast('E-mail en copie invalide : '+badcc,'err'); return; }
   const subject=((document.getElementById('tmp_subj')||{}).value||'').trim()||('Réserves à lever — '+(window._tmpMeta.erpNom||''));
   const intro=(document.getElementById('tmp_intro')||{}).value||'';
   const attest=(document.getElementById('tmp_attest')||{}).value||'';
@@ -12938,6 +12964,7 @@ window.trvMailSend=async function(tabId){
   const btn=document.getElementById('tmp_go'); if(btn){ btn.disabled=true; btn.textContent='Envoi…'; }
   try{
     const body={to:to,subject:subject,html:html,replyTo:'rapports@conformite-securite.fr'};
+    if(cc.length) body.cc=cc;
     if((document.getElementById('tmp_pdf')||{}).checked){
       if(btn) btn.textContent='PDF…';
       try{
