@@ -12381,32 +12381,43 @@ window.trvDetectCommissionMunicipale=function(lines){
 window.trvParseCommissionMunicipale=function(lines){
   if(!window.trvDetectCommissionMunicipale(lines)) return null;
   const all=lines.join('\n');
-  const zoneAvis=(all.match(/[EÉ]MET\s+UN\s+AVIS[\s\S]{0,80}/i)||[all])[0];
+  // ── Avis : priorité à l'avis final (maintient / émet / rend un avis …) ──
   let avis=null;
-  if(/D[EÉ]FAVORABLE/i.test(zoneAvis)) avis='defavorable';
-  else if(/AVIS\s*:?\s*D[EÉ]FAVORABLE/i.test(all)) avis='defavorable';
-  else if(/FAVORABLE/i.test(zoneAvis)||/AVIS\s*:?\s*FAVORABLE/i.test(all)) avis='favorable';
+  let mAv=all.match(/(?:maintient|[eé]met|rend|d[eé]livre|prononce)\s+(?:un\s+|l['’ ]\s*)?avis\s+(favorable|d[eé]favorable)/i);
+  if(!mAv) mAv=all.match(/\bavis\s*:?\s*(favorable|d[eé]favorable)/i);
+  if(mAv){ avis=/d[eé]favorable/i.test(mAv[1])?'defavorable':'favorable'; }
+  else { const zoneAvis=(all.match(/[EÉ]MET\s+UN\s+AVIS[\s\S]{0,80}/i)||[''])[0];
+    if(/D[EÉ]FAVORABLE/i.test(zoneAvis)) avis='defavorable'; else if(/FAVORABLE/i.test(zoneAvis)) avis='favorable'; }
+  // ── Date de la visite : en toutes lettres, puis numérique ──
+  const MOIS={janvier:1,'février':2,fevrier:2,mars:3,avril:4,mai:5,juin:6,juillet:7,'août':8,aout:8,septembre:9,octobre:10,novembre:11,'décembre':12,decembre:12};
   let date_passage=null;
-  let m=all.match(/Date\s+(et\s+Heure\s+)?de\s+la\s+visite\s*:?\s*(?:\w+\s+)?(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/i);
-  if(m){ const jj=m[2],mm=m[3]; let aa=m[4]; if(aa.length===2) aa=(parseInt(aa,10)<=30?'20':'19')+aa; date_passage=`${aa}-${String(mm).padStart(2,'0')}-${String(jj).padStart(2,'0')}`; }
-  else { m=all.match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})/); if(m) date_passage=`${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`; }
+  let m=all.match(/de\s+la\s+visite\s*:?\s*(?:le\s+)?(\d{1,2})\s+([A-Za-zà-ÿÀ-Þ]+)\s+(\d{4})/i);
+  if(m && MOIS[m[2].toLowerCase()]){ date_passage=m[3]+'-'+String(MOIS[m[2].toLowerCase()]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0'); }
+  if(!date_passage){ m=all.match(/Date\s+(?:et\s+[Hh]eure\s+)?de\s+la\s+visite\s*:?\s*(?:\w+\s+)?(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/i);
+    if(m){ let aa=m[3]; if(aa.length===2) aa=(parseInt(aa,10)<=30?'20':'19')+aa; date_passage=aa+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0'); } }
+  if(!date_passage){ m=all.match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})/); if(m) date_passage=m[3]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0'); }
+  // ── Liste des anomalies / prescriptions / observations ──
   let startIdx=-1;
   for(let i=0;i<lines.length;i++){
-    if(/(prescriptions?|observations?|r[eé]serves?)\s+suivante?s?\s*:?\s*$/i.test(lines[i].trim())||/demande\s+la\s+r[eé]alisation\s+des\s+prescriptions/i.test(lines[i])){ startIdx=i; break; }
+    const L=lines[i];
+    if(/(anomalies?|prescriptions?|observations?|r[eé]serves?)\s+suivante?s?\s*:?\s*$/i.test(L.trim())
+       || /a\s+constat[eé]\s+(?:les\s+)?(anomalies|observations|prescriptions|r[eé]serves)\s+suivantes/i.test(L)
+       || /demande\s+la\s+r[eé]alisation\s+des\s+(prescriptions|anomalies|observations)/i.test(L)){ startIdx=i; break; }
   }
   const items=[]; let cur=null;
-  const STOP=/^(NOTA|N\.?B\.?|Fait\s+[àa]|Signatures?|Le\s+Pr[eé]sident|La\s+commission\s+rappelle)/i;
+  const STOP=/^(NOTA|N\.?B\.?|Fait\s+[àa]|Signatures?|Le\s+Pr[eé]sident|La\s+commission\s+rappelle|ANALYSE\s+DU\s+RISQUE|AVIS\s+DE\s+LA\s+COMMISSION|LES\s+MEMBRES\s+DE\s+LA\s+COMMISSION|En\s+cons[eé]quence)/i;
+  const ITEM=/^[XxK✗×√\s]{0,4}(\d{1,2})\s*[.\)\-–—]\s*(.*)$/;
   if(startIdx>=0){
     for(let i=startIdx+1;i<lines.length;i++){
       const L=(lines[i]||'').trim(); if(!L) continue;
       if(STOP.test(L)){ if(cur) items.push(cur.trim()); cur=null; break; }
-      const mm2=L.match(/^[XxK✗×√\s]{0,4}(\d{1,2})[.\)]\s*(.*)$/);
+      const mm2=L.match(ITEM);
       if(mm2){ if(cur) items.push(cur.trim()); cur=mm2[2]; }
       else if(cur!==null){ cur+=' '+L; }
     }
     if(cur) items.push(cur.trim());
   }
-  const prescriptions_liste=items.filter(t=>t.length>3);
+  const prescriptions_liste=items.map(t=>t.replace(/\s*;\s*$/,'').trim()).filter(t=>t.length>3);
   return { avis, date_passage, prescriptions_liste,
     prescriptions: prescriptions_liste.length>0,
     commentaire: prescriptions_liste.length ? prescriptions_liste.map((p,i)=>(i+1)+'. '+p).join(' · ') : null };
