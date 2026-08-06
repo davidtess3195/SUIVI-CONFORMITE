@@ -112,7 +112,7 @@ h1,h2,h3{font-family:var(--fd);font-weight:600;letter-spacing:-.01em}
   .sortseg button svg{width:13px;height:13px}
 }
 @media(max-width:840px){.cal-cell{min-height:64px}.cal-pill{display:none}.cal-more{display:none}.cal-cell .nb{display:inline-block;font-size:10px;font-weight:800;color:#fff;background:#2563eb;border-radius:99px;padding:1px 6px;align-self:flex-start}}
-.qa{padding:8px 12px 2px}
+.qa{padding:8px 12px 16px;margin-bottom:10px;border-bottom:1px solid rgba(255,255,255,.12)}
 .qa-t{display:flex;align-items:center;gap:10px;justify-content:center;font-size:11.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#fff;margin:2px 0 10px;text-align:center}
 .qa-t::before,.qa-t::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.35)}
 .qa-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -4521,7 +4521,52 @@ window.clientUserRevoke=async function(userId,clientId,nom){
     toast('Accès révoqué','ok'); loadClientUsers(clientId);
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
 };
+function cfxStyle(){ if(document.getElementById('cfx-style'))return; const st=document.createElement('style'); st.id='cfx-style'; st.textContent=`
+.cfx-crumb{font-size:12.5px;color:var(--muted);margin-bottom:12px;font-weight:600}
+.cfx-crumb .lnk{color:var(--primary);cursor:pointer}
+.cfx-hero{display:flex;align-items:center;gap:18px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px 24px;box-shadow:var(--sh-l,0 12px 34px rgba(37,99,235,.14));margin-bottom:16px}
+.cfx-hero-ic{width:58px;height:58px;border-radius:16px;background:linear-gradient(135deg,#2563eb,#3b82f6);display:grid;place-items:center;flex-shrink:0;box-shadow:0 6px 16px rgba(37,99,235,.35)}
+.cfx-hero-ic svg{width:29px;height:29px;color:#fff;stroke:#fff}
+.cfx-hmain{min-width:0}
+.cfx-hero h1{font-family:var(--fd);font-size:22px;font-weight:700;margin:0;line-height:1.15;letter-spacing:-.3px}
+.cfx-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
+.cfx-chip{display:inline-flex;align-items:center;font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:999px;background:#eff6ff;color:#1d4ed8;border:1px solid #dbeafe}
+.cfx-chip.grey{background:#f1f5f9;color:#475569;border-color:#e2e8f0}
+.cfx-hact{margin-left:auto;display:flex;gap:9px;flex-wrap:wrap;align-self:flex-start}
+.cfx-coord{display:grid;grid-template-columns:repeat(6,1fr);background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--sh);margin-bottom:16px;overflow:hidden}
+.cfx-coord .cell{padding:14px 16px;border-right:1px solid var(--line-2,#eef2f7)}
+.cfx-coord .cell:last-child{border-right:none}
+.cfx-coord .k{font-size:10.5px;font-weight:700;color:var(--muted-2,#94a3b8);text-transform:uppercase;letter-spacing:.05em}
+.cfx-coord .v{font-size:13.5px;font-weight:600;margin-top:5px;word-break:break-word}
+.cfx-rec{background:linear-gradient(135deg,#eff6ff,#fff);border:1.5px solid #dbeafe;border-radius:16px;padding:18px 20px;margin-bottom:22px}
+.cfx-rec .lab{font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.07em}
+.cfx-rec .adr{font-family:var(--fd);font-size:16px;font-weight:700;margin:8px 0 4px;word-break:break-all}
+.cfx-rec .desc{font-size:12.5px;color:var(--muted);margin:0 0 12px;line-height:1.5}
+.cfx-rec .acts{display:flex;gap:8px;flex-wrap:wrap}
+.cfx-sec{display:flex;align-items:center;gap:10px;margin:0 0 13px}
+.cfx-sec h2{font-family:var(--fd);font-size:16px;font-weight:700;margin:0}
+.cfx-sec .cnt{font-size:12px;color:var(--muted);font-weight:600}
+.cfx-sec .r{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.cfx-ctg{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-bottom:24px}
+.cfx-ct{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--sh)}
+.cfx-role{font-size:10.5px;font-weight:700;color:#1d4ed8;background:#eff6ff;border:1px solid #dbeafe;border-radius:999px;padding:2px 9px;display:inline-block}
+.cfx-role.fac{color:#fff;background:#1a44ad;border-color:#1a44ad}
+.cfx-av{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px;font-family:var(--fd);margin:10px 0 8px}
+.cfx-ct .cfx-nm{font-size:14px;font-weight:700}
+.cfx-ct .cfx-fn{font-size:12px;color:var(--muted);margin-top:2px}
+.cfx-ct .cfx-info{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.6;word-break:break-word}
+.cfx-erpg{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.cfx-erp{display:flex;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--sh);cursor:pointer;transition:border-color .12s,box-shadow .12s}
+.cfx-erp:hover{border-color:#bfdbfe;box-shadow:var(--sh-l,0 12px 34px rgba(37,99,235,.14))}
+.cfx-erp-ic{width:44px;height:44px;border-radius:12px;background:#dbeafe;color:var(--primary);display:grid;place-items:center;flex-shrink:0}
+.cfx-erp-ic svg{width:22px;height:22px}
+.cfx-erp .nm{font-size:14px;font-weight:700;line-height:1.2}
+.cfx-erp .sub{font-size:11.5px;color:var(--muted);margin-top:3px}
+@media(max-width:900px){.cfx-coord{grid-template-columns:repeat(2,1fr)}.cfx-coord .cell:nth-child(2n){border-right:none}.cfx-hact{margin-left:0;width:100%}}
+`; document.head.appendChild(st); }
+
 async function viewClient(c,id){
+  cfxStyle();
   const erps=state.erps.filter(e=>e.client_id===id);
   const render=(cl,contacts)=>{
     // Contact principal pour le bandeau : priorité au 1er contact avec téléphone, sinon 1er nommé, sinon le 1er
@@ -4534,69 +4579,79 @@ async function viewClient(c,id){
         ${ctNom?`<span>👤 <b style="color:var(--ink)">${esc(ctNom)}</b></span>`:''}${ctFonc?`<span style="color:var(--muted);font-size:12px">${esc(ctFonc)}</span>`:''}
         ${ctTel?`<a href="tel:${esc(ctTel)}" onclick="event.stopPropagation()" style="color:var(--primary);text-decoration:none;font-weight:600">📞 ${esc(ctTel)}</a>`:''}
       </span>`:'';
+    const avPal=['#2563eb','#7c3aed','#0891b2','#db2777','#d97706','#16a34a'];
+    const initials=s=>String(s||'?').split(/\s+/).filter(Boolean).map(w=>w[0]).slice(0,2).join('').toUpperCase();
     const contactsHtml=(contacts&&contacts.length)
-      ? `<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));margin-bottom:20px">
-          ${contacts.map(ct=>{ const nom=[ct.prenom,ct.nom].filter(Boolean).join(' ')||'Contact';
-            const mail=ct.email?`<a href="mailto:${esc(ct.email)}" title="${esc(ct.email)}" style="text-decoration:none">✉️</a>`:'';
-            const tel=ct.telephone?`<a href="tel:${esc(ct.telephone)}" title="${esc(ct.telephone)}" style="text-decoration:none">📞</a>`:'';
-            const mob=ct.mobile?`<a href="tel:${esc(ct.mobile)}" title="${esc(ct.mobile)}" style="text-decoration:none">📱</a>`:'';
-            return `<div class="card" style="padding:13px 15px">
-              ${ct.role_suivi?(ct.role_suivi==='facturation'
-                ?`<span style="display:inline-block;background:#1a44ad;color:#fff;border-radius:999px;padding:2px 10px;font-size:10.5px;font-weight:800">💶 Facturation</span>`
-                :`<span class="pill inf" style="font-size:10.5px">${esc(ROLE_CLIENT[ct.role_suivi]||ct.role_suivi)}</span>`):''}
-              <div style="font-weight:700;color:var(--ink);font-size:14px;margin-top:5px">${esc(nom)}</div>
-              ${ct.fonction?`<div style="font-size:12.5px;color:var(--muted)">${esc(ct.fonction)}</div>`:''}
-              ${ct.email?`<div style="font-size:12.5px;color:var(--muted);margin-top:4px;word-break:break-all">${esc(ct.email)}</div>`:''}
-              ${(ct.telephone||ct.mobile)?`<div style="font-size:12.5px;color:var(--muted)">${[ct.telephone,ct.mobile].filter(Boolean).map(esc).join(' · ')}</div>`:''}
-              <div style="display:flex;gap:10px;margin-top:8px;align-items:center">
-                <button class="btn sm" style="margin-left:auto;font-size:12px" onclick='editContact(${JSON.stringify(ct).replace(/'/g,"&#39;").replace(/</g,"\\u003c")},"${id}")'>Modifier</button></div>
+      ? `<div class="cfx-ctg">
+          ${contacts.map((ct,i)=>{ const nom=[ct.prenom,ct.nom].filter(Boolean).join(' ')||'Contact';
+            const role=ct.role_suivi?(ROLE_CLIENT[ct.role_suivi]||ct.role_suivi):'';
+            const tel=[ct.telephone,ct.mobile].filter(Boolean).map(esc).join(' · ');
+            return `<div class="cfx-ct">
+              ${role?`<span class="cfx-role${ct.role_suivi==='facturation'?' fac':''}">${esc(role)}</span>`:''}
+              <div class="cfx-av" style="background:${avPal[i%avPal.length]}">${initials(nom)}</div>
+              <div class="cfx-nm">${esc(nom)}</div>
+              ${ct.fonction?`<div class="cfx-fn">${esc(ct.fonction)}</div>`:''}
+              <div class="cfx-info">${ct.email?esc(ct.email):''}${tel?((ct.email?'<br>':'')+tel):''}</div>
+              <button class="btn sm" style="margin-top:11px" onclick='editContact(${JSON.stringify(ct).replace(/'/g,"&#39;").replace(/</g,"\\u003c")},"${id}")'>Modifier</button>
             </div>`; }).join('')}
         </div>`
-      : `<div style="color:var(--muted);font-size:13px;margin-bottom:20px">Aucun contact enregistré. Cliquez sur « Modifier » pour en ajouter.</div>`;
-    c.innerHTML=`<div class="page-head"><div class="t">
-      <div style="font-size:12.5px;color:var(--muted);margin-bottom:6px"><span class="lnk" onclick="navigate('/clients')">Clients</span> / ${esc(cl.code_client)}</div>
-      <div class="dh"><div class="ic">${I.clients}</div><div>
-        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap"><h1 style="margin:0">${esc(cl.raison_sociale)}</h1></div>
-        <div class="meta"><span>${esc(cl.code_client)}</span>${cl.siret?'<span>SIRET '+esc(cl.siret)+'</span>':''}<span>${erps.length} ERP</span></div></div></div></div>
-      <div class="actions"><button class="btn" onclick='formClient(${JSON.stringify(cl).replace(/'/g,"&#39;").replace(/</g,"\\u003c")})'>Modifier</button>
-        <button class="btn" onclick="ficheIdModal('${id}','')">Fiche d'identité</button>
-        <button class="btn primary" onclick="formErp(null,'${id}')">${I.plus} Ajouter un ERP</button>
-        <button class="btn danger" style="margin-left:8px" onclick="clientDeleteModal('${id}','${esc(cl.raison_sociale)}')">🗑 Supprimer</button></div></div>
-      <div class="info-grid" style="margin-bottom:20px">
-        <div class="it"><div class="k">Adresse siège</div><div class="v">${esc(cl.adresse_siege)||'—'}</div></div>
-        <div class="it"><div class="k">Code postal / Ville</div><div class="v">${esc([cl.code_postal,cl.ville].filter(Boolean).join(' '))||'—'}</div></div>
-        <div class="it"><div class="k">Téléphone</div><div class="v">${esc(cl.telephone)||'—'}</div></div>
-        <div class="it"><div class="k">Email</div><div class="v">${esc(cl.email)||'—'}</div></div>
-        <div class="it"><div class="k">Code d'accès 1</div><div class="v">${esc(cl.code_acces_1)||'—'}</div></div>
-        <div class="it"><div class="k">Code d'accès 2</div><div class="v">${esc(cl.code_acces_2)||'—'}</div></div>
-      </div>
-      ${cl.email_conformite?`<div class="card" style="margin-bottom:20px;border:1px solid var(--primary);background:rgba(37,99,235,.04)">
-        <div class="card-pad">
-          <div style="font-size:12px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Adresse de réception des rapports</div>
-          <div style="font-size:15px;font-weight:700;color:var(--ink);word-break:break-all;margin-bottom:4px">${esc(cl.email_conformite)}</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Communiquez cette adresse aux prestataires / bureaux de contrôle de ce client. Les rapports qu'ils y enverront seront automatiquement rattachés à <b>${esc(cl.raison_sociale)}</b>.</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn sm" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(cl.email_conformite)}').then(()=>toast('Adresse copiée ✓','ok'))">Copier l'adresse</button>
-            <button class="btn primary sm" onclick="sendConformiteToPresta('${id}')">Communiquer à un prestataire</button>
-            <button class="btn sm" onclick="editEmailClient('${id}','${esc(cl.email_conformite)}','${cl.email_conformite_actif?'true':'false'}')">Modifier</button>
+      : `<div style="color:var(--muted);font-size:13px;margin-bottom:20px">Aucun contact enregistré. Cliquez sur « Ajouter un contact » pour en créer.</div>`;
+    const naR='<span style="color:var(--muted-2,#94a3b8);font-weight:500">—</span>';
+    const clJson=JSON.stringify(cl).replace(/'/g,"&#39;").replace(/</g,"\\u003c");
+    const nbErp=erps.length, sErp=nbErp>1?'s':'';
+    c.innerHTML=`
+      <div class="cfx-crumb"><span class="lnk" onclick="navigate('/clients')">Clients</span> › ${esc(cl.code_client)}</div>
+      <div class="cfx-hero">
+        <div class="cfx-hero-ic">${I.clients}</div>
+        <div class="cfx-hmain">
+          <h1>${esc(cl.raison_sociale)}</h1>
+          <div class="cfx-chips">
+            <span class="cfx-chip">${esc(cl.code_client)}</span>
+            ${cl.siret?`<span class="cfx-chip grey">SIRET ${esc(cl.siret)}</span>`:''}
+            <span class="cfx-chip">${nbErp} établissement${sErp}</span>
           </div>
         </div>
+        <div class="cfx-hact">
+          <button class="btn" onclick='formClient(${clJson})'>Modifier</button>
+          <button class="btn" onclick="ficheIdModal('${id}','')">Fiche d'identité</button>
+          <button class="btn primary" onclick="formErp(null,'${id}')">${I.plus} Ajouter un ERP</button>
+          <button class="btn danger" onclick="clientDeleteModal('${id}','${esc(cl.raison_sociale)}')">Supprimer</button>
+        </div>
+      </div>
+      <div class="cfx-coord">
+        <div class="cell"><div class="k">Adresse siège</div><div class="v">${esc(cl.adresse_siege)||naR}</div></div>
+        <div class="cell"><div class="k">Code postal / Ville</div><div class="v">${esc([cl.code_postal,cl.ville].filter(Boolean).join(' '))||naR}</div></div>
+        <div class="cell"><div class="k">Téléphone</div><div class="v">${esc(cl.telephone)||naR}</div></div>
+        <div class="cell"><div class="k">Email</div><div class="v">${esc(cl.email)||naR}</div></div>
+        <div class="cell"><div class="k">Code d'accès 1</div><div class="v">${esc(cl.code_acces_1)||naR}</div></div>
+        <div class="cell"><div class="k">Code d'accès 2</div><div class="v">${esc(cl.code_acces_2)||naR}</div></div>
+      </div>
+      ${cl.email_conformite?`<div class="cfx-rec">
+        <div class="lab">Adresse de réception des rapports</div>
+        <div class="adr">${esc(cl.email_conformite)}</div>
+        <p class="desc">Communiquez cette adresse aux prestataires / bureaux de contrôle de ce client. Les rapports qu'ils y enverront seront automatiquement rattachés à <b>${esc(cl.raison_sociale)}</b>.</p>
+        <div class="acts">
+          <button class="btn sm" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(cl.email_conformite)}').then(()=>toast('Adresse copiée ✓','ok'))">Copier l'adresse</button>
+          <button class="btn primary sm" onclick="sendConformiteToPresta('${id}')">Communiquer à un prestataire</button>
+          <button class="btn sm" onclick="editEmailClient('${id}','${esc(cl.email_conformite)}','${cl.email_conformite_actif?'true':'false'}')">Modifier</button>
+        </div>
       </div>`:''}
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><h2 style="font-size:16px;margin:0">Contacts</h2><span style="font-size:12px;color:var(--muted)">${(contacts||[]).length} contact(s)</span>
-        <button class="btn primary sm" style="margin-left:auto" onclick="editContact({},'${id}')">Ajouter un contact</button>
-        <button class="btn sm" onclick='formClient(${JSON.stringify(cl).replace(/'/g,"&#39;").replace(/</g,"\\u003c")})'>Gérer les contacts</button></div>
+      <div class="cfx-sec"><h2>Contacts</h2><span class="cnt">${(contacts||[]).length} contact(s)</span>
+        <div class="r"><button class="btn primary sm" onclick="editContact({},'${id}')">${I.plus} Ajouter un contact</button>
+          <button class="btn sm" onclick='formClient(${clJson})'>Gérer les contacts</button></div></div>
       ${contactsHtml}
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><h2 style="font-size:16px;margin:0">Comptes de connexion</h2><span style="font-size:12px;color:var(--muted)" id="cu-count"></span>
-        <button class="btn sm" style="margin-left:auto" onclick="clientUserLink('${id}','${esc(cl.raison_sociale)}')">🔗 Rattacher un compte existant</button>
-        <button class="btn primary sm" onclick="clientUserCreate('${id}','${esc(cl.raison_sociale)}')">+ Créer un compte</button></div>
+      <div class="cfx-sec"><h2>Comptes de connexion</h2><span class="cnt" id="cu-count"></span>
+        <div class="r"><button class="btn sm" onclick="clientUserLink('${id}','${esc(cl.raison_sociale)}')">Rattacher un compte existant</button>
+          <button class="btn primary sm" onclick="clientUserCreate('${id}','${esc(cl.raison_sociale)}')">${I.plus} Créer un compte</button></div></div>
       <div id="client-users" style="margin-bottom:24px">${loadingBlock()}</div>
-      <h2 style="font-size:16px;margin-bottom:12px">Établissements (ERP)</h2>
-      ${erps.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Code</th><th>Nom</th><th>Type</th><th>Statut</th></tr></thead><tbody>
-        ${erps.map(e=>`<tr onclick="navigate('/erps/${e.id}')"><td class="mono">${esc(e.code_erp)}</td><td><b>${esc(e.nom)}</b>${(()=>{const s=assurEtat(e.assurance);return s&&s.days<=60?` <span title="${s.txt}" style="display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:1px;background:${s.days<0?'var(--majeur)':'var(--moyen)'}"></span>`:'';})()}</td><td>—</td>
-          <td>${statusPill(e.statut,{validee:['','Validée','ok'],brouillon:['','Brouillon','inf'],a_completer:['','À compléter','moy'],archive:['','Archivé','inf']})}</td></tr>`).join('')}
-        </tbody></table></div>`:emptyBlock(I.erp,'Aucun ERP','Ajoutez le premier établissement de ce client.',`<button class="btn primary" onclick="formErp(null,'${id}')">${I.plus} Ajouter un ERP</button>`)}
-      <h2 style="font-size:16px;margin:24px 0 4px">Dossier du client</h2>
-      <p style="color:var(--muted);font-size:12.5px;margin:0 0 14px">Éléments traités et documents archivés, classés par catégorie.</p>
+      <div class="cfx-sec"><h2>Établissements (ERP)</h2><span class="cnt">${nbErp} établissement${sErp}</span>
+        <div class="r"><button class="btn primary sm" onclick="formErp(null,'${id}')">${I.plus} Ajouter un ERP</button></div></div>
+      ${erps.length?`<div class="cfx-erpg">
+        ${erps.map(e=>{const s=assurEtat(e.assurance);const dot=s&&s.days<=60?` <span title="${s.txt}" style="display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:1px;background:${s.days<0?'var(--majeur)':'var(--moyen)'}"></span>`:'';const typ=[e.type_erp?'Type '+esc(e.type_erp):'',e.categorie?esc(e.categorie)+'ᵉ cat.':''].filter(Boolean).join(' · ');
+          return `<div class="cfx-erp" onclick="navigate('/erps/${e.id}')"><div class="cfx-erp-ic">${I.erp}</div><div style="min-width:0"><div class="nm">${esc(e.nom)}${dot}</div><div class="sub">${esc(e.code_erp)}${typ?' · '+typ:''}</div><div style="margin-top:7px">${statusPill(e.statut,{validee:['','Validée','ok'],brouillon:['','Brouillon','inf'],a_completer:['','À compléter','moy'],archive:['','Archivé','inf']})}</div></div></div>`;}).join('')}
+        </div>`:emptyBlock(I.erp,'Aucun ERP','Ajoutez le premier établissement de ce client.',`<button class="btn primary" onclick="formErp(null,'${id}')">${I.plus} Ajouter un ERP</button>`)}
+      <div class="cfx-sec" style="margin-top:26px"><h2>Dossier du client</h2></div>
+      <p style="color:var(--muted);font-size:12.5px;margin:-6px 0 14px">Éléments traités et documents archivés, classés par catégorie.</p>
       <div id="client-dossier" class="grid" style="grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:14px">
         <div style="color:var(--muted);font-size:13px;padding:10px">Chargement…</div>
       </div>`;
