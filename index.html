@@ -1386,7 +1386,8 @@ function renderAuth(mode){
       <div class="switch">Pas encore de compte ? <a onclick="renderAuth('signup')">Créer un compte</a></div>
       <div style="text-align:center;margin-top:16px"><a onclick="location.hash='#/admin-login'" style="color:#334155;font-size:12px;cursor:pointer">Espace administrateur →</a></div>`,
     signup:`<h1>Créer un compte</h1><p>Quelques secondes suffisent.</p>
-      <div class="fld"><label>Nom complet</label><input id="nom" placeholder="Prénom Nom"></div>
+      <div style="display:flex;gap:10px"><div class="fld" style="flex:1;min-width:0"><label>Prénom</label><input id="prenom" placeholder="Jean" autocomplete="given-name"></div>
+      <div class="fld" style="flex:1;min-width:0"><label>Nom</label><input id="nom" placeholder="Dupont" autocomplete="family-name"></div></div>
       <div class="fld"><label>Email</label><input id="email" type="email" placeholder="vous@exemple.fr"></div>
       <div class="fld"><label>Mot de passe</label><div style="position:relative"><input id="pwd" type="password" placeholder="8 caractères min." style="width:100%;box-sizing:border-box;padding-right:42px"><button type="button" tabindex="-1" onclick="togglePwd('pwd',this)" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:6px;color:#64748b;display:grid;place-items:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
       <button class="btn primary" id="go" style="width:100%;justify-content:center">Créer le compte</button>
@@ -1563,7 +1564,7 @@ async function doAdminLogin(){
     location.hash='#/admin';
     renderApp();
   }catch(e){
-    showAdmErr(e.message==='Invalid login credentials'?'Identifiants incorrects.':e.message);
+    showAdmErr(trAuthErr(e));
     btn.disabled=false;
     btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg> Connexion admin';
   }
@@ -1576,8 +1577,32 @@ function showAdmErr(msg){
 }
 
 
+/* Traduction en français des messages d'erreur d'authentification (Supabase renvoie de l'anglais) */
+function trAuthErr(e){
+  const m=(e&&e.message)||'';
+  const map=[
+    [/invalid login credentials/i,'Email ou mot de passe incorrect.'],
+    [/email not confirmed/i,'Adresse email non confirmée : clique d\'abord sur le lien reçu par email.'],
+    [/already registered|already been registered|already exists/i,'Un compte existe déjà avec cette adresse email.'],
+    [/password should be at least/i,'Mot de passe trop court : 8 caractères minimum.'],
+    [/signup requires a valid password/i,'Merci de saisir un mot de passe.'],
+    [/unable to validate email|invalid format|is invalid/i,'Adresse email invalide.'],
+    [/missing email|email is required|anonymous sign-ins/i,'Merci de saisir ton adresse email.'],
+    [/user not found/i,'Aucun compte trouvé avec cette adresse email.'],
+    [/for security purposes/i,'Pour des raisons de sécurité, patiente quelques secondes puis réessaie.'],
+    [/rate limit|too many requests/i,'Trop de tentatives. Patiente quelques minutes puis réessaie.'],
+    [/new password should be different|same password/i,'Le nouveau mot de passe doit être différent de l\'ancien.'],
+    [/token has expired|otp_expired|link is invalid|expired/i,'Le lien a expiré. Refais une demande de réinitialisation.'],
+    [/failed to fetch|networkerror|network request failed|load failed|fetch failed/i,'Connexion impossible. Vérifie ta connexion internet puis réessaie.'],
+    [/signups not allowed|signup is disabled/i,'Les inscriptions sont désactivées pour le moment.'],
+  ];
+  for(const p of map){ if(p[0].test(m)) return p[1]; }
+  return m||'Échec de l\'authentification.';
+}
+window.trAuthErr=trAuthErr;
+
 async function doAuth(mode,btn){
-  const email=$('#email')?.value.trim(), pwd=$('#pwd')?.value, nom=$('#nom')?.value.trim();
+  const email=$('#email')?.value.trim(), pwd=$('#pwd')?.value, nom=$('#nom')?.value.trim(), prenom=$('#prenom')?.value.trim();
   btn.disabled=true; const old=btn.textContent; btn.textContent='…';
   try{
     if(mode==='login'){
@@ -1585,8 +1610,10 @@ async function doAuth(mode,btn){
       if(error) throw error;
       const {data}=await sb.auth.getSession(); state.user=data.session.user; await afterLogin();
     } else if(mode==='signup'){
-      if(pwd.length<8) throw {message:'Mot de passe : 8 caractères minimum.'};
-      const {data,error}=await sb.auth.signUp({email,password:pwd,options:{data:{nom}}});
+      if(!prenom) throw {message:'Merci de saisir ton prénom.'};
+      if(!nom) throw {message:'Merci de saisir ton nom.'};
+      if(!pwd || pwd.length<8) throw {message:'Mot de passe : 8 caractères minimum.'};
+      const {data,error}=await sb.auth.signUp({email,password:pwd,options:{data:{nom:(prenom+' '+nom).trim(),prenom}}});
       if(error) throw error;
       if(data.session){ state.user=data.session.user; await afterLogin(); }
       else { toast('Compte créé. Vérifie ta boîte mail pour confirmer.','ok'); renderAuth('login'); }
@@ -1601,7 +1628,7 @@ async function doAuth(mode,btn){
       const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname});
       if(error) throw error; toast('Email de réinitialisation envoyé','ok'); renderAuth('login');
     }
-  }catch(e){ toast(e.message||'Échec de l\'authentification','err'); btn.disabled=false; btn.textContent=old; }
+  }catch(e){ toast(trAuthErr(e),'err'); btn.disabled=false; btn.textContent=old; }
 }
 
 window.accountModal=function(){
@@ -2166,12 +2193,40 @@ async function viewAdmin(c){
     const erpDocRanking=Object.entries(byErpDoc).sort((a,b)=>b[1].size-a[1].size);
     window._docStats={dsRows,byClientDoc,byErpDoc,docTotalSize};
 
+    // Nouveaux comptes créés, pas encore vus par l'admin
+    const newUsers=(users||[]).filter(u=>u.vu_par_admin===false);
+    const newUsersBlock = newUsers.length ? `
+    <div class="card card-pad" style="margin-bottom:16px;border:1.5px solid #f59e0b;background:#fffbeb">
+      <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px">
+        <h2 style="font-size:16px;margin:0;display:flex;align-items:center;gap:9px">🔔 Nouveaux comptes créés
+          <span style="background:var(--critique);color:#fff;font-size:12px;font-weight:800;min-width:22px;height:22px;border-radius:11px;display:inline-grid;place-items:center;padding:0 7px">${newUsers.length}</span></h2>
+        <button class="btn sm" onclick="adminMarkAllSeen()">✓ Tout marquer comme vu</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${newUsers.map(u=>`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:9px 10px;border-radius:9px;background:#fff;border:1px solid #fde68a">
+          <div class="avatar" style="width:32px;height:32px;border-radius:8px;background:#f59e0b;color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700;flex:0 0 auto">
+            ${(u.nom||u.email||'?').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase()}
+          </div>
+          <div style="min-width:0;flex:1 1 170px">
+            <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(u.nom||u.email)}</div>
+            <div style="font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.email)} · inscrit le ${new Date(u.created_at).toLocaleDateString('fr-FR')} à ${new Date(u.created_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;margin-left:auto">
+            ${statusPill(u.role,{admin:['','Admin','crit'],consultant:['','Consultant','int'],exploitant:['','Exploitant','ok'],prestataire:['','Prestataire','moy'],agent:['','Agent','int'],lecture:['','Lecture','inf']})}
+            <button class="btn sm primary" onclick="adminMarkSeen('${u.id}')">✓ Vu</button>
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>` : '';
+
     c.innerHTML=`
     <div class="page-head"><div class="t"><h1>Administration</h1><p>Vue globale — ${new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})}</p></div>
       </div>
 
     <!-- KPIs -->
     <div class="kpis">${kpis.map(kpiCard).join('')}</div>
+
+    ${newUsersBlock}
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:16px">
       <!-- Utilisateurs -->
@@ -2191,6 +2246,7 @@ async function viewAdmin(c){
               <div style="font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.email)}</div>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end;min-width:0;margin-left:auto">
+              ${u.vu_par_admin===false?'<span style="background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:800;padding:3px 8px;border-radius:8px">NOUVEAU</span>':''}
               ${u.is_demo?`<span class="pill moy" style="background:#fef3c7;color:#92400e">Démo${u.demo_expires_at?` · ${new Date(u.demo_expires_at)<new Date()?'expirée':'exp. '+new Date(u.demo_expires_at).toLocaleDateString('fr-FR')}`:' · illimitée'}</span>
               <button class="btn sm" title="Gérer l'expiration de la démo" onclick="formDemoExpiry('${u.id}','${esc(u.email)}','${u.demo_expires_at||''}')">Expiration</button>`:''}
               ${statusPill(u.role,{admin:['','Admin','crit'],consultant:['','Consultant','int'],exploitant:['','Exploitant','ok'],prestataire:['','Prestataire','moy'],lecture:['','Lecture','inf']})}
@@ -2581,6 +2637,7 @@ function formInviteUser(){
     try{
       const {data,error}=await sb.auth.signUp({email,password:Math.random().toString(36).slice(2)+'Aa1!',options:{data:{nom,role}}});
       if(error) throw error;
+      if(data.user?.id){ try{ await sb.from('profiles').update({vu_par_admin:true}).eq('id',data.user.id); }catch(_){} }
       closeModal(); toast('Invitation envoyée à '+email,'ok'); renderRoute();
     }catch(e){toast(e.message,'err'); btn.disabled=false; btn.textContent='Inviter';}
   };
@@ -2607,6 +2664,26 @@ function formEditUser(id,nom,role,statut){
   };
 }
 window.formEditUser=formEditUser;
+
+/* Marquer les nouveaux comptes comme vus par l'admin */
+window.adminMarkSeen=async function(id){
+  try{
+    const {error}=await sb.from('profiles').update({vu_par_admin:true}).eq('id',id);
+    if(error) throw error;
+    toast('Compte marqué comme vu','ok');
+    if(window.updateAdminBadge) updateAdminBadge();
+    renderRoute();
+  }catch(e){ toast(e.message||'Erreur','err'); }
+};
+window.adminMarkAllSeen=async function(){
+  try{
+    const {error}=await sb.from('profiles').update({vu_par_admin:true}).eq('vu_par_admin',false);
+    if(error) throw error;
+    toast('Tous les nouveaux comptes sont marqués comme vus','ok');
+    if(window.updateAdminBadge) updateAdminBadge();
+    renderRoute();
+  }catch(e){ toast(e.message||'Erreur','err'); }
+};
 
 /* =====================================================================
    DEMO ACCOUNT CREATION
@@ -3285,6 +3362,8 @@ async function wizFinish(){
 
     const userId = data.user?.id;
     if(userId){
+      // Compte créé par l'admin : inutile de le signaler comme nouveau
+      try{ await sb.from('profiles').update({vu_par_admin:true}).eq('id',userId); }catch(_){}
       // Assigner les clients
       if(WIZ.data.clients.length){
         await sb.from('user_clients').insert(WIZ.data.clients.map(cid=>({user_id:userId,client_id:cid})));
@@ -3356,7 +3435,7 @@ function getNAV(){ return [
   {link:['/preparation-cs','Commission de sécurité',NI.landmark]},
   {sec:'admin',  titre:'Administration',         ic:NI.gear,      items: state.profile?.role==='admin' ? [['/admin','Tableau de bord admin',NI.gauge],['/parametres','Paramètres & email',NI.gear]] : [['/parametres','Paramètres & email',NI.gear]]},
 ];}
-const NAV_BADGES={'/photos':'badge-photos','/rapports':'badge-rapports','/verifications':'badge-verif','/pointage':'badge-pointage'};
+const NAV_BADGES={'/photos':'badge-photos','/rapports':'badge-rapports','/verifications':'badge-verif','/pointage':'badge-pointage','/admin':'badge-admin'};
 function navLink(it){ const p=it[0],l=it[1],ic=it[2];
   const b=NAV_BADGES[p]?`<span class="badge" id="${NAV_BADGES[p]}" style="display:none">0</span>`:'';
   return `<a href="#${p}" data-base="${p}">${ic}<span>${l}</span>${b}</a>`; }
@@ -3417,6 +3496,7 @@ function renderApp(){
   renderRoute();
   if(typeof updateRapportsBadge==='function') updateRapportsBadge();
   if(typeof updatePhotosBadge==='function') updatePhotosBadge();
+  if(typeof updateAdminBadge==='function') updateAdminBadge();
   const navEl=document.getElementById('nav');
   if(navEl && !navEl._closeBound){ navEl._closeBound=true; navEl.addEventListener('click',e=>{ if(e.target.closest('a')) toggleSidebar(false); }); }
 }
@@ -9544,6 +9624,19 @@ async function updateRapportsBadge(){
   }catch(_){}
 }
 window.updateRapportsBadge=updateRapportsBadge;
+/* Badge admin : nombre de nouveaux comptes créés non encore vus par l'administrateur */
+async function updateAdminBadge(){
+  try{
+    if(state.profile?.role!=='admin') return;
+    const {count,error}=await sb.from('profiles').select('id',{count:'exact',head:true}).eq('vu_par_admin',false);
+    if(error) return;
+    const n=count||0;
+    const b=document.getElementById('badge-admin');
+    if(b){ b.textContent=n; b.style.display=n>0?'grid':'none'; }
+    if(window.navBadgeSync) navBadgeSync();
+  }catch(_){}
+}
+window.updateAdminBadge=updateAdminBadge;
 async function updatePhotosBadge(){
   try{
     const {data}=await sb.from('photos_urgentes').select('erp_id,statut,traitement');
