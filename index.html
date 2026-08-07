@@ -749,7 +749,7 @@ function getQrBaseUrl(){
 function saveQrBaseUrl(u){ try{ if(u&&u.startsWith('http://')) u=u.replace('http://','https://'); localStorage.setItem("preva_qr_url",u); }catch(e){} }
 function buildQrUrl(token){
   // Domaine officiel imposé : les liens envoyés ne dépendent plus d'un réglage local périmé
-  return 'https://conformite-securite.fr/#/qr/' + token;
+  return 'https://app.conformite-securite.fr/#/qr/' + token;
 }
 function buildQrUrl_legacy(token){
   const base = getQrBaseUrl();
@@ -2061,7 +2061,7 @@ async function viewParametres(c){
   <div class="card card-pad" style="max-width:560px;margin-bottom:16px">
     <h2 style="font-size:15px;margin-bottom:8px">📱 Adresse des QR codes et des liens</h2>
     <div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.35);border-radius:10px;padding:11px 14px;font-size:13px">
-      ✅ Tous les QR codes et liens (SMS, emails) sont générés sur l'adresse officielle sécurisée&nbsp;: <b>https://conformite-securite.fr</b> — rien à configurer.
+      ✅ Tous les QR codes et liens (SMS, emails) sont générés sur l'adresse officielle sécurisée&nbsp;: <b>https://app.conformite-securite.fr</b> — rien à configurer.
     </div>
   </div>
 `;
@@ -10257,11 +10257,13 @@ function formDoc(prefiles){
   const fileField = files
     ? `<div class="fld"><label>Fichier(s) à déposer <span class="req">*</span></label>
         <div style="border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--surface-2)">
-          ${files.map((f,fi)=>`<div style="display:flex;gap:8px;align-items:center;padding:3px 0;font-size:13px"><span>${f.type==='application/pdf'?'📄':(f.type&&f.type.startsWith('image/')?'🖼️':'📎')}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span><span style="color:var(--muted-2);font-size:11px;flex:0 0 auto">${(f.size/1024).toFixed(0)} Ko</span><button type="button" class="btn sm" style="flex:0 0 auto;font-size:11.5px;padding:3px 9px" onclick="docPreviewFile(${fi})" title="Ouvrir le fichier pour vérification avant dépôt">👁 Visualiser</button></div>`).join('')}
+          ${files.map((f,fi)=>{const m=(f.name||'').match(/\.[a-zA-Z0-9]+$/);const ext=m?m[0]:'';const base=ext?f.name.slice(0,-ext.length):f.name;return `<div style="display:flex;gap:8px;align-items:center;padding:3px 0;font-size:13px"><span>${f.type==='application/pdf'?'📄':(f.type&&f.type.startsWith('image/')?'🖼️':'📎')}</span><input id="f_name_${fi}" data-ext="${esc(ext)}" value="${esc(base)}" style="flex:1;min-width:0;font-size:13px;padding:4px 7px" title="Renommer ce document (l'extension ${esc(ext||'du fichier')} est conservée)"><span style="color:var(--muted-2);font-size:11px;flex:0 0 auto">${(f.size/1024).toFixed(0)} Ko</span><button type="button" class="btn sm" style="flex:0 0 auto;font-size:11.5px;padding:3px 9px" onclick="docPreviewFile(${fi})" title="Ouvrir le fichier pour vérification avant dépôt">👁 Visualiser</button></div>`;}).join('')}
         </div></div>`
     : `<div class="fld"><label>Fichier <span class="req">*</span></label>
         <div style="display:flex;gap:8px;align-items:center"><input id="f_file" type="file" style="flex:1" onchange="docFileChosen()">
-        <button type="button" class="btn sm" id="f_file_prev" style="display:none;flex:0 0 auto" onclick="docPreviewFile(-1)" title="Ouvrir le fichier pour vérification avant dépôt">👁 Visualiser</button></div></div>`;
+        <button type="button" class="btn sm" id="f_file_prev" style="display:none;flex:0 0 auto" onclick="docPreviewFile(-1)" title="Ouvrir le fichier pour vérification avant dépôt">👁 Visualiser</button></div>
+        <div id="f_name_wrap" style="display:none;margin-top:8px"><label>Nom du document <span style="color:var(--muted-2);font-weight:400;font-size:11px">(renommer avant dépôt)</span></label>
+        <div style="display:flex;gap:6px;align-items:center"><input id="f_name" placeholder="Nom du document" style="flex:1;min-width:0"><span id="f_name_ext" style="color:var(--muted-2);font-size:12px;flex:0 0 auto"></span></div></div></div>`;
   openModal(`<div class="modal-head"><h2>Déposer ${files&&files.length>1?files.length+' documents':'un document'}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
   <div class="modal-body">
     <div class="row2">
@@ -10316,6 +10318,16 @@ function formDoc(prefiles){
       const folder = erp_id || ('client_'+client_id);
       for(const file of list){
         i++;
+        const idx=i-1;
+        // Nom renommé par l'utilisateur (extension conservée)
+        let displayName = file.name;
+        if(files){
+          const el=document.getElementById('f_name_'+idx);
+          if(el){ const ext=el.getAttribute('data-ext')||''; const base=(el.value||'').trim(); if(base) displayName=base+ext; }
+        } else {
+          const el=$('#f_name'); const extSpan=document.getElementById('f_name_ext');
+          if(el){ const ext=extSpan?(extSpan.textContent||''):''; const base=(el.value||'').trim(); if(base) displayName=base+ext; }
+        }
         btn.textContent = list.length>1 ? `Envoi ${i}/${list.length}…` : 'Envoi…';
         let fileToUpload = file;
         if(file.type==='application/pdf' && file.size > 300*1024){
@@ -10327,10 +10339,10 @@ function formDoc(prefiles){
           try{ fileToUpload = await compressImage(file, 2400, 0.8); }catch(_){ fileToUpload = file; }
           btn.textContent = list.length>1 ? `Envoi ${i}/${list.length}…` : 'Envoi…';
         }
-        const upName=(fileToUpload && fileToUpload.name) ? fileToUpload.name : file.name;
+        const upName=displayName||((fileToUpload && fileToUpload.name) ? fileToUpload.name : file.name);
         const path=folder+'/'+Date.now()+'_'+upName.replace(/[^\w.\-]/g,'_');
         const {error:upErr}=await sb.storage.from('documents').upload(path,fileToUpload,{contentType:(fileToUpload&&fileToUpload.type)||undefined}); if(upErr)throw upErr;
-        const {data:newDoc,error:insErr}=await sb.from('documents').insert({erp_id,client_id,prestataire_id,type,categorie:catFromType(type),lot,date_document,avis,fichier_path:path,nom_original:file.name,...(isDevisSigne?{date_intervention_prevue,date_intervention_fin}:{})}).select('id').single();
+        const {data:newDoc,error:insErr}=await sb.from('documents').insert({erp_id,client_id,prestataire_id,type,categorie:catFromType(type),lot,date_document,avis,fichier_path:path,nom_original:displayName,...(isDevisSigne?{date_intervention_prevue,date_intervention_fin}:{})}).select('id').single();
         if(insErr) throw insErr;
         if(wantInter && newDoc){
           if(!erp_id){ toast("Intervention non créée : un ERP est nécessaire pour la planifier",'err'); }
@@ -10338,7 +10350,7 @@ function formDoc(prefiles){
             try{
               const {data:it,error:itErr}=await sb.from('interventions').insert({
                 erp_id, prestataire_id:prestataire_id||null, type:'travaux',
-                objet:'Travaux — '+file.name.replace(/\.[a-zA-Z0-9]+$/,''),
+                objet:'Travaux — '+displayName.replace(/\.[a-zA-Z0-9]+$/,''),
                 date_prevue:date_intervention_prevue, statut:'programmee',
                 commentaire:'Créée automatiquement depuis le devis signé déposé en GED'
               }).select('id').single();
@@ -10393,7 +10405,19 @@ window.docLotOpts=async function(){
 };
 window.docFileChosen=function(){
   const inp=$('#f_file'), b=document.getElementById('f_file_prev');
-  if(b) b.style.display=(inp&&inp.files&&inp.files.length)?'inline-flex':'none';
+  const has=!!(inp&&inp.files&&inp.files.length);
+  if(b) b.style.display=has?'inline-flex':'none';
+  const wrap=document.getElementById('f_name_wrap');
+  if(wrap){
+    wrap.style.display=has?'block':'none';
+    if(has){
+      const fn=inp.files[0].name||'';
+      const m=fn.match(/\.[a-zA-Z0-9]+$/); const ext=m?m[0]:'';
+      const base=ext?fn.slice(0,-ext.length):fn;
+      const nameInp=$('#f_name'); if(nameInp) nameInp.value=base;
+      const extSpan=document.getElementById('f_name_ext'); if(extSpan) extSpan.textContent=ext;
+    }
+  }
 };
 window.docPreviewFile=function(i){
   const f = (i>=0) ? ((window._docDropFiles||[])[i]) : ($('#f_file')?.files?.[0]);
@@ -12287,7 +12311,7 @@ window.trvSmsGo=async function(tabId){
     const who=state.profile?.nom||state.user?.email||'';
     const {error:e2}=await sb.from('acces_rapports').insert({erp_id:erp.id,client_id:erp.client_id,doc_ids:ids,password_hash:hash,password_plain:pwd,expires_at:exp.toISOString(),actif:true,created_by:who});
     if(e2) throw e2;
-    const link='https://conformite-securite.fr/?qr='+erp.qr_token+'&c='+encodeURIComponent(pwd);
+    const link='https://app.conformite-securite.fr/?qr='+erp.qr_token+'&c='+encodeURIComponent(pwd);
     const valLabel=({48:'48 heures',168:'7 jours',720:'30 jours'})[hours]||hours+' h';
     const msg=(document.getElementById('tv_msg').value||'').trim()+'\n'+link+'\nCode si demandé : '+pwd+'\nValable '+valLabel+'.';
     btn.textContent='Envoi…';
@@ -13088,7 +13112,7 @@ window.trvSendGo=async function(tabId,erpId,erpNom,org,nb){
     }
     const {error:e2}=await sb.from('acces_tableaux').insert({tableau_id:tabId,erp_id:erpId,client_id:erp.client_id,destinataire:mobiles.join(', ')||null,password_hash:hash,password_plain:pwd,expires_at:exp.toISOString(),actif:true,created_by:who,notif_mobile,notif_nom,notif_send_at});
     if(e2) throw e2;
-    const link='https://conformite-securite.fr/?qr='+erp.qr_token+'&c='+encodeURIComponent(pwd);
+    const link='https://app.conformite-securite.fr/?qr='+erp.qr_token+'&c='+encodeURIComponent(pwd);
     const valLabel=({24:'24 heures',48:'48 heures',168:'7 jours',720:'30 jours'})[hours]||hours+' h';
     let sendAt=new Date(); let programme=false;
     const progR=document.querySelector('input[name=ts_send_when][value=prog]');
@@ -13413,7 +13437,7 @@ window.trvNotifPrestGo=async function(tabId){
       const token=_levToken();
       const {error:e1}=await sb.from('acces_levees').insert({token,tableau_id:t.id,erp_id:t.erp_id,client_id:t.client_id,prestataire_id:pid,destinataire:[email,mob].filter(Boolean).join(', ')||null,expires_at:exp.toISOString(),actif:true,created_by:who,notified_at:new Date().toISOString()});
       if(e1) throw e1;
-      const link='https://conformite-securite.fr/#/levees/'+token;
+      const link='https://app.conformite-securite.fr/#/levees/'+token;
       const nb=grp[pid].length;
       let sentE=false, sentS=false;
       if(email){
@@ -13969,7 +13993,7 @@ window.arhRender=function(rows){
       :expired?'<span style="background:rgba(100,116,139,.12);color:#64748b;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700">expiré</span>'
       :'<span style="background:rgba(22,163,74,.1);color:#16a34a;border:1px solid rgba(22,163,74,.35);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700">● en cours</span>';
     const nb=Array.isArray(r.doc_ids)?r.doc_ids.length:0;
-    const link=e.qr_token?('https://conformite-securite.fr/?qr='+e.qr_token+(r.password_plain?('&c='+encodeURIComponent(r.password_plain)):'')):null;
+    const link=e.qr_token?('https://app.conformite-securite.fr/?qr='+e.qr_token+(r.password_plain?('&c='+encodeURIComponent(r.password_plain)):'')):null;
     const live=r.actif&&!expired;
     return `<div class="card" style="padding:12px 14px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -16478,7 +16502,7 @@ async function csEnvoyerAssistance(catKey,catLabel,erpId){
     for(const [pid,pdata] of Object.entries(byPrest)){
       const _sm=msg.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
       // Nouveau token à chaque envoi (même en cas de renvoi) : évite de renvoyer un lien identique déjà diffusé.
-      let confirmUrl='https://conformite-securite.fr/#/cs-confirm?p='+encodeURIComponent(pid)
+      let confirmUrl='https://app.conformite-securite.fr/#/cs-confirm?p='+encodeURIComponent(pid)
         +'&erp='+encodeURIComponent(erpId)
         +'&date='+encodeURIComponent(dateVal)
         +'&nom='+encodeURIComponent(pdata.nom||'')
@@ -16487,7 +16511,7 @@ async function csEnvoyerAssistance(catKey,catLabel,erpId){
         const {data:linkRow,error:linkErr}=await sb.from('cs_confirm_links').insert({
           erp_id:erpId, prestataire_id:pid, date_cs:dateVal, prestataire_nom:pdata.nom||'', erp_nom:cleanNom
         }).select('token').single();
-        if(!linkErr && linkRow?.token){ confirmUrl='https://conformite-securite.fr/#/cs-confirm?t='+linkRow.token; }
+        if(!linkErr && linkRow?.token){ confirmUrl='https://app.conformite-securite.fr/#/cs-confirm?t='+linkRow.token; }
       }catch(_){ /* fallback : URL avec paramètres lisibles ci-dessus */ }
       const htmlBody='<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">'
         +'<div style="background:#1e3a5f;padding:20px 24px;border-radius:8px 8px 0 0">'
@@ -17725,7 +17749,7 @@ window._pinvToken=function(){
   return Array.from(crypto.getRandomValues(new Uint8Array(10))).map(b=>a[b%32]).join('');
 };
 window._pinvMail=function(inv,erpNom){
-  const lien='https://conformite-securite.fr/#/p/'+inv.token;
+  const lien='https://app.conformite-securite.fr/#/p/'+inv.token;
   return {sujet:'['+erpNom+'] Référencement prestataire — fiche à compléter ou mise à jour de vos informations (3 min)',
     corps:'Bonjour,\n\nL\u2019établissement '+erpNom+' vous référence comme prestataire dans son registre de sécurité.\n\nMerci de compléter votre fiche en cliquant sur votre lien personnel :\n'+lien+'\n\nComptez environ 3 minutes. Préparez simplement votre attestation d\u2019assurance et vos CGV en PDF. Si vous êtes déjà référencé, ce lien met simplement vos informations à jour.\n\nUn oubli ? Vous pourrez revenir compléter plus tard via le même lien.\n\nCordialement,\nLa Direction\n'+erpNom+'\nLien personnel et sécurisé, valable 30 jours.', lien};
 };
