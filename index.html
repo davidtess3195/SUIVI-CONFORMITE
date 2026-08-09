@@ -1615,6 +1615,10 @@ async function doAuth(mode,btn){
       if(!pwd || pwd.length<8) throw {message:'Mot de passe : 8 caractères minimum.'};
       const {data,error}=await sb.auth.signUp({email,password:pwd,options:{data:{nom:(prenom+' '+nom).trim(),prenom}}});
       if(error) throw error;
+      // Email déjà utilisé : Supabase répond sans erreur mais sans identité (sécurité) — on l'explique clairement
+      if(data.user && Array.isArray(data.user.identities) && data.user.identities.length===0){
+        throw {message:'Un compte existe déjà avec cette adresse email. Clique sur « Mot de passe oublié ? » pour récupérer l\'accès.'};
+      }
       if(data.session){ state.user=data.session.user; await afterLogin(); }
       else { toast('Compte créé. Vérifie ta boîte mail pour confirmer.','ok'); renderAuth('login'); }
     } else if(mode==='newpass'){
