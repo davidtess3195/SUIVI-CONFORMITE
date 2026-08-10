@@ -254,6 +254,51 @@ table.tbl tr:last-child td{border-bottom:none}
 table.tbl tbody tr{cursor:pointer;transition:.1s}
 table.tbl tbody tr:hover{background:var(--surface-2)}
 table.tbl .mono{font-family:var(--fd);font-weight:600;font-size:12.5px;color:var(--muted)}
+/* ── Annuaire des intervenants (redesign) ── */
+.anx-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.anx-seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:3px;gap:2px;flex-wrap:wrap}
+.anx-seg button{border:none;background:none;padding:7px 13px;border-radius:8px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px}
+.anx-seg button.on{background:var(--navy);color:#fff}
+.anx-seg .n{background:#eef2f7;color:var(--muted);border-radius:8px;font-size:11px;padding:1px 7px;font-weight:800}
+.anx-seg button.on .n{background:rgba(255,255,255,.2);color:#fff}
+.anx-search{flex:1 1 210px;max-width:350px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:8px}
+.anx-search svg{width:14px;height:14px;color:var(--muted-2);flex:0 0 auto}
+.anx-search input{border:none;outline:none;font-family:inherit;font-size:13px;width:100%;background:none;color:var(--ink)}
+.anx-sel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12.5px;font-weight:600;font-family:inherit;color:var(--ink);max-width:200px}
+.anx-invit{background:var(--surface);border:1px solid var(--line);border-left:4px solid #d97706;border-radius:12px;margin-bottom:14px;overflow:hidden}
+.anx-invit .h{display:flex;align-items:center;gap:10px;padding:10px 15px;font-size:13px;font-weight:700;cursor:pointer;flex-wrap:wrap}
+.anx-invit .h .tg{margin-left:auto;color:var(--primary);font-size:12px;font-weight:700}
+.anx-invit .n{background:#fef3c7;color:#92400e;border-radius:9px;padding:2px 9px;font-size:12px;font-weight:800}
+.anx-invit .b{border-top:1px solid var(--line);padding:5px 15px 11px;display:none}
+.anx-invit.open .b{display:grid;gap:4px}
+.anx-invit .row{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:5px 0;flex-wrap:wrap}
+.anx-pill{border-radius:9px;padding:3px 9px;font-size:11px;font-weight:700;white-space:nowrap}
+.anx-pill.ouverte{background:#dbeafe;color:#1d4ed8}
+.anx-pill.lien{background:#f1f5f9;color:#475569}
+.anx-pill.attente{background:#fef3c7;color:#92400e}
+.anx-av{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-weight:800;font-size:12.5px;color:#fff;flex:0 0 auto}
+.anx-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.anx-tag{background:#eef2f7;color:#475569;border-radius:7px;padding:2px 7px;font-size:10.5px;font-weight:600;white-space:nowrap}
+.anx-chip{background:#e8eefb;color:#1e40af;border-radius:7px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap;display:inline-block;margin:1px 2px 1px 0}
+.anx-ct{display:grid;gap:2px;font-size:12.5px;min-width:0}
+.anx-ct .p{font-weight:600}
+.anx-ct a{color:var(--primary);text-decoration:none}
+.anx-st{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;border-radius:9px;padding:3px 9px;white-space:nowrap}
+.anx-st i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.anx-st.ok{background:#dcfce7;color:#166534}.anx-st.ok i{background:#16a34a}
+.anx-st.inv{background:#dbeafe;color:#1d4ed8}.anx-st.inv i{background:#2563eb}
+.anx-st.off{background:#f1f5f9;color:#64748b}.anx-st.off i{background:#94a3b8}
+.anx-acts{display:flex;gap:6px;justify-content:flex-end;opacity:0;transition:.12s}
+table.tbl tbody tr:hover .anx-acts{opacity:1}
+.anx-ico{width:30px;height:30px;border-radius:8px;border:1px solid #d6dce6;background:var(--surface);display:grid;place-items:center;cursor:pointer;color:#475569}
+.anx-ico:hover{border-color:var(--primary);color:var(--primary)}
+.anx-ico svg{width:14px;height:14px}
+.anx-dup{display:inline-flex;align-items:center;gap:5px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:8px;padding:2px 8px;font-size:10.5px;font-weight:700;margin-left:7px;vertical-align:middle}
+.anx-foot{display:flex;align-items:center;justify-content:space-between;padding:10px 15px;font-size:12px;color:var(--muted);background:var(--surface-2);border-top:1px solid var(--line)}
+@media(max-width:840px){
+  .anx-acts{opacity:1}
+  .anx-search{max-width:none}
+}
 
 /* Badges / pills */
 /* ── Registre des équipements (eqx) ── */
@@ -18055,43 +18100,82 @@ window.pinvVoirFiche=async function(id){
 };
 async function viewPrestataires(c, defaultCat){
   if(defaultCat) _prestOnglet = defaultCat;
-  c.innerHTML=`<div class="page-head"><div class="t"><h1>Annuaire des intervenants</h1><p>Bureaux de contrôle et prestataires.</p></div>
+  window._anx=window._anx||{q:'',client:'all',spec:'all',invs:[],acces:[]};
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Annuaire des intervenants</h1><p id="anx-sub">Bureaux de contrôle et prestataires.</p></div>
     <div class="actions">
-      <div style="display:inline-flex;flex-wrap:wrap;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px">
-        <button class="btn sm" id="tab-prest" onclick="switchPrestOnglet('prestataire')" style="border:none;border-radius:8px">Prestataires</button>
-        <button class="btn sm" id="tab-bdc" onclick="switchPrestOnglet('bureau_de_controle')" style="border:none;border-radius:8px">Bureaux de contrôle</button>
-        <button class="btn sm" id="tab-acces" onclick="switchPrestOnglet('acces')" style="border:none;border-radius:8px">Accès rapports</button>
-      </div>
-      <button class="btn" onclick="pinvInviteModal()">✉ Inviter</button><button class="btn primary" onclick="formPrest(_prestOnglet)">${I.plus} Ajouter</button>
-    </div></div>${loadingBlock()}`;
+      <button class="btn" onclick="pinvInviteModal()">✉ Inviter</button>
+      <button class="btn primary" onclick="formPrest(_prestOnglet==='acces'?'prestataire':_prestOnglet)">${I.plus} Ajouter un prestataire</button>
+    </div></div>
+    <div class="anx-toolbar">
+      <span class="anx-seg">
+        <button id="tab-prest" onclick="switchPrestOnglet('prestataire')">Prestataires <span class="n" id="anx-n-prest">…</span></button>
+        <button id="tab-bdc" onclick="switchPrestOnglet('bureau_de_controle')">Bureaux de contrôle <span class="n" id="anx-n-bdc">…</span></button>
+        <button id="tab-acces" onclick="switchPrestOnglet('acces')">Accès rapports</button>
+      </span>
+      <span class="anx-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input id="anx-q" placeholder="Rechercher un nom, une spécialité, un contact…" oninput="anxFilter()"></span>
+      <select class="anx-sel" id="anx-client" onchange="anxFilter()"><option value="all">Client : tous</option>${(state.clients||[]).map(cl=>`<option value="${cl.id}">${esc(cl.raison_sociale)}</option>`).join('')}</select>
+      <select class="anx-sel" id="anx-spec" onchange="anxFilter()"><option value="all">Spécialité : toutes</option></select>
+    </div>
+    <div id="pinv-band"></div>
+    <div id="prest-list">${loadingBlock()}</div>`;
   try{
-    const {data}=await sb.from('prestataires').select('*').order('nom');
-    window._prestCache=data||[];
-    c.innerHTML=`<div class="page-head"><div class="t"><h1>Annuaire des intervenants</h1><p>Bureaux de contrôle et prestataires.</p></div>
-      <div class="actions">
-        <div style="display:inline-flex;flex-wrap:wrap;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px">
-          <button class="btn sm" id="tab-prest" onclick="switchPrestOnglet('prestataire')" style="border:none;border-radius:8px">Prestataires</button>
-          <button class="btn sm" id="tab-bdc" onclick="switchPrestOnglet('bureau_de_controle')" style="border:none;border-radius:8px">Bureaux de contrôle</button>
-          <button class="btn sm" id="tab-acces" onclick="switchPrestOnglet('acces')" style="border:none;border-radius:8px">Accès rapports</button>
-        </div>
-        <button class="btn" onclick="pinvInviteModal()">✉ Inviter</button><button class="btn primary" onclick="formPrest(_prestOnglet)">${I.plus} Ajouter</button>
-      </div></div>
-      <div id="pinv-band"></div>
-      <div id="prest-list"></div>`;
-    (async()=>{ try{
-      let q=sb.from('prest_invitations').select('id,entreprise,email,statut,soumise_le,mail_envoye_le').in('statut',['soumise','envoyee','ouverte','creee']).order('created_at',{ascending:false});
-      const {data:invs}=await q; const soum=(invs||[]).filter(x=>x.statut==='soumise');
-      const enc=(invs||[]).filter(x=>x.statut!=='soumise');
-      const B=document.getElementById('pinv-band'); if(!B) return;
-      B.innerHTML=(soum.length?`<div class="card" style="padding:12px 14px;margin-bottom:12px;border-left:4px solid #d97706;background:linear-gradient(90deg,#fffbeb,#fff)">
-        <b style="font-size:13px">📥 ${soum.length} fiche(s) prestataire reçue(s) — à valider</b>
-        <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">${soum.map(x=>`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px"><b>${esc(x.entreprise)}</b><span style="color:var(--muted)">${esc(x.email)} · reçue le ${fmtDate(x.soumise_le)}</span><span style="margin-left:auto;display:flex;gap:6px"><button class="btn sm" onclick="pinvVoirFiche('${x.id}')">👁 Fiche reçue</button><button class="btn sm primary" onclick="pinvValider('${x.id}')">✅ Valider</button></span></div>`).join('')}</div></div>`:'')
-      +(enc.length?`<div style="font-size:11px;color:var(--muted);margin:0 0 10px">✉ ${enc.length} invitation(s) en cours ${enc.slice(0,4).map(x=>esc(x.entreprise)+' ('+(x.statut==='ouverte'?'page ouverte':x.statut==='envoyee'?'mail envoyé':'lien créé')+')').join(' · ')}</div>`:'');
-    }catch(_){ } })();
+    const [pr, iv, qa] = await Promise.all([
+      sb.from('prestataires').select('*').order('nom'),
+      sb.from('prest_invitations').select('id,entreprise,email,statut,soumise_le,mail_envoye_le,ouverte_le,created_at,prestataire_id').in('statut',['soumise','creee','envoyee','ouverte']).order('created_at',{ascending:false}),
+      sb.from('qr_acces_prestataires').select('prestataire_id,actif,expires_at').eq('actif',true),
+    ]);
+    window._prestCache=pr.data||[];
+    window._anx.invs=iv.data||[];
+    const now=Date.now();
+    window._anx.acces=(qa.data||[]).filter(a=>new Date(a.expires_at).getTime()>now).map(a=>a.prestataire_id);
+    // Compteurs + sous-titre
+    const nb=window._prestCache.filter(p=>p.categorie==='bureau_de_controle').length;
+    const np=window._prestCache.length-nb;
+    const eN=document.getElementById('anx-n-prest'); if(eN) eN.textContent=np;
+    const eB=document.getElementById('anx-n-bdc'); if(eB) eB.textContent=nb;
+    const sub=document.getElementById('anx-sub'); if(sub) sub.textContent=`${np} prestataire${np>1?'s':''} · ${nb} bureau${nb>1?'x':''} de contrôle`;
+    // Filtre spécialités
+    const specs=new Set(); window._prestCache.forEach(p=>String(p.type||'').split(',').map(x=>x.trim()).filter(Boolean).forEach(x=>specs.add(x)));
+    const sel=document.getElementById('anx-spec');
+    if(sel) sel.innerHTML='<option value="all">Spécialité : toutes</option>'+Array.from(specs).sort((a,b)=>a.localeCompare(b,'fr')).map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+    anxRenderBand();
     renderPrestTable(window._prestCache, _prestOnglet);
     highlightPrestTab();
   }catch(e){ c.innerHTML=errBlock(e); }
 }
+
+/* Bandeau : fiches reçues à valider + invitations en cours (panneau repliable) */
+function anxRenderBand(){
+  const B=document.getElementById('pinv-band'); if(!B) return;
+  const invs=window._anx.invs||[];
+  const soum=invs.filter(x=>x.statut==='soumise');
+  const enc=invs.filter(x=>x.statut!=='soumise');
+  const now=Date.now();
+  const lab=x=>{
+    const d=t=>t?Math.max(0,Math.round((now-new Date(t).getTime())/864e5)):null;
+    if(x.statut==='ouverte'){ const j=d(x.ouverte_le); return ['ouverte','Page ouverte'+(j===0?" aujourd'hui":j===1?' hier':' il y a '+j+' j')]; }
+    if(x.statut==='envoyee'){ const j=d(x.mail_envoye_le);
+      if(j!==null&&j>=10) return ['attente','Aucune ouverture depuis '+j+' j'];
+      return ['lien','Mail envoyé'+(j===0?" aujourd'hui":j===1?' hier':j!==null?' il y a '+j+' j':'')]; }
+    return ['lien','Lien créé'];
+  };
+  B.innerHTML=(soum.length?`<div class="card" style="padding:12px 14px;margin-bottom:12px;border-left:4px solid #16a34a;background:linear-gradient(90deg,#f0fdf4,#fff)">
+      <b style="font-size:13px">📥 ${soum.length} fiche${soum.length>1?'s':''} prestataire reçue${soum.length>1?'s':''} — à valider</b>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">${soum.map(x=>`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px"><b>${esc(x.entreprise)}</b><span style="color:var(--muted)">${esc(x.email)} · reçue le ${fmtDate(x.soumise_le)}</span><span style="margin-left:auto;display:flex;gap:6px"><button class="btn sm" onclick="pinvVoirFiche('${x.id}')">👁 Fiche reçue</button><button class="btn sm primary" onclick="pinvValider('${x.id}')">✅ Valider</button></span></div>`).join('')}</div></div>`:'')
+    +(enc.length?`<div class="anx-invit${window._anx.invOpen?' open':''}" id="anx-invit">
+      <div class="h" onclick="anxToggleInvit()">📨 Invitations en cours <span class="n">${enc.length}</span>
+        <span style="color:var(--muted);font-weight:500;font-size:12px">${enc.filter(x=>x.statut==='ouverte').length} page${enc.filter(x=>x.statut==='ouverte').length>1?'s':''} ouverte${enc.filter(x=>x.statut==='ouverte').length>1?'s':''}</span>
+        <span class="tg">${window._anx.invOpen?'Replier ▲':'Voir le détail ▼'}</span></div>
+      <div class="b">${enc.map(x=>{ const [k,t]=lab(x); return `<div class="row"><b style="min-width:110px">${esc(x.entreprise)}</b><span class="anx-pill ${k}">${t}</span><span style="color:var(--muted)">${esc(x.email||'')}</span><span class="lnk" style="margin-left:auto;color:var(--primary);font-weight:700;font-size:12px;cursor:pointer" onclick="pinvEnvoyerMail('${x.id}')">Relancer ✉</span></div>`; }).join('')}</div>
+    </div>`:'');
+}
+window.anxToggleInvit=function(){ window._anx.invOpen=!window._anx.invOpen; anxRenderBand(); };
+window.anxFilter=function(){
+  window._anx.q=(document.getElementById('anx-q')?.value||'').trim().toLowerCase();
+  window._anx.client=document.getElementById('anx-client')?.value||'all';
+  window._anx.spec=document.getElementById('anx-spec')?.value||'all';
+  if(_prestOnglet!=='acces') renderPrestTable(window._prestCache||[], _prestOnglet);
+};
 
 function switchPrestOnglet(cat){
   _prestOnglet=cat;
@@ -18102,12 +18186,8 @@ function switchPrestOnglet(cat){
 window.switchPrestOnglet=switchPrestOnglet;
 
 function highlightPrestTab(){
-  const tp=document.getElementById('tab-prest');
-  const tb=document.getElementById('tab-bdc');
-  const ta=document.getElementById('tab-acces');
-  if(tp) tp.className='btn sm'+(_prestOnglet==='prestataire'?' primary':'');
-  if(tb) tb.className='btn sm'+(_prestOnglet==='bureau_de_controle'?' primary':'');
-  if(ta) ta.className='btn sm'+(_prestOnglet==='acces'?' primary':'');
+  const m={'tab-prest':'prestataire','tab-bdc':'bureau_de_controle','tab-acces':'acces'};
+  Object.keys(m).forEach(id=>{ const el=document.getElementById(id); if(el) el.className=(m[id]===_prestOnglet?'on':''); });
 }
 
 /* ---------- ACCÈS QR RAPPORTS (mots de passe prestataires) ---------- */
@@ -18337,54 +18417,94 @@ function prestContactInfo(p){
 function renderPrestTable(rows, categorie){
   // Filtrage STRICT par catégorie — les deux rubriques sont distinctes
   const cat = categorie || 'prestataire';
-  const filtered = cat==='bureau_de_controle'
+  const inCat = cat==='bureau_de_controle'
     ? rows.filter(r=>r.categorie==='bureau_de_controle')
     : rows.filter(r=>r.categorie!=='bureau_de_controle');
-  const bdc   = rows.filter(r=>r.categorie==='bureau_de_controle');
-  const prest = rows.filter(r=>r.categorie!=='bureau_de_controle');
+
+  // Détection de doublons (même nom normalisé ou même email) au sein de la catégorie
+  const norm=x=>String(x||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const nameCount={}, mailCount={};
+  inCat.forEach(p=>{ const n=norm(p.nom); if(n) nameCount[n]=(nameCount[n]||0)+1;
+    const e=(prestContactInfo(p).email||'').toLowerCase(); if(e) mailCount[e]=(mailCount[e]||0)+1; });
+
+  // Filtres (recherche, client, spécialité)
+  const A=window._anx||{q:'',client:'all',spec:'all',invs:[],acces:[]};
+  let filtered=inCat;
+  if(A.client!=='all') filtered=filtered.filter(p=>{ const ids=Array.isArray(p.client_ids)&&p.client_ids.length?p.client_ids:(p.client_id?[p.client_id]:[]); return !ids.length||ids.includes(A.client); });
+  if(A.spec!=='all') filtered=filtered.filter(p=>String(p.type||'').toLowerCase().includes(A.spec.toLowerCase()));
+  if(A.q){ const q=A.q; filtered=filtered.filter(p=>{ const ci=prestContactInfo(p);
+    return (p.nom||'').toLowerCase().includes(q)||(p.type||'').toLowerCase().includes(q)
+      ||(ci.email||'').toLowerCase().includes(q)||(ci.from||'').toLowerCase().includes(q)||(ci.tel||'').includes(q); }); }
 
   let target = document.getElementById('prest-list');
   if(!target){
-    // Fallback : créer le conteneur si absent
     const container = document.querySelector('.content') || document.getElementById('content');
     target=document.createElement('div'); target.id='prest-list';
     const head=container?.querySelector('.page-head');
     if(head) head.after(target); else if(container) container.appendChild(target);
   }
 
+  const labelCat = cat==='bureau_de_controle'?'bureau de contrôle':'prestataire';
   if(!filtered.length){
-    const labelCat = cat==='bureau_de_controle'?'bureau de contrôle':'prestataire';
-    target.innerHTML=emptyBlock(I.prest,'Aucun '+labelCat,
-      'Ajoutez vos bureaux de contrôle et prestataires pour les associer aux interventions.',
-      `<button class="btn primary" onclick="formPrest()">${I.plus} Ajouter</button>`);
+    target.innerHTML = inCat.length
+      ? emptyBlock(I.search,'Aucun résultat','Aucun '+labelCat+' ne correspond à cette recherche ou à ces filtres.',
+        `<button class="btn" onclick="document.getElementById('anx-q').value='';document.getElementById('anx-client').value='all';document.getElementById('anx-spec').value='all';anxFilter()">Réinitialiser les filtres</button>`)
+      : emptyBlock(I.prest,'Aucun '+labelCat,
+        'Ajoutez vos bureaux de contrôle et prestataires pour les associer aux interventions.',
+        `<button class="btn primary" onclick="formPrest()">${I.plus} Ajouter</button>`);
     return;
   }
 
-  // En-tête de section selon l'onglet
-  const titre = cat==='bureau_de_controle'
-    ? `<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
-        <div style="width:40px;height:40px;border-radius:11px;background:#eff6ff;display:grid;place-items:center;font-size:20px">🔬</div>
-        <div><div style="font-size:17px;font-weight:700;font-family:var(--fd)">Bureaux de contrôle</div>
-          <div style="font-size:13px;color:var(--muted)">${filtered.length} organisme${filtered.length>1?'s':''} de vérification</div></div>
-      </div>`
-    : `<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
-        <div style="width:40px;height:40px;border-radius:11px;background:#f0fdf4;display:grid;place-items:center;font-size:20px">🔧</div>
-        <div><div style="font-size:17px;font-weight:700;font-family:var(--fd)">Prestataires</div>
-          <div style="font-size:13px;color:var(--muted)">${filtered.length} mainteneur${filtered.length>1?'s':''} / entreprise${filtered.length>1?'s':''}</div></div>
-      </div>`;
+  // Statut d'accès : accès rapports actif > invitation en cours > rien
+  const accSet=new Set(A.acces||[]);
+  const invByPid={}, invByName={};
+  (A.invs||[]).filter(x=>x.statut!=='soumise').forEach(x=>{ if(x.prestataire_id) invByPid[x.prestataire_id]=x; const n=norm(x.entreprise); if(n&&!invByName[n]) invByName[n]=x; });
+  const statutDe=p=>{
+    if(accSet.has(p.id)) return '<span class="anx-st ok"><i></i>Accès rapports actif</span>';
+    const inv=invByPid[p.id]||invByName[norm(p.nom)];
+    if(inv) return '<span class="anx-st inv"><i></i>Invitation en cours</span>';
+    return '<span class="anx-st off"><i></i>Aucun accès</span>';
+  };
+  const AVC=['#2563eb','#7c3aed','#0e9f6e','#d97706','#dc2626','#0891b2','#4f46e5'];
+  const avColor=n=>{ let h=0; for(const ch of String(n||'')) h=(h*31+ch.charCodeAt(0))>>>0; return AVC[h%AVC.length]; };
+  const initiales=n=>{ const w=String(n||'?').trim().split(/\s+/); return (w.length>1?w.map(x=>x[0]).slice(0,2).join(''):String(w[0]||'?').slice(0,2)).toUpperCase(); };
+  const ICO_EYE='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const ICO_PEN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>';
+  const ICO_SEND='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13M22 2 15 22l-4-9-9-4 19-7z"/></svg>';
 
-  target.innerHTML=titre+`<div class="tbl-wrap"><table class="tbl">
+  target.innerHTML=`<div class="tbl-wrap"><table class="tbl">
     <thead><tr>
-      <th>Nom</th><th>Clients</th><th>Spécialité(s)</th><th>Email</th><th>Téléphone</th>
+      <th>${cat==='bureau_de_controle'?'Bureau de contrôle':'Prestataire'}</th><th>Clients</th><th>Contact</th><th>Accès plateforme</th><th style="text-align:right">Actions</th>
     </tr></thead>
-    <tbody>${filtered.map(p=>{ const ci=prestContactInfo(p); return `<tr onclick='formPrest(${JSON.stringify(p).replace(/'/g,"&#39;")})' style="cursor:pointer">
-      <td><b>${esc(p.nom)}</b>${p.tel_astreinte?`<a href="tel:${esc(p.tel_astreinte)}" onclick="event.stopPropagation()" title="Astreinte : ${esc(p.tel_astreinte)}" style="display:inline-flex;align-items:center;margin-left:7px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:999px;padding:1px 8px;font-size:10.5px;font-weight:800;text-decoration:none;vertical-align:middle">Astreinte : ${esc(p.tel_astreinte)}</a>`:''}${p.commentaire?`<div style="font-size:12px;color:var(--muted)">${esc(p.commentaire)}</div>`:''}</td>
-      <td style="font-size:12.5px">${(()=>{ const ids=Array.isArray(p.client_ids)&&p.client_ids.length?p.client_ids:(p.client_id?[p.client_id]:[]); if(!ids.length) return '<span style="color:var(--muted-2)">Tous</span>'; return ids.map(id=>{ const cl=state.clients.find(x=>x.id===id); return cl?`<span style="display:inline-block;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:2px 7px;margin:1px 2px;font-size:11.5px">${esc(cl.raison_sociale)}</span>`:''; }).join(''); })()}</td>
-      <td style="font-size:13px">${esc(p.type)||'—'}</td>
-      <td style="font-size:13px">${ci.email?`<a href="mailto:${esc(ci.email)}" onclick="event.stopPropagation()" style="color:var(--primary)">${esc(ci.email)}</a>`:'—'}${ci.from?`<div style="font-size:11px;color:var(--muted)">👤 ${esc(ci.from)}</div>`:''}</td>
-      <td style="font-size:13px">${ci.tel?`<a href="tel:${esc(ci.tel)}" onclick="event.stopPropagation()" style="color:var(--primary)">${esc(ci.tel)}</a>`:'—'}</td>
+    <tbody>${filtered.map(p=>{ const ci=prestContactInfo(p);
+      const dup=(nameCount[norm(p.nom)]>1)||(ci.email&&mailCount[ci.email.toLowerCase()]>1);
+      const tags=String(p.type||'').split(',').map(x=>x.trim()).filter(Boolean);
+      const tagsHtml=tags.length?`<div class="anx-tags">${tags.slice(0,3).map(t=>`<span class="anx-tag">${esc(t)}</span>`).join('')}${tags.length>3?`<span class="anx-tag" style="background:none;border:1px dashed #cbd5e1;color:var(--muted)" title="${esc(tags.slice(3).join(', '))}">+${tags.length-3}</span>`:''}</div>`:'';
+      const ids=Array.isArray(p.client_ids)&&p.client_ids.length?p.client_ids:(p.client_id?[p.client_id]:[]);
+      const cls=ids.map(id=>(state.clients||[]).find(x=>x.id===id)).filter(Boolean);
+      const clientsHtml=!ids.length?'<span style="color:var(--muted-2);font-size:12px">Tous les clients</span>'
+        :cls.slice(0,2).map(cl=>`<span class="anx-chip">${esc(cl.raison_sociale)}</span>`).join('')
+         +(cls.length>2?`<span class="anx-chip" style="background:none;border:1px dashed #cbd5e1;color:var(--muted)" title="${esc(cls.slice(2).map(x=>x.raison_sociale).join(', '))}">+${cls.length-2}</span>`:'');
+      return `<tr onclick='formPrest(${JSON.stringify(p).replace(/'/g,"&#39;")})' style="cursor:pointer">
+      <td><div style="display:flex;align-items:flex-start;gap:11px;min-width:0">
+        <span class="anx-av" style="background:${avColor(p.nom)}">${esc(initiales(p.nom))}</span>
+        <div style="min-width:0"><b style="font-size:13.5px">${esc(p.nom)}</b>${dup?`<span class="anx-dup" title="Un autre ${labelCat} porte un nom ou un email identique — pense à vérifier / supprimer le doublon">⚠ doublon probable</span>`:''}
+          ${p.tel_astreinte?`<a href="tel:${esc(p.tel_astreinte)}" onclick="event.stopPropagation()" title="Astreinte : ${esc(p.tel_astreinte)}" style="display:inline-flex;align-items:center;margin-left:7px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:999px;padding:1px 8px;font-size:10.5px;font-weight:800;text-decoration:none;vertical-align:middle">Astreinte</a>`:''}
+          ${tagsHtml}</div></div></td>
+      <td style="max-width:220px">${clientsHtml}</td>
+      <td><div class="anx-ct">${ci.from?`<span class="p">${esc(ci.from)}</span>`:''}
+        ${ci.email?`<a href="mailto:${esc(ci.email)}" onclick="event.stopPropagation()">✉ ${esc(ci.email)}</a>`:''}
+        ${ci.tel?`<a href="tel:${esc(ci.tel)}" onclick="event.stopPropagation()" style="color:var(--ink)">☎ ${esc(ci.tel)}</a>`:''}
+        ${!ci.from&&!ci.email&&!ci.tel?'<span style="color:var(--muted-2)">—</span>':''}</div></td>
+      <td>${statutDe(p)}</td>
+      <td><div class="anx-acts">
+        <span class="anx-ico" title="Ouvrir la fiche" onclick='event.stopPropagation();formPrest(${JSON.stringify(p).replace(/'/g,"&#39;")})'>${ICO_EYE}</span>
+        <span class="anx-ico" title="Modifier" onclick='event.stopPropagation();formPrest(${JSON.stringify(p).replace(/'/g,"&#39;")})'>${ICO_PEN}</span>
+        <span class="anx-ico" title="Inviter à compléter sa fiche" onclick="event.stopPropagation();pinvInviteModal()">${ICO_SEND}</span>
+      </div></td>
     </tr>`; }).join('')}
-    </tbody></table></div>`;
+    </tbody></table>
+    <div class="anx-foot"><span>${filtered.length} ${labelCat}${filtered.length>1?'s':''}${filtered.length!==inCat.length?' (sur '+inCat.length+')':''} — triés par nom</span></div></div>`;
 }
 
 function _affaireErpOpts(selectedId){
