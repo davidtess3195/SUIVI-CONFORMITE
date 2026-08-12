@@ -266,6 +266,48 @@ table.tbl tr:last-child td{border-bottom:none}
 table.tbl tbody tr{cursor:pointer;transition:.1s}
 table.tbl tbody tr:hover{background:var(--surface-2)}
 table.tbl .mono{font-family:var(--fd);font-weight:600;font-size:12.5px;color:var(--muted)}
+/* ── Connexion (redesign, direction artistique du site vitrine) ── */
+.au2{min-height:100vh;background:#f4f6fa;padding:22px 30px 40px;display:flex;flex-direction:column;box-sizing:border-box}
+.au2-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;max-width:1240px;width:100%;margin-left:auto;margin-right:auto}
+.au2-brand{display:flex;align-items:center;gap:11px}
+.au2-brand img{width:38px;height:auto}
+.au2-brand span{font-family:var(--fd);font-weight:700;font-size:18px;line-height:1.08;color:#1f2733}
+.au2-back{font-size:13.5px;font-weight:700;color:var(--muted);text-decoration:none;cursor:pointer}
+.au2-back:hover{color:var(--primary)}
+.au2-duo{flex:1;display:grid;grid-template-columns:1.05fr 1fr;gap:26px;align-items:stretch;max-width:1240px;width:100%;margin:0 auto}
+.au2-hero{background:linear-gradient(160deg,#2e3850,#1f2733 70%);border-radius:44px;padding:64px 58px 56px;color:#fff;display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden}
+.au2-glow{position:absolute;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(37,99,235,.35),transparent 65%);bottom:-160px;right:-120px;pointer-events:none}
+.au2-mark{width:150px;height:auto;margin-bottom:40px;position:relative}
+.au2-hero h2{font-family:var(--fd);font-size:31px;font-weight:700;line-height:1.25;letter-spacing:-.3px;position:relative;margin:0}
+.au2-hero>p{color:#aeb9cc;font-size:14.5px;line-height:1.75;margin:20px 0 0;max-width:420px;position:relative}
+.au2-feats{margin-top:38px;display:grid;gap:18px;position:relative}
+.au2-feats div{display:flex;align-items:center;gap:11px;font-size:13.5px;font-weight:600}
+.au2-feats svg{width:18px;height:18px;color:#4ade80;flex:0 0 auto}
+.au2-panel{background:#fff;border-radius:44px;padding:52px 54px;box-shadow:0 10px 40px rgba(30,37,50,.08);display:flex;flex-direction:column;justify-content:center}
+.au2-seg{display:flex;background:#f4f6fa;border-radius:999px;padding:5px;margin-bottom:22px}
+.au2-seg span{flex:1;text-align:center;padding:11px;font-size:13.5px;font-weight:700;color:var(--muted);border-radius:999px;cursor:pointer;transition:.15s}
+.au2-seg span.on{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(30,37,50,.12);font-weight:800}
+.au2-hint{color:var(--muted);font-size:13.5px;margin:0 0 22px}
+.au2-h{font-family:var(--fd);font-size:24px;margin:0 0 6px}
+.au2 .fld{margin-bottom:15px}
+.au2 .fld label{display:block;font-size:12.5px;font-weight:700;margin-bottom:7px;color:var(--ink)}
+.au2 .fld input{width:100%;box-sizing:border-box;background:#f4f6fa;border:1.5px solid transparent;border-radius:999px;padding:13px 20px;font-size:14px;font-family:inherit;color:var(--ink);outline:none;transition:.15s}
+.au2 .fld input:focus{border-color:var(--primary);background:#fff;box-shadow:0 0 0 4px rgba(37,99,235,.12)}
+.au2 .fld input::placeholder{color:#9aa5b8}
+.au2-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:6px;color:#64748b;display:grid;place-items:center}
+.au2-cta{display:block;width:100%;background:var(--primary);color:#fff;border:none;border-radius:999px;padding:15px;font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 8px 20px rgba(37,99,235,.35);margin-top:6px;transition:.15s}
+.au2-cta:hover{background:var(--primary-d)}
+.au2 .lnk{color:var(--primary);font-weight:700;font-size:12.5px;cursor:pointer}
+.au2-alt{text-align:center;margin-top:18px}
+.au2-alt a{color:var(--primary);font-weight:700;font-size:13px;cursor:pointer}
+@media(max-width:900px){
+  .au2{padding:14px 14px 30px}
+  .au2-duo{grid-template-columns:1fr;gap:16px}
+  .au2-panel{order:-1;padding:34px 22px;border-radius:28px}
+  .au2-hero{padding:38px 26px;border-radius:28px}
+  .au2-hero h2{font-size:24px}
+  .au2-mark{width:110px;margin-bottom:26px}
+}
 /* ── Annuaire des intervenants (redesign) ── */
 .anx-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .anx-seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:3px;gap:2px;flex-wrap:wrap}
@@ -1403,81 +1445,52 @@ function renderConfig(){
 function renderAuth(mode){
   // Route publique QR : ne jamais écraser la page rapports par l'écran de connexion (course au chargement)
   if(/^\/(qr|levees)\//.test((location.hash||'').replace('#',''))){ try{ renderRoute(); }catch(_){} return; }
+  const eye=id=>`<button type="button" tabindex="-1" class="au2-eye" onclick="togglePwd('${id}',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`;
+  const seg=on=>`<div class="au2-seg"><span class="${on==='login'?'on':''}" onclick="renderAuth('login')">Se connecter</span><span class="${on==='signup'?'on':''}" onclick="renderAuth('signup')">Créer un compte</span></div>`;
   const forms = {
-    login:`<div style="width:100%;border-radius:12px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,.14);border:1px solid #e2e8f0;margin-bottom:20px"><svg viewBox="0 0 420 264" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:auto">
-          <rect width="420" height="264" fill="#f4f6fa"/>
-          <rect width="420" height="22" fill="#e8ecf3"/>
-          <circle cx="14" cy="11" r="3.4" fill="#f87171"/><circle cx="26" cy="11" r="3.4" fill="#fbbf24"/><circle cx="38" cy="11" r="3.4" fill="#34d399"/>
-          <rect x="120" y="6" width="180" height="10" rx="5" fill="#ffffff"/>
-          <rect x="0" y="22" width="86" height="242" fill="#101a30"/>
-          <rect x="12" y="36" width="62" height="9" rx="4.5" fill="#ffffff" opacity=".9"/>
-          <rect x="12" y="58" width="62" height="14" rx="7" fill="#2563eb"/>
-          <rect x="12" y="80" width="52" height="8" rx="4" fill="#ffffff" opacity=".28"/>
-          <rect x="12" y="96" width="56" height="8" rx="4" fill="#ffffff" opacity=".28"/>
-          <rect x="12" y="112" width="46" height="8" rx="4" fill="#ffffff" opacity=".28"/>
-          <rect x="12" y="128" width="54" height="8" rx="4" fill="#ffffff" opacity=".28"/>
-          <rect x="12" y="144" width="48" height="8" rx="4" fill="#ffffff" opacity=".28"/>
-          <rect x="98" y="34" width="150" height="12" rx="6" fill="#c8d2e0"/>
-          <rect x="98" y="56" width="98" height="52" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
-          <text x="112" y="84" font-family="Arial" font-size="20" font-weight="700" fill="#0f172a">12</text>
-          <rect x="112" y="92" width="56" height="7" rx="3.5" fill="#cbd5e1"/>
-          <rect x="204" y="56" width="98" height="52" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
-          <text x="218" y="84" font-family="Arial" font-size="20" font-weight="700" fill="#16a34a">94%</text>
-          <rect x="218" y="92" width="56" height="7" rx="3.5" fill="#cbd5e1"/>
-          <rect x="310" y="56" width="98" height="52" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
-          <text x="324" y="84" font-family="Arial" font-size="20" font-weight="700" fill="#d97706">5</text>
-          <rect x="324" y="92" width="56" height="7" rx="3.5" fill="#cbd5e1"/>
-          <rect x="98" y="120" width="310" height="132" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
-          <rect x="112" y="132" width="120" height="9" rx="4.5" fill="#94a3b8"/>
-          <circle cx="120" cy="160" r="4.5" fill="#16a34a"/>
-          <rect x="132" y="155" width="140" height="9" rx="4.5" fill="#e2e8f0"/>
-          <rect x="330" y="153" width="62" height="13" rx="6.5" fill="#dcfce7"/>
-          <circle cx="120" cy="184" r="4.5" fill="#d97706"/>
-          <rect x="132" y="179" width="156" height="9" rx="4.5" fill="#e2e8f0"/>
-          <rect x="330" y="177" width="62" height="13" rx="6.5" fill="#fef3c7"/>
-          <circle cx="120" cy="208" r="4.5" fill="#dc2626"/>
-          <rect x="132" y="203" width="128" height="9" rx="4.5" fill="#e2e8f0"/>
-          <rect x="330" y="201" width="62" height="13" rx="6.5" fill="#fee2e2"/>
-          <circle cx="120" cy="232" r="4.5" fill="#16a34a"/>
-          <rect x="132" y="227" width="148" height="9" rx="4.5" fill="#e2e8f0"/>
-          <rect x="330" y="225" width="62" height="13" rx="6.5" fill="#dcfce7"/>
-        </svg></div><h1 style="font-size:36px;font-weight:900;letter-spacing:-.5px;display:flex;align-items:center;gap:12px"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>Se connecter</h1><p>Accède à ton établissement.</p>
-      <div class="fld"><label>Email</label><input id="email" type="email" placeholder="vous@exemple.fr"></div>
-      <div class="fld"><label>Mot de passe</label><div style="position:relative"><input id="pwd" type="password" placeholder="••••••••" style="width:100%;box-sizing:border-box;padding-right:42px"><button type="button" tabindex="-1" onclick="togglePwd('pwd',this)" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:6px;color:#64748b;display:grid;place-items:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
-        <div style="text-align:right;margin-top:6px"><span class="lnk" onclick="renderAuth('reset')">Mot de passe oublié ?</span></div></div>
-      <button class="btn primary" id="go" style="width:100%;justify-content:center">Se connecter</button>
-      <div class="switch">Pas encore de compte ? <a onclick="renderAuth('signup')">Créer un compte</a></div>
-      <div style="text-align:center;margin-top:16px"><a onclick="location.hash='#/admin-login'" style="color:#334155;font-size:12px;cursor:pointer">Espace administrateur →</a></div>`,
-    signup:`<h1>Créer un compte</h1><p>Quelques secondes suffisent.</p>
+    login: seg('login')+`
+      <p class="au2-hint">Connectez-vous pour accéder à votre établissement.</p>
+      <div class="fld"><label>Email</label><input id="email" type="email" placeholder="vous@exemple.fr" autocomplete="email"></div>
+      <div class="fld"><label>Mot de passe</label><div style="position:relative"><input id="pwd" type="password" placeholder="••••••••" style="padding-right:46px" autocomplete="current-password">${eye('pwd')}</div>
+        <div style="text-align:right;margin-top:8px"><span class="lnk" onclick="renderAuth('reset')">Mot de passe oublié ?</span></div></div>
+      <button class="au2-cta" id="go">Se connecter</button>`,
+    signup: seg('signup')+`
+      <p class="au2-hint">Quelques secondes suffisent.</p>
       <div style="display:flex;gap:10px"><div class="fld" style="flex:1;min-width:0"><label>Prénom</label><input id="prenom" placeholder="Jean" autocomplete="given-name"></div>
       <div class="fld" style="flex:1;min-width:0"><label>Nom</label><input id="nom" placeholder="Dupont" autocomplete="family-name"></div></div>
-      <div class="fld"><label>Email</label><input id="email" type="email" placeholder="vous@exemple.fr"></div>
-      <div class="fld"><label>Mot de passe</label><div style="position:relative"><input id="pwd" type="password" placeholder="8 caractères min." style="width:100%;box-sizing:border-box;padding-right:42px"><button type="button" tabindex="-1" onclick="togglePwd('pwd',this)" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:6px;color:#64748b;display:grid;place-items:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
-      <button class="btn primary" id="go" style="width:100%;justify-content:center">Créer le compte</button>
-      <div class="switch">Déjà inscrit ? <a onclick="renderAuth('login')">Se connecter</a></div>`,
-    reset:`<h1>Réinitialiser</h1><p>On t'envoie un lien par email.</p>
-      <div class="fld"><label>Email</label><input id="email" type="email" placeholder="vous@exemple.fr"></div>
-      <button class="btn primary" id="go" style="width:100%;justify-content:center">Envoyer le lien</button>
-      <div class="switch"><a onclick="renderAuth('login')">Retour à la connexion</a></div>`,
-    newpass:`<h1>Nouveau mot de passe</h1><p>Choisissez votre nouveau mot de passe.</p>
-      <div class="fld"><label>Nouveau mot de passe</label><div style="position:relative"><input id="pwd" type="password" placeholder="8 caractères min." style="width:100%;box-sizing:border-box;padding-right:42px"><button type="button" tabindex="-1" onclick="togglePwd('pwd',this)" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:6px;color:#64748b;display:grid;place-items:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
-      <div class="fld"><label>Confirmer</label><div style="position:relative"><input id="pwd2" type="password" placeholder="Retapez le mot de passe" style="width:100%;box-sizing:border-box;padding-right:42px"><button type="button" tabindex="-1" onclick="togglePwd('pwd2',this)" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:6px;color:#64748b;display:grid;place-items:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
-      <button class="btn primary" id="go" style="width:100%;justify-content:center">Enregistrer le mot de passe</button>`
+      <div class="fld"><label>Email</label><input id="email" type="email" placeholder="vous@exemple.fr" autocomplete="email"></div>
+      <div class="fld"><label>Mot de passe</label><div style="position:relative"><input id="pwd" type="password" placeholder="8 caractères min." style="padding-right:46px" autocomplete="new-password">${eye('pwd')}</div></div>
+      <button class="au2-cta" id="go">Créer le compte</button>`,
+    reset:`<h1 class="au2-h">Réinitialiser le mot de passe</h1><p class="au2-hint">On vous envoie un lien par email.</p>
+      <div class="fld"><label>Email</label><input id="email" type="email" placeholder="vous@exemple.fr" autocomplete="email"></div>
+      <button class="au2-cta" id="go">Envoyer le lien</button>
+      <div class="au2-alt"><a onclick="renderAuth('login')">← Retour à la connexion</a></div>`,
+    newpass:`<h1 class="au2-h">Nouveau mot de passe</h1><p class="au2-hint">Choisissez votre nouveau mot de passe.</p>
+      <div class="fld"><label>Nouveau mot de passe</label><div style="position:relative"><input id="pwd" type="password" placeholder="8 caractères min." style="padding-right:46px" autocomplete="new-password">${eye('pwd')}</div></div>
+      <div class="fld"><label>Confirmer</label><div style="position:relative"><input id="pwd2" type="password" placeholder="Retapez le mot de passe" style="padding-right:46px" autocomplete="new-password">${eye('pwd2')}</div></div>
+      <button class="au2-cta" id="go">Enregistrer le mot de passe</button>`
   };
-  $('#root').innerHTML=`<div class="auth"><div class="left">
-    <div class="brand2" style="margin-bottom:0"><b style="font-size:22px;letter-spacing:2.5px">CONFORMITÉ SÉCURITÉ</b></div>
-    <div style="flex:1;display:flex;align-items:center;justify-content:center;position:relative">
-      <img src="${LOGO_WHITE}" alt="Dossier Vérifié" style="width:min(58%,260px);height:auto;display:block;opacity:.97">
+  $('#root').innerHTML=`<div class="au2">
+    <div class="au2-top">
+      <div class="au2-brand"><img src="${LOGO_INK}" alt="Conformité Sécurité"><span>Conformité<br>Sécurité</span></div>
+      <a class="au2-back" href="https://conformite-securite.fr">← Retour au site</a>
     </div>
-    <h2 style="font-size:32px;line-height:1.15;margin-top:8px">Pilotez la sécurité<br>incendie de vos<br>établissements.</h2>
-    <p style="margin-top:14px">Ne jamais oublier une vérification, ne jamais perdre un rapport, ne jamais laisser une réserve sans suivi.</p>
-    <div class="feats">
-      <div>${I.chk} Lever les réserves jusqu'à la preuve validée</div>
-      <div>${I.chk} PV des commissions de sécurité</div>
-      <div>${I.chk} Tableau de bord trié par criticité</div>
-      <div>${I.chk} QR code terrain & photos urgentes</div>
+    <div class="au2-duo">
+      <div class="au2-hero">
+        <div class="au2-glow"></div>
+        <img class="au2-mark" src="${LOGO_WHITE}" alt="">
+        <h2>Pilotez la sécurité incendie<br>de vos établissements.</h2>
+        <p>Ne jamais oublier une vérification, ne jamais perdre un rapport, ne jamais laisser une réserve sans suivi.</p>
+        <div class="au2-feats">
+          <div>${I.chk} Lever les réserves jusqu'à la preuve validée</div>
+          <div>${I.chk} PV des commissions de sécurité</div>
+          <div>${I.chk} Tableau de bord trié par criticité</div>
+          <div>${I.chk} QR code terrain &amp; photos urgentes</div>
+        </div>
+      </div>
+      <div class="au2-panel">${forms[mode]}</div>
     </div>
-  </div><div class="right"><div class="form"><img class="login-logo-mobile" src="${LOGO_INK}" alt="Dossier Vérifié">${forms[mode]}</div></div></div>`;
+  </div>`;
   const go=$('#go'); if(go) go.onclick=()=>doAuth(mode,go);
   ['email','pwd'].forEach(id=>{const el=$('#'+id); if(el)el.addEventListener('keydown',e=>{if(e.key==='Enter')go.click();});});
 }
