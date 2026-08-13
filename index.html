@@ -2218,7 +2218,7 @@ async function viewAdmin(c){
       {data:docSizes}
     ] = await Promise.all([
       sb.from('profiles').select('*').order('created_at',{ascending:false}),
-      sb.from('clients').select('id,code_client,raison_sociale,statut,created_at'),
+      sb.from('clients').select('id,code_client,raison_sociale,statut,created_at,abonnement_formule,abonnement_montant,abonnement_debut,abonnement_echeance'),
       sb.from('erps').select('id,code_erp,nom,statut,client_id,created_at'),
       sb.from('interventions').select('id,statut,type,created_at').order('created_at',{ascending:false}),
       sb.from('reserves').select('id,criticite,statut,created_at'),
@@ -2299,6 +2299,31 @@ async function viewAdmin(c){
       </div>
     </div>` : '';
 
+    // Abonnements : clients abonnés, échéances proches en avant
+    const abos=(clients||[]).filter(x=>x.abonnement_formule);
+    const joursRestants=x=>x.abonnement_echeance?Math.ceil((new Date(x.abonnement_echeance+'T00:00:00')-Date.now())/864e5):null;
+    const abosTries=abos.slice().sort((a,b)=>(joursRestants(a)??9e9)-(joursRestants(b)??9e9));
+    const FRMLBL={essai:'Essai',mensuel:'Mensuel',annuel:'Annuel'};
+    const abosBlock=abos.length?`
+    <div class="card card-pad" style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px">
+        <h2 style="font-size:16px;margin:0">💳 Abonnements (${abos.length})</h2>
+        <span style="font-size:12px;color:var(--muted)">${abosTries.filter(x=>{const j=joursRestants(x);return j!==null&&j<=30;}).length} échéance(s) sous 30 jours</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        ${abosTries.map(x=>{ const j=joursRestants(x);
+          const alerte=j===null?'' : j<0?`<span style="background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:800;padding:3px 9px;border-radius:8px">Expiré depuis ${-j} j</span>`
+            : j<=30?`<span style="background:#fef3c7;color:#92400e;font-size:11px;font-weight:800;padding:3px 9px;border-radius:8px">Échéance dans ${j} j</span>`
+            : `<span style="background:#dcfce7;color:#166534;font-size:11px;font-weight:700;padding:3px 9px;border-radius:8px">OK · ${new Date(x.abonnement_echeance+'T00:00:00').toLocaleDateString('fr-FR')}</span>`;
+          return `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:8px 10px;border-radius:9px;background:var(--surface-2)">
+          <b style="font-size:13px;flex:1 1 160px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.raison_sociale)}</b>
+          <span class="pill int" style="font-size:11px">${FRMLBL[x.abonnement_formule]||esc(x.abonnement_formule)}</span>
+          <span style="font-size:12px;color:var(--muted)">${x.abonnement_montant?x.abonnement_montant+' € HT':'—'}</span>
+          ${alerte}
+        </div>`;}).join('')}
+      </div>
+    </div>`:'';
+
     c.innerHTML=`
     <div class="page-head"><div class="t"><h1>Administration</h1><p>Vue globale — ${new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})}</p></div>
       </div>
@@ -2308,12 +2333,15 @@ async function viewAdmin(c){
 
     ${newUsersBlock}
 
+    ${abosBlock}
+
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:16px">
       <!-- Utilisateurs -->
       <div class="card card-pad">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
           <h2 style="font-size:16px;margin:0">Utilisateurs (${users?.length||0})</h2>
-          <button class="btn sm primary" onclick="openUserWizard()">✨ Programmer un utilisateur</button>
+          <button class="btn sm primary" onclick="openClientWizard()">🏢 Programmer un nouveau client</button>
+          <button class="btn sm" onclick="openUserWizard()">✨ Programmer un utilisateur</button>
           <button class="btn sm" onclick="formCreateDemo()" style="background:#f59e0b;color:#fff;border:none">Créer accès démo</button>
         </div>
         <div style="display:flex;flex-direction:column;gap:8px">
@@ -3288,24 +3316,26 @@ function getStepContent(){
         </div>`;
       }
       return `
-      <h2 style="font-size:20px;margin-bottom:6px">Quel périmètre lui confier ?</h2>
-      <p style="color:var(--muted);font-size:14px;margin-bottom:22px">Sélectionnez les clients et ERP auxquels il aura accès. <b>Cette étape est optionnelle</b> — vous pourrez affiner le périmètre à tout moment depuis la fiche utilisateur.</p>
+      <h2 style="font-size:20px;margin-bottom:6px">Que pourra-t-il voir ?</h2>
+      <p style="color:var(--muted);font-size:14px;margin-bottom:20px">Deux façons de donner l'accès — au choix, ou combinées. <b>Optionnel</b> : vous pourrez affiner à tout moment depuis la fiche utilisateur.</p>
       ${state.clients.length?`
-        <div class="fld">
-          <label style="display:flex;align-items:center;justify-content:space-between">
-            Clients <span class="lnk" style="font-size:12px" onclick="selAllClients()">Tout sélectionner</span>
-          </label>
-          <div style="margin-top:6px;min-height:44px">${clientChips||'<span style="color:var(--muted-2);font-size:13px">Aucun client créé pour l\'instant.</span>'}</div>
+        <div style="border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:10px">
+          <div style="font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:space-between">
+            <span>🏢 Des clients entiers</span>
+            <span class="lnk" style="font-size:12px" onclick="selAllClients()">Tout sélectionner</span>
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin:3px 0 9px;line-height:1.45">Il verra <b>tout</b> ce qui concerne ces clients : tous leurs établissements, documents, interventions…</div>
+          <div style="min-height:38px">${clientChips||'<span style="color:var(--muted-2);font-size:13px">Aucun client créé pour l\'instant.</span>'}</div>
         </div>
-        ${erpChips?`<div class="fld" style="margin-top:6px">
-          <label style="display:flex;align-items:center;justify-content:space-between">
-            ERP <span style="color:var(--muted-2);font-size:12px">${WIZ.data.clients.length?'filtrés par client sélectionné':'tous les ERP'}</span>
-          </label>
-          <div style="margin-top:6px">${erpChips}</div>
-        </div>`:''}`
+        <div style="text-align:center;font-size:11px;font-weight:800;color:var(--muted-2);letter-spacing:.1em;margin:8px 0">— OU SEULEMENT —</div>
+        <div style="border:1px solid var(--line);border-radius:12px;padding:13px 15px">
+          <div style="font-size:13px;font-weight:800">🏛️ Certains établissements (ERP)</div>
+          <div style="font-size:12px;color:var(--muted);margin:3px 0 9px;line-height:1.45">Accès limité à ces bâtiments uniquement. Inutile d'en cocher si son client entier est déjà sélectionné au-dessus.${WIZ.data.clients.length?' <b>(liste filtrée sur les clients cochés)</b>':''}</div>
+          <div>${erpChips||'<span style="color:var(--muted-2);font-size:13px">Aucun établissement.</span>'}</div>
+        </div>`
       :`<div style="text-align:center;padding:30px;color:var(--muted)"><div style="font-size:40px;margin-bottom:10px">🏢</div><p>Aucun client ni ERP configuré. Vous pourrez assigner le périmètre une fois les établissements créés.</p></div>`}
       <div style="margin-top:14px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 14px;font-size:12.5px;color:var(--muted);display:flex;gap:8px">
-        <span>📌</span><span>Sans sélection, l'utilisateur aura accès à l'application mais ne verra aucune donnée tant que vous ne lui assignerez pas un périmètre.</span>
+        <span>📌</span><span>Sans sélection, l'utilisateur pourra se connecter mais ne verra aucune donnée tant que vous ne lui aurez rien confié.</span>
       </div>`;
 
     /* ── Étape 4 : NOTIFICATIONS ────────────────────────── */
@@ -3465,6 +3495,169 @@ async function wizFinish(){
   }catch(e){ toast(e.message,'err'); if(btn){btn.disabled=false;btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 2 11 13M22 2 15 22l-4-9-9-4 19-7z"/></svg> Envoyer l\'invitation';} }
 }
 window.wizFinish=wizFinish;
+
+/* ═══════════ ASSISTANT « PROGRAMMER UN NOUVEAU CLIENT » ═══════════
+   Crée en une fois : le client, son abonnement, et le compte du gérant
+   (rôle exploitant, rattaché automatiquement — il gère ensuite ses
+   établissements en autonomie). */
+const CWIZ={step:1,total:4,data:{}};
+const CWIZ_STEPS=[{n:1,label:'Le client'},{n:2,label:'Abonnement'},{n:3,label:'Le gérant'},{n:4,label:'Récapitulatif'}];
+
+function openClientWizard(){
+  CWIZ.step=1;
+  CWIZ.data={rs:'',siren:'',tel:'',ville:'',formule:'essai',montant:'',debut:new Date().toISOString().slice(0,10),prenom:'',nom:'',email:''};
+  let ov=document.getElementById('cwiz-overlay');
+  if(!ov){
+    ov=document.createElement('div');
+    ov.id='cwiz-overlay'; ov.className='wiz-overlay';
+    ov.innerHTML=`<div class="wiz-box"><div class="wiz-head" id="cwiz-head"></div>
+      <div class="wiz-body" id="cwiz-body"></div>
+      <div class="wiz-foot" id="cwiz-foot"></div></div>`;
+    document.body.appendChild(ov);
+  }
+  setTimeout(()=>ov.classList.add('on'),10);
+  renderCWiz();
+}
+window.openClientWizard=openClientWizard;
+
+function closeCWiz(){
+  const ov=document.getElementById('cwiz-overlay');
+  if(ov){ ov.classList.remove('on'); setTimeout(()=>ov.remove(),250); }
+}
+window.closeCWiz=closeCWiz;
+
+function cwEcheance(){
+  const d=CWIZ.data; if(!d.debut) return null;
+  const dt=new Date(d.debut+'T00:00:00');
+  if(d.formule==='essai') dt.setDate(dt.getDate()+30);
+  else if(d.formule==='mensuel') dt.setMonth(dt.getMonth()+1);
+  else dt.setFullYear(dt.getFullYear()+1);
+  return dt.toISOString().slice(0,10);
+}
+function cwSaveInputs(){
+  const g=id=>{const el=document.getElementById(id);return el?el.value.trim():undefined;};
+  const map={cw_rs:'rs',cw_siren:'siren',cw_tel:'tel',cw_ville:'ville',cw_montant:'montant',cw_debut:'debut',cw_prenom:'prenom',cw_nom:'nom',cw_email:'email'};
+  Object.entries(map).forEach(([id,k])=>{ const v=g(id); if(v!==undefined) CWIZ.data[k]=v; });
+}
+window.cwSetFormule=function(f){ cwSaveInputs(); CWIZ.data.formule=f; renderCWiz(); };
+window.cwNext=function(){
+  cwSaveInputs();
+  const d=CWIZ.data;
+  if(CWIZ.step===1 && !d.rs){ toast('La raison sociale est requise','err'); return; }
+  if(CWIZ.step===3){
+    if(!d.prenom){ toast('Le prénom du gérant est requis','err'); return; }
+    if(!d.nom){ toast('Le nom du gérant est requis','err'); return; }
+    if(!d.email||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email)){ toast('Une adresse email valide est requise','err'); return; }
+  }
+  CWIZ.step=Math.min(CWIZ.total,CWIZ.step+1); renderCWiz();
+};
+window.cwPrev=function(){ cwSaveInputs(); CWIZ.step=Math.max(1,CWIZ.step-1); renderCWiz(); };
+
+function renderCWiz(){
+  const h=document.getElementById('cwiz-head'), b=document.getElementById('cwiz-body'), f=document.getElementById('cwiz-foot');
+  if(!h||!b||!f) return;
+  h.innerHTML=`<div class="wiz-brand"><b>Nouveau client</b><span>Étape ${CWIZ.step} sur ${CWIZ.total}</span></div>
+    <div class="wiz-steps">${CWIZ_STEPS.map(st=>{
+      const cls=CWIZ.step>st.n?'done':CWIZ.step===st.n?'active':'';
+      const ic=CWIZ.step>st.n?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>':st.n;
+      return `<div class="wiz-step ${cls}"><div class="dot">${ic}</div><div class="lbl">${st.label}</div></div>`;
+    }).join('')}</div>`;
+  const d=CWIZ.data;
+  const FRM={essai:'Essai gratuit (30 jours)',mensuel:'Mensuel',annuel:'Annuel'};
+  const plan=(key,ic,titre,prix,txt)=>`<div class="mode-card${d.formule===key?' selected':''}" onclick="cwSetFormule('${key}')" style="padding:16px 14px">
+      <div class="ic" style="background:#eff4ff">${ic}</div><h3 style="font-size:14.5px">${titre}</h3>
+      <div style="font-family:var(--fd);font-weight:700;color:var(--primary);font-size:16px;margin:4px 0 2px">${prix}</div>
+      <p style="font-size:11.5px">${txt}</p></div>`;
+  let body='';
+  if(CWIZ.step===1) body=`
+    <h2 style="font-size:20px;margin-bottom:6px">Qui est ce nouveau client ?</h2>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:22px">L'organisation qui s'abonne. Seule la raison sociale est obligatoire — le reste pourra être complété plus tard sur sa fiche.</p>
+    <div class="row2"><div class="fld"><label>Raison sociale <span class="req">*</span></label><input id="cw_rs" value="${esc(d.rs)}" placeholder="RÉSIDENCE LES TILLEULS"></div>
+      <div class="fld"><label>SIREN</label><input id="cw_siren" value="${esc(d.siren)}" placeholder="123 456 789"></div></div>
+    <div class="row2"><div class="fld"><label>Téléphone</label><input id="cw_tel" value="${esc(d.tel)}" placeholder="01 23 45 67 89"></div>
+      <div class="fld"><label>Ville</label><input id="cw_ville" value="${esc(d.ville)}" placeholder="Montreuil"></div></div>`;
+  else if(CWIZ.step===2) body=`
+    <h2 style="font-size:20px;margin-bottom:6px">Quelle formule pour ce client ?</h2>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:20px">L'abonnement est noté sur la fiche client : vous voyez d'un coup d'œil qui est en essai, qui paye, et quand arrive l'échéance.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+      ${plan('essai','🎁','Essai','Gratuit · 30 j','Pour découvrir l\'application.')}
+      ${plan('mensuel','📅','Mensuel','— € / mois','Sans engagement, montant libre.')}
+      ${plan('annuel','🗓️','Annuel','— € / an','Échéance à la date anniversaire.')}
+    </div>
+    <div class="row2" style="margin-top:16px">
+      ${d.formule==='essai'?'':`<div class="fld"><label>Montant (€ HT)</label><input id="cw_montant" type="number" min="0" step="1" value="${esc(d.montant)}" placeholder="149"></div>`}
+      <div class="fld"><label>Début de l'abonnement</label><input id="cw_debut" type="date" value="${esc(d.debut)}"></div>
+    </div>
+    <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:12px 15px;font-size:12.5px;color:var(--muted);display:flex;gap:9px">
+      <span>💡</span><span>Échéance calculée automatiquement : <b>${cwEcheance()?new Date(cwEcheance()+'T00:00:00').toLocaleDateString('fr-FR'):'—'}</b>. Les abonnements bientôt expirés remonteront sur le tableau de bord admin.</span></div>`;
+  else if(CWIZ.step===3) body=`
+    <h2 style="font-size:20px;margin-bottom:6px">Qui va gérer ce client dans l'application ?</h2>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:22px">Cette personne recevra l'invitation par email. Elle sera <b>automatiquement rattachée</b> au client et pourra créer ses établissements (ERP), inviter ses prestataires et suivre ses obligations — en toute autonomie.</p>
+    <div class="row2"><div class="fld"><label>Prénom <span class="req">*</span></label><input id="cw_prenom" value="${esc(d.prenom)}" placeholder="Sophie"></div>
+      <div class="fld"><label>Nom <span class="req">*</span></label><input id="cw_nom" value="${esc(d.nom)}" placeholder="Martin"></div></div>
+    <div class="fld"><label>Email <span class="req">*</span></label><input id="cw_email" type="email" value="${esc(d.email)}" placeholder="s.martin@lestilleuls.fr"></div>
+    <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:12px 15px;font-size:12.5px;color:var(--muted);display:flex;gap:9px">
+      <span>🔐</span><span>Son rôle sera <b>Exploitant</b> : il voit et gère uniquement SON client — jamais les autres. Vous gardez la main complète depuis l'espace admin.</span></div>`;
+  else body=`
+    <h2 style="font-size:20px;margin-bottom:6px">Tout est prêt ?</h2>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:20px">Vérifiez, puis créez le client et envoyez l'invitation en un clic.</p>
+    <div style="display:grid;gap:9px">
+      <div style="display:flex;justify-content:space-between;gap:14px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 15px;font-size:13px"><b>🏢 Client</b><span style="color:var(--muted);text-align:right">${esc(d.rs)}${d.ville?' — '+esc(d.ville):''}</span></div>
+      <div style="display:flex;justify-content:space-between;gap:14px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 15px;font-size:13px"><b>💳 Abonnement</b><span style="color:var(--muted);text-align:right">${FRM[d.formule]}${d.formule!=='essai'&&d.montant?' · '+esc(d.montant)+' € HT':''}${d.debut?' · à partir du '+new Date(d.debut+'T00:00:00').toLocaleDateString('fr-FR'):''}</span></div>
+      <div style="display:flex;justify-content:space-between;gap:14px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 15px;font-size:13px"><b>👤 Gérant</b><span style="color:var(--muted);text-align:right">${esc(d.prenom)} ${esc(d.nom)} · ${esc(d.email)} · rôle Exploitant</span></div>
+      <div style="display:flex;justify-content:space-between;gap:14px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 15px;font-size:13px"><b>✉️ Invitation</b><span style="color:var(--muted);text-align:right">Email envoyé immédiatement, avec lien d'activation</span></div>
+    </div>
+    <div style="margin-top:14px;background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:12px 15px;font-size:12.5px;color:var(--muted);display:flex;gap:9px">
+      <span>🏛️</span><span>Ses établissements ? C'est ${esc(d.prenom||'le gérant')} qui les créera à sa première connexion — ou vous, plus tard, depuis la fiche client.</span></div>`;
+  b.innerHTML='<div class="wiz-anim">'+body+'</div>';
+  f.innerHTML=`${CWIZ.step>1?'<button class="btn ghost" onclick="cwPrev()">← Retour</button>':'<button class="btn ghost" onclick="closeCWiz()">Annuler</button>'}
+    ${CWIZ.step<CWIZ.total?'<button class="btn primary" onclick="cwNext()">Continuer →</button>':'<button class="btn primary" onclick="cwFinish(this)">✅ Créer le client et envoyer l\'invitation</button>'}`;
+}
+
+window.cwFinish=async function(btn){
+  cwSaveInputs();
+  const d=CWIZ.data;
+  if(btn){btn.disabled=true;btn.textContent='Création…';}
+  try{
+    // 1. Le client + son abonnement
+    const {data:cl,error:eC}=await sb.from('clients').insert({
+      raison_sociale:d.rs, siren:d.siren||null, telephone:d.tel||null, ville:d.ville||null, statut:'actif',
+      abonnement_formule:d.formule, abonnement_montant:d.formule==='essai'?null:(d.montant?Number(d.montant):null),
+      abonnement_debut:d.debut||null, abonnement_echeance:cwEcheance()
+    }).select('id').single();
+    if(eC) throw eC;
+    // 2. Le compte du gérant (invitation par email de confirmation)
+    let userId=null, dejaInscrit=false;
+    const {data:su,error:eU}=await sb.auth.signUp({
+      email:d.email, password:Math.random().toString(36).slice(2)+'Aa1!',
+      options:{data:{nom:(d.prenom+' '+d.nom).trim(), prenom:d.prenom, role:'exploitant'}}
+    });
+    if(eU && !/already/i.test(eU.message||'')) throw eU;
+    if(su&&su.user&&Array.isArray(su.user.identities)&&su.user.identities.length===0) dejaInscrit=true;
+    else if(su&&su.user) userId=su.user.id;
+    if(dejaInscrit||!userId){
+      // Un compte existe déjà avec cet email : on le rattache simplement
+      const {data:prof}=await sb.from('profiles').select('id').eq('email',d.email).maybeSingle();
+      if(prof) userId=prof.id;
+    }
+    if(userId){
+      try{ await sb.from('profiles').update({vu_par_admin:true}).eq('id',userId); }catch(_){}
+      try{ await sb.from('user_clients').insert({user_id:userId,client_id:cl.id}); }catch(_){}
+    }
+    // 3. Journal
+    try{ await sb.from('audit_log').insert({user_id:state.user.id,user_label:state.profile?.nom||'',action:'client_cree',entite:'clients',details:{client:d.rs,formule:d.formule,gerant:d.email}}); }catch(_){}
+    await loadScope(); if(window.fillScopeSelectors) fillScopeSelectors();
+    closeCWiz();
+    toast(dejaInscrit
+      ? 'Client créé ✓ — '+d.email+' avait déjà un compte : il a été rattaché au client.'
+      : 'Client créé ✓ — invitation envoyée à '+d.email,'ok');
+    renderRoute();
+  }catch(e){
+    toast(e.message||'Erreur','err');
+    if(btn){btn.disabled=false;btn.textContent='✅ Créer le client et envoyer l\'invitation';}
+  }
+};
+
 
 
 
