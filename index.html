@@ -7126,12 +7126,23 @@ async function formInter(erpId,it,mode){
     if(p.contacts){
       try{
         const cts=typeof p.contacts==='string'?JSON.parse(p.contacts):p.contacts;
-        // contacts peut être un objet {sav:{...}, charge_affaire:{...}} ou un tableau
-        const ctsList=Array.isArray(cts)?cts:Object.values(cts||{});
+        // contacts : tableau, ou objet {charge_affaire:{...}, sav:{...}, autres:[...]}
+        // — la liste « autres » (contacts ajoutés à la main) doit être dépliée
+        const ROLES_CT={charge_affaire:'Chargé d\'affaires',planning:'Planning',sav:'SAV',technicien_1:'Technicien',technicien_2:'Technicien',technicien_3:'Technicien'};
+        let ctsList=[];
+        if(Array.isArray(cts)) ctsList=cts;
+        else if(cts&&typeof cts==='object'){
+          Object.entries(cts).forEach(([k,v])=>{
+            if(k==='autres') return;
+            if(v&&typeof v==='object'&&!Array.isArray(v)) ctsList.push(Object.assign({__role:ROLES_CT[k]||k.replace(/_/g,' ')},v));
+          });
+          if(Array.isArray(cts.autres)) cts.autres.forEach(a=>{ if(a&&typeof a==='object') ctsList.push(Object.assign({__role:a.intitule||''},a)); });
+        }
         ctsList.forEach(c=>{
           if(c && c.email && !emails.find(x=>x.email===c.email)){
             const nom=c.nom||'';
-            emails.push({label:nom||'Contact',email:c.email});
+            const lab=[nom,(c.__role&&c.__role!==nom)?c.__role:null].filter(Boolean).join(' — ')||'Contact';
+            emails.push({label:lab,email:c.email});
           }
         });
       }catch(e){}
