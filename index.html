@@ -4156,7 +4156,11 @@ function fillScopeSelectors(){
     sc.value=state.currentClient;
   }
   if(se){ const erps=state.currentClient==='all'?state.erps:state.erps.filter(e=>e.client_id===state.currentClient);
-    se.innerHTML=`<option value="all">Tous les ERP</option>`+erps.map(e=>`<option value="${e.id}">${esc(e.nom)}</option>`).join(''); se.value=state.currentErp; }
+    const gE=erps.filter(e=>!isClientAbonne(e.client_id)), aE=erps.filter(e=>isClientAbonne(e.client_id));
+    const optE=e=>`<option value="${e.id}">${esc(e.nom)}</option>`;
+    se.innerHTML=`<option value="all">Tous les ERP</option>`
+      +((aE.length&&gE.length)?`<optgroup label="Mes établissements">${gE.map(optE).join('')}</optgroup><optgroup label="Clients abonnés">${aE.map(optE).join('')}</optgroup>`:erps.map(optE).join(''));
+    se.value=state.currentErp; }
   if(window.syncScopeLabels) syncScopeLabels();
 }
 function onScope(kind,val){
@@ -4317,8 +4321,33 @@ function setActiveNav(base){
   if(sec && !sec.classList.contains('open')) navSec(sec.dataset.sec,true);
   toggleSidebar(false);
 }
-function erpFilter(q){ if(state.currentErp!=='all') return q.eq('erp_id',state.currentErp);
-  if(state.currentClient!=='all'){ const ids=state.erps.filter(e=>e.client_id===state.currentClient).map(e=>e.id); return q.in('erp_id',ids.length?ids:['00000000-0000-0000-0000-000000000000']); } return q; }
+/* ══ SÉPARATION CLIENTS ABONNÉS : la vue « Tous » ne montre que les clients gérés ══ */
+function isClientAbonne(cid){ const c=(state.clients||[]).find(x=>x.id===cid); return !!(c&&c.abonnement_formule); }
+window.isClientAbonne=isClientAbonne;
+/* ERP du périmètre courant. avecAbonnes=true : inclut aussi les ERP des clients abonnés
+   (utilisé pour les photos urgentes / alertes terrain, qui continuent de remonter). */
+function erpsPerimetre(avecAbonnes){
+  if(window._supervision) return state.erps.filter(e=>e.client_id===window._supervision);
+  if(state.currentErp!=='all') return state.erps.filter(e=>e.id===state.currentErp);
+  if(state.currentClient!=='all') return state.erps.filter(e=>e.client_id===state.currentClient);
+  return avecAbonnes?state.erps:state.erps.filter(e=>!isClientAbonne(e.client_id));
+}
+window.erpsPerimetre=erpsPerimetre;
+function clientsPerimetre(){
+  if(window._supervision) return (state.clients||[]).filter(c=>c.id===window._supervision);
+  if(state.currentErp!=='all'){ const e=state.erps.find(x=>x.id===state.currentErp); return (state.clients||[]).filter(c=>e&&c.id===e.client_id); }
+  if(state.currentClient!=='all') return (state.clients||[]).filter(c=>c.id===state.currentClient);
+  return (state.clients||[]).filter(c=>!c.abonnement_formule);
+}
+window.clientsPerimetre=clientsPerimetre;
+function erpFilter(q,opts){ if(state.currentErp!=='all') return q.eq('erp_id',state.currentErp);
+  if(state.currentClient!=='all'){ const ids=state.erps.filter(e=>e.client_id===state.currentClient).map(e=>e.id); return q.in('erp_id',ids.length?ids:['00000000-0000-0000-0000-000000000000']); }
+  // Vue « Tous » : exclure les ERP des clients abonnés (sauf option avecAbonnes)
+  if(!(opts&&opts.avecAbonnes)){
+    const ids=state.erps.filter(e=>!isClientAbonne(e.client_id)).map(e=>e.id);
+    if(ids.length!==state.erps.length) return q.in('erp_id',ids.length?ids:['00000000-0000-0000-0000-000000000000']);
+  }
+  return q; }
 /* Filtre GED : un document peut être rattaché à un client (client_id) ET/OU à un ERP (erp_id). On prend les deux pour ne rien masquer. */
 function gedScopeFilter(q){
   if(state.currentErp!=='all'){
@@ -4333,6 +4362,18 @@ function gedScopeFilter(q){
     const parts=['client_id.eq.'+state.currentClient];
     if(erpIds.length) parts.push('erp_id.in.('+erpIds.join(',')+')');
     return q.or(parts.join(','));
+  }
+  // Vue « Tous » : documents des clients gérés uniquement (les abonnés gèrent leur GED)
+  {
+    const abonneIds=(state.clients||[]).filter(x=>x.abonnement_formule).map(x=>x.id);
+    if(abonneIds.length){
+      const gErp=state.erps.filter(e=>!isClientAbonne(e.client_id)).map(e=>e.id);
+      const gCli=(state.clients||[]).filter(x=>!x.abonnement_formule).map(x=>x.id);
+      const parts=['and(client_id.is.null,erp_id.is.null)'];
+      if(gErp.length) parts.push('erp_id.in.('+gErp.join(',')+')');
+      if(gCli.length) parts.push('and(client_id.in.('+gCli.join(',')+'),erp_id.is.null)');
+      return q.or(parts.join(','));
+    }
   }
   return q;
 }
@@ -4461,8 +4502,11 @@ window.saveReserveObs=async function(id,val,el,btn){
 async function viewDashboard(c){
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Tableau de bord</h1><p>Vos priorités, triées par criticité.</p></div></div>${loadingBlock()}`;
   const erpIds = state.currentErp!=='all'?[state.currentErp]
-    : (state.currentClient!=='all'?state.erps.filter(e=>e.client_id===state.currentClient).map(e=>e.id):state.erps.map(e=>e.id));
-  const inScope = arr => state.currentClient==='all'&&state.currentErp==='all'?arr:arr.filter(x=>erpIds.includes(x.erp_id));
+    : (state.currentClient!=='all'?state.erps.filter(e=>e.client_id===state.currentClient).map(e=>e.id):erpsPerimetre(false).map(e=>e.id));
+  const _tousGeres = state.currentClient==='all'&&state.currentErp==='all';
+  const inScope = arr => _tousGeres?arr.filter(x=>!x.erp_id||erpIds.includes(x.erp_id)):arr.filter(x=>erpIds.includes(x.erp_id));
+  // Exception : les photos urgentes / alertes terrain des clients abonnés continuent de remonter
+  const inScopePhotos = arr => _tousGeres?arr:arr.filter(x=>erpIds.includes(x.erp_id));
 
   try{
     const [ob,re,it,ph,cv,dg,pn] = await Promise.all([
@@ -4475,7 +4519,7 @@ async function viewDashboard(c){
       sb.from('prestataires').select('id,nom'),
     ]);
     window._convInterIds = new Set(((cv&&cv.data)||[]).map(x=>x.intervention_id).filter(Boolean));
-    const obs=inScope(ob.data||[]), res=inScope(re.data||[]), its=inScope(it.data||[]), phs=inScope(ph.data||[]);
+    const obs=inScope(ob.data||[]), res=inScope(re.data||[]), its=inScope(it.data||[]), phs=inScopePhotos(ph.data||[]);
     const today=todayISO();
     const enRetard = obs.filter(o=>o.prochaine_echeance && o.prochaine_echeance<today && !['a_jour','non_applicable'].includes(o.statut));
     const aProg = its.filter(i=>['a_programmer','a_reprogrammer'].includes(i.statut));
@@ -5699,7 +5743,8 @@ async function loadConversations(){
   const asc=(window._convSort==='asc');
   try{ const r=await sb.from('conversations').select('*').order('date_conv',{ascending:asc,nullsFirst:false}).order('created_at',{ascending:asc}); rows=r.data||[]; }
   catch(e){ box.innerHTML=errBlock(e); return; }
-  if(window._supervision){ const eids=new Set(state.erps.filter(e=>e.client_id===window._supervision).map(e=>e.id)); rows=rows.filter(r=>r.client_id===window._supervision||(r.erp_id&&eids.has(r.erp_id))); }
+  { const okE=new Set(erpsPerimetre(false).map(e=>e.id)), okC=new Set(clientsPerimetre().map(c=>c.id));
+    rows=rows.filter(r=>{ if(r.erp_id) return okE.has(r.erp_id); if(r.client_id) return okC.has(r.client_id); return !window._supervision; }); }
   window._convCache=rows;
   ['asc','desc'].forEach(d=>{ const b=document.getElementById('cvsort-'+d); if(b) b.classList.toggle('on', d===(window._convSort||'desc')); });
   // Compter les photos/vidéos associées à chaque conversation
@@ -5847,7 +5892,7 @@ function convCard(cv,clientNm){
 function formConversation(conv){
   const cv=conv||{};
   const today=new Date().toISOString().slice(0,10);
-  const clientOpts=state.clients.filter(cl=>!window._supervision||cl.id===window._supervision).map(cl=>`<option value="${cl.id}"${cv.client_id===cl.id?' selected':''}>${esc(cl.raison_sociale)}</option>`).join('');
+  const clientOpts=state.clients.filter(cl=>window._supervision?cl.id===window._supervision:(!cl.abonnement_formule||cv.client_id===cl.id)).map(cl=>`<option value="${cl.id}"${cv.client_id===cl.id?' selected':''}>${esc(cl.raison_sociale)}</option>`).join('');
   _cvAudioBlob=null; _cvAudioExt='webm'; _cvRec=null; _cvRecChunks=[];
   openModal(`<div class="modal-head"><h2>${cv.id?'Modifier la conversation':'Nouvelle conversation'}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
   <div class="modal-body">
@@ -6104,7 +6149,12 @@ async function viewErps(c){
   if(state.currentClient!=='all' && !state.clients.some(cl=>cl.id===state.currentClient)){
     state.currentClient='all'; state.currentErp='all'; if(typeof fillScopeSelectors==='function') fillScopeSelectors();
   }
-  const erps = state.currentClient==='all'?state.erps:state.erps.filter(e=>e.client_id===state.currentClient);
+  const erps = state.currentClient==='all'?erpsPerimetre(false):state.erps.filter(e=>e.client_id===state.currentClient);
+  const _erpsAbonnes = state.currentClient==='all'?state.erps.filter(e=>isClientAbonne(e.client_id)):[];
+  const _erpAbnNote=_erpsAbonnes.length?`<div style="display:flex;align-items:center;gap:9px;background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:10px 14px;margin-top:14px;font-size:12.5px;color:var(--muted)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    <span>${_erpsAbonnes.length} établissement${_erpsAbonnes.length>1?'s':''} de client${_erpsAbonnes.length>1?'s':''} abonné${_erpsAbonnes.length>1?'s':''} (${_erpsAbonnes.map(e=>esc(e.nom)).join(', ')}) — visible${_erpsAbonnes.length>1?'s':''} via <a onclick="navigate('/admin')" style="color:#2563eb;font-weight:700;cursor:pointer">Administration → Voir son espace</a></span>
+  </div>`:'';
   c.innerHTML=`<div class="page-head"><div class="t"><h1>ERP</h1><p>${erps.length} établissement(s).</p></div>
     <div class="actions"><button class="btn primary" onclick="formErp()">${I.plus} Nouvel ERP</button></div></div>`;
   if(!erps.length){
@@ -6112,6 +6162,7 @@ async function viewErps(c){
     c.innerHTML+= filtre
       ? emptyBlock(I.erp,'Aucun ERP pour ce filtre','Un filtre client est actif. Affichez tous les ERP pour les retrouver.',`<button class="btn primary" onclick="clearErpFilter()">Voir tous les ERP (${state.erps.length})</button>`)
       : emptyBlock(I.erp,'Aucun ERP','Créez un établissement et son QR code de pointage sera généré automatiquement.',`<button class="btn primary" onclick="formErp()">${I.plus} Créer un ERP</button>`);
+    c.innerHTML+=_erpAbnNote;
     return;
   }
   cxStyle();
@@ -6132,7 +6183,8 @@ async function viewErps(c){
       <div class="cx-seg"><button id="ex_vlist" class="on" onclick="_erpView('list')">▤ Liste</button><button id="ex_vcards" onclick="_erpView('cards')">▦ Cartes</button></div>
     </div>
     <div class="cx-list" id="ex_list"><div class="ex-list-h"><div>ERP</div><div>Client</div><div>Statut</div><div></div></div><div id="ex_list_body"></div></div>
-    <div class="cx-cards" id="ex_cards_wrap" style="display:none"><div id="ex_cards" style="display:contents"></div></div>`;
+    <div class="cx-cards" id="ex_cards_wrap" style="display:none"><div id="ex_cards" style="display:contents"></div></div>
+    ${_erpAbnNote}`;
   window._erpData=erps.map(e=>{ const s=window.assurEtat?window.assurEtat(e.assurance):null;
     return {id:e.id,code:e.code_erp||'',nom:e.nom||'',client:clientName(e.client_id),statut:e.statut||'brouillon',qr:e.qr_token||'',
       warn:!!(s&&s.days<=60), warnTxt:s?s.txt:'', warnColor:(s&&s.days<0)?'var(--majeur)':'var(--moyen)'};});
@@ -6229,7 +6281,7 @@ window.assurEtat=function(a){
 };
 function formErp(er,clientId){
   const e=er||{}; const cid=clientId||e.client_id||state.currentClient!=='all'?state.currentClient:'';
-  const clientOpts=state.clients.map(c=>`<option value="${c.id}"${(clientId||e.client_id)===c.id?' selected':''}>${esc(c.raison_sociale)}</option>`).join('');
+  const clientOpts=state.clients.filter(c=>window._supervision?c.id===window._supervision:(!c.abonnement_formule||(clientId||e.client_id)===c.id)).map(c=>`<option value="${c.id}"${(clientId||e.client_id)===c.id?' selected':''}>${esc(c.raison_sociale)}</option>`).join('');
   openModal(`<div class="modal-head"><h2>${er?'Modifier l\'ERP':'Nouvel ERP'}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
   <div class="modal-body">
     <div class="fld"><label>Client <span class="req">*</span></label><select id="f_client"${er?' disabled':''} onchange="erpAutoName()"><option value="">— choisir —</option>${clientOpts}</select></div>
@@ -7460,7 +7512,12 @@ async function formInter(erpId,it,mode){
     e?sb.from('obligations').select('domaine,libelle').eq('erp_id',e).eq('statut','applicable').order('domaine'):Promise.resolve({data:[]})
   ]);
   const domaines=[...new Set((oblRes.data||[]).map(o=>o.domaine||o.libelle).filter(Boolean))];
-  const erpOpts=state.erps.map(x=>`<option value="${x.id}"${e===x.id?' selected':''}>${esc(x.nom)}</option>`).join('');
+  const erpOpts=state.erps.filter(x=>{
+    if(!isClientAbonne(x.client_id)) return true;
+    if(window._supervision===x.client_id) return true;
+    if(state.currentClient===x.client_id||state.currentErp===x.id) return true;
+    return x.id===e; // ERP de la fiche en cours d'édition
+  }).map(x=>`<option value="${x.id}"${e===x.id?' selected':''}>${esc(x.nom)}</option>`).join('');
   const opt=p=>`<option value="${p.id}"${it.prestataire_id===p.id?' selected':''}>${esc(p.nom)}</option>`;
   const bdcList=(prest||[]).filter(p=>p.categorie==='bureau_de_controle');
   const presList=(prest||[]).filter(p=>p.categorie!=='bureau_de_controle');
@@ -8149,7 +8206,12 @@ function toggleReserveItem(id){
 window.toggleReserveItem=toggleReserveItem;
 async function formReserve(erpId,r){
   r=r||{}; const e=erpId||r.erp_id||(state.currentErp!=='all'?state.currentErp:'');
-  const erpOpts=state.erps.map(x=>`<option value="${x.id}"${e===x.id?' selected':''}>${esc(x.nom)}</option>`).join('');
+  const erpOpts=state.erps.filter(x=>{
+    if(!isClientAbonne(x.client_id)) return true;
+    if(window._supervision===x.client_id) return true;
+    if(state.currentClient===x.client_id||state.currentErp===x.id) return true;
+    return x.id===e; // ERP de la fiche en cours d'édition
+  }).map(x=>`<option value="${x.id}"${e===x.id?' selected':''}>${esc(x.nom)}</option>`).join('');
   const {data:prest}=await sb.from('prestataires').select('id,nom,categorie,email_rapports,telephone,contacts,client_id,client_ids,affaires').order('nom');
   const prestById={}; (prest||[]).forEach(p=>prestById[p.id]=p);
   // Extrait email + téléphone d'un prestataire : colonnes directes, sinon contacts JSON (charge d'affaire prioritaire)
@@ -8563,7 +8625,7 @@ window.fselInit=function(){
 async function chargerEtAfficherPhotos(){
   try{
     let q = sb.from('photos_urgentes').select('*').order('created_at',{ascending:false});
-    q = erpFilter(q);
+    q = erpFilter(q,{avecAbonnes:true}); // les alertes terrain des clients abonnés continuent de remonter
     const {data, error} = await q;
     if(error){ console.error('Photos RLS error:', error); showPhotoError(error.message); return; }
     window._photosCache = data || [];
@@ -9080,7 +9142,7 @@ async function viewCompteRendu(c){
   if(pres.length) destOpts+=`<optgroup label="Prestataires">${pres.map(optFor).join('')}</optgroup>`;
   if(bdc.length)  destOpts+=`<optgroup label="Bureaux de contrôle">${bdc.map(optFor).join('')}</optgroup>`;
   destOpts+=`<option value="__autre__">Autre (saisir)…</option>`;
-  const clientOpts=state.clients.filter(cl=>!window._supervision||cl.id===window._supervision).map(cl=>`<option value="${cl.id}">${esc(cl.raison_sociale)}</option>`).join('');
+  const clientOpts=state.clients.filter(cl=>window._supervision?cl.id===window._supervision:!cl.abonnement_formule).map(cl=>`<option value="${cl.id}">${esc(cl.raison_sociale)}</option>`).join('');
 
   _crPhotos=[]; _reportAttachments=[]; window._reportDests=[];
   const ist='width:100%;box-sizing:border-box';
@@ -10616,7 +10678,8 @@ async function viewContrats(c){
       sb.from('emails_programmes').select('id,contrat_id,send_at,statut,sent_at,destinataires').eq('type','contrat_preavis').order('created_at',{ascending:false})
     ]);
     let contrats=ctR.data||[];
-    if(window._supervision){ const eids=new Set(state.erps.filter(e=>e.client_id===window._supervision).map(e=>e.id)); contrats=contrats.filter(x=>x.client_id===window._supervision||(x.erp_id&&eids.has(x.erp_id))); }
+    { const okE=new Set(erpsPerimetre(false).map(e=>e.id)), okC=new Set(clientsPerimetre().map(c=>c.id));
+      contrats=contrats.filter(x=>{ if(x.erp_id) return okE.has(x.erp_id); if(x.client_id) return okC.has(x.client_id); return !window._supervision; }); }
     window._ctRappels={};
     ((rapR&&rapR.data)||[]).forEach(r=>{ if(r.contrat_id&&r.statut!=='annule'&&!window._ctRappels[r.contrat_id]) window._ctRappels[r.contrat_id]=r; });
     window._prestList=presR.data||[];
@@ -12767,7 +12830,8 @@ window.viewTableauxReserves=async function(c){
       if(dids.length){ const {data:ds}=await sb.from('documents').select('id,nom_original').in('id',dids); (ds||[]).forEach(d=>{window._trvDocNames[d.id]=d.nom_original;}); }
     }catch(_){}
     let _tabs=tabs||[], _res=res||[];
-    if(window._supervision){ const eids=new Set(state.erps.filter(e=>e.client_id===window._supervision).map(e=>e.id)); _tabs=_tabs.filter(t=>t.erp_id&&eids.has(t.erp_id)); _res=_res.filter(r=>r.erp_id&&eids.has(r.erp_id)); }
+    { const okE=new Set(erpsPerimetre(false).map(e=>e.id));
+      _tabs=_tabs.filter(t=>t.erp_id&&okE.has(t.erp_id)); _res=_res.filter(r=>r.erp_id&&okE.has(r.erp_id)); }
     window._trvData={tabs:_tabs,res:_res};
     window._trvF={annee:'all',source:'all',erp:''};
     trvRenderAll();
@@ -13616,8 +13680,8 @@ window.trvSupprimerTab=async function(id,docId){
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
 };
 window.trvModal=async function(){
-  let erps=state.erps||[];
-  if(state.currentClient && state.currentClient!=='all') erps=erps.filter(e=>e.client_id===state.currentClient);
+  let erps=erpsPerimetre(false);
+  if(state.currentClient && state.currentClient!=='all') erps=(state.erps||[]).filter(e=>e.client_id===state.currentClient);
   const cur=(state.currentErp&&state.currentErp!=='all')?state.currentErp:'';
   const eopts='<option value="">— Choisir un établissement —</option>'+erps.map(e=>`<option value="${e.id}"${e.id===cur?' selected':''}>${esc(e.nom)}</option>`).join('');
   openModal(`<div class="modal-head"><h2>Nouveau tableau de réserves</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
@@ -14752,7 +14816,8 @@ window.viewHistoSms=async function(c){
     const {data,error}=await sb.from('sms_scheduled').select('id,destinataire,message,send_at,sent_at,statut,contexte,created_by,created_at').order('created_at',{ascending:false}).limit(300);
     if(error) throw error;
     let _rows=data||[];
-    if(window._supervision){ const eids=new Set(state.erps.filter(e=>e.client_id===window._supervision).map(e=>e.id)); _rows=_rows.filter(r=>r.contexte&&r.contexte.erp_id&&eids.has(r.contexte.erp_id)); }
+    { const okE=new Set(erpsPerimetre(false).map(e=>e.id));
+      _rows=_rows.filter(r=>{ const eid=r.contexte&&r.contexte.erp_id; if(eid) return okE.has(eid); return !window._supervision; }); }
     hsRender(_rows);
   }catch(e){ document.getElementById('hs_box').innerHTML='<div class="card card-pad" style="color:var(--danger,#dc2626)">Erreur de chargement : '+esc(e.message||e)+'</div>'; }
 };
@@ -14819,6 +14884,11 @@ window.viewHistoEmails=async function(c){
 window.heApplyFilters=function(){
   let rows=(window._heRows||[]).slice();
   if(window._supervision){ const allowed=new Set(((window._heClientContacts||{})[window._supervision]||[])); rows=rows.filter(r=>allowed.has(String(r.destinataire||'').toLowerCase())); }
+  else{ // vue quotidienne : masquer les e-mails destinés aux contacts des clients abonnés
+    const abn=new Set();
+    (state.clients||[]).filter(c=>c.abonnement_formule).forEach(c=>{ (((window._heClientContacts||{})[c.id])||[]).forEach(m=>abn.add(m)); });
+    if(abn.size) rows=rows.filter(r=>!abn.has(String(r.destinataire||'').toLowerCase()));
+  }
   const pid=(document.getElementById('he_f_prest')||{}).value||'';
   const eid=(document.getElementById('he_f_erp')||{}).value||'';
   if(pid){
@@ -14904,7 +14974,8 @@ window.viewAccesRapports=async function(c){
   try{
     const {data,error}=await sb.from('acces_rapports').select('id,erp_id,doc_ids,password_plain,expires_at,actif,created_by,created_at').order('created_at',{ascending:false}).limit(150);
     if(error) throw error;
-    arhRender(data||[]);
+    const okE=new Set(erpsPerimetre(false).map(e=>e.id));
+    arhRender((data||[]).filter(r=>!r.erp_id||okE.has(r.erp_id)));
   }catch(e){ document.getElementById('arh_box').innerHTML='<div class="card card-pad" style="color:var(--danger,#dc2626)">Erreur : '+esc(e.message||e)+'</div>'; }
 };
 window.arhRender=function(rows){
@@ -15120,8 +15191,8 @@ window.arModal=async function(){
     try{ const {data}=await sb.from('prestataires').select('*').order('nom'); window._prestCache=data||[]; }catch(_){ window._prestCache=[]; }
   }
   window._arSel={}; window._arDocs=[]; window._arMobSel={}; window._arMailSel={};
-  let erps=state.erps||[];
-  if(state.currentClient && state.currentClient!=='all') erps=erps.filter(e=>e.client_id===state.currentClient);
+  let erps=erpsPerimetre(false);
+  if(state.currentClient && state.currentClient!=='all') erps=(state.erps||[]).filter(e=>e.client_id===state.currentClient);
   const cur=(state.currentErp&&state.currentErp!=='all')?state.currentErp:'';
   const eopts='<option value="">— Choisir un établissement —</option>'+erps.map(e=>`<option value="${e.id}"${e.id===cur?' selected':''}>${esc(e.nom)}</option>`).join('');
   const vopts=AR_VAL.map(([v,l])=>`<option value="${v}"${v===48?' selected':''}>${l}</option>`).join('');
@@ -15626,6 +15697,9 @@ window.viewTravaux=async function(c){
     const scope=d=>{
       if(state.currentErp!=='all') return d.erp_id===state.currentErp;
       if(state.currentClient!=='all') return (d.erp_id&&erpIds.includes(d.erp_id))||d.client_id===state.currentClient;
+      // Vue « Tous » : clients gérés uniquement
+      if(d.erp_id) return erpsPerimetre(false).some(e=>e.id===d.erp_id);
+      if(d.client_id) return !isClientAbonne(d.client_id);
       return true;
     };
     const docs=(dq.data||[]).filter(scope);
@@ -15954,6 +16028,9 @@ function gpaFrise(o){
 function gpaScope(o){
   if(state.currentErp!=='all') return o.erp_id===state.currentErp;
   if(state.currentClient!=='all') return o.client_id===state.currentClient||((state.erps||[]).some(e=>e.id===o.erp_id&&e.client_id===state.currentClient));
+  // Vue « Tous » : clients gérés uniquement
+  if(o.erp_id) return erpsPerimetre(false).some(e=>e.id===o.erp_id);
+  if(o.client_id) return !isClientAbonne(o.client_id);
   return true;
 }
 async function viewGpa(c){
@@ -16962,7 +17039,7 @@ async function viewPreparationCS(c){
   /* ── Chargement des prestataires liés à l’ERP ── */
   if(!erpId || erpId==='all'){
     // Construire un sélecteur ERP directement dans la page
-    const erpOpts=(state.erps||[]).slice().sort((a,b)=>(a.nom||'').localeCompare(b.nom||'')).map(e=>`<option value="${e.id}">${esc(e.nom||e.id)}</option>`).join('');
+    const erpOpts=erpsPerimetre(false).slice().sort((a,b)=>(a.nom||'').localeCompare(b.nom||'')).map(e=>`<option value="${e.id}">${esc(e.nom||e.id)}</option>`).join('');
     c.innerHTML=`<div class="page-head"><div class="t"><h1>Commission de sécurité</h1><p>Planifier et envoyer les demandes d'assistance technique aux prestataires.</p></div></div>
       <div class="card card-pad" style="text-align:center;padding:32px 24px">
         <div style="font-size:40px;margin-bottom:12px">🏢</div>
@@ -17703,7 +17780,7 @@ async function viewPlanMaintenance(c){
     const custom=[...new Set((eq||[]).map(e=>e.type).filter(t=>t&&!PM_BASE.includes(t)))].sort();
     allTypes=[...PM_BASE,...custom];}catch(_){}
 
-  const clientOpts=(state.clients||[]).filter(cl=>!window._supervision||cl.id===window._supervision).slice().sort((a,b)=>(a.raison_sociale||'').localeCompare(b.raison_sociale||'')).map(cl=>`<option value="${cl.id}">${esc(cl.raison_sociale)}</option>`).join('');
+  const clientOpts=(state.clients||[]).filter(cl=>window._supervision?cl.id===window._supervision:!cl.abonnement_formule).slice().sort((a,b)=>(a.raison_sociale||'').localeCompare(b.raison_sociale||'')).map(cl=>`<option value="${cl.id}">${esc(cl.raison_sociale)}</option>`).join('');
 
   // ── Rendu de la liste ──
   function pmRender(){
@@ -20812,11 +20889,16 @@ function viewVerifications(content){
   function ptom(p){const s=(p||'').toLowerCase();if(/hebdo/.test(s))return 0.25;if(/mensuel|1 mois/.test(s))return 1;if(/trimestr|3 mois/.test(s))return 3;if(/semestr|6 mois/.test(s))return 6;if(/annuel|1 an/.test(s))return 12;if(/2 ans/.test(s))return 24;if(/3 ans/.test(s))return 36;return null;}
   function vFiltApply(list){return (list||[]).filter(i=>{
     if(window._supervision && ((verp[i.erp_id]||{}).client_id)!==window._supervision) return false;
+    // Vue quotidienne sans filtre : exclure les vérifications des clients abonnés
+    if(!window._supervision && !vfiltErp && !vfiltClient){
+      const cid=(verp[i.erp_id]||{}).client_id;
+      if(cid && typeof isClientAbonne==='function' && isClientAbonne(cid)) return false;
+    }
     return vfiltErp?i.erp_id===vfiltErp:(vfiltClient?(((verp[i.erp_id]||{}).client_id)===vfiltClient):true);
   });}
   function vUpdateBadges(){
     const on=!!(vfiltClient||vfiltErp||window._supervision);
-    const cnt=k=>on?vFiltApply(vd[k]).length:(vd[k]||[]).length;
+    const cnt=k=>vFiltApply(vd[k]).length;
     const totT=(vd.repondre||[]).length+(vd.sans_reponse||[]).length+(vd.a_programmer||[]).length+(vd.a_reprogrammer||[]).length;
     const pairs=[['bvt',cnt('repondre')+cnt('sans_reponse')+cnt('a_programmer')+cnt('a_reprogrammer'),totT],
                  ['bvp',cnt('programmee'),(vd.programmee||[]).length],
