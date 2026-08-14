@@ -1288,6 +1288,11 @@ async function boot(){
     });
     return;
   }
+  if(hashNow.startsWith('/confirm/')){
+    loadCfg(); initSb();
+    renderConfirmInter(decodeURIComponent((hashNow.split('?')[0].split('/')[2])||''));
+    return;
+  }
   if(hashNow.startsWith('/fiche-prestataire/')||hashNow.startsWith('/p/')){
     loadCfg(); initSb();
     renderFichePrestPublic(decodeURIComponent(hashNow.split('/')[2]||''));
@@ -1375,6 +1380,7 @@ function renderRoute(){
   // Route publique QR
   if(hash.startsWith('/qr/')){ renderQrPublic(hash.split('/')[2]); return; }
   if(hash.startsWith('/levees/')){ renderLeveesPublic(hash.split('/')[2]); return; }
+  if(hash.startsWith('/confirm/')){ renderConfirmInter((hash.split('?')[0].split('/')[2])||''); return; }
   // Route publique confirmation CS
   if(hash.startsWith('/cs-confirm')){ renderCsConfirm(); return; }
   // Route admin dédiée
@@ -1444,7 +1450,7 @@ function renderConfig(){
 ===================================================================== */
 function renderAuth(mode){
   // Route publique QR : ne jamais écraser la page rapports par l'écran de connexion (course au chargement)
-  if(/^\/(qr|levees)\//.test((location.hash||'').replace('#',''))){ try{ renderRoute(); }catch(_){} return; }
+  if(/^\/(qr|levees|confirm)\//.test((location.hash||'').replace('#',''))){ try{ renderRoute(); }catch(_){} return; }
   const eye=id=>`<button type="button" tabindex="-1" class="au2-eye" onclick="togglePwd('${id}',this)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`;
   const seg=on=>`<div class="au2-seg"><span class="${on==='login'?'on':''}" onclick="renderAuth('login')">Se connecter</span><span class="${on==='signup'?'on':''}" onclick="renderAuth('signup')">Créer un compte</span></div>`;
   const forms = {
@@ -4047,7 +4053,7 @@ async function viewDashboard(c){
     const [ob,re,it,ph,cv,dg,pn] = await Promise.all([
       sb.from('obligations').select('id,erp_id,libelle,prochaine_echeance,statut,criticite,domaine'),
       sb.from('reserves').select('id,erp_id,libelle,criticite,statut,date_limite,localisation,observations'),
-      sb.from('interventions').select('id,erp_id,code_int,objet,statut,date_prevue,type,domaine,nb_relances,reponse_a_traiter,prestataire_id'),
+      sb.from('interventions').select('id,erp_id,code_int,objet,statut,date_prevue,type,domaine,nb_relances,reponse_a_traiter,prestataire_id,date_proposee,proposition_commentaire,demande_envoyee_le,demande_destinataire'),
       sb.from('photos_urgentes').select('id,erp_id,niveau_urgence,statut,commentaire,created_at,localisation,traitement,traitement_date,photo_path'),
       sb.from('conversations').select('intervention_id').not('intervention_id','is',null),
       sb.from('documents').select('id,erp_id,client_id,prestataire_id,nom_original,fichier_path,date_intervention_prevue,date_intervention_fin,pv_statut,source_devis_id,categorie,date_document').in('categorie',['devis_signe','pv_reception']),
@@ -4095,6 +4101,7 @@ async function viewDashboard(c){
     const priorities = [
       ...enRetard.map(o=>({c:'critique',isRetard:true,t:'Vérification en retard — '+(o.domaine||''),d:o.libelle,loc:fmtDate(o.prochaine_echeance),go:'/erps/'+o.erp_id+'?t=oblig'})),
       ...sansRep.map(i=>({c:'critique',t:'Prestataire sans réponse',d:(i.objet||i.domaine||'')+' — relancé '+(i.nb_relances||0)+'×',loc:'',go:'/interventions'})),
+      ...its.filter(i=>i.statut==='date_proposee'&&i.date_proposee).map(i=>({c:'majeur',t:'Autre date proposée par le prestataire',d:(i.objet||i.domaine||'')+' — propose le '+fmtDate(i.date_proposee)+(i.proposition_commentaire?' · « '+i.proposition_commentaire+' »':''),loc:'',go:'/interventions'})),
       ...aRepondre.map(i=>({c:'majeur',t:'Réponse prestataire à traiter',d:i.objet||i.domaine||'',loc:'',go:'/interventions'})),
       ...photoNT.filter(p=>(p.niveau_urgence==='critique'||p.niveau_urgence==='urgent')&&p.traitement!=='fait').map(p=>({c:'majeur',isPhoto:true,traitement:p.traitement,traitement_date:p.traitement_date,t:'Photo urgente',d:p.commentaire,loc:p.localisation,go:'/photos',photoPath:p.photo_path})),
       ...phs.filter(p=>!p.photo_path && p.traitement!=='fait').map(p=>({c:'moyen',t:'Note complémentaire',d:p.commentaire,loc:p.localisation,go:'/photos'})),
@@ -6838,7 +6845,7 @@ window.saveQrPubUrl=saveQrPubUrl;
 /* =====================================================================
    INTERVENTIONS
 ===================================================================== */
-const ITST={a_programmer:['','À programmer','moy'],demandee:['','Demandée','int'],programmee:['','Programmée','int'],realisee:['','Réalisée','inf'],
+const ITST={a_programmer:['','À programmer','moy'],demandee:['','Demandée','int'],date_proposee:['','Autre date proposée','moy'],programmee:['','Programmée','int'],realisee:['','Réalisée','inf'],
   rapport_attendu:['','Rapport attendu','moy'],rapport_recu:['','Rapport reçu','ok'],a_analyser:['','À analyser','moy'],cloturee:['','Clôturée','ok'],
   annulee_prestataire:['','Annulée (prestataire)','crit'],annulee_exploitant:['','Annulée (exploitant)','crit'],annulee_consultant:['','Annulée','crit'],a_reprogrammer:['','À reprogrammer','moy']};
 function interTable(rows){
@@ -6853,11 +6860,15 @@ function interTable(rows){
         <div style="flex:1 1 200px;min-width:0">
           <div style="font-size:14px;font-weight:700;color:var(--ink);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.objet||i.domaine||'—')}</div>
           ${erpName(i.erp_id)?`<div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(erpName(i.erp_id))}</div>`:''}
+          ${i.statut==='demandee'&&i.demande_envoyee_le?`<div style="font-size:11.5px;color:#1d4ed8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Demande envoyée le ${fmtDate(i.demande_envoyee_le)}${i.demande_destinataire?' à '+esc(i.demande_destinataire):''} — en attente de confirmation</div>`:''}
+          ${i.statut==='date_proposee'&&i.date_proposee?`<div style="font-size:11.5px;color:#92400e;margin-top:2px;white-space:normal">Le prestataire propose le <b>${fmtDate(i.date_proposee)}</b>${i.proposition_commentaire?' — « '+esc(i.proposition_commentaire)+' »':''}</div>`:''}
         </div>
         <div class="itr-right" style="display:flex;align-items:center;gap:14px;flex:0 0 auto">
           <div class="itr-date" style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;width:96px;text-align:right">${fmtDate(i.date_prevue)||'—'}${i.heure_prevue?'<div style="font-weight:500;color:var(--muted);font-size:11.5px">'+String(i.heure_prevue).slice(0,5)+'</div>':''}</div>
           <span class="mono itr-code" style="font-size:11px;color:var(--muted-2);white-space:nowrap;width:120px">${i.code_int?esc(i.code_int):''}</span>
           <span class="itr-stat" style="width:104px;display:flex;justify-content:flex-start">${statusPill(i.statut,ITST)}</span>
+          ${i.statut==='demandee'?`<button class="btn sm" style="font-size:12px;white-space:nowrap" title="Le prestataire a confirmé par téléphone : enregistrer la date" onclick="event.stopPropagation();confirmInterTel('${i.id}','${esc(i.date_prevue||'')}')">✓ Confirmer (tél.)</button>`:''}
+          ${i.statut==='date_proposee'&&i.date_proposee?`<button class="btn sm primary" style="font-size:12px;white-space:nowrap" onclick="event.stopPropagation();accepterDateProposee('${i.id}','${esc(i.date_proposee)}')">✓ Accepter le ${new Date(i.date_proposee+'T00:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})}</button>`:''}
           <button class="btn sm" style="font-size:12px;white-space:nowrap" title="Tableau de bord" onclick="event.stopPropagation();gotoClientDashboard('${i.erp_id}','${esc(i.date_prevue||'')}')">Tableau de bord</button>
         </div>
       </div>`;
@@ -6872,6 +6883,47 @@ function gotoClientDashboard(erpId, dateISO){
   navigate('/');
 }
 window.gotoClientDashboard=gotoClientDashboard;
+/* ── Confirmation manuelle (téléphone) d'une demande d'intervention ── */
+window.confirmInterTel=function(interId,datePrevue){
+  const old=document.getElementById('ctel_overlay'); if(old) old.remove();
+  const ov=document.createElement('div');
+  ov.id='ctel_overlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:100050;background:rgba(8,12,20,.55);display:flex;align-items:center;justify-content:center;padding:18px';
+  ov.innerHTML=`<div style="background:var(--surface,#fff);border-radius:16px;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--line,#e2e8f0)"><h3 style="margin:0;font-size:16px">Confirmation par téléphone</h3>
+      <p style="margin:4px 0 0;font-size:12.5px;color:var(--muted,#64748b)">Le prestataire a confirmé de vive voix — enregistrez la date convenue.</p></div>
+    <div style="padding:16px 20px">
+      <label style="display:block;font-size:12.5px;font-weight:600;margin-bottom:6px">Date convenue <span style="color:#dc2626">*</span></label>
+      <input id="ctel_date" type="date" value="${esc(datePrevue||'')}" style="width:100%;border:1px solid var(--line,#cbd5e1);border-radius:8px;padding:9px 12px;font-size:14px;box-sizing:border-box">
+    </div>
+    <div style="padding:13px 20px;border-top:1px solid var(--line,#e2e8f0);display:flex;justify-content:flex-end;gap:10px;background:var(--surface-2,#f8fafc)">
+      <button class="btn ghost" id="ctel_cancel">Annuler</button>
+      <button class="btn primary" id="ctel_ok">✓ Confirmer l'intervention</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{ if(e.target===ov) ov.remove(); });
+  ov.querySelector('#ctel_cancel').onclick=()=>ov.remove();
+  ov.querySelector('#ctel_ok').onclick=async()=>{
+    const d=ov.querySelector('#ctel_date').value;
+    if(!d){ toast('Indiquez la date convenue','err'); return; }
+    try{
+      await sb.from('interventions').update({statut:'programmee',date_prevue:d,confirme_le:new Date().toISOString()}).eq('id',interId);
+      ov.remove(); window._invalidateDashboard&&window._invalidateDashboard();
+      toast('Intervention confirmée et programmée au '+new Date(d+'T00:00:00').toLocaleDateString('fr-FR'),'ok');
+      renderRoute();
+    }catch(e){ toast('Erreur lors de l\'enregistrement. Merci de réessayer.','err'); }
+  };
+};
+/* ── Accepter la date proposée par le prestataire ── */
+window.accepterDateProposee=async function(interId,dateISO){
+  if(!confirm('Accepter la date du '+new Date(dateISO+'T00:00:00').toLocaleDateString('fr-FR')+' proposée par le prestataire ?\nL\'intervention passera en « Programmée » à cette date.')) return;
+  try{
+    await sb.from('interventions').update({statut:'programmee',date_prevue:dateISO,confirme_le:new Date().toISOString()}).eq('id',interId);
+    window._invalidateDashboard&&window._invalidateDashboard();
+    toast('Date acceptée — intervention programmée au '+new Date(dateISO+'T00:00:00').toLocaleDateString('fr-FR'),'ok');
+    renderRoute();
+  }catch(e){ toast('Erreur lors de l\'enregistrement. Merci de réessayer.','err'); }
+};
 async function viewInterventions(c){
   if(window._interSort===undefined) window._interSort='proches'; // à venir en premier (proche -> lointain), passées reléguées
   // Filtre éventuel passé par le tableau de bord (ex: #/interventions?f=aprog)
@@ -7106,13 +7158,36 @@ async function formInter(erpId,it,mode){
     if(!phones.length){toast('Aucun numéro mobile pour ce prestataire','info');return;}
     const smsAdr=[erpObj.adresse,[erpObj.code_postal,erpObj.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ');
     if(!erpObj.adresse||!erpObj.code_postal||!erpObj.ville) toast('⚠️ Adresse de l\'ERP incomplète sur sa fiche — elle manquera dans le SMS','info');
+    // ── Créer l'intervention (si nouvelle) + lien de confirmation à joindre au SMS ──
+    const smsCommentaire=($('#f_obj')&&$('#f_obj').value)||'';
+    const smsDomaine=(typeof getInterDomaine==='function'?(getInterDomaine()||''):'');
+    let smsInterId=it.id||null, smsConfirmUrl=null;
+    try{
+      if(!smsInterId){
+        const ins={erp_id:erpId2,type:typeInter,domaine:smsDomaine||null,objet:smsCommentaire||null,
+          prestataire_id:prestId,date_prevue:datePrevue||null,heure_prevue:$('#f_heure')?.value||null,statut:'a_programmer'};
+        const {data:cr,error:ie}=await sb.from('interventions').insert(ins).select('id');
+        if(ie) throw ie;
+        smsInterId=cr&&cr[0]&&cr[0].id;
+      }
+      if(smsInterId){
+        const payloadConf={erp:erpNom,adresse:smsAdr||'',type:typeLabel,domaine:smsDomaine,date_prevue:datePrevue||null,date_str:dateStr,prest:p.nom||''};
+        const {data:cf,error:ce}=await sb.from('intervention_confirmations').insert({intervention_id:smsInterId,payload:payloadConf}).select('token');
+        if(ce) throw ce;
+        const tk=cf&&cf[0]&&cf[0].token;
+        if(tk) smsConfirmUrl='https://app.conformite-securite.fr/#/confirm/'+tk;
+      }
+    }catch(eTok){ console.warn('lien de confirmation SMS non créé',eTok); }
     smsComposerOpen({
       title:'SMS — '+(p.nom||'Prestataire'),
       recipients:phones,
       clientContacts,
-      defaultMessage:'PREVA Conseils : demande d\'intervention ('+typeLabel+') — '+erpNom+(smsAdr?' — '+smsAdr:'')+' — date souhaitee : '+dateStr+'. Merci de nous confirmer votre disponibilite.',
-      context:{origine:'intervention',intervention_id:it.id||null,erp_id:erpId2,prestataire_id:prestId},
-      onSent:(r)=>{ try{ prevenirClientModal({erpId:erpId2,prestNom:p.nom,prestDest:r&&r.dest||'',canal:'SMS',typeLabel,domaine:(typeof getInterDomaine==='function'?(getInterDomaine()||''):''),dateStr,commentaire:($('#f_obj')&&$('#f_obj').value)||''}); }catch(_){} }
+      defaultMessage:'PREVA Conseils : demande d\'intervention ('+typeLabel+') — '+erpNom+(smsAdr?' — '+smsAdr:'')+' — date souhaitee : '+dateStr+'.'+(smsConfirmUrl?' Confirmez ou proposez une autre date en 1 clic : '+smsConfirmUrl:' Merci de nous confirmer votre disponibilite.'),
+      context:{origine:'intervention',intervention_id:smsInterId||null,erp_id:erpId2,prestataire_id:prestId},
+      onSent:(r)=>{
+        if(smsInterId){ try{ sb.from('interventions').update({statut:'demandee',demande_envoyee_le:new Date().toISOString(),demande_destinataire:(r&&r.dest)||''}).eq('id',smsInterId).then(()=>{ window._invalidateDashboard&&window._invalidateDashboard(); try{ renderRoute(); }catch(_){} }); }catch(_){} }
+        try{ prevenirClientModal({erpId:erpId2,prestNom:p.nom,prestDest:r&&r.dest||'',canal:'SMS',typeLabel,domaine:smsDomaine,dateStr,commentaire:smsCommentaire}); }catch(_){}
+      }
     });
   };
 
@@ -7308,6 +7383,39 @@ async function formInter(erpId,it,mode){
       }
       const joindreFiche=!!document.getElementById('esel_fiche')?.checked;
       selOverlay.remove();
+      btnEmail.disabled=true; btnEmail.textContent='Envoi…';
+      // ── Créer / mettre à jour l'intervention (statut « Demandée ») + lien de confirmation ──
+      let confirmToken=null, interId=it.id||null, createdNew=false;
+      try{
+        const nowIso=new Date().toISOString();
+        if(!interId){
+          const ins={erp_id:erpId2,type:typeInter,domaine:domaineInter||null,objet:finalComment||commentaire||null,
+            prestataire_id:prestId,date_prevue:datePrevue||null,heure_prevue:$('#f_heure')?.value||null,
+            statut:'demandee',demande_envoyee_le:nowIso,demande_destinataire:emailTo};
+          const {data:createdRows,error:insErr}=await sb.from('interventions').insert(ins).select('id');
+          if(insErr) throw insErr;
+          interId=createdRows&&createdRows[0]&&createdRows[0].id; createdNew=!!interId;
+        }else{
+          await sb.from('interventions').update({statut:'demandee',demande_envoyee_le:nowIso,demande_destinataire:emailTo}).eq('id',interId);
+        }
+        if(interId){
+          const payloadConf={erp:erpNom,adresse:erpAdresse||'',type:typeLabel,domaine:domaineInter||'',date_prevue:datePrevue||null,date_str:dateStr,prest:p.nom||''};
+          const {data:confRows,error:confErr}=await sb.from('intervention_confirmations').insert({intervention_id:interId,payload:payloadConf}).select('token');
+          if(confErr) throw confErr;
+          confirmToken=confRows&&confRows[0]&&confRows[0].token;
+        }
+      }catch(eTok){ console.warn('lien de confirmation non créé',eTok); }
+      const confirmUrl=confirmToken?('https://app.conformite-securite.fr/#/confirm/'+confirmToken):null;
+      const dateLongue=datePrevue?new Date(datePrevue+'T00:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}):'';
+      const actionBlock=confirmUrl?`
+          <div style="background:#f0f6ff;border:2px solid #2563eb;border-radius:12px;padding:18px 20px;text-align:center;margin:0 0 18px">
+            <div style="font-size:15px;font-weight:800;color:#0f172a;margin-bottom:4px">⚡ Merci de nous répondre en un clic :</div>
+            <div style="font-size:12px;color:#475569;margin-bottom:14px">Appuyez sur l'un des deux boutons ci-dessous</div>
+            ${datePrevue?`<a href="${confirmUrl}?r=oui" style="display:block;background:#16a34a;color:#ffffff;font-weight:800;font-size:15px;border-radius:10px;padding:14px;text-decoration:none;margin-bottom:10px">JE CONFIRME — ${esc(dateLongue)}</a>
+            <a href="${confirmUrl}?r=autre" style="display:block;background:#ffffff;color:#2563eb;border:2px solid #2563eb;font-weight:800;font-size:13.5px;border-radius:10px;padding:12px;text-decoration:none">Cette date ne me convient pas — j'en propose une autre</a>`
+            :`<a href="${confirmUrl}?r=autre" style="display:block;background:#2563eb;color:#ffffff;font-weight:800;font-size:14px;border-radius:10px;padding:14px;text-decoration:none">Proposer une date d'intervention</a>`}
+            <div style="font-size:10.5px;color:#94a3b8;margin-top:11px">Lien personnel et sécurisé, valable 30 jours — aucun compte à créer.</div>
+          </div>`:'';
       const html=`<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">
         <div style="background:#1e3a5f;padding:20px 24px;border-radius:8px 8px 0 0">
           <h2 style="color:#fff;margin:0;font-size:18px">Demande d'intervention</h2>
@@ -7324,12 +7432,11 @@ async function formInter(erpId,it,mode){
             <tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Date souhaitée</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(dateStr)}</td></tr>
             ${finalComment?`<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569;vertical-align:top">Commentaire</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b;white-space:pre-line">${esc(finalComment)}</td></tr>`:''}
           </table>
-          <p style="margin:0 0 8px;color:#1e293b">Merci de nous confirmer votre disponibilité et vos conditions d'intervention.</p>
+          ${actionBlock||`<p style="margin:0 0 8px;color:#1e293b">Merci de nous confirmer votre disponibilité et vos conditions d'intervention.</p>`}
           <p style="margin:0;color:#64748b;font-size:13px">Cordialement,<br><b>PREVA Conseils</b></p>
         </div>
       </div>`;
       const subject=`Demande d'intervention — ${erpNom}${domaineInter?' — '+domaineInter:''}`;
-      btnEmail.disabled=true; btnEmail.textContent='Envoi…';
       try{
         let attachments=null;
         if(joindreFiche){
@@ -7345,6 +7452,8 @@ async function formInter(erpId,it,mode){
         if(error) throw error;
         toast('Demande envoyée à '+emailTo,'ok');
         btnEmail.textContent='✓ Envoyé';
+        // L'intervention a été créée/mise à jour en « Demandée » : fermer le formulaire pour éviter un doublon
+        if(interId){ _modalDirty=false; try{ closeModal(); }catch(_){} window._invalidateDashboard&&window._invalidateDashboard(); try{ renderRoute(); }catch(_){} }
         // Proposer de prévenir le client (jamais bloquant)
         try{ prevenirClientModal({erpId:erpId2,prestNom:p.nom,prestDest:emailTo,canal:'email',typeLabel,domaine:domaineInter,dateStr,commentaire:finalComment}); }catch(_){}
       }catch(err){
@@ -19750,6 +19859,89 @@ async function renderCsConfirm(){
   };
 }
 window.renderCsConfirm=renderCsConfirm;
+
+/* ═══ CONFIRMATION D'INTERVENTION PAR LE PRESTATAIRE — page publique par lien token ═══
+   #/confirm/<token>?r=oui   → confirme la date en un clic (statut → programmée)
+   #/confirm/<token>?r=autre → formulaire « je propose une autre date » (statut → autre date proposée) */
+async function renderConfirmInter(token){
+  if(!sb){ loadCfg(); if(!initSb()){ $('#root').innerHTML='<div style="font-family:sans-serif;max-width:500px;margin:80px auto;padding:32px;text-align:center"><p style="color:#ef4444">Configuration manquante.</p></div>'; return; } }
+  const params=new URLSearchParams(location.hash.split('?')[1]||'');
+  const r=params.get('r')||'';
+  const root=$('#root');
+  const shell=inner=>`<div style="font-family:'Inter',system-ui,-apple-system,sans-serif;min-height:100vh;background:#eef1f6;display:flex;align-items:flex-start;justify-content:center;padding:36px 16px">
+    <div style="max-width:430px;width:100%;background:#fff;border-radius:16px;box-shadow:0 12px 40px rgba(15,23,42,.14);padding:26px 28px;box-sizing:border-box">
+      <div style="font-weight:700;letter-spacing:.14em;font-size:12px;color:#1f2733;margin-bottom:16px">CONFORMITÉ SÉCURITÉ</div>
+      ${inner}
+    </div></div>`;
+  root.innerHTML=shell('<p style="color:#64748b;font-size:14px;text-align:center;margin:0">Chargement…</p>');
+  if(!token){ root.innerHTML=shell('<h3 style="font-size:18px;margin:0 0 6px">Lien invalide</h3><p style="font-size:13px;color:#64748b;margin:0;line-height:1.6">Ce lien de confirmation est incomplet. Merci de contacter PREVA Conseils.</p>'); return; }
+  let row=null;
+  try{ const {data}=await sb.from('intervention_confirmations').select('*').eq('token',token).maybeSingle(); row=data; }catch(_){}
+  if(!row){
+    root.innerHTML=shell('<h3 style="font-size:18px;margin:0 0 6px">Lien invalide ou expiré</h3><p style="font-size:13px;color:#64748b;margin:0;line-height:1.6">Ce lien de confirmation n\'est plus valable (il expire après 30 jours ou après une réponse). Merci de contacter directement PREVA Conseils.</p>');
+    return;
+  }
+  const pl=row.payload||{};
+  const fmtL=d=>d?new Date(d+'T00:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}):'';
+  const fmtC=d=>d?new Date(d+'T00:00:00').toLocaleDateString('fr-FR'):'';
+  const dLong=fmtL(pl.date_prevue);
+  const recap=(dateTxt)=>`<div style="background:#f6f8fb;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.7;margin-bottom:18px;color:#0f172a"><b>${esc(pl.erp||'Établissement')}</b>${pl.adresse?'<br>'+esc(pl.adresse):''}<br>${esc(pl.type||'Intervention')}${pl.domaine?' — '+esc(pl.domaine):''}${dateTxt?'<br>📅 <b>'+esc(dateTxt)+'</b>':''}</div>`;
+  const subP=t=>`<p style="font-size:13px;color:#64748b;margin:0 0 16px;line-height:1.55">${t}</p>`;
+  const okScreen=(dateTxt)=>shell(`<h3 style="font-size:18px;margin:0 0 6px">✅ C'est confirmé !</h3>${subP('Merci — votre intervention est enregistrée :')}${recap(dateTxt)}${subP('PREVA Conseils et l\'établissement sont prévenus automatiquement. Vous pouvez fermer cette page.').replace('margin:0 0 16px','margin:0')}`);
+  const propScreen=(dateTxt,com)=>shell(`<h3 style="font-size:18px;margin:0 0 6px">📅 Proposition envoyée</h3>${subP('Merci — votre proposition a bien été transmise à PREVA Conseils :')}${recap(dateTxt)}${com?`<div style="background:#fffef5;border:1px solid #e5d9a8;border-radius:10px;padding:10px 13px;font-size:12.5px;color:#0f172a;line-height:1.6;margin-bottom:16px;white-space:pre-line">${esc(com)}</div>`:''}${subP('Nous revenons vers vous très vite pour valider cette date. Vous pouvez fermer cette page.').replace('margin:0 0 16px','margin:0')}`);
+  // Déjà répondu ?
+  if(row.reponse==='confirmee'){ root.innerHTML=okScreen(dLong||fmtC(row.date_proposee)); return; }
+  if(row.reponse==='autre_date'){ root.innerHTML=propScreen(fmtL(row.date_proposee),row.commentaire||''); return; }
+  const answer=async(upd)=>{
+    const {data:done,error}=await sb.from('intervention_confirmations').update(upd).eq('token',token).select('id');
+    if(error||!done||!done.length) throw new Error('maj impossible');
+  };
+  // ── r=oui : confirmation en un clic ──
+  if(r==='oui' && pl.date_prevue){
+    try{
+      await answer({reponse:'confirmee',repondu_le:new Date().toISOString()});
+      root.innerHTML=okScreen(dLong);
+    }catch(e){
+      root.innerHTML=shell('<h3 style="font-size:18px;margin:0 0 6px">Lien déjà utilisé ou expiré</h3><p style="font-size:13px;color:#64748b;margin:0;line-height:1.6">Une réponse a peut-être déjà été enregistrée. Merci de contacter directement PREVA Conseils si besoin.</p>');
+    }
+    return;
+  }
+  // ── r=autre (ou lien sans paramètre) : proposer une autre date ──
+  const today=new Date().toISOString().slice(0,10);
+  root.innerHTML=shell(`
+    <h3 style="font-size:18px;margin:0 0 6px">📅 Proposer une autre date</h3>
+    ${subP(pl.date_prevue?('La date du <b>'+esc(fmtC(pl.date_prevue))+'</b> ne vous convient pas — indiquez celle qui vous arrange :'):'Indiquez la date qui vous arrange pour cette intervention :')}
+    ${recap(dLong)}
+    <label style="display:block;font-size:12.5px;font-weight:700;margin-bottom:6px;color:#0f172a">Ma date proposée</label>
+    <input id="cfp_date" type="date" min="${today}" style="width:100%;border:1.5px solid #2563eb;background:#fff;border-radius:10px;padding:11px 14px;font-size:14px;font-weight:600;margin-bottom:12px;box-sizing:border-box;box-shadow:0 0 0 4px rgba(37,99,235,.1);font-family:inherit">
+    <label style="display:block;font-size:12.5px;font-weight:700;margin-bottom:6px;color:#0f172a">Commentaire <span style="font-weight:400;color:#94a3b8">(optionnel)</span></label>
+    <textarea id="cfp_com" rows="2" placeholder="Ex : indisponible ce jour-là, plutôt en matinée…" style="width:100%;border:1px solid #cbd5e1;border-radius:9px;padding:9px 12px;font-size:12.5px;font-family:inherit;box-sizing:border-box;resize:vertical"></textarea>
+    <button id="cfp_send" style="display:block;width:100%;background:#2563eb;color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:800;font-family:inherit;cursor:pointer;text-align:center;margin-top:10px">Envoyer ma proposition →</button>
+    ${pl.date_prevue?`<button id="cfp_confirm" style="display:block;width:100%;background:none;border:none;color:#16a34a;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;margin-top:14px;text-decoration:underline">Finalement, je confirme la date du ${esc(fmtC(pl.date_prevue))}</button>`:''}`);
+  const btnSend=document.getElementById('cfp_send');
+  btnSend.onclick=async()=>{
+    const d=document.getElementById('cfp_date').value;
+    if(!d){ document.getElementById('cfp_date').focus(); return; }
+    btnSend.disabled=true; btnSend.textContent='Envoi…';
+    const com=(document.getElementById('cfp_com').value||'').trim();
+    try{
+      await answer({reponse:'autre_date',date_proposee:d,commentaire:com||null,repondu_le:new Date().toISOString()});
+      root.innerHTML=propScreen(fmtL(d),com);
+    }catch(e){
+      btnSend.disabled=false; btnSend.textContent='Envoyer ma proposition →';
+      root.querySelector('#cfp_err')||btnSend.insertAdjacentHTML('afterend','<p id="cfp_err" style="color:#ef4444;font-size:12.5px;text-align:center;margin:10px 0 0">Une erreur est survenue (lien déjà utilisé ?). Merci de réessayer ou de contacter PREVA Conseils.</p>');
+    }
+  };
+  const btnConf=document.getElementById('cfp_confirm');
+  if(btnConf) btnConf.onclick=async()=>{
+    btnConf.disabled=true;
+    try{
+      await answer({reponse:'confirmee',repondu_le:new Date().toISOString()});
+      root.innerHTML=okScreen(dLong);
+    }catch(e){ btnConf.disabled=false; }
+  };
+}
+window.renderConfirmInter=renderConfirmInter;
 
 async function renderQrPublic(token){
   if(!sb){ loadCfg(); if(!initSb()){ $('#root').innerHTML='<div class="loading"><div class="spin"></div></div>'; return; } }
