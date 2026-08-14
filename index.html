@@ -4784,15 +4784,17 @@ function cxStyle(){
   document.head.appendChild(st);
 }
 async function viewClients(c){
+  // Supervision d'un client abonné : la page Clients ne montre QUE ce client (comme lui la voit)
+  const _sup=window._supervision||null;
   // Séparation : les clients abonnés (formule d'abonnement renseignée) vivent dans Administration
-  const geres=state.clients.filter(x=>!x.abonnement_formule);
-  const abonnes=state.clients.filter(x=>!!x.abonnement_formule);
+  const geres=_sup?state.clients.filter(x=>x.id===_sup):state.clients.filter(x=>!x.abonnement_formule);
+  const abonnes=_sup?[]:state.clients.filter(x=>!!x.abonnement_formule);
   const abonneNote=abonnes.length?`<div style="display:flex;align-items:center;gap:9px;background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:10px 14px;margin-top:14px;font-size:12.5px;color:var(--muted)">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
     <span>${abonnes.length} client${abonnes.length>1?'s':''} abonné${abonnes.length>1?'s':''} (${abonnes.map(a=>esc(a.raison_sociale)).join(', ')}) — géré${abonnes.length>1?'s':''} depuis <a onclick="navigate('/admin')" style="color:#2563eb;font-weight:700;cursor:pointer">Administration →</a></span>
   </div>`:'';
-  const headHtml=`<div class="page-head"><div class="t"><h1>Clients</h1><p><b id="cx-count">${geres.length}</b> client(s) dans votre portefeuille.</p></div>
-    <div class="actions"><button class="btn primary" onclick="formClient()">${I.plus} Nouveau client</button></div></div>`;
+  const headHtml=`<div class="page-head"><div class="t"><h1>Clients</h1><p>${_sup?'Fiche client de l’espace supervisé.':`<b id="cx-count">${geres.length}</b> client(s) dans votre portefeuille.`}</p></div>
+    ${_sup?'':`<div class="actions"><button class="btn primary" onclick="formClient()">${I.plus} Nouveau client</button></div>`}</div>`;
   if(!geres.length){ c.innerHTML=headHtml+emptyBlock(I.clients,'Aucun client','Créez votre premier client pour rattacher ses ERP, contacts et documents.',`<button class="btn primary" onclick="formClient()">${I.plus} Créer un client</button>`)+abonneNote; return; }
   cxStyle();
   const total=geres.length;
@@ -5636,6 +5638,7 @@ async function loadConversations(){
   const asc=(window._convSort==='asc');
   try{ const r=await sb.from('conversations').select('*').order('date_conv',{ascending:asc,nullsFirst:false}).order('created_at',{ascending:asc}); rows=r.data||[]; }
   catch(e){ box.innerHTML=errBlock(e); return; }
+  if(window._supervision){ const eids=new Set(state.erps.filter(e=>e.client_id===window._supervision).map(e=>e.id)); rows=rows.filter(r=>r.client_id===window._supervision||(r.erp_id&&eids.has(r.erp_id))); }
   window._convCache=rows;
   ['asc','desc'].forEach(d=>{ const b=document.getElementById('cvsort-'+d); if(b) b.classList.toggle('on', d===(window._convSort||'desc')); });
   // Compter les photos/vidéos associées à chaque conversation
@@ -5783,7 +5786,7 @@ function convCard(cv,clientNm){
 function formConversation(conv){
   const cv=conv||{};
   const today=new Date().toISOString().slice(0,10);
-  const clientOpts=state.clients.map(cl=>`<option value="${cl.id}"${cv.client_id===cl.id?' selected':''}>${esc(cl.raison_sociale)}</option>`).join('');
+  const clientOpts=state.clients.filter(cl=>!window._supervision||cl.id===window._supervision).map(cl=>`<option value="${cl.id}"${cv.client_id===cl.id?' selected':''}>${esc(cl.raison_sociale)}</option>`).join('');
   _cvAudioBlob=null; _cvAudioExt='webm'; _cvRec=null; _cvRecChunks=[];
   openModal(`<div class="modal-head"><h2>${cv.id?'Modifier la conversation':'Nouvelle conversation'}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
   <div class="modal-body">
@@ -9016,7 +9019,7 @@ async function viewCompteRendu(c){
   if(pres.length) destOpts+=`<optgroup label="Prestataires">${pres.map(optFor).join('')}</optgroup>`;
   if(bdc.length)  destOpts+=`<optgroup label="Bureaux de contrôle">${bdc.map(optFor).join('')}</optgroup>`;
   destOpts+=`<option value="__autre__">Autre (saisir)…</option>`;
-  const clientOpts=state.clients.map(cl=>`<option value="${cl.id}">${esc(cl.raison_sociale)}</option>`).join('');
+  const clientOpts=state.clients.filter(cl=>!window._supervision||cl.id===window._supervision).map(cl=>`<option value="${cl.id}">${esc(cl.raison_sociale)}</option>`).join('');
 
   _crPhotos=[]; _reportAttachments=[]; window._reportDests=[];
   const ist='width:100%;box-sizing:border-box';
@@ -10551,7 +10554,8 @@ async function viewContrats(c){
       sb.from('prestataires').select('id,nom,categorie').order('nom'),
       sb.from('emails_programmes').select('id,contrat_id,send_at,statut,sent_at,destinataires').eq('type','contrat_preavis').order('created_at',{ascending:false})
     ]);
-    const contrats=ctR.data||[];
+    let contrats=ctR.data||[];
+    if(window._supervision){ const eids=new Set(state.erps.filter(e=>e.client_id===window._supervision).map(e=>e.id)); contrats=contrats.filter(x=>x.client_id===window._supervision||(x.erp_id&&eids.has(x.erp_id))); }
     window._ctRappels={};
     ((rapR&&rapR.data)||[]).forEach(r=>{ if(r.contrat_id&&r.statut!=='annule'&&!window._ctRappels[r.contrat_id]) window._ctRappels[r.contrat_id]=r; });
     window._prestList=presR.data||[];
@@ -12701,7 +12705,9 @@ window.viewTableauxReserves=async function(c){
       const dids=[...new Set((tabs||[]).map(t=>t.rapport_document_id).filter(Boolean))];
       if(dids.length){ const {data:ds}=await sb.from('documents').select('id,nom_original').in('id',dids); (ds||[]).forEach(d=>{window._trvDocNames[d.id]=d.nom_original;}); }
     }catch(_){}
-    window._trvData={tabs:tabs||[],res:res||[]};
+    let _tabs=tabs||[], _res=res||[];
+    if(window._supervision){ const eids=new Set(state.erps.filter(e=>e.client_id===window._supervision).map(e=>e.id)); _tabs=_tabs.filter(t=>t.erp_id&&eids.has(t.erp_id)); _res=_res.filter(r=>r.erp_id&&eids.has(r.erp_id)); }
+    window._trvData={tabs:_tabs,res:_res};
     window._trvF={annee:'all',source:'all',erp:''};
     trvRenderAll();
   }catch(e){ document.getElementById('trv_box').innerHTML='<div class="card card-pad" style="color:#dc2626">Erreur : '+esc(e.message||e)+'</div>'; }
@@ -14684,7 +14690,9 @@ window.viewHistoSms=async function(c){
   try{
     const {data,error}=await sb.from('sms_scheduled').select('id,destinataire,message,send_at,sent_at,statut,contexte,created_by,created_at').order('created_at',{ascending:false}).limit(300);
     if(error) throw error;
-    hsRender(data||[]);
+    let _rows=data||[];
+    if(window._supervision){ const eids=new Set(state.erps.filter(e=>e.client_id===window._supervision).map(e=>e.id)); _rows=_rows.filter(r=>r.contexte&&r.contexte.erp_id&&eids.has(r.contexte.erp_id)); }
+    hsRender(_rows);
   }catch(e){ document.getElementById('hs_box').innerHTML='<div class="card card-pad" style="color:var(--danger,#dc2626)">Erreur de chargement : '+esc(e.message||e)+'</div>'; }
 };
 window.hsRender=function(rows){
@@ -14749,6 +14757,7 @@ window.viewHistoEmails=async function(c){
 };
 window.heApplyFilters=function(){
   let rows=(window._heRows||[]).slice();
+  if(window._supervision){ const allowed=new Set(((window._heClientContacts||{})[window._supervision]||[])); rows=rows.filter(r=>allowed.has(String(r.destinataire||'').toLowerCase())); }
   const pid=(document.getElementById('he_f_prest')||{}).value||'';
   const eid=(document.getElementById('he_f_erp')||{}).value||'';
   if(pid){
@@ -17633,7 +17642,7 @@ async function viewPlanMaintenance(c){
     const custom=[...new Set((eq||[]).map(e=>e.type).filter(t=>t&&!PM_BASE.includes(t)))].sort();
     allTypes=[...PM_BASE,...custom];}catch(_){}
 
-  const clientOpts=(state.clients||[]).slice().sort((a,b)=>(a.raison_sociale||'').localeCompare(b.raison_sociale||'')).map(cl=>`<option value="${cl.id}">${esc(cl.raison_sociale)}</option>`).join('');
+  const clientOpts=(state.clients||[]).filter(cl=>!window._supervision||cl.id===window._supervision).slice().sort((a,b)=>(a.raison_sociale||'').localeCompare(b.raison_sociale||'')).map(cl=>`<option value="${cl.id}">${esc(cl.raison_sociale)}</option>`).join('');
 
   // ── Rendu de la liste ──
   function pmRender(){
@@ -18931,6 +18940,7 @@ window.pinvVoirFiche=async function(id){
 async function viewPrestataires(c, defaultCat){
   if(defaultCat) _prestOnglet = defaultCat;
   window._anx=window._anx||{q:'',client:'all',spec:'all',invs:[],acces:[]};
+  if(window._supervision) window._anx.client=window._supervision;
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Annuaire des intervenants</h1><p id="anx-sub">Bureaux de contrôle et prestataires.</p></div>
     <div class="actions">
       <button class="btn" onclick="pinvInviteModal()">✉ Inviter</button>
@@ -18943,7 +18953,7 @@ async function viewPrestataires(c, defaultCat){
         <button id="tab-acces" onclick="switchPrestOnglet('acces')">Accès rapports</button>
       </span>
       <span class="anx-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input id="anx-q" placeholder="Rechercher un nom, une spécialité, un contact…" oninput="anxFilter()"></span>
-      <select class="anx-sel" id="anx-client" onchange="anxFilter()"><option value="all">Client : tous</option>${(state.clients||[]).map(cl=>`<option value="${cl.id}">${esc(cl.raison_sociale)}</option>`).join('')}</select>
+      <select class="anx-sel" id="anx-client" onchange="anxFilter()" style="${window._supervision?'display:none':''}">${window._supervision?`<option value="${window._supervision}" selected>${esc((state.clients.find(x=>x.id===window._supervision)||{}).raison_sociale||'Client')}</option>`:`<option value="all">Client : tous</option>${(state.clients||[]).map(cl=>`<option value="${cl.id}">${esc(cl.raison_sociale)}</option>`).join('')}`}</select>
       <select class="anx-sel" id="anx-spec" onchange="anxFilter()"><option value="all">Spécialité : toutes</option></select>
     </div>
     <div id="pinv-band"></div>
@@ -20716,7 +20726,7 @@ function viewVerifications(content){
     </div>
     <div id="vglobal_filters" class="vfiltbar" style="display:none">
       <span class="lbl">Affiner</span>
-      <select id="vfilt_client" onchange="vFiltClientChange()"><option value="">— Tous les clients —</option></select>
+      <select id="vfilt_client" onchange="vFiltClientChange()" style="${window._supervision?'display:none':''}"><option value="">— Tous les clients —</option></select>
       <select id="vfilt_erp" onchange="vFiltErpChange()"><option value="">— Tous les établissements —</option></select>
       <button class="btn sm" id="vfilt_reset" style="display:none" onclick="vFiltReset()">Réinitialiser</button>
       <div class="sortseg" role="group" aria-label="Trier par date" style="margin-left:auto">
@@ -20739,9 +20749,12 @@ function viewVerifications(content){
   function vfd(d){if(!d)return'—';const x=new Date(d);return isNaN(+x)?d:x.toLocaleDateString('fr-FR');}
   function vdl(d){if(!d)return null;return Math.round((new Date(d)-new Date())/86400000);}
   function ptom(p){const s=(p||'').toLowerCase();if(/hebdo/.test(s))return 0.25;if(/mensuel|1 mois/.test(s))return 1;if(/trimestr|3 mois/.test(s))return 3;if(/semestr|6 mois/.test(s))return 6;if(/annuel|1 an/.test(s))return 12;if(/2 ans/.test(s))return 24;if(/3 ans/.test(s))return 36;return null;}
-  function vFiltApply(list){return (list||[]).filter(i=>vfiltErp?i.erp_id===vfiltErp:(vfiltClient?(((verp[i.erp_id]||{}).client_id)===vfiltClient):true));}
+  function vFiltApply(list){return (list||[]).filter(i=>{
+    if(window._supervision && ((verp[i.erp_id]||{}).client_id)!==window._supervision) return false;
+    return vfiltErp?i.erp_id===vfiltErp:(vfiltClient?(((verp[i.erp_id]||{}).client_id)===vfiltClient):true);
+  });}
   function vUpdateBadges(){
-    const on=!!(vfiltClient||vfiltErp);
+    const on=!!(vfiltClient||vfiltErp||window._supervision);
     const cnt=k=>on?vFiltApply(vd[k]).length:(vd[k]||[]).length;
     const totT=(vd.repondre||[]).length+(vd.sans_reponse||[]).length+(vd.a_programmer||[]).length+(vd.a_reprogrammer||[]).length;
     const pairs=[['bvt',cnt('repondre')+cnt('sans_reponse')+cnt('a_programmer')+cnt('a_reprogrammer'),totT],
