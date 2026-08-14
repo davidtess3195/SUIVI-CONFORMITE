@@ -7104,12 +7104,15 @@ async function formInter(erpId,it,mode){
       }
     }catch(_){}
     if(!phones.length){toast('Aucun numéro mobile pour ce prestataire','info');return;}
+    const smsAdr=[erpObj.adresse,[erpObj.code_postal,erpObj.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    if(!erpObj.adresse||!erpObj.code_postal||!erpObj.ville) toast('⚠️ Adresse de l\'ERP incomplète sur sa fiche — elle manquera dans le SMS','info');
     smsComposerOpen({
       title:'SMS — '+(p.nom||'Prestataire'),
       recipients:phones,
       clientContacts,
-      defaultMessage:'PREVA Conseils : demande d\'intervention ('+typeLabel+') — '+erpNom+' — date souhaitee : '+dateStr+'. Merci de nous confirmer votre disponibilite.',
-      context:{origine:'intervention',intervention_id:it.id||null,erp_id:erpId2,prestataire_id:prestId}
+      defaultMessage:'PREVA Conseils : demande d\'intervention ('+typeLabel+') — '+erpNom+(smsAdr?' — '+smsAdr:'')+' — date souhaitee : '+dateStr+'. Merci de nous confirmer votre disponibilite.',
+      context:{origine:'intervention',intervention_id:it.id||null,erp_id:erpId2,prestataire_id:prestId},
+      onSent:(r)=>{ try{ prevenirClientModal({erpId:erpId2,prestNom:p.nom,prestDest:r&&r.dest||'',canal:'SMS',typeLabel,domaine:(typeof getInterDomaine==='function'?(getInterDomaine()||''):''),dateStr,commentaire:($('#f_obj')&&$('#f_obj').value)||''}); }catch(_){} }
     });
   };
 
@@ -7205,6 +7208,7 @@ async function formInter(erpId,it,mode){
       <div id="esel_step1">
         <div style="padding:14px 20px;max-height:55vh;overflow-y:auto">
           ${!hasEmails?'<p style="margin:0 0 10px;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 10px">⚠️ Aucun email enregistré pour ce prestataire. Saisissez une adresse manuellement.</p>':''}
+          ${(!erpObj.adresse||!erpObj.code_postal||!erpObj.ville)?'<p style="margin:0 0 10px;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 10px">⚠️ L\'adresse de cet ERP est incomplète sur sa fiche (adresse, code postal ou ville manquants) — le prestataire ne la recevra pas. Complète la fiche ERP puis relance l\'envoi.</p>':''}
           ${radioItems}${customRow}
         </div>
         <div style="padding:12px 20px;border-top:1px solid #e2e8f0;display:flex;gap:8px;justify-content:flex-end;background:#f8fafc">
@@ -7341,6 +7345,8 @@ async function formInter(erpId,it,mode){
         if(error) throw error;
         toast('Demande envoyée à '+emailTo,'ok');
         btnEmail.textContent='✓ Envoyé';
+        // Proposer de prévenir le client (jamais bloquant)
+        try{ prevenirClientModal({erpId:erpId2,prestNom:p.nom,prestDest:emailTo,canal:'email',typeLabel,domaine:domaineInter,dateStr,commentaire:finalComment}); }catch(_){}
       }catch(err){
         toast('Erreur envoi : '+err.message,'err');
         btnEmail.disabled=false; btnEmail.innerHTML='Demande par email';
@@ -16687,6 +16693,7 @@ async function smsComposerOpen(opts){
   window._smsMode='now';
   window._smsContext=context;
   window._smsClientContacts=clientContacts;
+  window._smsOnSent=opts.onSent||null;
   smsSetMode('now');
 
   const cc=document.getElementById('sms-char-count');
@@ -16784,8 +16791,125 @@ async function smsComposerSubmit(){
   closeModal();
   if(ok>0) toast(ok+' SMS envoyé'+(ok>1?'s':''),'ok');
   if(fail>0) toast(fail+' SMS en échec','err');
+  if(ok>0 && window._smsOnSent){ const cb=window._smsOnSent; window._smsOnSent=null; try{ cb({canal:'SMS',dest:dedup.join(', ')}); }catch(_){} }
 }
 window.smsComposerSubmit=smsComposerSubmit;
+
+/* ═══ PRÉVENIR LE CLIENT après une demande d'intervention ═══
+   S'ouvre automatiquement après l'envoi au prestataire (email ou SMS).
+   Jamais bloquant : « Ignorer » ferme sans rien envoyer. */
+window.prevenirClientModal=async function(ctx){
+  try{
+    const erp=(state.erps||[]).find(e=>e.id===ctx.erpId)||{};
+    const cl=(state.clients||[]).find(c=>c.id===erp.client_id);
+    if(!cl) return;
+    let contacts=[];
+    try{ const {data}=await sb.from('client_contacts').select('*').eq('client_id',cl.id).order('nom'); contacts=data||[]; }catch(_){}
+    const old=document.getElementById('pcv_overlay'); if(old) old.remove();
+    const erpNom=erp.nom||'';
+    const defMsg='Bonjour,\nPour faire suite aux dysfonctionnements constatés, nous avons sollicité '+(ctx.prestNom||'le prestataire')+' pour une intervention '+(ctx.typeLabel||'')+(ctx.domaine?' ('+ctx.domaine+')':'')+' dans votre établissement '+erpNom+(ctx.dateStr?' — date souhaitée : '+ctx.dateStr:'')+'.\nCordialement, PREVA Conseils';
+    const rows=contacts.map((c,i)=>{
+      const nom=[c.prenom,c.nom].filter(Boolean).join(' ')||c.fonction||'Contact';
+      const mail=c.email||'';
+      const tel=c.mobile||c.telephone||'';
+      return `<label style="display:flex;align-items:center;gap:10px;border:2px solid ${i===0?'#2563eb':'#e2e8f0'};background:${i===0?'#eff6ff':'#f8fafc'};border-radius:9px;padding:10px 12px;margin-bottom:7px;cursor:pointer">
+        <input type="checkbox" class="pcv-ct" data-mail="${esc(mail)}" data-tel="${esc(tel)}" ${i===0?'checked':''} style="width:16px;height:16px;accent-color:#2563eb;flex:0 0 auto"
+          onchange="this.closest('label').style.borderColor=this.checked?'#2563eb':'#e2e8f0';this.closest('label').style.background=this.checked?'#eff6ff':'#f8fafc'">
+        <span style="min-width:0"><span style="display:block;font-size:13px;font-weight:600">${esc(nom)}${c.fonction?' — '+esc(c.fonction):''}</span>
+        <span style="display:block;font-size:11.5px;color:var(--muted)">${mail?'✉ '+esc(mail):''}${mail&&tel?' · ':''}${tel?'☎ '+esc(tel):''}${!mail&&!tel?'aucune coordonnée':''}</span></span>
+      </label>`;
+    }).join('');
+    const ov=document.createElement('div');
+    ov.id='pcv_overlay';
+    ov.style.cssText='position:fixed;inset:0;z-index:100001;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)';
+    ov.innerHTML=`<div style="background:#fff;border-radius:14px;width:100%;max-width:480px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.35);overflow:hidden">
+      <div style="padding:16px 20px 13px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start;flex:0 0 auto">
+        <div><h3 style="margin:0;font-size:15px">Prévenir le client ?</h3>
+        <p style="margin:3px 0 0;font-size:12px;color:var(--muted)">Client : <b>${esc(cl.raison_sociale)}</b>${erpNom?' · ERP : '+esc(erpNom):''}</p></div>
+        <button onclick="document.getElementById('pcv_overlay').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#94a3b8;line-height:1;padding:0 4px">×</button>
+      </div>
+      <div style="padding:15px 20px;overflow-y:auto">
+        <div style="display:flex;align-items:center;gap:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:10px 13px;margin-bottom:15px">
+          <span style="width:24px;height:24px;border-radius:50%;background:#16a34a;color:#fff;display:grid;place-items:center;font-size:13px;flex:0 0 auto">✓</span>
+          <span style="min-width:0"><b style="font-size:12.5px;color:#166534;display:block">Demande envoyée à ${esc(ctx.prestNom||'')}</b>
+          <span style="font-size:11.5px;color:#3f8354">${esc(ctx.prestDest||'')}${ctx.canal?' · par '+esc(ctx.canal):''}</span></span>
+        </div>
+        <div style="font-size:13.5px;font-weight:800;margin-bottom:3px">Qui prévenir chez le client ?</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Contacts de la fiche client — coche ceux qui doivent être informés.</div>
+        ${rows||`<p style="font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:9px 11px;margin:0 0 8px">⚠️ Aucun contact enregistré sur la fiche de ce client. Ajoute un contact (nom, email, téléphone) puis relance.</p>`}
+        <div style="font-size:13.5px;font-weight:800;margin:13px 0 5px">Message <span style="font-weight:400;color:#94a3b8;font-size:11px">(modifiable)</span></div>
+        <textarea id="pcv-msg" rows="5" onkeydown="event.stopPropagation()" style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.55;font-family:inherit;resize:vertical;box-sizing:border-box">${esc(defMsg).replace(/\\n/g,'\n')}</textarea>
+        <div style="font-size:13.5px;font-weight:800;margin:11px 0 5px">Commentaires — dysfonctionnements constatés <span style="font-weight:400;color:#94a3b8;font-size:11px">(repris de l'intervention, modifiable)</span></div>
+        <textarea id="pcv-com" rows="2" onkeydown="event.stopPropagation()" placeholder="Décris le constat (optionnel)…" style="width:100%;border:1px solid #e5d9a8;background:#fffef5;border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.55;font-family:inherit;resize:vertical;box-sizing:border-box">${esc(ctx.commentaire||'')}</textarea>
+        <div style="font-size:11px;color:#94a3b8;margin-top:5px">Ces commentaires sont ajoutés au message envoyé (email et SMS).</div>
+      </div>
+      <div style="padding:13px 20px;border-top:1px solid var(--line);background:#f8fafc;display:flex;gap:8px;align-items:center;flex:0 0 auto">
+        <button onclick="document.getElementById('pcv_overlay').remove()" style="background:none;border:none;color:#64748b;font-weight:700;font-size:12.5px;cursor:pointer;padding:9px 6px;font-family:inherit">Ignorer</button>
+        <span style="flex:1"></span>
+        ${contacts.length?`<button id="pcv-sms" onclick="pcvSend('sms',this)" style="background:#fff;border:1px solid #d6dce6;border-radius:8px;padding:9px 15px;font-weight:700;font-size:12.5px;cursor:pointer;font-family:inherit">📱 Par SMS</button>
+        <button id="pcv-mail" onclick="pcvSend('email',this)" style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:9px 15px;font-weight:700;font-size:12.5px;cursor:pointer;font-family:inherit">✉️ Par email</button>`:''}
+      </div>
+    </div>`;
+    document.body.appendChild(ov);
+    window._pcvCtx=Object.assign({},ctx,{erpNom,clientNom:cl.raison_sociale});
+  }catch(e){ console.warn('prevenirClientModal',e); }
+};
+
+window.pcvSend=async function(canal,btn){
+  const ctx=window._pcvCtx||{};
+  const msg=(document.getElementById('pcv-msg')?.value||'').trim();
+  const com=(document.getElementById('pcv-com')?.value||'').trim();
+  const checked=[...document.querySelectorAll('.pcv-ct:checked')];
+  if(!checked.length){ toast('Coche au moins un contact du client','err'); return; }
+  if(!msg){ toast('Message vide','err'); return; }
+  const who=state.profile?.nom||state.user?.email||'';
+  if(btn){ btn.disabled=true; btn.textContent='Envoi…'; }
+  try{
+    let okN=0;
+    if(canal==='email'){
+      const mails=[...new Set(checked.map(x=>x.dataset.mail).filter(Boolean))];
+      if(!mails.length) throw new Error('Aucun des contacts cochés n\'a d\'email.');
+      // corps : message sans la ligne de signature, tableau récap, signature propre
+      const lines=msg.split('\n').filter(l=>!/^cordialement/i.test(l.trim()));
+      const intro=lines.map(l=>esc(l)).join('<br>');
+      const html=`<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">
+        <div style="background:#1e3a5f;padding:18px 24px;border-radius:8px 8px 0 0"><h2 style="color:#fff;margin:0;font-size:17px">Intervention à venir dans votre établissement</h2></div>
+        <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:22px 24px">
+          <p style="margin:0 0 16px;color:#1e293b">${intro}</p>
+          <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
+            <tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;width:40%;color:#475569">Établissement</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(ctx.erpNom||'')}</td></tr>
+            <tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Type</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(ctx.typeLabel||'')}${ctx.domaine?' — '+esc(ctx.domaine):''}</td></tr>
+            ${ctx.dateStr?`<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Date souhaitée</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(ctx.dateStr)}</td></tr>`:''}
+            <tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569">Prestataire</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(ctx.prestNom||'')}</td></tr>
+            ${com?`<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:600;color:#475569;vertical-align:top">Dysfonctionnements constatés</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b;white-space:pre-line">${esc(com)}</td></tr>`:''}
+          </table>
+          <p style="margin:0;color:#64748b;font-size:13px">Cordialement,<br><b>PREVA Conseils</b></p>
+        </div></div>`;
+      const subject='Intervention à venir — '+(ctx.erpNom||'votre établissement');
+      for(const to of mails){
+        const {data,error}=await sb.functions.invoke('send-client-email',{body:{to,subject,html}});
+        if(error||(data&&data.error)) throw new Error((data&&data.error)||error.message);
+        okN++;
+      }
+    }else{
+      const tels=[...new Set(checked.map(x=>x.dataset.tel).filter(Boolean))];
+      if(!tels.length) throw new Error('Aucun des contacts cochés n\'a de numéro de téléphone.');
+      const smsTxt=msg+(com?'\nConstat : '+com:'');
+      for(const to of tels){
+        const {data,error}=await sb.functions.invoke('send-sms',{body:{to:[to],message:smsTxt}});
+        if(error||(data&&data.error)) throw new Error((data&&data.error)||error.message);
+        okN++;
+        try{ await sb.from('sms_scheduled').insert({destinataire:to,message:smsTxt,send_at:new Date().toISOString(),statut:'sent',sent_at:new Date().toISOString(),contexte:{type:'prevenir_client',erp:ctx.erpNom||'',prestataire:ctx.prestNom||''},created_by:who}); }catch(_){}
+      }
+    }
+    try{ await sb.from('audit_log').insert({user_id:state.user.id,user_label:who,action:'client_prevenu',entite:'interventions',details:{canal,client:ctx.clientNom||'',erp:ctx.erpNom||'',prestataire:ctx.prestNom||'',nb:okN}}); }catch(_){}
+    const ovl=document.getElementById('pcv_overlay'); if(ovl) ovl.remove();
+    toast('Client prévenu ✓ ('+okN+' '+(canal==='email'?'email':'SMS')+(okN>1?'s':'')+')','ok');
+  }catch(e){
+    toast(e.message||'Erreur','err');
+    if(btn){ btn.disabled=false; btn.textContent=canal==='email'?'✉️ Par email':'📱 Par SMS'; }
+  }
+};
 
 function csDeselectAll(){
   document.querySelectorAll('input[type=checkbox][data-prest], input[type=checkbox][data-prest-sms]').forEach(cb=>{ cb.checked=false; });
