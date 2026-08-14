@@ -128,6 +128,10 @@ h1,h2,h3{font-family:var(--fd);font-weight:600;letter-spacing:-.01em}
 .adm2-abo .who small{font-size:11.5px;color:var(--muted)}
 .adm2-chip{display:inline-block;border-radius:20px;padding:3px 11px;font-size:11px;font-weight:700;background:#dbeafe;color:#1d4ed8;flex:0 0 auto}
 .adm2-abo .barw{flex:1;min-width:200px}
+.adm2-meta{display:flex;gap:18px;flex:0 0 auto}
+.adm2-meta .m{text-align:center;min-width:52px}
+.adm2-meta .m b{font-size:16px;display:block;font-family:var(--fd);line-height:1.2}
+.adm2-meta .m small{font-size:10px;color:var(--muted-2);font-weight:700;letter-spacing:.03em;text-transform:uppercase}
 .adm2-abo .barl{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);font-weight:600;margin-bottom:5px;flex-wrap:wrap}
 .adm2-abo .bar{height:8px;background:var(--line-2);border-radius:6px;overflow:hidden}
 .adm2-abo .bar i{display:block;height:100%;border-radius:6px}
@@ -1412,6 +1416,8 @@ async function afterLogin(){
     }
     try{ await _tmoA(loadScope(),8000); }
     catch(e){ console.warn('[boot] loadScope bloqué — poursuite avec listes vides'); state.clients=state.clients||[]; state.erps=state.erps||[]; }
+    // Trace du dernier accès (sans bloquer le chargement)
+    try{ sb.from('profiles').update({dernier_acces:new Date().toISOString()}).eq('id',state.user.id).then(()=>{}); }catch(_){}
     if(state.profile?.role==='agent'){ renderAgentApp(); return; }
     if(!location.hash || location.hash==='#/login') location.hash='#/';
     renderApp();
@@ -1419,7 +1425,7 @@ async function afterLogin(){
 }
 
 async function loadScope(){
-  const { data:cl } = await sb.from('clients').select('id,code_client,raison_sociale,statut,logo_path,siren,tva_intra,telephone,email_contact,adresse_siege,code_postal,ville').order('raison_sociale');
+  const { data:cl } = await sb.from('clients').select('id,code_client,raison_sociale,statut,logo_path,siren,tva_intra,telephone,email_contact,adresse_siege,code_postal,ville,abonnement_formule').order('raison_sociale');
   state.clients = cl||[];
   const { data:er } = await sb.from('erps').select('id,code_erp,nom,client_id,statut,qr_token,adresse,ville,code_postal,assurance').order('nom');
   state.erps = er||[];
@@ -2379,9 +2385,17 @@ async function viewAdmin(c){
       <div class="adm2-kpi"><span class="adm2-ic">${AICO.card}</span><div><b>${abos.length}</b><small>Abonnement${abos.length>1?'s':''}</small><span class="sub">${abos.filter(x=>x.abonnement_formule==='essai').length} en période d'essai</span></div></div>
       <div class="adm2-kpi${echProches.length?' warn':''}"><span class="adm2-ic">${AICO.hourglass}</span><div><b${echProches.length?' style="color:#b45309"':''}>${echProches.length}</b><small>Échéance sous 30 j</small><span class="sub">${echProches.length?esc(echProches[0].raison_sociale)+' — '+(joursRestants(echProches[0])<0?'expiré':joursRestants(echProches[0])+' j'):'rien à surveiller'}</span></div></div>
     </div>`;
-    // ── Cartes abonnement (barre de progression + actions) ──
+    // ── Section « Clients abonnés » : abonnement, utilisateurs, ERP, supervision ──
     const nbUsersOf=cid=>(userClients||[]).filter(l=>l.client_id===cid).length;
-    const abosBlock=abos.length?`<div style="margin-bottom:6px">`+abosTries.map(x=>{
+    const lastAccessOf=cid=>{
+      const uids=(userClients||[]).filter(l=>l.client_id===cid).map(l=>l.user_id);
+      const dates=(users||[]).filter(u=>uids.includes(u.id)&&u.dernier_acces).map(u=>new Date(u.dernier_acces).getTime());
+      if(!dates.length) return '—';
+      const d=new Date(Math.max(...dates));
+      const diff=Math.floor((Date.now()-d.getTime())/864e5);
+      return diff<=0?"aujourd'hui":diff===1?'hier':d.toLocaleDateString('fr-FR');
+    };
+    const abosRows=abosTries.map(x=>{
       const j=joursRestants(x);
       let barPct=100;
       if(x.abonnement_debut&&x.abonnement_echeance){
@@ -2393,16 +2407,33 @@ async function viewAdmin(c){
       const lblColor=j===null?'var(--muted)':j<0?'#b91c1c':j<=30?'#b45309':'#166534';
       const barBg=(j!==null&&j<0)?'#ef4444':x.abonnement_formule==='essai'?'linear-gradient(90deg,#f59e0b,#fbbf24)':'linear-gradient(90deg,#2563eb,#60a5fa)';
       const nbU=nbUsersOf(x.id);
-      return `<div class="adm2-abo">
-        <div class="who"><b>${esc(x.raison_sociale)}</b><small>Client depuis le ${new Date(x.created_at).toLocaleDateString('fr-FR')}${nbU?` · ${nbU} utilisateur${nbU>1?'s':''} rattaché${nbU>1?'s':''}`:''}</small></div>
-        <span class="adm2-chip">${FRMLBL[x.abonnement_formule]||esc(x.abonnement_formule)}</span>
-        ${x.abonnement_montant?`<span style="font-size:12px;color:var(--muted);font-weight:600;flex:0 0 auto">${x.abonnement_montant} € HT</span>`:''}
+      const nbErp=(erps||[]).filter(e=>e.client_id===x.id).length;
+      return `<div class="adm2-abo" style="border:none;border-top:1px solid var(--line-2);border-radius:0;box-shadow:none;margin:0">
+        <div class="who"><b>${esc(x.raison_sociale)}</b><small>Client depuis le ${new Date(x.created_at).toLocaleDateString('fr-FR')} <span class="adm2-chip" style="${x.abonnement_formule==='essai'?'background:#fef3c7;color:#92400e':''};margin-left:4px">${FRMLBL[x.abonnement_formule]||esc(x.abonnement_formule)}</span>${x.abonnement_montant?` <span style="font-weight:600">· ${x.abonnement_montant} € HT</span>`:''}</small></div>
+        <div class="adm2-meta">
+          <div class="m"><b>${nbU}</b><small>Utilisateur${nbU>1?'s':''}</small></div>
+          <div class="m"><b>${nbErp}</b><small>ERP</small></div>
+          <div class="m"><b style="font-size:13px;line-height:1.5">${lastAccessOf(x.id)}</b><small>Dernier accès</small></div>
+        </div>
         <div class="barw"><div class="barl"><span>${x.abonnement_formule==='essai'?"Période d'essai":'Abonnement'}</span><b style="color:${lblColor}">${lbl}</b></div>
           <div class="bar"><i style="width:${barPct}%;background:${barBg}"></i></div></div>
-        ${x.abonnement_formule==='essai'?`<button class="btn sm primary" onclick="aboUpgradeModal('${x.id}')">Passer en abonnement</button>`:`<button class="btn sm" onclick="aboUpgradeModal('${x.id}')">Modifier</button>`}
-        <button class="btn sm" onclick="navigate('/clients/${x.id}')">Voir la fiche</button>
+        <div style="display:flex;gap:7px;flex-wrap:wrap;flex:0 0 auto">
+          <button class="btn sm primary" onclick="supervisionEnter('${x.id}')" title="Voir l'application comme ce client la voit" style="display:inline-flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Voir son espace</button>
+          <button class="btn sm" onclick="aboUpgradeModal('${x.id}')">${x.abonnement_formule==='essai'?'Passer en abonnement':'Abonnement'}</button>
+          <button class="btn sm" onclick="navigate('/clients/${x.id}')">Fiche client</button>
+        </div>
       </div>`;
-    }).join('')+`</div>`:'';
+    }).join('');
+    const abosBlock=`<div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">
+      <div class="adm2-ph" style="padding-bottom:12px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <h2 style="font-size:16px;margin:0">Clients abonnés <span style="color:var(--muted-2);font-weight:600">· ${abos.length}</span></h2>
+          <button class="btn sm primary" style="margin-left:auto" onclick="openClientWizard()">+ Programmer un nouveau client</button>
+        </div>
+        <div style="font-size:11.5px;color:var(--muted-2);margin-top:6px">Clients autonomes : ils gèrent leurs établissements eux-mêmes avec leur abonnement. Ils n'apparaissent pas dans votre liste « Clients ».</div>
+      </div>
+      ${abos.length?abosRows:'<div style="color:var(--muted);font-size:13px;padding:16px 18px;border-top:1px solid var(--line-2)">Aucun client abonné pour l\'instant — « Programmer un nouveau client » pour en créer un.</div>'}
+    </div>`;
 
     c.innerHTML=`
     <div class="page-head"><div class="t"><h1>Administration</h1><p>Vue globale — ${new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})}</p></div>
@@ -2421,8 +2452,7 @@ async function viewAdmin(c){
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <h2 style="font-size:16px;margin:0">Utilisateurs <span style="color:var(--muted-2);font-weight:600">· ${users?.length||0}</span></h2>
             <div style="margin-left:auto;display:flex;gap:7px;flex-wrap:wrap">
-              <button class="btn sm primary" onclick="openClientWizard()">+ Nouveau client</button>
-              <button class="btn sm" onclick="openUserWizard()">+ Utilisateur</button>
+              <button class="btn sm primary" onclick="openUserWizard()">+ Utilisateur</button>
               <button class="btn sm ghost" onclick="formCreateDemo()">Accès démo</button>
             </div>
           </div>
@@ -4057,12 +4087,23 @@ function renderApp(){
 
 function fillScopeSelectors(){
   const sc=$('#selClient'), se=$('#selErp');
-  if(sc){ sc.innerHTML=`<option value="all">Tous les clients</option>`+state.clients.map(c=>`<option value="${c.id}">${esc(c.raison_sociale)}</option>`).join(''); sc.value=state.currentClient; }
+  if(sc){
+    const geres=state.clients.filter(c=>!c.abonnement_formule), abonnes=state.clients.filter(c=>c.abonnement_formule);
+    const opt=c=>`<option value="${c.id}">${esc(c.raison_sociale)}</option>`;
+    sc.innerHTML=`<option value="all">Tous les clients</option>`
+      +(abonnes.length?`<optgroup label="Mes clients">${geres.map(opt).join('')}</optgroup><optgroup label="Clients abonnés">${abonnes.map(opt).join('')}</optgroup>`:state.clients.map(opt).join(''));
+    sc.value=state.currentClient;
+  }
   if(se){ const erps=state.currentClient==='all'?state.erps:state.erps.filter(e=>e.client_id===state.currentClient);
     se.innerHTML=`<option value="all">Tous les ERP</option>`+erps.map(e=>`<option value="${e.id}">${esc(e.nom)}</option>`).join(''); se.value=state.currentErp; }
   if(window.syncScopeLabels) syncScopeLabels();
 }
 function onScope(kind,val){
+  // Si on change de client pendant une supervision, la supervision se termine
+  if(window._supervision && kind==='client' && val!==window._supervision){
+    const b=document.getElementById('superv-banner'); if(b) b.remove();
+    supervisionOffsets(false); window._supervision=null;
+  }
   if(kind==='client'){ state.currentClient=val; state.currentErp='all'; }
   else state.currentErp=val;
   fillScopeSelectors();
@@ -4079,6 +4120,44 @@ function onScope(kind,val){
   if(typeof updatePhotosBadge==='function') updatePhotosBadge();
 }
 window.onScope=onScope; window.navigate=navigate;
+
+/* ══ SUPERVISION d'un client abonné : voir l'application comme lui ══ */
+function supervisionOffsets(on){
+  const demoOff=state.demo?38:0;
+  const h=on?40:0;
+  const total=demoOff+h;
+  const sbEl=document.getElementById('sidebar');
+  const main=document.querySelector('#app .main');
+  if(sbEl){ sbEl.style.top=total?total+'px':''; sbEl.style.height=total?'calc(100vh - '+total+'px)':''; }
+  if(main){ main.style.paddingTop=total?total+'px':''; }
+}
+window.supervisionEnter=function(clientId){
+  const cl=(state.clients||[]).find(c=>c.id===clientId);
+  if(!cl){ toast('Client introuvable','err'); return; }
+  window._supervision=clientId;
+  state.currentClient=clientId; state.currentErp='all';
+  const old=document.getElementById('superv-banner'); if(old) old.remove();
+  const demoOff=state.demo?38:0;
+  const b=document.createElement('div');
+  b.id='superv-banner';
+  b.style.cssText='position:fixed;top:'+demoOff+'px;left:0;right:0;z-index:9999;background:linear-gradient(90deg,#1e3a5f,#2563eb);color:#fff;display:flex;align-items:center;gap:10px;font-size:13px;padding:8px 16px;box-shadow:0 2px 8px rgba(0,0,0,.2);min-height:40px;box-sizing:border-box';
+  b.innerHTML=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+    <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>Supervision — espace de ${esc(cl.raison_sociale)}</b><span style="opacity:.85;font-weight:400"> · vous voyez l'application comme ce client abonné</span></span>
+    <button onclick="supervisionExit()" style="margin-left:auto;background:#fff;color:#1e3a5f;border:none;border-radius:8px;padding:6px 13px;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit;flex:0 0 auto;white-space:nowrap">✕ Quitter la supervision</button>`;
+  document.body.appendChild(b);
+  supervisionOffsets(true);
+  fillScopeSelectors();
+  navigate('/');
+};
+window.supervisionExit=function(){
+  const b=document.getElementById('superv-banner'); if(b) b.remove();
+  supervisionOffsets(false);
+  window._supervision=null;
+  state.currentClient='all'; state.currentErp='all';
+  fillScopeSelectors();
+  navigate('/admin');
+  toast('Supervision terminée — retour à votre vue','ok');
+};
 function toggleSidebar(open){
   const sb=document.getElementById('sidebar'); if(!sb) return;
   if(window.innerWidth>840 && open===undefined){ const app=document.getElementById('app'); if(app){ app.classList.toggle('side-off'); return; } }
@@ -4705,13 +4784,20 @@ function cxStyle(){
   document.head.appendChild(st);
 }
 async function viewClients(c){
-  const headHtml=`<div class="page-head"><div class="t"><h1>Clients</h1><p><b id="cx-count">${state.clients.length}</b> client(s) dans votre portefeuille.</p></div>
+  // Séparation : les clients abonnés (formule d'abonnement renseignée) vivent dans Administration
+  const geres=state.clients.filter(x=>!x.abonnement_formule);
+  const abonnes=state.clients.filter(x=>!!x.abonnement_formule);
+  const abonneNote=abonnes.length?`<div style="display:flex;align-items:center;gap:9px;background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:10px 14px;margin-top:14px;font-size:12.5px;color:var(--muted)">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    <span>${abonnes.length} client${abonnes.length>1?'s':''} abonné${abonnes.length>1?'s':''} (${abonnes.map(a=>esc(a.raison_sociale)).join(', ')}) — géré${abonnes.length>1?'s':''} depuis <a onclick="navigate('/admin')" style="color:#2563eb;font-weight:700;cursor:pointer">Administration →</a></span>
+  </div>`:'';
+  const headHtml=`<div class="page-head"><div class="t"><h1>Clients</h1><p><b id="cx-count">${geres.length}</b> client(s) dans votre portefeuille.</p></div>
     <div class="actions"><button class="btn primary" onclick="formClient()">${I.plus} Nouveau client</button></div></div>`;
-  if(!state.clients.length){ c.innerHTML=headHtml+emptyBlock(I.clients,'Aucun client','Créez votre premier client pour rattacher ses ERP, contacts et documents.',`<button class="btn primary" onclick="formClient()">${I.plus} Créer un client</button>`); return; }
+  if(!geres.length){ c.innerHTML=headHtml+emptyBlock(I.clients,'Aucun client','Créez votre premier client pour rattacher ses ERP, contacts et documents.',`<button class="btn primary" onclick="formClient()">${I.plus} Créer un client</button>`)+abonneNote; return; }
   cxStyle();
-  const total=state.clients.length;
-  const actifs=state.clients.filter(x=>(x.statut||'actif')==='actif').length;
-  const erps=state.erps.length;
+  const total=geres.length;
+  const actifs=geres.filter(x=>(x.statut||'actif')==='actif').length;
+  const erps=state.erps.filter(e=>geres.some(g=>g.id===e.client_id)).length;
   c.innerHTML=headHtml+`
     <div class="cx-kpis">
       <div class="cx-kpi"><div class="ic" style="background:#eff4ff;color:#2563eb"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div><div class="v">${total}</div><div class="l">Clients au total</div></div></div>
@@ -4725,10 +4811,11 @@ async function viewClients(c){
       <div class="cx-seg"><button id="cx_vlist" class="on" onclick="_cliView('list')">▤ Liste</button><button id="cx_vcards" onclick="_cliView('cards')">▦ Cartes</button></div>
     </div>
     <div class="cx-list" id="cx_list"><div class="cx-list-h"><div>Client</div><div>Contact principal</div><div>Statut</div><div></div></div><div id="cx_list_body"></div></div>
-    <div class="cx-cards" id="cx_cards_wrap" style="display:none"><div id="cx_cards" style="display:contents"></div></div>`;
+    <div class="cx-cards" id="cx_cards_wrap" style="display:none"><div id="cx_cards" style="display:contents"></div></div>
+    ${abonneNote}`;
   const mainOf=(cc,cid)=>{ const list=cc[cid]||[]; const m=list.find(x=>x.telephone||x.mobile)||list.find(x=>x.prenom||x.nom)||list[0]; if(!m) return null; return {nom:[m.prenom,m.nom].filter(Boolean).join(' ')||ROLE_CLIENT[m.role_suivi]||m.fonction||'Contact', tel:m.telephone||m.mobile||''}; };
   const erpCount=cid=>state.erps.filter(e=>e.client_id===cid).length;
-  window._cliData=state.clients.map(cl=>({id:cl.id,code:cl.code_client||'',nom:cl.raison_sociale||'',statut:cl.statut||'actif',erp:erpCount(cl.id),cn:'',tel:''}));
+  window._cliData=geres.map(cl=>({id:cl.id,code:cl.code_client||'',nom:cl.raison_sociale||'',statut:cl.statut||'actif',erp:erpCount(cl.id),cn:'',tel:''}));
   _cliRender();
   try{ const r=await sb.from('client_contacts').select('*'); const cc={}; (r.data||[]).forEach(ct=>{ (cc[ct.client_id]=cc[ct.client_id]||[]).push(ct); });
     window._cliData.forEach(d=>{ const mc=mainOf(cc,d.id); if(mc){ d.cn=mc.nom||''; d.tel=mc.tel||''; } }); _cliRender();
