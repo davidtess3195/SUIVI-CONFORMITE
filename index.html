@@ -111,6 +111,62 @@ h1,h2,h3{font-family:var(--fd);font-weight:600;letter-spacing:-.01em}
 .conv-chip{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:#4f46e5;background:#eef2ff;border:1px solid #c7d2fe;border-radius:99px;padding:2px 9px 2px 7px;flex:0 0 auto}
 .conv-chip svg{width:11px;height:11px}
 .cal-more{font-size:10.5px;font-weight:700;color:#2563eb}
+/* ══ ADMINISTRATION v2 — pictos bleus sur fond blanc, liste utilisateurs, journal ══ */
+.adm2-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+@media(max-width:960px){.adm2-kpis{grid-template-columns:repeat(2,1fr)}}
+.adm2-kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:13px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 4px rgba(15,23,42,.05);min-width:0}
+.adm2-kpi.warn{border-color:#fde68a;background:#fffdf5}
+.adm2-kpi b{font-size:20px;display:block;line-height:1.1;font-family:var(--fd)}
+.adm2-kpi small{font-size:11.5px;color:var(--muted);font-weight:600}
+.adm2-kpi .sub{font-size:10.5px;color:var(--muted-2);display:block;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adm2-kpi>div{min-width:0}
+.adm2-ic{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;flex:0 0 auto;background:var(--surface);border:1px solid #dbe4f0}
+.adm2-ic svg,.adm2-act svg{width:17px;height:17px;stroke:#2563eb;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.adm2-abo{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 18px;box-shadow:0 1px 4px rgba(15,23,42,.05);margin-bottom:12px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.adm2-abo .who{min-width:150px}
+.adm2-abo .who b{font-size:14px;display:block}
+.adm2-abo .who small{font-size:11.5px;color:var(--muted)}
+.adm2-chip{display:inline-block;border-radius:20px;padding:3px 11px;font-size:11px;font-weight:700;background:#dbeafe;color:#1d4ed8;flex:0 0 auto}
+.adm2-abo .barw{flex:1;min-width:200px}
+.adm2-abo .barl{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);font-weight:600;margin-bottom:5px;flex-wrap:wrap}
+.adm2-abo .bar{height:8px;background:var(--line-2);border-radius:6px;overflow:hidden}
+.adm2-abo .bar i{display:block;height:100%;border-radius:6px}
+.adm2-cols{display:grid;grid-template-columns:1.45fr 1fr;gap:16px;align-items:start;margin-bottom:16px}
+@media(max-width:980px){.adm2-cols{grid-template-columns:1fr}}
+.adm2-ph{padding:16px 18px 0}
+.adm2-search{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:9px;padding:8px 12px;background:var(--surface-2);margin:12px 0 0}
+.adm2-search svg{width:14px;height:14px;stroke:#94a3b8;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.adm2-search input{border:none;background:none;outline:none;flex:1;font-size:12.5px;color:var(--ink);font-family:inherit;min-width:0}
+.adm2-filters{display:flex;gap:6px;padding:12px 18px;flex-wrap:wrap}
+.adm2-flt{border-radius:20px;padding:5px 13px;font-size:11.5px;font-weight:700;background:var(--surface-2);color:var(--muted);cursor:pointer;border:1px solid transparent;user-select:none}
+.adm2-flt.on{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}
+.adm2-u{display:flex;align-items:center;gap:11px;padding:10px 18px;border-top:1px solid var(--line-2)}
+.adm2-u:hover{background:var(--surface-2)}
+@media(max-width:640px){.adm2-u{flex-wrap:wrap}}
+.adm2-av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;font-size:12px;flex:0 0 auto}
+.adm2-u .id{flex:1;min-width:130px}
+.adm2-u .id b{font-size:13.5px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.adm2-u .id small{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.adm2-role{border-radius:7px;padding:3px 9px;font-size:10px;font-weight:800;letter-spacing:.02em;flex:0 0 auto}
+.adm2-r-admin{background:#fee2e2;color:#b91c1c}.adm2-r-cons{background:#dbeafe;color:#1d4ed8}.adm2-r-expl{background:#dcfce7;color:#166534}.adm2-r-agent{background:#ede9fe;color:#6d28d9}.adm2-r-prest{background:#ffedd5;color:#c2410c}.adm2-r-lect{background:#e9edf3;color:#475569}
+.adm2-demo{border-radius:7px;padding:3px 9px;font-size:10px;font-weight:800;background:#fef3c7;color:#92400e;flex:0 0 auto;cursor:pointer}
+.adm2-demo.exp{background:#fee2e2;color:#b91c1c}
+.adm2-st{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;width:82px;flex:0 0 auto}
+.adm2-st i{width:8px;height:8px;border-radius:50%;display:inline-block;flex:0 0 auto}
+.adm2-st.ok{color:#15803d}.adm2-st.ok i{background:#22c55e}
+.adm2-st.susp{color:#b45309}.adm2-st.susp i{background:#f59e0b}
+.adm2-st.off{color:#94a3b8}.adm2-st.off i{background:#cbd5e1}
+.adm2-act{width:30px;height:30px;border-radius:8px;border:1px solid #dbe4f0;background:var(--surface);display:grid;place-items:center;cursor:pointer;flex:0 0 auto;padding:0}
+.adm2-act svg{width:14px;height:14px}
+.adm2-act.del{border-color:#fecaca}.adm2-act.del svg{stroke:#dc2626}.adm2-act.del:hover{background:#fef2f2}
+.adm2-day{font-size:10.5px;font-weight:800;letter-spacing:.08em;color:var(--muted-2);text-transform:uppercase;padding:14px 18px 5px}
+.adm2-ev{display:flex;gap:12px;padding:8px 18px;align-items:flex-start}
+.adm2-ev:hover{background:var(--surface-2)}
+.adm2-ev .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto;background:var(--surface);border:1px solid #dbe4f0}
+.adm2-ev .ic svg{width:14px;height:14px;stroke:#2563eb;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.adm2-ev b{font-size:12.5px;display:block;line-height:1.35}
+.adm2-ev small{font-size:11px;color:var(--muted)}
+.adm2-see{display:block;text-align:center;padding:12px;font-size:12px;color:#2563eb;font-weight:700;border-top:1px solid var(--line-2);cursor:pointer}
 .sortseg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--surface)}
 .sortseg button{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--muted);background:transparent;border:none;padding:7px 13px;cursor:pointer;font-family:inherit;transition:.12s}
 .sortseg button+button{border-left:1px solid var(--line)}
@@ -2220,7 +2276,7 @@ async function viewAdmin(c){
       {data:users,error:uErr},
       {data:clients},{data:erps},{data:interventions},
       {data:reserves},{data:photos},{data:pointages},
-      {data:documents},{data:audit},
+      {data:documents},{data:audit},{data:userClients},
       {data:docSizes}
     ] = await Promise.all([
       sb.from('profiles').select('*').order('created_at',{ascending:false}),
@@ -2231,16 +2287,16 @@ async function viewAdmin(c){
       sb.from('photos_urgentes').select('id,niveau_urgence,statut,created_at,traitement'),
       sb.from('pointages').select('id,erp_id,nb_intervenants,heure_arrivee,heure_depart,mode_saisie,created_at'),
       sb.from('documents').select('id,type,created_at'),
-      sb.from('audit_log').select('id,action,entite,user_label,created_at').order('created_at',{ascending:false}).limit(20),
+      sb.from('audit_log').select('id,action,entite,user_label,created_at').order('created_at',{ascending:false}).limit(60),
+      sb.from('user_clients').select('client_id,user_id'),
       sb.rpc('admin_documents_sizes'),
     ]);
 
     const today = new Date().toISOString().slice(0,10);
     const thisMonth = today.slice(0,7);
 
-    // KPIs globaux
+    // KPIs globaux (les utilisateurs sont désormais dans le bandeau adm2 en haut de page)
     const kpis=[
-      ['Utilisateurs',users?.length||0,'inter','Comptes actifs','👥'],
       ['Clients',(clients||[]).filter(c=>c.statut==='actif').length,'ok','Portefeuille actif','🏢'],
       ['ERP suivis',(erps||[]).length,'inter','Établissements','🏛️'],
       ['Réserves ouvertes',(reserves||[]).filter(r=>!['levee','cloturee','rejetee'].includes(r.statut)).length,'critique','À lever','📋'],
@@ -2309,83 +2365,95 @@ async function viewAdmin(c){
     const abos=(clients||[]).filter(x=>x.abonnement_formule);
     const joursRestants=x=>x.abonnement_echeance?Math.ceil((new Date(x.abonnement_echeance+'T00:00:00')-Date.now())/864e5):null;
     const abosTries=abos.slice().sort((a,b)=>(joursRestants(a)??9e9)-(joursRestants(b)??9e9));
-    const FRMLBL={essai:'Essai',mensuel:'Mensuel',annuel:'Annuel'};
-    const abosBlock=abos.length?`
-    <div class="card card-pad" style="margin-bottom:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px">
-        <h2 style="font-size:16px;margin:0">💳 Abonnements (${abos.length})</h2>
-        <span style="font-size:12px;color:var(--muted)">${abosTries.filter(x=>{const j=joursRestants(x);return j!==null&&j<=30;}).length} échéance(s) sous 30 jours</span>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:7px">
-        ${abosTries.map(x=>{ const j=joursRestants(x);
-          const alerte=j===null?'' : j<0?`<span style="background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:800;padding:3px 9px;border-radius:8px">Expiré depuis ${-j} j</span>`
-            : j<=30?`<span style="background:#fef3c7;color:#92400e;font-size:11px;font-weight:800;padding:3px 9px;border-radius:8px">Échéance dans ${j} j</span>`
-            : `<span style="background:#dcfce7;color:#166534;font-size:11px;font-weight:700;padding:3px 9px;border-radius:8px">OK · ${new Date(x.abonnement_echeance+'T00:00:00').toLocaleDateString('fr-FR')}</span>`;
-          return `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:8px 10px;border-radius:9px;background:var(--surface-2)">
-          <b style="font-size:13px;flex:1 1 160px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.raison_sociale)}</b>
-          <span class="pill int" style="font-size:11px">${FRMLBL[x.abonnement_formule]||esc(x.abonnement_formule)}</span>
-          <span style="font-size:12px;color:var(--muted)">${x.abonnement_montant?x.abonnement_montant+' € HT':'—'}</span>
-          ${alerte}
-        </div>`;}).join('')}
-      </div>
-    </div>`:'';
+    const FRMLBL={essai:'Essai gratuit',mensuel:'Mensuel',annuel:'Annuel'};
+    const echProches=abosTries.filter(x=>{const j=joursRestants(x);return j!==null&&j<=30;});
+    // ── Bandeau chiffres clés (maquette admin v3) ──
+    const demosAll=(users||[]).filter(u=>u.is_demo);
+    const demosExp=demosAll.filter(u=>u.demo_expires_at&&new Date(u.demo_expires_at)<new Date());
+    const nbActifs=(users||[]).filter(u=>u.statut==='actif').length;
+    const nbSusp=(users||[]).filter(u=>u.statut==='suspendu').length;
+    const nbDesact=(users||[]).filter(u=>u.statut==='desactive').length;
+    const bandBlock=`<div class="adm2-kpis">
+      <div class="adm2-kpi"><span class="adm2-ic">${AICO.users}</span><div><b>${(users||[]).length}</b><small>Utilisateurs</small><span class="sub">${nbActifs} actif${nbActifs>1?'s':''} · ${nbSusp} suspendu${nbSusp>1?'s':''} · ${nbDesact} désactivé${nbDesact>1?'s':''}</span></div></div>
+      <div class="adm2-kpi"><span class="adm2-ic">${AICO.flask}</span><div><b>${demosAll.length}</b><small>Comptes démo</small><span class="sub">${demosExp.length?demosExp.length+' expiré'+(demosExp.length>1?'s':'')+' — à prolonger ou supprimer':'aucun expiré'}</span></div></div>
+      <div class="adm2-kpi"><span class="adm2-ic">${AICO.card}</span><div><b>${abos.length}</b><small>Abonnement${abos.length>1?'s':''}</small><span class="sub">${abos.filter(x=>x.abonnement_formule==='essai').length} en période d'essai</span></div></div>
+      <div class="adm2-kpi${echProches.length?' warn':''}"><span class="adm2-ic">${AICO.hourglass}</span><div><b${echProches.length?' style="color:#b45309"':''}>${echProches.length}</b><small>Échéance sous 30 j</small><span class="sub">${echProches.length?esc(echProches[0].raison_sociale)+' — '+(joursRestants(echProches[0])<0?'expiré':joursRestants(echProches[0])+' j'):'rien à surveiller'}</span></div></div>
+    </div>`;
+    // ── Cartes abonnement (barre de progression + actions) ──
+    const nbUsersOf=cid=>(userClients||[]).filter(l=>l.client_id===cid).length;
+    const abosBlock=abos.length?`<div style="margin-bottom:6px">`+abosTries.map(x=>{
+      const j=joursRestants(x);
+      let barPct=100;
+      if(x.abonnement_debut&&x.abonnement_echeance){
+        const total=(new Date(x.abonnement_echeance+'T00:00:00')-new Date(x.abonnement_debut+'T00:00:00'))/864e5;
+        const done=(Date.now()-new Date(x.abonnement_debut+'T00:00:00'))/864e5;
+        barPct=total>0?Math.min(100,Math.max(2,Math.round(done/total*100))):100;
+      }
+      const lbl = j===null?'Sans échéance' : j<0?`Expiré depuis ${-j} j` : `${j} jour${j>1?'s':''} restant${j>1?'s':''} — fin le ${new Date(x.abonnement_echeance+'T00:00:00').toLocaleDateString('fr-FR')}`;
+      const lblColor=j===null?'var(--muted)':j<0?'#b91c1c':j<=30?'#b45309':'#166534';
+      const barBg=(j!==null&&j<0)?'#ef4444':x.abonnement_formule==='essai'?'linear-gradient(90deg,#f59e0b,#fbbf24)':'linear-gradient(90deg,#2563eb,#60a5fa)';
+      const nbU=nbUsersOf(x.id);
+      return `<div class="adm2-abo">
+        <div class="who"><b>${esc(x.raison_sociale)}</b><small>Client depuis le ${new Date(x.created_at).toLocaleDateString('fr-FR')}${nbU?` · ${nbU} utilisateur${nbU>1?'s':''} rattaché${nbU>1?'s':''}`:''}</small></div>
+        <span class="adm2-chip">${FRMLBL[x.abonnement_formule]||esc(x.abonnement_formule)}</span>
+        ${x.abonnement_montant?`<span style="font-size:12px;color:var(--muted);font-weight:600;flex:0 0 auto">${x.abonnement_montant} € HT</span>`:''}
+        <div class="barw"><div class="barl"><span>${x.abonnement_formule==='essai'?"Période d'essai":'Abonnement'}</span><b style="color:${lblColor}">${lbl}</b></div>
+          <div class="bar"><i style="width:${barPct}%;background:${barBg}"></i></div></div>
+        ${x.abonnement_formule==='essai'?`<button class="btn sm primary" onclick="aboUpgradeModal('${x.id}')">Passer en abonnement</button>`:`<button class="btn sm" onclick="aboUpgradeModal('${x.id}')">Modifier</button>`}
+        <button class="btn sm" onclick="navigate('/clients/${x.id}')">Voir la fiche</button>
+      </div>`;
+    }).join('')+`</div>`:'';
 
     c.innerHTML=`
     <div class="page-head"><div class="t"><h1>Administration</h1><p>Vue globale — ${new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})}</p></div>
       </div>
 
-    <!-- KPIs -->
-    <div class="kpis">${kpis.map(kpiCard).join('')}</div>
+    ${bandBlock}
 
     ${newUsersBlock}
 
     ${abosBlock}
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:16px">
+    <div class="adm2-cols">
       <!-- Utilisateurs -->
-      <div class="card card-pad">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-          <h2 style="font-size:16px;margin:0">Utilisateurs (${users?.length||0})</h2>
-          <button class="btn sm primary" onclick="openClientWizard()">🏢 Programmer un nouveau client</button>
-          <button class="btn sm" onclick="openUserWizard()">✨ Programmer un utilisateur</button>
-          <button class="btn sm" onclick="formCreateDemo()" style="background:#f59e0b;color:#fff;border:none">Créer accès démo</button>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="adm2-ph">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <h2 style="font-size:16px;margin:0">Utilisateurs <span style="color:var(--muted-2);font-weight:600">· ${users?.length||0}</span></h2>
+            <div style="margin-left:auto;display:flex;gap:7px;flex-wrap:wrap">
+              <button class="btn sm primary" onclick="openClientWizard()">+ Nouveau client</button>
+              <button class="btn sm" onclick="openUserWizard()">+ Utilisateur</button>
+              <button class="btn sm ghost" onclick="formCreateDemo()">Accès démo</button>
+            </div>
+          </div>
+          <div class="adm2-search">${AICO.search}<input id="adm_search" placeholder="Rechercher un nom, un email…" oninput="adminRenderUsers()"></div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          ${(users||[]).map((u)=>`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:8px;border-radius:9px;background:var(--surface-2)">
-            <div class="avatar" style="width:32px;height:32px;border-radius:8px;background:#2b3f5c;color:#dbe5f1;display:grid;place-items:center;font-size:12px;font-weight:600;flex:0 0 auto">
-              ${(u.nom||u.email||'?').split(' ').map((s)=>s[0]).slice(0,2).join('').toUpperCase()}
-            </div>
-            <div style="min-width:0;flex:1 1 170px">
-              <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(u.nom||u.email)}</div>
-              <div style="font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.email)}</div>
-            </div>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end;min-width:0;margin-left:auto">
-              ${u.vu_par_admin===false?'<span style="background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:800;padding:3px 8px;border-radius:8px">NOUVEAU</span>':''}
-              ${u.is_demo?`<span class="pill moy" style="background:#fef3c7;color:#92400e">Démo${u.demo_expires_at?` · ${new Date(u.demo_expires_at)<new Date()?'expirée':'exp. '+new Date(u.demo_expires_at).toLocaleDateString('fr-FR')}`:' · illimitée'}</span>
-              <button class="btn sm" title="Gérer l'expiration de la démo" onclick="formDemoExpiry('${u.id}','${esc(u.email)}','${u.demo_expires_at||''}')">Expiration</button>`:''}
-              ${statusPill(u.role,{admin:['','Admin','crit'],consultant:['','Consultant','int'],exploitant:['','Exploitant','ok'],prestataire:['','Prestataire','moy'],lecture:['','Lecture','inf']})}
-              ${statusPill(u.statut,{actif:['','Actif','ok'],suspendu:['','Suspendu','moy'],desactive:['','Désactivé','inf']})}
-              <button class="btn sm" onclick="formEditUser('${u.id}','${esc(u.nom||'')}','${u.role}','${u.statut}')">✏️</button>
-            </div>
-          </div>`).join('')}
-        </div>
+        <div class="adm2-filters" id="adm_flt"></div>
+        <div id="adm_users"></div>
       </div>
 
-      <!-- Activité récente -->
-      <div class="card card-pad">
-        <h2 style="font-size:16px;margin:0 0 14px">Journal d'activité (20 dernières)</h2>
-        <div style="display:flex;flex-direction:column;gap:6px;max-height:360px;overflow-y:auto">
-          ${(audit||[]).map((a)=>`<div style="display:flex;gap:10px;align-items:flex-start;padding:7px;border-radius:8px;background:var(--surface-2)">
-            <div style="flex:0 0 auto;margin-top:2px"><span class="pill ${a.action.includes('photo')?'crit':a.action.includes('reserve')?'maj':a.action.includes('client')||a.action.includes('erp')?'int':'inf'}" style="font-size:10px">${esc(a.action)}</span></div>
-            <div style="min-width:0;flex:1">
-              <div style="font-size:12.5px;font-weight:500">${esc(a.user_label||'Système')}</div>
-              <div style="font-size:11px;color:var(--muted-2)">${fmtDT(a.created_at)}</div>
-            </div>
-          </div>`).join('')}
-          ${!(audit||[]).length?'<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">Aucune activité enregistrée</div>':''}
+      <!-- Journal d'activité -->
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="adm2-ph" style="padding-bottom:12px">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <h2 style="font-size:16px;margin:0">Journal d'activité</h2>
+            <select id="adm_jr_flt" onchange="adminRenderJournal()" style="margin-left:auto;font-size:11.5px;color:var(--muted);border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:var(--surface-2);font-family:inherit">
+              <option value="">Tous les événements</option>
+              <option value="comptes">Comptes &amp; accès</option>
+              <option value="clients">Clients</option>
+              <option value="inter">Interventions &amp; réserves</option>
+              <option value="terrain">Terrain</option>
+              <option value="demo">Démo</option>
+            </select>
+          </div>
         </div>
+        <div id="adm_journal" style="max-height:560px;overflow-y:auto"></div>
+        <span class="adm2-see" id="adm_jr_more" onclick="adminJrMore()">Voir plus d'événements →</span>
       </div>
     </div>
+
+    <!-- KPIs globaux -->
+    <div class="kpis">${kpis.map(kpiCard).join('')}</div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
       <!-- Stats interventions -->
@@ -2521,6 +2589,9 @@ async function viewAdmin(c){
       <p style="color:var(--muted);font-size:13px;margin-bottom:12px">Documents envoyés à la corbeille, tous clients confondus. Les éléments de plus de <b>30 jours</b> sont purgés automatiquement.</p>
       <div id="admin-trash"><div class="skel" style="height:60px"></div></div>
     </div>`;
+    window._adm={users:users||[],audit:audit||[],selfId:(state.user&&state.user.id)||'',flt:(window._adm&&window._adm.flt)||'tous'};
+    adminRenderUsers();
+    adminRenderJournal();
     renderFieldRanking('mois');
     dpAdminSection();
     loadAdminTrash();
@@ -2763,7 +2834,7 @@ function formEditUser(id,nom,role,statut){
   <div class="modal-body">
     <div class="fld"><label>Nom</label><input id="eu_nom" value="${esc(nom)}"></div>
     <div class="fld"><label>Rôle</label><select id="eu_role">
-      ${['consultant','exploitant','prestataire','lecture','admin'].map(r=>`<option value="${r}"${role===r?' selected':''}>${r.charAt(0).toUpperCase()+r.slice(1)}</option>`).join('')}
+      ${['consultant','exploitant','agent','prestataire','lecture','admin'].map(r=>`<option value="${r}"${role===r?' selected':''}>${r.charAt(0).toUpperCase()+r.slice(1)}</option>`).join('')}
     </select></div>
     <div class="fld"><label>Statut</label><select id="eu_statut">
       ${['actif','suspendu','desactive'].map(s=>`<option value="${s}"${statut===s?' selected':''}>${s.charAt(0).toUpperCase()+s.slice(1)}</option>`).join('')}
@@ -2797,6 +2868,210 @@ window.adminMarkAllSeen=async function(){
     if(window.updateAdminBadge) updateAdminBadge();
     renderRoute();
   }catch(e){ toast(e.message||'Erreur','err'); }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   ADMINISTRATION v2 — pictogrammes bleus, liste utilisateurs, journal
+═══════════════════════════════════════════════════════════════════ */
+const AICO=(()=>{const w=p=>`<svg viewBox="0 0 24 24">${p}</svg>`;return{
+  users:w('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
+  userplus:w('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>'),
+  flask:w('<path d="M4.5 3h15"/><path d="M6 3v16a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V3"/><path d="M6 14h12"/>'),
+  card:w('<rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>'),
+  hourglass:w('<path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/>'),
+  building:w('<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/>'),
+  camera:w('<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>'),
+  pin:w('<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>'),
+  pencil:w('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>'),
+  trash:w('<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
+  search:w('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>'),
+  mail:w('<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>'),
+  file:w('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>'),
+  wrench:w('<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>'),
+  clipboard:w('<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/>'),
+  check:w('<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>'),
+  key:w('<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>'),
+  alert:w('<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'),
+  qr:w('<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><line x1="14" y1="14" x2="14" y2="17"/><line x1="17" y1="14" x2="21" y2="14"/><line x1="21" y1="17" x2="21" y2="21"/><line x1="14" y1="21" x2="17" y2="21"/>'),
+  login:w('<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>'),
+};})();
+const ADM_ROLES={admin:['ADMIN','adm2-r-admin','#1e3a5f'],consultant:['CONSULTANT','adm2-r-cons','#1d4ed8'],exploitant:['EXPLOITANT','adm2-r-expl','#166534'],agent:['AGENT','adm2-r-agent','#6d28d9'],prestataire:['PRESTATAIRE','adm2-r-prest','#c2410c'],lecture:['LECTURE','adm2-r-lect','#475569']};
+function adminRenderUsers(){
+  const A=window._adm; if(!A) return;
+  const q=(document.getElementById('adm_search')?.value||'').trim().toLowerCase();
+  const flt=A.flt||'tous';
+  const now=new Date();
+  const all=A.users||[];
+  const match=u=>{
+    if(q && !(((u.prenom||'')+' '+(u.nom||'')+' '+(u.email||'')).toLowerCase().includes(q))) return false;
+    if(flt==='actifs') return u.statut==='actif'&&!u.is_demo;
+    if(flt==='demo') return !!u.is_demo;
+    if(flt==='susp') return u.statut==='suspendu';
+    return true;
+  };
+  const counts={tous:all.length,actifs:all.filter(u=>u.statut==='actif'&&!u.is_demo).length,demo:all.filter(u=>u.is_demo).length,susp:all.filter(u=>u.statut==='suspendu').length};
+  const fl=document.getElementById('adm_flt');
+  if(fl) fl.innerHTML=[['tous','Tous',counts.tous],['actifs','Actifs',counts.actifs],['demo','Démo',counts.demo],['susp','Suspendus',counts.susp]].map(([k,l,n])=>`<span class="adm2-flt${flt===k?' on':''}" onclick="window._adm.flt='${k}';adminRenderUsers()">${l} · ${n}</span>`).join('');
+  const list=all.filter(match);
+  const ordRole={admin:0,consultant:1,exploitant:2,agent:3,prestataire:4,lecture:5};
+  const norm=list.filter(u=>!u.is_demo).sort((a,b)=>(ordRole[a.role]??9)-(ordRole[b.role]??9)||String(a.nom||a.email||'').localeCompare(String(b.nom||b.email||'')));
+  const demos=list.filter(u=>u.is_demo).sort((a,b)=>String(a.nom||a.email||'').localeCompare(String(b.nom||b.email||'')));
+  const row=u=>{
+    const isSelf=u.id===A.selfId;
+    const R=ADM_ROLES[u.role]||[String(u.role||'—').toUpperCase(),'adm2-r-lect','#475569'];
+    const avBg=u.statut==='desactive'?'#94a3b8':(u.is_demo?'#b45309':R[2]);
+    const ini=(u.nom||u.email||'?').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase();
+    let demoTag='';
+    if(u.is_demo){
+      const expDate=u.demo_expires_at?new Date(u.demo_expires_at):null;
+      const isExp=expDate&&expDate<now;
+      demoTag=`<span class="adm2-demo${isExp?' exp':''}" title="Gérer l'expiration de la démo" onclick="formDemoExpiry('${u.id}','${esc(u.email||'')}','${u.demo_expires_at||''}')">${isExp?'DÉMO · expirée — prolonger ?':expDate?'DÉMO · exp. '+expDate.toLocaleDateString('fr-FR'):'DÉMO · illimitée'}</span>`;
+    }
+    const stCls=u.statut==='actif'?'ok':u.statut==='suspendu'?'susp':'off';
+    const stLbl=u.statut==='actif'?'Actif':u.statut==='suspendu'?'Suspendu':'Désactivé';
+    return `<div class="adm2-u"${u.statut==='desactive'?' style="opacity:.55"':''}>
+      <span class="adm2-av" style="background:${avBg}">${esc(ini)}</span>
+      <div class="id"><b>${esc(u.nom||u.email||'—')}${isSelf?' <span style="font-weight:400;color:var(--muted-2);font-size:11px">(vous)</span>':''}</b>
+        <small>${esc(u.email||'')}</small></div>
+      ${u.vu_par_admin===false?'<span style="background:#fee2e2;color:#b91c1c;font-size:10px;font-weight:800;padding:3px 8px;border-radius:8px;flex:0 0 auto">NOUVEAU</span>':''}
+      ${demoTag}
+      <span class="adm2-role ${R[1]}">${esc(R[0])}</span>
+      <span class="adm2-st ${stCls}"><i></i>${stLbl}</span>
+      <button class="adm2-act" title="Modifier" onclick="formEditUser('${u.id}','${esc(u.nom||'')}','${u.role}','${u.statut}')">${AICO.pencil}</button>
+      ${isSelf?'<span class="adm2-act" style="visibility:hidden;border:none"></span>':`<button class="adm2-act del" title="Supprimer ce compte" onclick="adminDeleteUser('${u.id}')">${AICO.trash}</button>`}
+    </div>`;
+  };
+  const box=document.getElementById('adm_users');
+  if(box) box.innerHTML=norm.map(row).join('')
+    +(demos.length?`<div class="adm2-day" style="padding-top:16px">Comptes démo</div>`+demos.map(row).join(''):'')
+    +((norm.length+demos.length)?'':'<div style="color:var(--muted);font-size:13px;text-align:center;padding:22px">Aucun utilisateur ne correspond</div>');
+}
+window.adminRenderUsers=adminRenderUsers;
+
+/* Journal : traduction des événements techniques en français clair */
+const ADM_JR={
+  user_created:{l:'Nouveau compte utilisateur',i:'userplus',f:'comptes'},
+  user_deleted:{l:'Compte utilisateur supprimé',i:'trash',f:'comptes'},
+  reset_password:{l:'Réinitialisation de mot de passe',i:'key',f:'comptes'},
+  admin_login:{l:"Connexion à l'espace admin",i:'login',f:'comptes'},
+  revoke:{l:'Accès révoqué',i:'key',f:'comptes'},
+  demo_account_created:{l:'Compte démo créé',i:'flask',f:'demo'},
+  demo_expiry_updated:{l:"Expiration d'un accès démo modifiée",i:'hourglass',f:'demo'},
+  client_cree:{l:'Nouveau client créé',i:'building',f:'clients'},
+  client_prevenu:{l:"Client prévenu d'une intervention",i:'mail',f:'clients'},
+  add_client_link:{l:'Rattachement à un client',i:'building',f:'clients'},
+  intervention_created:{l:'Intervention créée',i:'wrench',f:'inter'},
+  reserve_created:{l:'Réserve créée',i:'clipboard',f:'inter'},
+  rapport_recu:{l:'Rapport reçu',i:'file',f:'inter'},
+  levees_notifiees:{l:'Levées de réserves notifiées',i:'check',f:'inter'},
+  photo_urgente:{l:'Photo urgente reçue sur le terrain',i:'camera',f:'terrain'},
+  pointage_arrivee:{l:"Pointage d'arrivée d'un agent",i:'pin',f:'terrain'},
+  signalement_agent:{l:"Signalement d'un agent de sécurité",i:'alert',f:'terrain'},
+  qr_consigne:{l:'Consignes consultées via QR',i:'qr',f:'terrain'},
+  cs_assistance:{l:'Assistance commission de sécurité',i:'clipboard',f:'terrain'},
+};
+function adminRenderJournal(){
+  const A=window._adm; if(!A) return;
+  const f=document.getElementById('adm_jr_flt')?.value||'';
+  const rows=(A.audit||[]).filter(a=>!f||((ADM_JR[a.action]||{}).f===f));
+  const todayK=new Date().toISOString().slice(0,10);
+  const hierK=new Date(Date.now()-864e5).toISOString().slice(0,10);
+  const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+  const dayLbl=k=>{
+    if(k===todayK) return 'Aujourd\'hui';
+    const d=new Date(k+'T00:00:00');
+    if(k===hierK) return 'Hier — '+d.toLocaleDateString('fr-FR',{day:'numeric',month:'long'});
+    return cap(d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'}));
+  };
+  let html='',lastKey='';
+  rows.forEach(a=>{
+    const k=String(a.created_at||'').slice(0,10);
+    if(k!==lastKey){ lastKey=k; html+=`<div class="adm2-day">${dayLbl(k)}</div>`; }
+    const m=ADM_JR[a.action]||{l:cap(String(a.action||'').replace(/_/g,' ')),i:'file'};
+    html+=`<div class="adm2-ev"><span class="ic">${AICO[m.i]||AICO.file}</span><div><b>${esc(m.l)}</b><small>${esc(a.user_label||'Système')} · ${new Date(a.created_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</small></div></div>`;
+  });
+  const box=document.getElementById('adm_journal');
+  if(box) box.innerHTML=html||'<div style="color:var(--muted);font-size:13px;text-align:center;padding:22px">Aucune activité enregistrée</div>';
+}
+window.adminRenderJournal=adminRenderJournal;
+window.adminJrMore=async function(){
+  try{
+    const {data}=await sb.from('audit_log').select('id,action,entite,user_label,created_at').order('created_at',{ascending:false}).limit(200);
+    if(window._adm){ window._adm.audit=data||[]; adminRenderJournal(); }
+    const btn=document.getElementById('adm_jr_more'); if(btn) btn.style.display='none';
+  }catch(e){ toast('Erreur de chargement du journal','err'); }
+};
+
+/* Modifier / faire évoluer l'abonnement d'un client */
+window.aboUpgradeModal=async function(clientId){
+  try{
+    const {data:cl}=await sb.from('clients').select('id,raison_sociale,abonnement_formule,abonnement_montant,abonnement_debut,abonnement_echeance').eq('id',clientId).maybeSingle();
+    if(!cl){ toast('Client introuvable','err'); return; }
+    openModal(`<div class="modal-head"><h2>Abonnement — ${esc(cl.raison_sociale)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body">
+      ${cl.abonnement_formule==='essai'?`<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:9px 12px;font-size:12.5px;color:#1e40af;margin-bottom:14px">Ce client est en période d'essai. Choisissez une formule payante pour le faire passer en abonnement.</div>`:''}
+      <div class="fld"><label>Formule</label><select id="ab_frm">
+        <option value="essai"${cl.abonnement_formule==='essai'?' selected':''}>Essai gratuit</option>
+        <option value="mensuel"${cl.abonnement_formule==='mensuel'?' selected':''}>Mensuel</option>
+        <option value="annuel"${cl.abonnement_formule==='annuel'?' selected':''}>Annuel</option>
+      </select></div>
+      <div class="row2">
+        <div class="fld"><label>Montant (€ HT)</label><input id="ab_mnt" type="number" min="0" step="0.01" value="${cl.abonnement_montant??''}"></div>
+        <div class="fld"><label>Prochaine échéance</label><input id="ab_ech" type="date" value="${cl.abonnement_echeance||''}"></div>
+      </div>
+      <div class="fld"><label>Début</label><input id="ab_deb" type="date" value="${cl.abonnement_debut||''}"></div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="ab_save">Enregistrer</button></div>`);
+    $('#ab_save').onclick=async()=>{
+      try{
+        const {error}=await sb.from('clients').update({abonnement_formule:$('#ab_frm').value,abonnement_montant:$('#ab_mnt').value?parseFloat($('#ab_mnt').value):null,abonnement_debut:$('#ab_deb').value||null,abonnement_echeance:$('#ab_ech').value||null}).eq('id',clientId);
+        if(error) throw error;
+        _modalDirty=false; closeModal(); toast('Abonnement mis à jour','ok'); renderRoute();
+      }catch(e){ toast('Erreur lors de l\'enregistrement. Merci de réessayer.','err'); }
+    };
+  }catch(e){ toast('Erreur de chargement','err'); }
+};
+
+/* Suppression définitive d'un compte (admin) — via la fonction serveur admin-delete-user */
+window.adminDeleteUser=function(userId){
+  if(userId===(state.user&&state.user.id)){ toast('Impossible de supprimer votre propre compte','err'); return; }
+  const u=((window._adm&&window._adm.users)||[]).find(x=>x.id===userId)||{};
+  const nom=u.nom||u.email||'ce compte';
+  const old=document.getElementById('adel_overlay'); if(old) old.remove();
+  const ov=document.createElement('div');
+  ov.id='adel_overlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:100050;background:rgba(8,12,20,.55);display:flex;align-items:center;justify-content:center;padding:18px';
+  ov.innerHTML=`<div style="background:var(--surface,#fff);border-radius:16px;max-width:430px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--line,#e2e8f0);display:flex;align-items:center;gap:11px">
+      <span style="width:34px;height:34px;border-radius:10px;background:#fee2e2;display:grid;place-items:center;flex:0 0 auto"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span>
+      <h3 style="margin:0;font-size:16px">Supprimer ${u.is_demo?'ce compte démo':'ce compte'} ?</h3></div>
+    <div style="padding:16px 20px;font-size:13.5px;color:var(--muted);line-height:1.6">
+      <b style="color:var(--ink)">${esc(nom)}</b>${u.email&&u.email!==nom?`<br>${esc(u.email)}`:''}<br><br>
+      Ses accès seront révoqués immédiatement et le compte sera <b style="color:#b91c1c">supprimé définitivement</b>. Les données qu'il a créées (clients, documents, historique) sont conservées.
+    </div>
+    <div style="padding:13px 20px;border-top:1px solid var(--line,#e2e8f0);display:flex;justify-content:flex-end;gap:10px;background:var(--surface-2,#f8fafc)">
+      <button class="btn ghost" id="adel_cancel">Annuler</button>
+      <button class="btn danger" id="adel_ok">Supprimer définitivement</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{ if(e.target===ov) ov.remove(); });
+  ov.querySelector('#adel_cancel').onclick=()=>ov.remove();
+  ov.querySelector('#adel_ok').onclick=async()=>{
+    const btn=ov.querySelector('#adel_ok'); btn.disabled=true; btn.textContent='Suppression…';
+    try{
+      const callFn=async(token)=>fetch('https://twjvloctrjqcokuuxghc.supabase.co/functions/v1/admin-delete-user',{
+        method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({user_id:userId})});
+      let {data:{session}}=await sb.auth.getSession();
+      if(!session){ const r=await sb.auth.refreshSession(); session=r?.data?.session; }
+      if(!session) throw new Error('Session expirée — reconnectez-vous.');
+      let res=await callFn(session.access_token);
+      if(res.status===401){ const r=await sb.auth.refreshSession(); if(r?.data?.session) res=await callFn(r.data.session.access_token); }
+      const out=await res.json().catch(()=>({}));
+      if(!res.ok||out.error) throw new Error(out.error||'Erreur serveur');
+      try{ await sb.from('audit_log').insert({user_id:state.user.id,user_label:state.profile?.nom||state.user.email,action:'user_deleted',entite:'profiles',details:{email:u.email||'',nom:u.nom||''}}); }catch(_){}
+      ov.remove(); toast('Compte supprimé','ok'); renderRoute();
+    }catch(e){ btn.disabled=false; btn.textContent='Supprimer définitivement'; toast(e.message||'Erreur lors de la suppression','err'); }
+  };
 };
 
 /* =====================================================================
