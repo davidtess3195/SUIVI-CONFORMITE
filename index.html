@@ -1061,7 +1061,36 @@ window.dashScrollPv=function(){
   setTimeout(()=>{ el.style.boxShadow=''; },1600);
 };
 
+/* Traduction française centralisée des messages d'erreur techniques (Supabase, réseau, JS).
+   Tout toast d'erreur passe par ici : plus aucun message anglais à l'écran. */
+function frToast(m){
+  const s=String(m||'');
+  const RULES=[
+    [/row-level security|RLS/i,"Action non autorisée pour votre compte. Si cela vous semble anormal, contactez PREVA Conseils."],
+    [/duplicate key|already exists|unique constraint/i,"Cet élément existe déjà — enregistrement en double impossible."],
+    [/violates foreign key/i,"Impossible : cet élément est encore utilisé ailleurs dans l'application."],
+    [/violates check constraint/i,"Valeur non autorisée — merci de vérifier votre saisie."],
+    [/JWT expired|invalid claim|token is expired|Session expired/i,"Votre session a expiré — reconnectez-vous puis réessayez."],
+    [/Invalid login credentials/i,"Email ou mot de passe incorrect."],
+    [/Email not confirmed/i,"Adresse email non confirmée — cliquez sur le lien reçu par email."],
+    [/User already registered/i,"Un compte existe déjà avec cet email."],
+    [/New password should be different/i,"Le nouveau mot de passe doit être différent de l'ancien."],
+    [/Password should be at least/i,"Mot de passe trop court."],
+    [/rate limit|too many requests/i,"Trop de tentatives — patientez une minute puis réessayez."],
+    [/Failed to fetch|NetworkError|network request failed|Load failed|fetch failed/i,"Connexion impossible — vérifiez votre connexion internet puis réessayez."],
+    [/timeout|timed out/i,"Le serveur met trop de temps à répondre — réessayez dans un instant."],
+    [/permission denied/i,"Accès refusé pour votre compte."],
+    [/not.?found|does not exist/i,"Élément introuvable — il a peut-être été supprimé. Actualisez la page."],
+    [/payload too large|exceeded the maximum allowed size|too large/i,"Fichier trop volumineux."],
+    [/invalid input syntax|invalid uuid/i,"Format de saisie invalide — merci de vérifier les champs."],
+    [/is not defined|Cannot read propert|is not a function|undefined is not|null is not/i,"Erreur technique inattendue — réessayez. Si le problème persiste, signalez-le à PREVA Conseils."],
+  ];
+  for(const [re,fr] of RULES){ if(re.test(s)) return fr; }
+  return s;
+}
+window.frToast=frToast;
 function toast(msg,type=''){
+  if(type==='err') msg=frToast(msg);
   const t=document.createElement('div'); t.className='toast '+type;
   const icon = type==='ok'
     ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>'
@@ -6122,8 +6151,8 @@ async function convCreateAgenda(convId, p){
     statut:'programmee',
     commentaire:'Issu d\'une conversation'+(p.interlocuteur?(' avec '+p.interlocuteur):'')+(p.sujet?(' — '+p.sujet):'')
   }).select('id').single();
-  if(error){ toast('Agenda : '+error.message,'err'); return; }
-  await sb.from('conversations').update({intervention_id:data.id}).eq('id',convId);
+  if(_interErr){ toast('Agenda : '+_interErr.message,'err'); return; }
+  await sb.from('conversations').update({intervention_id:_interData.id}).eq('id',convId);
   toast("Ajouté à l'agenda du client",'ok');
 }
 
@@ -17853,7 +17882,7 @@ async function viewPlanMaintenance(c){
   </div>
   <div class="actions">
     <select id="pm_load_sel" onchange="pmLoadModel()" style="min-width:160px">
-      <option value="">📂 Charger un modèle…</option>
+      <option value="">📂 Dupliquer une liste…</option>
       ${pmModels().map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('')}
     </select>
     <button class="btn" onclick="pmSaveAsModel()">💾 Sauvegarder</button>
@@ -18043,7 +18072,7 @@ async function viewPlanMaintenance(c){
     if(!name||!name.trim()) return;
     pmSaveModel(name.trim(),[...window._pmItems]);
     const sel=document.getElementById('pm_load_sel');
-    if(sel) sel.innerHTML='<option value="">📂 Charger un modèle…</option>'+pmModels().map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('');
+    if(sel) sel.innerHTML='<option value="">📂 Dupliquer une liste…</option>'+pmModels().map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('');
     toast('Modèle "'+name.trim()+'" sauvegardé ✓','ok');
   };
   window.pmLoadModel=function(){
