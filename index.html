@@ -4151,15 +4151,16 @@ function fillScopeSelectors(){
   if(sc){
     const geres=state.clients.filter(c=>!c.abonnement_formule), abonnes=state.clients.filter(c=>c.abonnement_formule);
     const opt=c=>`<option value="${c.id}">${esc(c.raison_sociale)}</option>`;
+    const grouper=sepAbonnesActive()&&abonnes.length&&geres.length;
     sc.innerHTML=`<option value="all">Tous les clients</option>`
-      +(abonnes.length?`<optgroup label="Mes clients">${geres.map(opt).join('')}</optgroup><optgroup label="Clients abonnés">${abonnes.map(opt).join('')}</optgroup>`:state.clients.map(opt).join(''));
+      +(grouper?`<optgroup label="Mes clients">${geres.map(opt).join('')}</optgroup><optgroup label="Clients abonnés">${abonnes.map(opt).join('')}</optgroup>`:state.clients.map(opt).join(''));
     sc.value=state.currentClient;
   }
   if(se){ const erps=state.currentClient==='all'?state.erps:state.erps.filter(e=>e.client_id===state.currentClient);
     const gE=erps.filter(e=>!isClientAbonne(e.client_id)), aE=erps.filter(e=>isClientAbonne(e.client_id));
     const optE=e=>`<option value="${e.id}">${esc(e.nom)}</option>`;
     se.innerHTML=`<option value="all">Tous les ERP</option>`
-      +((aE.length&&gE.length)?`<optgroup label="Mes établissements">${gE.map(optE).join('')}</optgroup><optgroup label="Clients abonnés">${aE.map(optE).join('')}</optgroup>`:erps.map(optE).join(''));
+      +((sepAbonnesActive()&&aE.length&&gE.length)?`<optgroup label="Mes établissements">${gE.map(optE).join('')}</optgroup><optgroup label="Clients abonnés">${aE.map(optE).join('')}</optgroup>`:erps.map(optE).join(''));
     se.value=state.currentErp; }
   if(window.syncScopeLabels) syncScopeLabels();
 }
@@ -4321,7 +4322,11 @@ function setActiveNav(base){
   if(sec && !sec.classList.contains('open')) navSec(sec.dataset.sec,true);
   toggleSidebar(false);
 }
-/* ══ SÉPARATION CLIENTS ABONNÉS : la vue « Tous » ne montre que les clients gérés ══ */
+/* ══ SÉPARATION CLIENTS ABONNÉS : la vue « Tous » ne montre que les clients gérés ══
+   IMPORTANT : cette séparation ne concerne que le côté PREVA (admin/consultant).
+   Un utilisateur client (exploitant, lecture, agent…) voit toujours tout son périmètre. */
+function sepAbonnesActive(){ const r=state.profile&&state.profile.role; return r==='admin'||r==='consultant'; }
+window.sepAbonnesActive=sepAbonnesActive;
 function isClientAbonne(cid){ const c=(state.clients||[]).find(x=>x.id===cid); return !!(c&&c.abonnement_formule); }
 window.isClientAbonne=isClientAbonne;
 /* ERP du périmètre courant. avecAbonnes=true : inclut aussi les ERP des clients abonnés
@@ -4330,20 +4335,20 @@ function erpsPerimetre(avecAbonnes){
   if(window._supervision) return state.erps.filter(e=>e.client_id===window._supervision);
   if(state.currentErp!=='all') return state.erps.filter(e=>e.id===state.currentErp);
   if(state.currentClient!=='all') return state.erps.filter(e=>e.client_id===state.currentClient);
-  return avecAbonnes?state.erps:state.erps.filter(e=>!isClientAbonne(e.client_id));
+  return (avecAbonnes||!sepAbonnesActive())?state.erps:state.erps.filter(e=>!isClientAbonne(e.client_id));
 }
 window.erpsPerimetre=erpsPerimetre;
 function clientsPerimetre(){
   if(window._supervision) return (state.clients||[]).filter(c=>c.id===window._supervision);
   if(state.currentErp!=='all'){ const e=state.erps.find(x=>x.id===state.currentErp); return (state.clients||[]).filter(c=>e&&c.id===e.client_id); }
   if(state.currentClient!=='all') return (state.clients||[]).filter(c=>c.id===state.currentClient);
-  return (state.clients||[]).filter(c=>!c.abonnement_formule);
+  return sepAbonnesActive()?(state.clients||[]).filter(c=>!c.abonnement_formule):(state.clients||[]);
 }
 window.clientsPerimetre=clientsPerimetre;
 function erpFilter(q,opts){ if(state.currentErp!=='all') return q.eq('erp_id',state.currentErp);
   if(state.currentClient!=='all'){ const ids=state.erps.filter(e=>e.client_id===state.currentClient).map(e=>e.id); return q.in('erp_id',ids.length?ids:['00000000-0000-0000-0000-000000000000']); }
-  // Vue « Tous » : exclure les ERP des clients abonnés (sauf option avecAbonnes)
-  if(!(opts&&opts.avecAbonnes)){
+  // Vue « Tous » : exclure les ERP des clients abonnés (côté PREVA uniquement, sauf option avecAbonnes)
+  if(sepAbonnesActive() && !(opts&&opts.avecAbonnes)){
     const ids=state.erps.filter(e=>!isClientAbonne(e.client_id)).map(e=>e.id);
     if(ids.length!==state.erps.length) return q.in('erp_id',ids.length?ids:['00000000-0000-0000-0000-000000000000']);
   }
@@ -4363,8 +4368,8 @@ function gedScopeFilter(q){
     if(erpIds.length) parts.push('erp_id.in.('+erpIds.join(',')+')');
     return q.or(parts.join(','));
   }
-  // Vue « Tous » : documents des clients gérés uniquement (les abonnés gèrent leur GED)
-  {
+  // Vue « Tous » : documents des clients gérés uniquement (côté PREVA — les abonnés gèrent leur GED)
+  if(sepAbonnesActive()){
     const abonneIds=(state.clients||[]).filter(x=>x.abonnement_formule).map(x=>x.id);
     if(abonneIds.length){
       const gErp=state.erps.filter(e=>!isClientAbonne(e.client_id)).map(e=>e.id);
@@ -4891,9 +4896,9 @@ function cxStyle(){
 async function viewClients(c){
   // Supervision d'un client abonné : la page Clients ne montre QUE ce client (comme lui la voit)
   const _sup=window._supervision||null;
-  // Séparation : les clients abonnés (formule d'abonnement renseignée) vivent dans Administration
-  const geres=_sup?state.clients.filter(x=>x.id===_sup):state.clients.filter(x=>!x.abonnement_formule);
-  const abonnes=_sup?[]:state.clients.filter(x=>!!x.abonnement_formule);
+  // Séparation : les clients abonnés vivent dans Administration — côté PREVA uniquement
+  const geres=_sup?state.clients.filter(x=>x.id===_sup):(sepAbonnesActive()?state.clients.filter(x=>!x.abonnement_formule):state.clients.slice());
+  const abonnes=(_sup||!sepAbonnesActive())?[]:state.clients.filter(x=>!!x.abonnement_formule);
   const abonneNote=abonnes.length?`<div style="display:flex;align-items:center;gap:9px;background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:10px 14px;margin-top:14px;font-size:12.5px;color:var(--muted)">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
     <span>${abonnes.length} client${abonnes.length>1?'s':''} abonné${abonnes.length>1?'s':''} (${abonnes.map(a=>esc(a.raison_sociale)).join(', ')}) — géré${abonnes.length>1?'s':''} depuis <a onclick="navigate('/admin')" style="color:#2563eb;font-weight:700;cursor:pointer">Administration →</a></span>
@@ -5892,7 +5897,9 @@ function convCard(cv,clientNm){
 function formConversation(conv){
   const cv=conv||{};
   const today=new Date().toISOString().slice(0,10);
-  const clientOpts=state.clients.filter(cl=>window._supervision?cl.id===window._supervision:(!cl.abonnement_formule||cv.client_id===cl.id)).map(cl=>`<option value="${cl.id}"${cv.client_id===cl.id?' selected':''}>${esc(cl.raison_sociale)}</option>`).join('');
+  const _cvCli=state.clients.filter(cl=>window._supervision?cl.id===window._supervision:(!sepAbonnesActive()||!cl.abonnement_formule||cv.client_id===cl.id));
+  // Un seul client visible (compte client) : pré-sélectionné pour que l'enregistrement passe toujours
+  const clientOpts=_cvCli.map(cl=>`<option value="${cl.id}"${(cv.client_id===cl.id||(!cv.client_id&&_cvCli.length===1))?' selected':''}>${esc(cl.raison_sociale)}</option>`).join('');
   _cvAudioBlob=null; _cvAudioExt='webm'; _cvRec=null; _cvRecChunks=[];
   openModal(`<div class="modal-head"><h2>${cv.id?'Modifier la conversation':'Nouvelle conversation'}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
   <div class="modal-body">
@@ -6150,7 +6157,7 @@ async function viewErps(c){
     state.currentClient='all'; state.currentErp='all'; if(typeof fillScopeSelectors==='function') fillScopeSelectors();
   }
   const erps = state.currentClient==='all'?erpsPerimetre(false):state.erps.filter(e=>e.client_id===state.currentClient);
-  const _erpsAbonnes = state.currentClient==='all'?state.erps.filter(e=>isClientAbonne(e.client_id)):[];
+  const _erpsAbonnes = (state.currentClient==='all'&&sepAbonnesActive())?state.erps.filter(e=>isClientAbonne(e.client_id)):[];
   const _erpAbnNote=_erpsAbonnes.length?`<div style="display:flex;align-items:center;gap:9px;background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:10px 14px;margin-top:14px;font-size:12.5px;color:var(--muted)">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
     <span>${_erpsAbonnes.length} établissement${_erpsAbonnes.length>1?'s':''} de client${_erpsAbonnes.length>1?'s':''} abonné${_erpsAbonnes.length>1?'s':''} (${_erpsAbonnes.map(e=>esc(e.nom)).join(', ')}) — visible${_erpsAbonnes.length>1?'s':''} via <a onclick="navigate('/admin')" style="color:#2563eb;font-weight:700;cursor:pointer">Administration → Voir son espace</a></span>
@@ -6281,7 +6288,7 @@ window.assurEtat=function(a){
 };
 function formErp(er,clientId){
   const e=er||{}; const cid=clientId||e.client_id||state.currentClient!=='all'?state.currentClient:'';
-  const clientOpts=state.clients.filter(c=>window._supervision?c.id===window._supervision:(!c.abonnement_formule||(clientId||e.client_id)===c.id)).map(c=>`<option value="${c.id}"${(clientId||e.client_id)===c.id?' selected':''}>${esc(c.raison_sociale)}</option>`).join('');
+  const clientOpts=state.clients.filter(c=>window._supervision?c.id===window._supervision:(!sepAbonnesActive()||!c.abonnement_formule||(clientId||e.client_id)===c.id)).map(c=>`<option value="${c.id}"${(clientId||e.client_id)===c.id?' selected':''}>${esc(c.raison_sociale)}</option>`).join('');
   openModal(`<div class="modal-head"><h2>${er?'Modifier l\'ERP':'Nouvel ERP'}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
   <div class="modal-body">
     <div class="fld"><label>Client <span class="req">*</span></label><select id="f_client"${er?' disabled':''} onchange="erpAutoName()"><option value="">— choisir —</option>${clientOpts}</select></div>
@@ -7513,6 +7520,7 @@ async function formInter(erpId,it,mode){
   ]);
   const domaines=[...new Set((oblRes.data||[]).map(o=>o.domaine||o.libelle).filter(Boolean))];
   const erpOpts=state.erps.filter(x=>{
+    if(!sepAbonnesActive()) return true;
     if(!isClientAbonne(x.client_id)) return true;
     if(window._supervision===x.client_id) return true;
     if(state.currentClient===x.client_id||state.currentErp===x.id) return true;
@@ -8207,6 +8215,7 @@ window.toggleReserveItem=toggleReserveItem;
 async function formReserve(erpId,r){
   r=r||{}; const e=erpId||r.erp_id||(state.currentErp!=='all'?state.currentErp:'');
   const erpOpts=state.erps.filter(x=>{
+    if(!sepAbonnesActive()) return true;
     if(!isClientAbonne(x.client_id)) return true;
     if(window._supervision===x.client_id) return true;
     if(state.currentClient===x.client_id||state.currentErp===x.id) return true;
@@ -9142,7 +9151,7 @@ async function viewCompteRendu(c){
   if(pres.length) destOpts+=`<optgroup label="Prestataires">${pres.map(optFor).join('')}</optgroup>`;
   if(bdc.length)  destOpts+=`<optgroup label="Bureaux de contrôle">${bdc.map(optFor).join('')}</optgroup>`;
   destOpts+=`<option value="__autre__">Autre (saisir)…</option>`;
-  const clientOpts=state.clients.filter(cl=>window._supervision?cl.id===window._supervision:!cl.abonnement_formule).map(cl=>`<option value="${cl.id}">${esc(cl.raison_sociale)}</option>`).join('');
+  const clientOpts=state.clients.filter(cl=>window._supervision?cl.id===window._supervision:(!sepAbonnesActive()||!cl.abonnement_formule)).map(cl=>`<option value="${cl.id}">${esc(cl.raison_sociale)}</option>`).join('');
 
   _crPhotos=[]; _reportAttachments=[]; window._reportDests=[];
   const ist='width:100%;box-sizing:border-box';
@@ -14884,7 +14893,7 @@ window.viewHistoEmails=async function(c){
 window.heApplyFilters=function(){
   let rows=(window._heRows||[]).slice();
   if(window._supervision){ const allowed=new Set(((window._heClientContacts||{})[window._supervision]||[])); rows=rows.filter(r=>allowed.has(String(r.destinataire||'').toLowerCase())); }
-  else{ // vue quotidienne : masquer les e-mails destinés aux contacts des clients abonnés
+  else if(sepAbonnesActive()){ // vue quotidienne côté PREVA : masquer les e-mails destinés aux contacts des clients abonnés
     const abn=new Set();
     (state.clients||[]).filter(c=>c.abonnement_formule).forEach(c=>{ (((window._heClientContacts||{})[c.id])||[]).forEach(m=>abn.add(m)); });
     if(abn.size) rows=rows.filter(r=>!abn.has(String(r.destinataire||'').toLowerCase()));
@@ -15697,9 +15706,9 @@ window.viewTravaux=async function(c){
     const scope=d=>{
       if(state.currentErp!=='all') return d.erp_id===state.currentErp;
       if(state.currentClient!=='all') return (d.erp_id&&erpIds.includes(d.erp_id))||d.client_id===state.currentClient;
-      // Vue « Tous » : clients gérés uniquement
+      // Vue « Tous » : clients gérés uniquement (côté PREVA)
       if(d.erp_id) return erpsPerimetre(false).some(e=>e.id===d.erp_id);
-      if(d.client_id) return !isClientAbonne(d.client_id);
+      if(d.client_id) return !sepAbonnesActive()||!isClientAbonne(d.client_id);
       return true;
     };
     const docs=(dq.data||[]).filter(scope);
@@ -16028,9 +16037,9 @@ function gpaFrise(o){
 function gpaScope(o){
   if(state.currentErp!=='all') return o.erp_id===state.currentErp;
   if(state.currentClient!=='all') return o.client_id===state.currentClient||((state.erps||[]).some(e=>e.id===o.erp_id&&e.client_id===state.currentClient));
-  // Vue « Tous » : clients gérés uniquement
+  // Vue « Tous » : clients gérés uniquement (côté PREVA)
   if(o.erp_id) return erpsPerimetre(false).some(e=>e.id===o.erp_id);
-  if(o.client_id) return !isClientAbonne(o.client_id);
+  if(o.client_id) return !sepAbonnesActive()||!isClientAbonne(o.client_id);
   return true;
 }
 async function viewGpa(c){
@@ -17760,19 +17769,43 @@ function pmxStyle(){ if(document.getElementById('pmx-style'))return; const st=do
 .pmx-peri{font-size:12.5px;font-weight:700;color:var(--primary);white-space:nowrap;min-width:70px;text-align:right}
 .pmx-att{display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:600;color:var(--ok,#16a34a);white-space:nowrap}
 .pmx-acts{display:flex;gap:6px;flex-shrink:0}
+/* ── Mobile : les lignes passent sur deux niveaux au lieu de se chevaucher ── */
+@media(max-width:640px){
+  .pmx-row{flex-wrap:wrap;row-gap:6px;padding:10px 10px}
+  .pmx-ico{width:32px;height:32px;border-radius:9px}
+  .pmx-ico svg{width:17px;height:17px}
+  .pmx-nm{flex:1 1 calc(100% - 110px);min-width:120px}
+  .pmx-nm b{font-size:13px;white-space:normal}
+  .pmx-tag,.pmx-att{font-size:10.5px;padding:2px 7px}
+  .pmx-peri{min-width:0;text-align:left;font-size:11.5px}
+  .pmx-acts{margin-left:auto}
+}
 `; document.head.appendChild(st); }
 
 async function viewPlanMaintenance(c){
   pmxStyle();
   const PM_BASE=['Appareils de cuisson','Ascenseur','BAES / éclairage de sécurité','Clapet coupe-feu','Désenfumage mécanique','Désenfumage naturel','Extincteur','Parking','Porte coupe-feu','RIA','Sprinklers','SSI / centrale incendie','Thermographie électrique'];
   const periList=['journalière','hebdomadaire','mensuelle','bimestrielle','trimestrielle','semestrielle','annuelle','biannuelle','triennale','quadriennale','quinquennale','décennale'];
-  // Bibliothèque persistante en localStorage
-  const pmLibLoad=()=>{ try{ return JSON.parse(localStorage.getItem('pm_library')||'[]'); }catch(_){ return []; } };
-  const pmLibSave=()=>{ localStorage.setItem('pm_library',JSON.stringify(window._pmItems)); };
-  window._pmItems=pmLibLoad();
+  // Bibliothèque et modèles : stockés en base — ils suivent l'utilisateur sur tous ses appareils.
+  // (Reprise automatique de l'ancien stockage local du navigateur la première fois.)
+  const _pmPrefs={library:[],modeles:[]};
+  try{
+    const {data:_pp}=await sb.from('pm_prefs').select('library,modeles').eq('user_id',state.user.id).maybeSingle();
+    if(_pp){ _pmPrefs.library=_pp.library||[]; _pmPrefs.modeles=_pp.modeles||[]; }
+    else{
+      try{ _pmPrefs.library=JSON.parse(localStorage.getItem('pm_library')||'[]'); }catch(_){}
+      try{ _pmPrefs.modeles=JSON.parse(localStorage.getItem('pm_models')||'[]')||[]; }catch(_){}
+      if(_pmPrefs.library.length||_pmPrefs.modeles.length){
+        try{ sb.from('pm_prefs').upsert({user_id:state.user.id,library:_pmPrefs.library,modeles:_pmPrefs.modeles}).then(()=>{}); }catch(_){}
+      }
+    }
+  }catch(_){ try{ _pmPrefs.library=JSON.parse(localStorage.getItem('pm_library')||'[]'); }catch(__){} }
+  const pmPersist=()=>{ try{ sb.from('pm_prefs').upsert({user_id:state.user.id,library:window._pmItems||[],modeles:_pmPrefs.modeles||[],updated_at:new Date().toISOString()}).then(()=>{}); }catch(_){} };
+  const pmLibSave=()=>{ try{ localStorage.setItem('pm_library',JSON.stringify(window._pmItems)); }catch(_){} pmPersist(); };
+  window._pmItems=_pmPrefs.library;
 
-  const pmModels=()=>JSON.parse(localStorage.getItem('pm_models')||'[]');
-  const pmSaveModel=(name,items)=>{const m=pmModels().filter(x=>x.name!==name);m.unshift({name,items});localStorage.setItem('pm_models',JSON.stringify(m.slice(0,20)));};
+  const pmModels=()=>(_pmPrefs.modeles||[]);
+  const pmSaveModel=(name,items)=>{ _pmPrefs.modeles=[{name,items},...(_pmPrefs.modeles||[]).filter(x=>x.name!==name)].slice(0,20); pmPersist(); };
 
   // Charger types custom existants
   let allTypes=[...PM_BASE];
@@ -17780,7 +17813,7 @@ async function viewPlanMaintenance(c){
     const custom=[...new Set((eq||[]).map(e=>e.type).filter(t=>t&&!PM_BASE.includes(t)))].sort();
     allTypes=[...PM_BASE,...custom];}catch(_){}
 
-  const clientOpts=(state.clients||[]).filter(cl=>window._supervision?cl.id===window._supervision:!cl.abonnement_formule).slice().sort((a,b)=>(a.raison_sociale||'').localeCompare(b.raison_sociale||'')).map(cl=>`<option value="${cl.id}">${esc(cl.raison_sociale)}</option>`).join('');
+  const clientOpts=(state.clients||[]).filter(cl=>window._supervision?cl.id===window._supervision:(!sepAbonnesActive()||!cl.abonnement_formule)).slice().sort((a,b)=>(a.raison_sociale||'').localeCompare(b.raison_sociale||'')).map(cl=>`<option value="${cl.id}">${esc(cl.raison_sociale)}</option>`).join('');
 
   // ── Rendu de la liste ──
   function pmRender(){
@@ -20889,10 +20922,10 @@ function viewVerifications(content){
   function ptom(p){const s=(p||'').toLowerCase();if(/hebdo/.test(s))return 0.25;if(/mensuel|1 mois/.test(s))return 1;if(/trimestr|3 mois/.test(s))return 3;if(/semestr|6 mois/.test(s))return 6;if(/annuel|1 an/.test(s))return 12;if(/2 ans/.test(s))return 24;if(/3 ans/.test(s))return 36;return null;}
   function vFiltApply(list){return (list||[]).filter(i=>{
     if(window._supervision && ((verp[i.erp_id]||{}).client_id)!==window._supervision) return false;
-    // Vue quotidienne sans filtre : exclure les vérifications des clients abonnés
-    if(!window._supervision && !vfiltErp && !vfiltClient){
+    // Vue quotidienne sans filtre : exclure les vérifications des clients abonnés (côté PREVA)
+    if(!window._supervision && !vfiltErp && !vfiltClient && typeof sepAbonnesActive==='function' && sepAbonnesActive()){
       const cid=(verp[i.erp_id]||{}).client_id;
-      if(cid && typeof isClientAbonne==='function' && isClientAbonne(cid)) return false;
+      if(cid && isClientAbonne(cid)) return false;
     }
     return vfiltErp?i.erp_id===vfiltErp:(vfiltClient?(((verp[i.erp_id]||{}).client_id)===vfiltClient):true);
   });}
