@@ -19621,8 +19621,8 @@ async function formPrest(p){
         <div class="fld" style="margin-bottom:10px;grid-column:1/-1"><label>Adresse</label><input id="f_adresse" value="${esc(p.adresse||'')}" placeholder="12 rue de la République"></div>
         <div class="fld" style="margin-bottom:10px"><label>Code postal</label><input id="f_code_postal" value="${esc(p.code_postal||'')}" placeholder="75001" inputmode="numeric"></div>
         <div class="fld" style="margin-bottom:10px"><label>Ville</label><input id="f_ville" value="${esc(p.ville||'')}" placeholder="Paris"></div>
-        <div class="fld" style="margin-bottom:10px"><label>Téléphone</label><input id="f_telephone" type="tel" value="${esc(p.telephone||'')}" placeholder="01 23 45 67 89"></div>
-        <div class="fld" style="margin-bottom:10px"><label>Email</label><input id="f_email" type="email" value="${esc(p.email_rapports||'')}" placeholder="contact@entreprise.fr"></div>
+        <div class="fld" style="margin-bottom:10px"><label>Téléphone (fixe ou mobile) <span class="req" style="color:#dc2626">*</span></label><input id="f_telephone" type="tel" value="${esc(p.telephone||'')}" placeholder="01 23 45 67 89"></div>
+        <div class="fld" style="margin-bottom:10px"><label>Email <span class="req" style="color:#dc2626">*</span></label><input id="f_email" type="email" value="${esc(p.email_rapports||'')}" placeholder="contact@entreprise.fr"></div>
         <div class="fld" style="margin-bottom:10px"><label>SIRET</label><input id="f_siret" value="${esc(p.siret||'')}" placeholder="123 456 789 00012" inputmode="numeric"></div>
 
         <div class="fld" style="margin-bottom:10px"><label>SIREN</label><input id="f_siren" value="${esc(p.siren||'')}" placeholder="123 456 789" inputmode="numeric"></div>
@@ -19649,9 +19649,9 @@ async function formPrest(p){
       <div class="fld" style="margin-bottom:0"><label>Qualifications / habilitations</label><input id="f_ass_qual" value="${esc((p.assurance||{}).qualifications||'')}" placeholder="ex. APSAD · habilitations B2V/BR"></div>
     </div>
 
-    <div class="fld"><label>Clients rattachés <span style="color:var(--muted-2);font-weight:400;font-size:11px">(laisser vide = commun à tous)</span></label>
+    <div class="fld"><label>Clients rattachés <span class="req" style="color:#dc2626">*</span> <span style="color:var(--muted-2);font-weight:400;font-size:11px">(au moins un client obligatoire)</span></label>
       <div id="f_pclient_list" style="display:flex;flex-direction:column;gap:6px;margin-top:6px;max-height:200px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface-2)">
-        ${(()=>{ const sel=Array.isArray(p.client_ids)&&p.client_ids.length?p.client_ids:(p.client_id?[p.client_id]:[]); return state.clients.map(cl=>`<label style="display:flex;align-items:center;gap:9px;font-size:13px;cursor:pointer;padding:3px 0"><input type="checkbox" name="f_pclient_cb" value="${cl.id}"${sel.includes(cl.id)?' checked':''} style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer;flex:0 0 auto"> ${esc(cl.raison_sociale)}</label>`).join(''); })()}
+        ${(()=>{ const sel=Array.isArray(p.client_ids)&&p.client_ids.length?p.client_ids:(p.client_id?[p.client_id]:[]); return state.clients.map(cl=>`<label style="display:flex;align-items:center;gap:9px;font-size:13px;cursor:pointer;padding:3px 0"><input type="checkbox" name="f_pclient_cb" value="${cl.id}"${(sel.includes(cl.id)||(!p.id&&state.clients.length===1))?' checked':''} style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer;flex:0 0 auto"> ${esc(cl.raison_sociale)}</label>`).join(''); })()}
       </div></div>
 
     <!-- Spécialités (multi-choix) -->
@@ -19875,8 +19875,10 @@ async function formPrest(p){
     if(_allAutres.length) contacts.autres=_allAutres; else delete contacts.autres;
     const payload={
       nom, categorie,
-      client_ids: [...document.querySelectorAll('input[name="f_pclient_cb"]:checked')].map(cb=>cb.value),
-      client_id: document.querySelector('input[name="f_pclient_cb"]:checked')?.value || null,
+      client_ids: (()=>{ let ids=[...document.querySelectorAll('input[name="f_pclient_cb"]:checked')].map(cb=>cb.value);
+        if(!ids.length && state.clients.length===1) ids=[state.clients[0].id]; // rattachement automatique : un seul client visible
+        return ids; })(),
+      client_id: null, // renseigné juste après depuis client_ids
       type: types.join(', ')||null,
       affaires:[...document.querySelectorAll('#f_affaires_list .f-aff-row')].map(r=>({erp_id:r.querySelector('.aff-erp').value||null,numero:r.querySelector('.aff-num').value.trim()||null})).filter(a=>a.erp_id||a.numero),
       commentaire:$('#f_com').value||null,
@@ -19900,11 +19902,38 @@ async function formPrest(p){
       has_avenant: document.querySelector('input[name="rb_avenant"]:checked')?.value==='oui'||false,
     };
     try{
+      payload.client_id=payload.client_ids[0]||null;
+      // Rattachement obligatoire pour tout le monde : aucun prestataire sans client
+      if(!payload.client_id){
+        toast('Rattachement obligatoire : cochez au moins un client dans « Clients rattachés » avant d\'enregistrer.','err'); return;
+      }
+      // Email et téléphone obligatoires : sans eux, ni demandes d'intervention ni SMS
+      if(!payload.email_rapports || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email_rapports)){
+        toast('Email obligatoire : renseignez une adresse email valide pour ce prestataire.','err'); return;
+      }
+      if(!payload.telephone){
+        toast('Téléphone obligatoire : renseignez un numéro (fixe ou mobile) pour ce prestataire.','err'); return;
+      }
       // Ajouter les paths de fichiers si uploadés
       if(window._prest_contrat_path){ payload.contrat_path=window._prest_contrat_path; payload.contrat_nom=window._prest_contrat_nom||null; delete window._prest_contrat_path; delete window._prest_contrat_nom; }
       if(window._prest_avenant_path){ payload.avenant_path=window._prest_avenant_path; payload.avenant_nom=window._prest_avenant_nom||null; delete window._prest_avenant_path; delete window._prest_avenant_nom; }
-      if(p.id) await sb.from('prestataires').update(payload).eq('id',p.id);
-      else      await sb.from('prestataires').insert(payload);
+      let _pid=p.id||null;
+      if(p.id){ const {error:_pe}=await sb.from('prestataires').update(payload).eq('id',p.id); if(_pe) throw _pe; }
+      else{ const {data:_np,error:_pe}=await sb.from('prestataires').insert(payload).select('id').maybeSingle(); if(_pe) throw _pe; _pid=_np&&_np.id; }
+      // ── Pont vers la rubrique « Contrats de maintenance » : un contrat signalé sur la fiche
+      //    prestataire apparaît aussi dans le menu Contrats (créé une seule fois, mis à jour ensuite)
+      try{
+        if(_pid && payload.has_contrat){
+          const {data:_exc}=await sb.from('contrats').select('id,fichier_path').or('prestataire_id.eq.'+_pid+',bureau_id.eq.'+_pid).limit(1);
+          if(!_exc||!_exc.length){
+            const _ctr={client_id:payload.client_id,annee:new Date().getFullYear(),nom:'Contrat de maintenance — '+(payload.nom||''),fichier_path:payload.contrat_path||p.contrat_path||null};
+            if(categorie==='bureau_de_controle') _ctr.bureau_id=_pid; else _ctr.prestataire_id=_pid;
+            await sb.from('contrats').insert(_ctr);
+          } else if(payload.contrat_path){
+            await sb.from('contrats').update({fichier_path:payload.contrat_path}).eq('id',_exc[0].id);
+          }
+        }
+      }catch(_){ /* jamais bloquant */ }
       _modalDirty=false;
       // Rester sur l'onglet de la catégorie sauvegardée
       _prestOnglet = categorie;
