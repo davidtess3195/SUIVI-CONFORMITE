@@ -2826,7 +2826,7 @@ async function loadEmailsClients(){
       }).join('')}
       </tbody></table></div>
       <div style="margin-top:12px;background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.35);border-radius:10px;padding:12px 14px;font-size:12.5px">
-        ✅ La réception des emails est active sur <b>conformite-securite.fr</b> (boîte OVH) : le robot relève la boîte et classe automatiquement les rapports reçus dans la GED.
+        ✅ La réception des emails est active sur <b>conformite-securite.fr</b> (boîte OVH) : le robot relève la boîte et classe automatiquement les rapports reçus dans le Classeur.
       </div>`;
   }catch(e){ el.innerHTML=`<span style="color:var(--critique)">Erreur : ${esc(e.message)}</span>`; }
 }
@@ -4105,7 +4105,7 @@ function getNAV(){ return [
   {sec:'sitdeg', titre:'Situation dégradée',     ic:NI.alert,     items:[['/photos','Photos et vidéos',NI.cam],['/compte-rendu','Compte rendu',NI.cr]]},
   {sec:'prest',  titre:'Suivi des prestataires', ic:NI.briefcase, items:[['/prestataires','Prestataires',NI.wrench],['/conversations','Conversations',NI.chat],['/pointage','Pointage & journal',NI.clock]]},
   {sec:'suivi',  titre:'Suivi et conformité',    ic:NI.shield,    items:[['/interventions','Interventions',NI.tools],['/travaux','Travaux',NI.trvx],['/gpa','Garanties GPA',NI.checks],['/verifications','Vérifications & relances',NI.bell],['/reserves','Levées des réserves',NI.checks],['/tableaux-reserves','Tableaux de réserves',NI.tablo]]},
-  {sec:'ged',    titre:'Gestion documentaire',   ic:NI.folderO,   items:[['/documents','Documents (GED)',NI.folder],['/rapports','Rapports reçus',NI.inbox],['/contrats','Contrats de maintenance',NI.contrat]]},
+  {sec:'ged',    titre:'Documents',   ic:NI.folderO,   items:[['/documents','Classeur',NI.folder],['/rapports','Rapports reçus',NI.inbox],['/contrats','Contrats de maintenance',NI.contrat]]},
   {link:['/preparation-cs','Commission de sécurité',NI.landmark]},
   ...(state.profile?.role==='admin'
     ? [{sec:'admin', titre:'Administration', ic:NI.gear, items:[['/admin','Tableau de bord admin',NI.gauge],['/parametres','Paramètres & email',NI.gear]]}]
@@ -4179,19 +4179,23 @@ function renderApp(){
 
 function fillScopeSelectors(){
   const sc=$('#selClient'), se=$('#selErp');
+  // Séparation totale : les clients abonnés ne sont plus proposés dans les sélecteurs.
+  // Ils n'y apparaissent que s'ils sont DÉJÀ actifs (supervision en cours), pour que le sélecteur reste cohérent.
   if(sc){
-    const geres=state.clients.filter(c=>!c.abonnement_formule), abonnes=state.clients.filter(c=>c.abonnement_formule);
+    const visibles=state.clients.filter(c=>!c.abonnement_formule||!sepAbonnesActive()||window._supervision===c.id||state.currentClient===c.id);
+    const geres=visibles.filter(c=>!c.abonnement_formule), abonnes=visibles.filter(c=>c.abonnement_formule);
     const opt=c=>`<option value="${c.id}">${esc(c.raison_sociale)}</option>`;
     const grouper=sepAbonnesActive()&&abonnes.length&&geres.length;
     sc.innerHTML=`<option value="all">Tous les clients</option>`
-      +(grouper?`<optgroup label="Mes clients">${geres.map(opt).join('')}</optgroup><optgroup label="Clients abonnés">${abonnes.map(opt).join('')}</optgroup>`:state.clients.map(opt).join(''));
+      +(grouper?`<optgroup label="Mes clients">${geres.map(opt).join('')}</optgroup><optgroup label="Supervision en cours">${abonnes.map(opt).join('')}</optgroup>`:visibles.map(opt).join(''));
     sc.value=state.currentClient;
   }
-  if(se){ const erps=state.currentClient==='all'?state.erps:state.erps.filter(e=>e.client_id===state.currentClient);
+  if(se){ const erpsAll=state.currentClient==='all'?state.erps:state.erps.filter(e=>e.client_id===state.currentClient);
+    const erps=erpsAll.filter(e=>!isClientAbonne(e.client_id)||!sepAbonnesActive()||window._supervision===e.client_id||state.currentClient===e.client_id||state.currentErp===e.id);
     const gE=erps.filter(e=>!isClientAbonne(e.client_id)), aE=erps.filter(e=>isClientAbonne(e.client_id));
     const optE=e=>`<option value="${e.id}">${esc(e.nom)}</option>`;
     se.innerHTML=`<option value="all">Tous les ERP</option>`
-      +((sepAbonnesActive()&&aE.length&&gE.length)?`<optgroup label="Mes établissements">${gE.map(optE).join('')}</optgroup><optgroup label="Clients abonnés">${aE.map(optE).join('')}</optgroup>`:erps.map(optE).join(''));
+      +((sepAbonnesActive()&&aE.length&&gE.length)?`<optgroup label="Mes établissements">${gE.map(optE).join('')}</optgroup><optgroup label="Supervision en cours">${aE.map(optE).join('')}</optgroup>`:erps.map(optE).join(''));
     se.value=state.currentErp; }
   if(window.syncScopeLabels) syncScopeLabels();
 }
@@ -4541,8 +4545,8 @@ async function viewDashboard(c){
     : (state.currentClient!=='all'?state.erps.filter(e=>e.client_id===state.currentClient).map(e=>e.id):erpsPerimetre(false).map(e=>e.id));
   const _tousGeres = state.currentClient==='all'&&state.currentErp==='all';
   const inScope = arr => _tousGeres?arr.filter(x=>!x.erp_id||erpIds.includes(x.erp_id)):arr.filter(x=>erpIds.includes(x.erp_id));
-  // Exception : les photos urgentes / alertes terrain des clients abonnés continuent de remonter
-  const inScopePhotos = arr => _tousGeres?arr:arr.filter(x=>erpIds.includes(x.erp_id));
+  // Séparation totale : les photos des clients abonnés suivent la même règle que le reste
+  const inScopePhotos = arr => arr.filter(x=>erpIds.includes(x.erp_id));
 
   try{
     const [ob,re,it,ph,cv,dg,pn] = await Promise.all([
@@ -5247,7 +5251,7 @@ window.clientDeleteModal=async function(clientId,clientNom){
         ⚠️ <b>Suppression définitive et irréversible.</b> Seront détruits avec ce client :
         <ul style="margin:8px 0 0;padding-left:20px">
           <li><b>${nbErps||0}</b> établissement(s) (ERP) et tout leur contenu</li>
-          <li><b>${nbDocs||0}</b> document(s) référencé(s) en GED</li>
+          <li><b>${nbDocs||0}</b> document(s) référencé(s) dans le Classeur</li>
           <li>toutes leurs réserves, tableaux, comptes rendus et pointages</li>
           ${nbUsers?`<li><b>${nbUsers}</b> compte(s) de connexion perdront tout accès</li>`:''}
         </ul>
@@ -6421,7 +6425,7 @@ function formErp(er,clientId){
 window.csPassageLinkDoc=async function(passageId,erpId){
   openModal(`<div class="modal-head"><h2>🔗 Lier un PV existant</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
     <div class="modal-body">
-      <div class="fld" style="margin-bottom:0"><label>Rapport / PV déposé en GED pour cet établissement</label>
+      <div class="fld" style="margin-bottom:0"><label>Rapport / PV déposé dans le Classeur pour cet établissement</label>
         <select id="csl_doc"><option value="">— chargement… —</option></select></div>
     </div>
     <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
@@ -6429,7 +6433,7 @@ window.csPassageLinkDoc=async function(passageId,erpId){
   try{
     const {data:docs}=await sb.from('documents').select('id,nom_original,type').eq('erp_id',erpId).in('type',['PV commission','Rapport','Bureau de contrôle']).order('created_at',{ascending:false});
     const sel=document.getElementById('csl_doc');
-    if(sel) sel.innerHTML=(docs&&docs.length)?docs.map(d=>`<option value="${d.id}">${esc(d.nom_original||d.type)}</option>`).join(''):'<option value="">— aucun document trouvé en GED —</option>';
+    if(sel) sel.innerHTML=(docs&&docs.length)?docs.map(d=>`<option value="${d.id}">${esc(d.nom_original||d.type)}</option>`).join(''):'<option value="">— aucun document trouvé dans le Classeur —</option>';
   }catch(_){}
 };
 window.csPassageLinkDocGo=async function(passageId,erpId){
@@ -6453,7 +6457,7 @@ window.csPassageModal=async function(erpId,erpNom,preText){
         <div class="fld"><label>Avis</label><select id="csp_avis"><option value="">— non précisé —</option>
           <option value="favorable">Favorable</option><option value="defavorable">Défavorable</option></select></div></div>
       <div class="checkrow"><input type="checkbox" id="csp_presc"><label style="margin:0">Avec prescriptions</label></div>
-      <div class="fld"><label>Rapport / PV lié <span style="font-weight:400;color:var(--muted)">(déjà déposé en GED, optionnel)</span></label>
+      <div class="fld"><label>Rapport / PV lié <span style="font-weight:400;color:var(--muted)">(déjà déposé dans le Classeur, optionnel)</span></label>
         <select id="csp_doc"><option value="">— aucun —</option></select></div>
       <div class="fld" style="margin-bottom:0"><label>Commentaire</label><textarea id="csp_com" placeholder="Précisions, référence du PV…" style="min-height:${preText?'160px':'70px'}">${esc(preText||'')}</textarea>
         ${preText?'<div style="font-size:11px;color:var(--muted);margin-top:4px">Texte lu par l’OCR — relis-le, corrige les coquilles et complète date/avis ci-dessus.</div>':''}</div>
@@ -6754,7 +6758,7 @@ function renderErpTab(tab,d){
           }).join('')+'</div>'):'';
           return '<div style="padding:0 18px 12px;font-size:12.5px;color:var(--muted)"><b style="color:var(--ink)">'+(esc(e.mairie_nom)||'Mairie')+'</b>'+(cpv?' · '+cpv:'')+(e.mairie_adresse?'<br>'+esc(e.mairie_adresse):'')+((mailL||e.mairie_telephone)?'<br>'+mailL+(mailL&&e.mairie_telephone?' · ':'')+(e.mairie_telephone?'Tél. '+esc(e.mairie_telephone):''):'')+ctHtml+'</div>';
         })():''}
-        ${(d.pvSansPassage||[]).length?`<div style="padding:12px 18px;border-top:1px solid var(--line-2);background:rgba(37,99,235,.05)"><div style="font-size:12px;color:var(--muted);margin-bottom:8px">PV déposé(s) en GED — pas encore rattaché(s) à un passage :</div><div style="display:flex;flex-direction:column;gap:6px">${d.pvSansPassage.map(pv=>`<div style="display:flex;align-items:center;gap:10px"><span style="flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(pv.nom_original)}</span><button class="btn sm primary" onclick="previewDoc('${esc(pv.fichier_path)}','${esc(pv.nom_original||'')}','${pvTag(pv.tags)}')">Voir</button></div>`).join('')}</div></div>`:''}
+        ${(d.pvSansPassage||[]).length?`<div style="padding:12px 18px;border-top:1px solid var(--line-2);background:rgba(37,99,235,.05)"><div style="font-size:12px;color:var(--muted);margin-bottom:8px">PV déposé(s) dans le Classeur — pas encore rattaché(s) à un passage :</div><div style="display:flex;flex-direction:column;gap:6px">${d.pvSansPassage.map(pv=>`<div style="display:flex;align-items:center;gap:10px"><span style="flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(pv.nom_original)}</span><button class="btn sm primary" onclick="previewDoc('${esc(pv.fichier_path)}','${esc(pv.nom_original||'')}','${pvTag(pv.tags)}')">Voir</button></div>`).join('')}</div></div>`:''}
         ${d.csh.length?`<div class="tbl-wrap" style="border-top:1px solid var(--line-2)"><table class="tbl"><thead><tr><th>Date</th><th>Avis</th><th>Commentaire</th><th></th></tr></thead><tbody>${d.csh.map(p=>`<tr><td><b>${fmtDate(p.date_passage)}</b></td><td>${p.avis?`<span style="font-weight:700;color:${p.avis==='favorable'?'#16a34a':'#dc2626'}">${p.avis==='favorable'?'Favorable':'Défavorable'}</span>${p.prescriptions?' <span style="font-size:11.5px;color:var(--muted)">avec prescriptions</span>':''}`:'<span style="color:var(--muted)">—</span>'}</td><td style="font-size:12.5px;color:var(--muted)">${esc(p.commentaire)||'—'}</td><td style="text-align:right;white-space:nowrap">${p.documents&&p.documents.fichier_path?`<button class="btn sm" onclick="previewDoc('${esc(p.documents.fichier_path)}','${esc(p.documents.nom_original||'')}','${pvTag(p.documents.tags)}')">Voir</button>`:`<button class="btn sm" onclick="csPassageLinkDoc('${p.id}','${e.id}')">Lier un PV</button>`} <button class="btn sm danger" onclick="csPassageDel('${p.id}','${e.id}')">🗑</button></td></tr>`).join('')}</tbody></table></div>`:`<div style="padding:16px 18px;color:var(--muted);font-size:13px;border-top:1px solid var(--line-2)">Aucun passage enregistré — cliquez « + Ajouter un passage » (saisie rétroactive possible).</div>`}
       </div>
 
@@ -8665,7 +8669,7 @@ window.fselInit=function(){
 async function chargerEtAfficherPhotos(){
   try{
     let q = sb.from('photos_urgentes').select('*').order('created_at',{ascending:false});
-    q = erpFilter(q,{avecAbonnes:true}); // les alertes terrain des clients abonnés continuent de remonter
+    q = erpFilter(q); // séparation totale : les photos des clients abonnés ne remontent plus (visibles via la supervision)
     const {data, error} = await q;
     if(error){ console.error('Photos RLS error:', error); showPhotoError(error.message); return; }
     window._photosCache = data || [];
@@ -9302,7 +9306,7 @@ window.crDestTypeChange=function(){
 window.crPrestPick=function(){
   const pid=document.getElementById('cr_prest')?.value; const pk=(window._crPrestPick||{})[pid];
   const info=document.getElementById('cr_prest_info');
-  if(info) info.innerHTML = pk ? (pk.email?`✉️ ${esc(pk.email)}${pk.contact?' · 👤 '+esc(pk.contact):''}`:'<span style="color:var(--majeur)">Aucun e-mail enregistré pour ce prestataire</span>') : '';
+  if(info) info.innerHTML = pk ? (pk.email?`✉️ ${esc(pk.email)}${pk.telephone?' · 📞 '+esc(pk.telephone):''}${pk.contact?' · 👤 '+esc(pk.contact):''}`:'<span style="color:var(--majeur)">Aucun e-mail enregistré pour ce prestataire — ajoutez-le sur sa fiche (Annuaire)</span>') : '';
   // Alimente « À l'attention de » avec les contacts du prestataire (nom + e-mail)
   const csel=document.getElementById('cr_contact');
   if(csel && pk){
@@ -9316,7 +9320,7 @@ async function crBuildPrestSelect(){
   const sel=document.getElementById('cr_prest'); if(!sel) return;
   if(!window._crPrestCache){
     window._crPrestCache={prest:[],links:[]};
-    try{ const {data}=await sb.from('prestataires').select('id,nom,categorie,contacts'); window._crPrestCache.prest=data||[]; }catch(_){}
+    try{ const {data}=await sb.from('prestataires').select('id,nom,categorie,contacts,email_rapports,telephone'); window._crPrestCache.prest=data||[]; }catch(_){}
     try{ const {data}=await sb.from('interventions').select('prestataire_id,erp_id,client_id'); (data||[]).forEach(x=>{ if(x.prestataire_id) window._crPrestCache.links.push(x); }); }catch(_){}
     try{ const {data}=await sb.from('contrats').select('prestataire_id,erp_id,client_id'); (data||[]).forEach(x=>{ if(x.prestataire_id) window._crPrestCache.links.push(x); }); }catch(_){}
   }
@@ -9331,8 +9335,10 @@ async function crBuildPrestSelect(){
   const erpId=document.getElementById('cr_erp')?.value;
   const linkedIds=new Set(links.filter(l=>(erpId&&l.erp_id===erpId)||(cid&&l.client_id===cid)).map(l=>l.prestataire_id));
   window._crPrestPick={};
-  const mk=p=>{ const cs=contactsOf(p); const primary=cs.find(c=>c.email)||cs[0]||{email:'',nom:''};
-    window._crPrestPick[p.id]={nom:p.nom||'',email:primary.email||'',contact:primary.nom||'',contacts:cs};
+  const mk=p=>{ const cs=contactsOf(p);
+    // Repli sur la fiche prestataire : si aucun interlocuteur n'a d'email, on propose l'email principal de la fiche
+    const primary=cs.find(c=>c.email)||(p.email_rapports?{email:p.email_rapports,nom:''}:(cs[0]||{email:'',nom:''}));
+    window._crPrestPick[p.id]={nom:p.nom||'',email:primary.email||'',contact:primary.nom||'',contacts:cs,ficheEmail:p.email_rapports||'',telephone:p.telephone||''};
     return `<option value="${esc(p.id)}">${esc([p.nom,primary.email].filter(Boolean).join(' · '))}</option>`; };
   const linked=prest.filter(p=>linkedIds.has(p.id));
   const autres=prest.filter(p=>!linkedIds.has(p.id));
@@ -9488,6 +9494,8 @@ window.crGenerate=async function(){
     // Toutes les adresses connues du prestataire → sélectionnables (cases à cocher) à l'envoi
     let prestRecs=(pk.contacts||[]).filter(c=>c.email).map(c=>({email:c.email,label:pk.nom+(c.nom?' — '+c.nom:'')}));
     if(chosenEmail && !prestRecs.some(r=>r.email.toLowerCase()===chosenEmail.toLowerCase())) prestRecs.unshift({email:chosenEmail,label:pk.nom+(chosenName?' — '+chosenName:'')});
+    // Email principal de la fiche prestataire : toujours proposé s'il n'est pas déjà dans la liste
+    if(pk.ficheEmail && !prestRecs.some(r=>r.email.toLowerCase()===pk.ficheEmail.toLowerCase())) prestRecs.push({email:pk.ficheEmail,label:pk.nom+' — email principal'});
     if(!prestRecs.length && pk.email) prestRecs=[{email:pk.email,label:pk.nom}];
     if(!prestRecs.length){ toast('Ce prestataire n\'a pas d\'e-mail enregistré','err'); return; }
     // Le client (et ses contacts) sont ajoutés EN COPIE, pré-cochés et décochables à l'envoi
@@ -10570,6 +10578,7 @@ async function updatePhotosBadge(){
     let rows=data||[];
     if(state.currentErp!=='all'){ rows=rows.filter(p=>p.erp_id===state.currentErp); }
     else if(state.currentClient!=='all'){ const ids=state.erps.filter(e=>e.client_id===state.currentClient).map(e=>e.id); rows=rows.filter(p=>ids.includes(p.erp_id)); }
+    else { const ids=erpsPerimetre(false).map(e=>e.id); rows=rows.filter(p=>ids.includes(p.erp_id)); } // vue « Tous » : sans les abonnés
     const n=rows.filter(p=>['recue','a_traiter','vue'].includes(p.statut) && p.traitement!=='fait').length;
     const b=document.getElementById('badge-photos');
     if(b){ if(n>0){ b.style.display='grid'; b.textContent=n; } else b.style.display='none'; }
@@ -10678,7 +10687,7 @@ window.delRapport=async function(id,path){
 
 
 async function viewDocuments(c){
-  c.innerHTML=`<div class="page-head"><div class="t"><h1>Documents (GED)</h1><p>Rapports, PV, plans, DOE, attestations.</p></div>
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Classeur</h1><p>Rapports, PV, plans, DOE, attestations.</p></div>
     <div class="actions"><button class="btn sm" onclick="pvForm({})">Générer un PV de réception</button><button class="btn primary" onclick="formDoc()">${I.plus} Déposer un document</button></div></div>${loadingBlock()}`;
   try{
     let q=sb.from('documents').select('*').order('created_at',{ascending:false}); q=gedScopeFilter(q);
@@ -10691,7 +10700,7 @@ async function viewDocuments(c){
     window._gedPrest=prestData||[];
     const types=[...new Set(rows.map(d=>d.type).filter(Boolean))];
     const typeOpts=types.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('');
-    c.innerHTML=`<div class="page-head"><div class="t"><h1>Documents (GED)</h1><p>${rows.length} document(s) · classés par client et par type.</p></div>
+    c.innerHTML=`<div class="page-head"><div class="t"><h1>Classeur</h1><p>${rows.length} document(s) · classés par client et par type.</p></div>
       <div class="actions"><button class="btn sm" onclick="pvForm({})">Générer un PV de réception</button><button class="btn primary" onclick="formDoc()">${I.plus} Déposer un document</button></div></div>
       <div id="ged_drop" ondragover="event.preventDefault();this.style.borderColor='var(--primary)';this.style.background='rgba(37,99,235,.05)'" ondragleave="this.style.borderColor='var(--line)';this.style.background='transparent'" ondrop="gedHandleDrop(event)" style="border:2px dashed var(--line);border-radius:12px;padding:14px;text-align:center;color:var(--muted);font-size:13px;margin-bottom:14px;transition:.12s">
         Glissez-déposez ici vos documents (rapports, PV, plans, attestations…)</div>
@@ -11380,7 +11389,7 @@ function formDoc(prefiles){
                 erp_id, prestataire_id:prestataire_id||null, type:'travaux',
                 objet:'Travaux — '+displayName.replace(/\.[a-zA-Z0-9]+$/,''),
                 date_prevue:date_intervention_prevue, statut:'programmee',
-                commentaire:'Créée automatiquement depuis le devis signé déposé en GED'
+                commentaire:'Créée automatiquement depuis le devis signé déposé dans le Classeur'
               }).select('id').single();
               if(itErr) throw itErr;
               if(it) await sb.from('documents').update({intervention_id:it.id}).eq('id',newDoc.id);
@@ -11707,7 +11716,7 @@ async function pvForm(pre){
         <div class="fld"><label>Établissement / ERP <span class="req">*</span></label><select id="pv_erp">${erpOpts}</select></div>
         <div class="fld"><label>Prestataire <span class="req">*</span></label><select id="pv_prest">${prestOpts}</select></div>
       </div>
-      <div class="fld"><label>Devis à rattacher <span style="font-weight:400;color:var(--muted)">(pré-remplit la référence et lie les deux documents en GED)</span></label>
+      <div class="fld"><label>Devis à rattacher <span style="font-weight:400;color:var(--muted)">(pré-remplit la référence et lie les deux documents dans le Classeur)</span></label>
         <div style="display:flex;gap:8px;align-items:center">
           <select id="pv_devis_sel" onchange="pvDevisChange()" style="flex:1;min-width:0">${devisOpts}</select>
           <button class="btn sm" id="pv_read_devis" type="button" style="white-space:nowrap;flex:0 0 auto" title="Lire le devis avec le profil calibré du prestataire et pré-remplir les prestations, le montant et l'objet" onclick="pvReadDevis()">📄 Lire le devis</button>
@@ -11756,7 +11765,7 @@ async function pvForm(pre){
           <div style="font-size:11.5px;color:var(--muted)">Rappel de compléter et signer le PV avec le client lors de la visite (par défaut : la veille à 9h).</div>
         </div>
       </div>
-      <div style="font-size:11.5px;color:var(--muted)">Le document sera généré au format A4, prêt à imprimer et à faire signer sur place (cases Conforme/Non conforme, décision, réserves, signatures). Il est archivé automatiquement dans la GED, rubrique « PV de réception ».</div>
+      <div style="font-size:11.5px;color:var(--muted)">Le document sera généré au format A4, prêt à imprimer et à faire signer sur place (cases Conforme/Non conforme, décision, réserves, signatures). Il est archivé automatiquement dans le Classeur, rubrique « PV de réception ».</div>
     </div>
     <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
       <button class="btn" id="pv_prev" title="Aperçu du PV tel qu'il sera envoyé — rien n'est archivé ni envoyé">👁 Visualiser</button>
@@ -11896,7 +11905,7 @@ window.dpParse=function(lines,cfg){
 
 // Télécharge un devis GED (bucket documents) et en extrait les lignes de texte
 window.dpExtractDoc=async function(doc){
-  if(!doc||!doc.fichier_path) throw new Error('Fichier du devis introuvable en GED');
+  if(!doc||!doc.fichier_path) throw new Error('Fichier du devis introuvable dans le Classeur');
   const {data,error}=await sb.storage.from('documents').createSignedUrl(doc.fichier_path,300);
   if(error) throw error;
   const lines=await trvExtractLines(data.signedUrl);
@@ -12015,9 +12024,9 @@ window.dpAdminSection=async function(){
       const nd=nbDevis[p.id]||0;
       return `<div style="display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap">
         <div style="flex:1;min-width:140px"><b style="font-size:13px">${esc(p.nom)}</b>
-          <span style="font-size:11.5px;color:var(--muted);margin-left:8px">${nd} devis en GED</span></div>
+          <span style="font-size:11.5px;color:var(--muted);margin-left:8px">${nd} devis dans le Classeur</span></div>
         <span style="font-size:12px;font-weight:600;color:${st[1]}">${st[0]}${dt?' · '+dt:''}</span>
-        <button class="btn sm" ${nd?'':'disabled title="Aucun devis de ce prestataire en GED — dépose d\'abord un devis"'} onclick="dpCalib('${p.id}')">${prof?'Recalibrer':'Calibrer'}</button>
+        <button class="btn sm" ${nd?'':'disabled title="Aucun devis de ce prestataire dans le Classeur — dépose d\'abord un devis"'} onclick="dpCalib('${p.id}')">${prof?'Recalibrer':'Calibrer'}</button>
       </div>`;
     }).join('');
     const nbOk=profils.filter(p=>p.statut!=='a_recalibrer').length;
@@ -12033,12 +12042,12 @@ window.dpCalib=async function(prestId,docId){
       sb.from('documents').select('id,nom_original,date_document,fichier_path').eq('prestataire_id',prestId).in('categorie',['devis','devis_signe']).order('date_document',{ascending:false}).limit(50),
       sb.from('devis_profils').select('*').eq('prestataire_id',prestId).maybeSingle()
     ]);
-    if(!docs||!docs.length){ toast('Aucun devis de ce prestataire en GED','err'); return; }
+    if(!docs||!docs.length){ toast('Aucun devis de ce prestataire dans le Classeur','err'); return; }
     const cur=(docId&&docs.find(x=>x.id===docId))?docId:docs[0].id;
     window._dpCal={prestId,prest,docs,prof:prof||null,docId:cur,lines:[],checked:new Set(),objetIdx:-1,_cfg:null};
     openModal(`<div class="modal-head"><h2>🛠️ Profil de devis — ${esc(prest?.nom||'')}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
       <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
-        <div class="fld"><label>Devis d'exemple (depuis la GED)</label>
+        <div class="fld"><label>Devis d'exemple (depuis le Classeur)</label>
           <select id="dp_doc" onchange="window._dpCal.docId=this.value;dpCalLoad()">${docs.map(x=>`<option value="${x.id}"${x.id===cur?' selected':''}>${esc((x.nom_original||'Devis').replace(/\.[a-zA-Z0-9]+$/,''))}${x.date_document?' — '+new Date(x.date_document).toLocaleDateString('fr-FR'):''}</option>`).join('')}</select></div>
         <div style="font-size:12.5px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:9px 11px">
           ☑️ Coche les lignes qui sont des <b>prestations</b> du devis — les marqueurs de début/fin et les exclusions (sous-totaux, titres…) sont déduits automatiquement.<br>
@@ -12478,7 +12487,7 @@ async function pvGenerate(){
       }
     }
     // Ouverture du PDF pour contrôle/impression
-    try{ const bu=URL.createObjectURL(pdfBlob); const w=window.open(bu,'_blank'); if(!w) toast('Popup bloquée : le PV est archivé dans la GED','err'); }catch(_){}
+    try{ const bu=URL.createObjectURL(pdfBlob); const w=window.open(bu,'_blank'); if(!w) toast('Popup bloquée : le PV est archivé dans le Classeur','err'); }catch(_){}
     _modalDirty=false; closeModal(); toast('PV généré et archivé'+suivi,'ok');
     try{
       const rows=[1,2,3,4,5].map(i=>({des:(document.getElementById('pvg_eq_'+i)?.value||'').trim(),
@@ -12532,7 +12541,7 @@ async function pvUploadSigned(docId){
         tags:'source:scan;cat:pv_reception;signe;pv_origine:'+d.id
       });
       if(ie) throw ie;
-      toast('PV signé archivé dans la GED','ok');
+      toast('PV signé archivé dans le Classeur','ok');
       const c=document.getElementById('content'); if(c && location.hash.indexOf('documents')>=0) viewDocuments(c);
     }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
   };
@@ -12852,7 +12861,7 @@ window.trvExtractLines=async function(url){
 
 // ── Page principale
 window.viewTableauxReserves=async function(c){
-  c.innerHTML=`<div class="page-head"><div class="t"><h1>Tableaux de réserves</h1><p>1 rapport = 1 tableau, créé automatiquement à l'arrivée du rapport dans la GED. Le prestataire signe ses levées, toi seul peux modifier le tableau.</p></div>
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Tableaux de réserves</h1><p>1 rapport = 1 tableau, créé automatiquement à l'arrivée du rapport dans le Classeur. Le prestataire signe ses levées, toi seul peux modifier le tableau.</p></div>
     </div>
     <div id="trv_filtres" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px"></div>
     <div id="trv_stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px"></div>
@@ -12949,7 +12958,7 @@ window.trvRenderList=function(tabs,res){
   const stat=(l,v,c2)=>`<div class="card" style="padding:12px 14px"><div style="font-size:22px;font-weight:800;color:${c2}">${v}</div><div style="font-size:11.5px;color:var(--muted);font-weight:600">${l}</div></div>`;
   const aval=tabs.filter(t=>t.statut==='a_valider').length;
   if(st) st.innerHTML=(aval?stat('⏳ À valider',aval,'#d97706'):'')+stat('Tableaux',tabs.length,'#2563eb')+stat('À lever',totOuv,'#dc2626')+stat('Levées',res.length-totOuv,'#16a34a')+stat('En retard',ret,ret?'#dc2626':'#94a3b8')+stat('Récidives',rec,rec?'#9333ea':'#94a3b8')+stat('Taux de levée',taux+' %',taux===100?'#16a34a':'#d97706');
-  if(!tabs.length){ box.innerHTML='<div class="card card-pad" style="color:var(--muted)">Aucun tableau pour le moment — crée le premier depuis un rapport de la GED.</div>'; return; }
+  if(!tabs.length){ box.innerHTML='<div class="card card-pad" style="color:var(--muted)">Aucun tableau pour le moment — crée le premier depuis un rapport du Classeur.</div>'; return; }
   const erpOf=id=>{ const e=(state.erps||[]).find(x=>x.id===id); return e?e.nom:'Établissement'; };
   const clientName=id=>{ const c=(state.clients||[]).find(x=>x.id===id); return c?(c.nom||c.raison_sociale||'Client'):'Sans client'; };
   const card=t=>{
@@ -13691,7 +13700,7 @@ window.trvDelTab=async function(id){
     const msg='Supprimer définitivement ce tableau '+(t&&t.organisme?('('+t.organisme+') '):'')+'?\n\n'
       +'• '+((t&&t.nb_obs)||0)+' observation(s) seront effacées'
       +((nbSig||0)>0?('\n• ⚠ '+nbSig+' signature(s) de levée seront PERDUES'):'')
-      +'\n\nLe rapport en GED n\'est pas touché (tu pourras relancer « Extraire réserves » pour recréer un tableau).';
+      +'\n\nLe rapport du Classeur n\'est pas touché (tu pourras relancer « Extraire réserves » pour recréer un tableau).';
     if(!confirm(msg)) return;
     const {error}=await sb.from('tableaux_reserves').delete().eq('id',id);
     if(error) throw error;
@@ -13759,7 +13768,7 @@ window.trvErpChange=async function(){
         <input type="radio" name="trv_doc" value="${esc(d.id)}" style="accent-color:#2563eb;width:15px;height:15px" onchange="trvAnalyze('${esc(d.id)}')">
         <span style="min-width:0;flex:1"><span style="display:block;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(d.nom_original||d.type)}</span>
         <span style="display:block;font-size:11.5px;color:var(--muted)">${esc(d.type)}${who?' · '+esc(who):''}${dt?' · '+esc(String(dt)):''}</span></span></label>`;
-    }).join(''):'<div style="font-size:12px;color:var(--muted)">Aucun rapport en GED pour cet établissement.</div>';
+    }).join(''):'<div style="font-size:12px;color:var(--muted)">Aucun rapport dans le Classeur pour cet établissement.</div>';
   }catch(e){ host.innerHTML='<div style="font-size:12px;color:#dc2626">Erreur : '+esc(e.message||e)+'</div>'; }
 };
 window.trvAnalyze=async function(docId){
@@ -15324,7 +15333,7 @@ window.arRenderDocs=function(list){
       <span style="min-width:0;flex:1"><span style="display:block;font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(d.nom_original||d.type)}</span>
       <span style="display:block;font-size:11.5px;color:var(--muted)">${esc(d.type)}${who?' · '+esc(who):''}${dt?' · '+esc(String(dt)):''}</span></span>
       <button type="button" onclick="event.preventDefault();event.stopPropagation();arPreview('${esc(d.id)}')" style="flex:0 0 auto;background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.35);color:#2563eb;border-radius:8px;padding:5px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit">👁 Voir</button></label>`;
-  }).join(''):'<div style="font-size:12px;color:var(--muted);padding:4px 2px">Aucun rapport en GED pour cet établissement.</div>';
+  }).join(''):'<div style="font-size:12px;color:var(--muted);padding:4px 2px">Aucun rapport dans le Classeur pour cet établissement.</div>';
 };
 window.arPreview=async function(id){
   const d=(window._arDocs||[]).find(x=>x.id===id);
@@ -15488,7 +15497,7 @@ async function devisUploadSigned(docId){
             const {data:it,error:itErr}=await sb.from('interventions').insert({
               erp_id:d.erp_id, prestataire_id:d.prestataire_id||null, type:'travaux',
               objet:'Travaux — '+base, date_prevue:date_intervention_prevue, statut:'programmee',
-              commentaire:'Créée automatiquement depuis le devis signé déposé en GED'
+              commentaire:'Créée automatiquement depuis le devis signé déposé dans le Classeur'
             }).select('id').single();
             if(itErr) throw itErr;
             if(it) await sb.from('documents').update({intervention_id:it.id}).eq('id',newDoc.id);
@@ -15717,7 +15726,7 @@ window.viewTravaux=async function(c){
   document.title='Travaux — PREVA';
   c.innerHTML=`<style>${TX_CSS}</style>
     <div class="page-head"><div><h1>Travaux</h1>
-      <p class="sub">Chaque devis suivi de la signature jusqu'au PV de réception — les dates alimentent l'agenda, les pièces la GED.</p></div></div>
+      <p class="sub">Chaque devis suivi de la signature jusqu'au PV de réception — les dates alimentent l'agenda, les pièces le Classeur.</p></div></div>
     <div id="tx-wrap"><div style="text-align:center;color:var(--muted);padding:40px 0">Chargement…</div></div>
     <div class="tx-ov" id="tx-ov" onclick="txClose()"></div>
     <aside class="tx-dr" id="tx-dr" aria-label="Détail du dossier">
@@ -15851,7 +15860,7 @@ window.txRender=function(){
     <div class="tx-board">
       <div class="tx-col tx-c1"><div class="tx-colh"><span class="ph">1</span><b>Préparation</b><span class="cnt">${prep.length}</span></div>
         <div class="tx-colsub">Devis en attente de signature</div>
-        <div class="tx-colbody">${prep.length?prep.map(cardPrep).join(''):'<div class="tx-empty">Aucun devis en attente — les devis déposés en GED apparaissent ici jusqu\'au dépôt du signé.</div>'}</div></div>
+        <div class="tx-colbody">${prep.length?prep.map(cardPrep).join(''):'<div class="tx-empty">Aucun devis en attente — les devis déposés dans le Classeur apparaissent ici jusqu\'au dépôt du signé.</div>'}</div></div>
       <div class="tx-col tx-c2"><div class="tx-colh"><span class="ph">2</span><b>Intervention</b><span class="cnt">${inter.length}</span></div>
         <div class="tx-colsub">Devis signé · dates du…au · réalisation</div>
         <div class="tx-colbody">${inter.length?inter.map(cardInter).join(''):'<div class="tx-empty">Aucune intervention en préparation.</div>'}
@@ -15942,7 +15951,7 @@ window.txOpen=function(id){
   });
   if(pvDoc) tl.push(['','PV de réception établi',fmtDate(pvDoc.date_document||pvDoc.created_at)]);
   if(!isPrep&&d.date_intervention_prevue) tl.push(['',`Travaux planifiés ${txPeriode(d)}`,'']);
-  tl.push(['',isPrep?'Devis reçu et classé en GED':'Devis signé déposé en GED',fmtDate(d.date_document||d.created_at)]);
+  tl.push(['',isPrep?'Devis reçu et classé dans le Classeur':'Devis signé déposé dans le Classeur',fmtDate(d.date_document||d.created_at)]);
   if(origine) tl.push(['','Devis d\'origine classé',fmtDate(origine.date_document||origine.created_at)]);
   const tlHtml=tl.map(t=>`<div class="tx-tli ${t[0]}"><b>${t[1]}</b>${t[2]?`<div class="d">${t[2]}</div>`:''}</div>`).join('');
 
@@ -16033,7 +16042,7 @@ window.txReport=function(id){
 
 /* ── Écarter / reprendre ── */
 window.txEcarter=async function(id){
-  if(!confirm('Écarter ce dossier du suivi des travaux ?\nIl restera en GED et pourra être repris depuis l\'onglet « Écartés ».')) return;
+  if(!confirm('Écarter ce dossier du suivi des travaux ?\nIl restera dans le Classeur et pourra être repris depuis l\'onglet « Écartés ».')) return;
   try{
     const {error}=await sb.from('documents').update({pv_statut:'clos'}).eq('id',id);
     if(error) throw error;
@@ -16772,9 +16781,9 @@ window.sinBuild=function(ctx,form){
   const periode=doc&&doc.date_intervention_prevue?(doc.date_intervention_fin&&doc.date_intervention_fin!==doc.date_intervention_prevue?('du '+fmtDate(doc.date_intervention_prevue)+' au '+fmtDate(doc.date_intervention_fin)):('le '+fmtDate(doc.date_intervention_prevue))):'';
   // pièces
   const pieces=[];
-  if(origine) pieces.push({label:'Devis d\'origine — '+(origine.nom_original||''),date:origine.date_document||origine.created_at,src:'GED'});
-  if(doc) pieces.push({label:'Devis signé — '+(doc.nom_original||''),date:doc.date_document||doc.created_at,src:'GED'});
-  if(pv) pieces.push({label:'PV de réception — '+(pv.nom_original||''),date:pv.date_document||pv.created_at,src:'GED'});
+  if(origine) pieces.push({label:'Devis d\'origine — '+(origine.nom_original||''),date:origine.date_document||origine.created_at,src:'Classeur'});
+  if(doc) pieces.push({label:'Devis signé — '+(doc.nom_original||''),date:doc.date_document||doc.created_at,src:'Classeur'});
+  if(pv) pieces.push({label:'PV de réception — '+(pv.nom_original||''),date:pv.date_document||pv.created_at,src:'Classeur'});
   const phSel=photos.filter(p=>form.photoIds.includes(p.id));
   phSel.forEach(p=>pieces.push({label:'Photo — '+((p.commentaire||'constat').slice(0,60)),date:p.date_photo||p.created_at,src:'photos',photo:p}));
   // chronologie
