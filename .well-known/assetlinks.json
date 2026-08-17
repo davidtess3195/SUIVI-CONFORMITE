@@ -1,0 +1,11 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "conformitesecurite.fr",
+      "sha256_cert_fingerprints":
+        ["42:2A:1E:CE:70:F1:96:77:C9:48:C1:AF:A6:F4:ED:3A:0C:9B:F8:32:19:48:65:D9:96:CD:D4:67:B4:CC:2A:5A"]
+    }
+  }
+]
