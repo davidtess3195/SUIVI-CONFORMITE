@@ -1,0 +1,19 @@
+{
+  "name": "CONFORMITÉ SÉCURITÉ",
+  "short_name": "Conformité",
+  "description": "Suivi réglementaire incendie des ERP : échéances, prestataires, rapports.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e1b2e",
+  "theme_color": "#0e1b2e",
+  "lang": "fr",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "/favicon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/favicon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icone-512.png",   "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
