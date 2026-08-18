@@ -20675,7 +20675,7 @@ async function renderCsConfirm(){
         Vous confirmez votre présence à la commission de sécurité du <strong>${esc(dateAff)}</strong> et l'envoi d'un devis.
       </p>
       <button id="cs_confirm_btn" onclick="doCsConfirm()" style="background:#16a34a;color:#fff;border:none;padding:16px 36px;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;width:100%">
-        ✅ Confirmer ma présence et l&#39;envoi d&#39;un devis
+        ✅ Confirmer ma présence et l'envoi d'un devis
       </button>
     </div>`;
 
@@ -20699,7 +20699,7 @@ async function renderCsConfirm(){
           </div>`;
         return;
       }
-      btn.disabled=false; btn.textContent='✅ Confirmer ma présence et l&#39;envoi d&#39;un devis';
+      btn.disabled=false; btn.textContent='✅ Confirmer ma présence et l\'envoi d\'un devis';
       document.getElementById('cs_confirm_body').insertAdjacentHTML('beforeend','<p style="color:#ef4444;text-align:center;margin-top:12px;font-size:13px">Une erreur est survenue, merci de réessayer dans un instant.</p>');
       return;
     }
