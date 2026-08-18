@@ -11555,6 +11555,7 @@ function gedxStyle(){ if(document.getElementById('gedx-style'))return; const st=
 .gedx-tile .tx small{color:var(--muted-2);font-size:11px}
 .gedx-tile .ct{flex:0 0 auto;background:var(--primary);color:#fff;border-radius:20px;min-width:22px;text-align:center;padding:2px 7px;font-size:11px;font-weight:800}
 .gedx-cat{font-size:13px;font-weight:800;color:var(--primary);margin:14px 0 2px}
+.gedx-drop{grid-column:1/-1;background:rgba(37,99,235,.03);border:1px solid #dbe7fb;border-left:3px solid var(--primary);border-radius:12px;padding:8px 12px 4px;margin-top:-4px}
 .gedx-year{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:800;color:#475569;margin:12px 0 8px}
 .gedx-year .l{flex:1;height:1px;background:var(--line)}
 .gedx-dr{display:flex;align-items:flex-start;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:11px;margin-bottom:7px;background:var(--surface)}
@@ -11578,6 +11579,10 @@ window.gedTileSel=function(cid,catIdx){
   window._gedTileSel=window._gedTileSel||{};
   window._gedTileSel[cid]=(window._gedTileSel[cid]===cat)?null:cat;
   gedRenderList();
+  // Sur téléphone : la page se cale sur la liste qui vient de s'ouvrir
+  if(window._gedTileSel[cid] && window.innerWidth<700){
+    setTimeout(()=>{ const el=document.getElementById('gedxdrop-'+cid); if(el){ try{ el.scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){ } } },60);
+  }
 };
 function gedRenderList(){
   const host=document.getElementById('ged_list'); if(!host) return;
@@ -11704,18 +11709,30 @@ function gedRenderList(){
         <span class="tx"><b>${cat}</b><small>${last?'dernier : '+fmtDate(last):'&nbsp;'}</small></span>
         <span class="ct">${ds.length}</span>
       </div>`;
-    }).join('');
-    // ── Liste des documents du type sélectionné (tous les types si recherche/filtre en cours) ──
-    const catsToShow = searching ? cats : (selCat && byCat[selCat] ? [selCat] : []);
-    const lists=catsToShow.map(cat=>{
+    });
+    // ── Liste des documents d'un type ──
+    const listFor=cat=>{
       const ds=byCat[cat].slice().sort((a,b)=>new Date(docDate(b))-new Date(docDate(a)));
       const byYear={}; ds.forEach(d=>{ const dt=docDate(d); const y=dt?String(new Date(dt).getFullYear()):'Sans date'; (byYear[y]=byYear[y]||[]).push(d); });
       const years=Object.keys(byYear).sort((a,b)=>(a==='Sans date'?-1:b==='Sans date'?1:Number(b)-Number(a)));
-      const inner=years.map(y=>`<div class="gedx-year">${esc(y)} · ${byYear[y].length} document${byYear[y].length>1?'s':''}<span class="l"></span></div>
+      return years.map(y=>`<div class="gedx-year">${esc(y)} · ${byYear[y].length} document${byYear[y].length>1?'s':''}<span class="l"></span></div>
         <div>${byYear[y].map(rowDoc).join('')}</div>`).join('');
-      return (searching?`<div class="gedx-cat">${cat} · ${ds.length}</div>`:'')+inner;
-    }).join('');
-    const body=`<div class="gedx-tgrid">${tiles}</div>${lists?`<div style="margin-top:4px">${lists}</div>`:''}`;
+    };
+    let body;
+    if(searching){
+      // Recherche / filtre : toutes les rubriques correspondantes, listées sous la grille
+      const lists=cats.map(cat=>`<div class="gedx-cat">${cat} · ${byCat[cat].length}</div>`+listFor(cat)).join('');
+      body=`<div class="gedx-tgrid">${tiles.join('')}</div>${lists?`<div style="margin-top:4px">${lists}</div>`:''}`;
+    } else {
+      // La liste se glisse DIRECTEMENT sous la tuile cliquée (accordéon dans la grille) :
+      // sur téléphone (1 colonne) elle apparaît juste dessous, sur ordinateur sous la ligne de la tuile.
+      const parts=cats.map(cat=>{
+        const tile=tiles[cats.indexOf(cat)];
+        const dropped=(selCat===cat && byCat[cat])?`<div class="gedx-drop" id="gedxdrop-${cid}">${listFor(cat)}</div>`:'';
+        return tile+dropped;
+      }).join('');
+      body=`<div class="gedx-tgrid">${parts}</div>`;
+    }
     return `<div class="card" style="margin-bottom:14px;border-left:5px solid #2563eb;overflow:hidden"><div class="card-pad">
       <div onclick="gedToggle('${cid}')" title="Cliquer pour ${open?'replier':'déplier'}" style="display:flex;align-items:center;gap:10px;margin:-13px -13px ${open?'4px':'-13px'};padding:12px 16px;background:linear-gradient(135deg,#2563eb,#2563ebcc);cursor:pointer;user-select:none;flex-wrap:wrap">
         <span data-gchev="${cid}" style="color:#fff;font-size:13px;display:inline-block;transition:transform .2s;transform:rotate(${open?'90':'0'}deg)">▶</span>
