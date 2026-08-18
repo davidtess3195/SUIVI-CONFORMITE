@@ -11043,7 +11043,18 @@ async function previewDoc(path,name,bucket){
   } else if(isImg){
     viewer=`<div style="text-align:center;background:var(--surface-2);border-radius:8px;padding:10px"><img src="${url}" style="max-width:100%;max-height:74vh;border-radius:6px"></div>`;
   } else if(isHtml){
-    viewer=`<iframe src="${url}" style="width:100%;height:74vh;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>`;
+    // Certains PV archivés en .html ont été stockés avec un mauvais type de contenu :
+    // le navigateur affichait alors le code source (accents cassés) au lieu de la page.
+    // On relit le fichier et on le ré-affiche en vrai HTML (UTF-8).
+    try{
+      const rr=await fetch(url); if(!rr.ok) throw new Error('fetch');
+      const txt=new TextDecoder('utf-8').decode(await rr.arrayBuffer());
+      const hurl=URL.createObjectURL(new Blob([txt],{type:'text/html;charset=utf-8'}));
+      viewer=`<iframe src="${hurl}" style="width:100%;height:74vh;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>`;
+      url=hurl; // « Ouvrir dans un onglet » ouvre aussi la version rendue
+    }catch(_){
+      viewer=`<iframe src="${url}" style="width:100%;height:74vh;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>`;
+    }
   } else {
     viewer=`<div style="padding:34px 20px;text-align:center;color:var(--muted)">Aperçu non disponible pour ce type de fichier.<br>Utilisez « Ouvrir dans un onglet » ou « Télécharger ».</div>`;
   }
@@ -11671,7 +11682,7 @@ function gedRenderList(){
         <span class="gedx-acts">
           ${(((d.tags||'').indexOf('cat:mail')>=0)||(!d.fichier_path&&d.email_corps))?`<button class="btn sm" style="color:#2563eb;border-color:#bfdbfe;font-weight:700" onclick="gedViewMail('${d.id}')">Visualiser</button>`:`<button class="btn sm" style="color:#2563eb;border-color:#bfdbfe;font-weight:700" onclick="previewDoc('${pathJs}','${nmJs}','${bk}')">Visualiser</button>`}
           ${(d.fichier_path&&/\.pdf$/i.test(d.nom_original||d.fichier_path||'')&&['Rapport','Bureau de contrôle',"Bon d'intervention",'PV commission'].includes(d.type))?`<button class="btn sm" title="Analyser ce rapport et préparer le tableau de levées de réserves" onclick="gedExtractRes('${d.id}')">Extraire réserves</button>`:''}
-          ${['devis','devis_signe'].includes(dcat)||['devis','devis signé','devis signe'].includes((d.type||'').toLowerCase())?`<button class="btn sm" title="Générer un PV de réception de travaux à partir de ce devis" onclick="pvFromDevis('${d.id}')">PV réception</button>`:''}
+          ${dcat==='devis_signe'||['devis signé','devis signe'].includes((d.type||'').toLowerCase())?`<button class="btn sm" title="Générer un PV de réception de travaux à partir de ce devis signé" onclick="pvFromDevis('${d.id}')">PV réception</button>`:''}
           ${['devis','devis_signe'].includes(dcat)?`<button class="btn sm" title="Ouvrir ce dossier dans le suivi Travaux" onclick="txGoto('${d.id}')">🧰 Travaux</button>`:''}
           ${dcat==='devis'&&(d.type||'').toLowerCase()==='devis'?`<button class="btn sm" title="Déposer la copie signée scannée de ce devis" onclick="devisUploadSigned('${d.id}')">📎 Déposer le signé</button>`:''}
           ${dcat==='pv_reception'&&(d.tags||'').indexOf('signe')<0?`<button class="btn sm" title="Déposer la copie signée scannée de ce PV" onclick="pvUploadSigned('${d.id}')">PV signé</button>`:''}
