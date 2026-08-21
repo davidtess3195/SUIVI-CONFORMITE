@@ -1591,6 +1591,7 @@ function renderRoute(){
   if(base==='/tableaux-reserves') return viewTableauxReserves(content);
   if(base==='/preparation-cs') return viewPreparationCS(content);
   if(base==='/formation') return viewFormation(content);
+  if(base==='/formation-contenus') return viewFormation(content).then(()=>{ if(state.profile?.role==='admin') fxAdmin(); });
   if(base==='/prestataires') return viewPrestataires(content);
   if(base==='/parametres') return viewParametres(content);
   if(base==='/travaux') return viewTravaux(content);
@@ -4410,7 +4411,7 @@ async function viewFormation(c){
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Formation</h1><p>Votre prise en main de l’application — 10 modules, 3 chapitres, attestation à la clé.</p></div>
     ${state.profile?.role==='admin'?`<div class="actions"><button class="btn" onclick="fxAdmin()">⚙ Gérer les contenus</button></div>`:''}</div>
   <div class="fx-hero">
-    <div class="fx-ava">${esc(initials)}</div>
+    <div class="fx-ava" id="fx-heroava" style="background-size:cover;background-position:center;overflow:hidden">${esc(initials)}</div>
     <div class="who"><b>${esc(state.profile?.nom||state.user?.email||'')}</b><small>Parcours de prise en main</small></div>
     <div class="fx-prog"><div class="top"><span>Votre progression</span><span>${doneN} / 10 modules · ${pct} %</span></div>
       <div class="fx-bar"><i style="width:${pct}%"></i></div>
@@ -4420,6 +4421,13 @@ async function viewFormation(c){
   ${resume?`<div class="fx-resume"><div class="tx"><small>${prog[resume.no]?.consulte?'REPRENDRE OÙ VOUS EN ÉTIEZ':'COMMENCER'}</small><b>Module ${resume.no} — ${esc(resume.t)}</b></div>
     <button class="btn primary" onclick="fxOpen(${resume.no})">${prog[resume.no]?.consulte?'Reprendre':'Commencer'} ▶</button></div>`:''}
   ${chapBlock(1)}${chapBlock(2)}${chapBlock(3)}`;
+  // photo de profil : reprise automatique de celle du compte (Mon compte → photo)
+  if(state.profile?.photo_path){
+    try{ const {data}=await sb.storage.from('documents').createSignedUrl(state.profile.photo_path,3600);
+      const el=document.getElementById('fx-heroava');
+      if(el&&data?.signedUrl){ el.textContent=''; el.style.backgroundImage='url("'+data.signedUrl+'")'; }
+    }catch(_){ }
+  }
 }
 window.viewFormation=viewFormation;
 async function fxOpen(no){
@@ -4722,7 +4730,7 @@ function getNAV(){ return [
   {link:['/preparation-cs','Commission de sécurité',NI.landmark]},
   {link:['/formation','Formation',NI.grad]},
   ...(state.profile?.role==='admin'
-    ? [{sec:'admin', titre:'Administration', ic:NI.gear, items:[['/admin','Tableau de bord admin',NI.gauge],['/parametres','Paramètres & email',NI.gear]]}]
+    ? [{sec:'admin', titre:'Administration', ic:NI.gear, items:[['/admin','Tableau de bord admin',NI.gauge],['/formation-contenus','Formation — contenus',NI.grad],['/parametres','Paramètres & email',NI.gear]]}]
     : [{link:['/parametres','Mon compte',NI.user]}]),
 ];}
 const NAV_BADGES={'/photos':'badge-photos','/rapports':'badge-rapports','/verifications':'badge-verif','/pointage':'badge-pointage','/admin':'badge-admin'};
