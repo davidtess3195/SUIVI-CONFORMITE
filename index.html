@@ -534,6 +534,12 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .fld input[type=checkbox],.fld input[type=radio]{width:17px;height:17px;min-width:17px;flex:0 0 auto;padding:0;margin:0;accent-color:var(--primary);box-shadow:none}
 .fld input[type=checkbox]:focus,.fld input[type=radio]:focus{box-shadow:none}
 .fld textarea{resize:vertical;min-height:74px}
+/* Aide de champ (pattern validé) : permanente, sous le champ, réservée aux 5 champs à conséquence réglementaire */
+.aide{font-size:11px;color:var(--muted);line-height:1.5;margin:6px 0 0;background:#f8fafc;border-left:3px solid #bfdbfe;border-radius:0 8px 8px 0;padding:7px 10px}
+.aide b{color:#334155;font-weight:600}
+.sec-help{background:linear-gradient(180deg,#f8fafc,var(--surface));border:1px solid var(--line);border-left:3px solid var(--primary);border-radius:0 12px 12px 0;padding:13px 15px;margin-bottom:16px}
+.sec-help h5{font-size:13.5px;font-weight:700;margin:0 0 4px;color:var(--ink)}
+.sec-help p{font-size:12.5px;color:var(--muted);max-width:68ch;margin:0;line-height:1.55}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 .checkrow{display:flex;align-items:center;gap:9px;padding:9px 0}
@@ -1069,11 +1075,82 @@ window.dashScrollPv=function(){
 
 /* Traduction française centralisée des messages d'erreur techniques (Supabase, réseau, JS).
    Tout toast d'erreur passe par ici : plus aucun message anglais à l'écran. */
+
+/* ── Aide de section (pattern 04) : une phrase sur le circuit métier de la page.
+   Repliable ; une fois fermée, elle ne réapparaît plus (mémorisé sur l'appareil). ── */
+function secHelp(key,titre,texte){
+  try{ if(localStorage.getItem('sechelp_'+key)==='off') return ''; }catch(_){ }
+  return `<div class="sec-help" id="sechelp-${key}">
+    <div style="display:flex;align-items:flex-start;gap:10px">
+      <div style="flex:1;min-width:0"><h5>${titre}</h5><p>${texte}</p></div>
+      <button onclick="secHelpOff('${key}')" title="J'ai compris — ne plus afficher" style="flex:0 0 auto;background:none;border:none;color:var(--muted-2);font-size:16px;cursor:pointer;line-height:1;padding:2px 4px">✕</button>
+    </div></div>`;
+}
+window.secHelp=secHelp;
+window.secHelpOff=function(key){ try{localStorage.setItem('sechelp_'+key,'off');}catch(_){ } const el=document.getElementById('sechelp-'+key); if(el) el.remove(); };
+
+/* ── Visite guidée (pattern 05) : 5 étapes, première connexion uniquement.
+   Elle situe, elle n'enseigne pas. « Quitter » à chaque étape ; jamais rejouée d'office. ── */
+const TOUR_STEPS=[
+  {sel:'.kpis', t:'Vos priorités, déjà triées', p:'Ce tableau de bord classe ce qui presse. La checklist « Premiers pas » vous accompagne jusqu\'à ce que tout soit en place.'},
+  {sel:'a[href="#/verifications"]', t:'Votre échéancier vit ici', p:'Chaque ligne est une obligation datée. La pastille rouge compte ce qui est en retard — c\'est le seul chiffre à regarder le lundi matin.'},
+  {sel:'a[href="#/documents"]', t:'Vos documents se classent tout seuls', p:'Quand un prestataire envoie son rapport sur votre adresse dédiée, il arrive dans « Rapports reçus » puis rejoint le Classeur, au bon endroit.'},
+  {sel:'#btn-quick-inter', t:'Vos prestataires répondent enfin', p:'Une demande d\'intervention part par email ou SMS, et le prestataire confirme la date en un clic — sans compte, sans mot de passe.'},
+  {sel:'#selClient', t:'Tout se filtre ici', p:'Le sélecteur client / établissement décide de ce que vous voyez sur toutes les pages. Bonne visite — l\'aide reste présente sur chaque écran.'}
+];
+window._tourIdx=0;
+function tourStart(){ if(document.getElementById('tour-veil')) return; window._tourIdx=0; tourShow(); }
+function tourShow(){
+  const i=window._tourIdx, st=TOUR_STEPS[i];
+  let veil=document.getElementById('tour-veil');
+  if(!veil){ veil=document.createElement('div'); veil.id='tour-veil';
+    veil.style.cssText='position:fixed;inset:0;z-index:100500;background:rgba(8,20,45,.62)';
+    document.body.appendChild(veil); }
+  veil.innerHTML='';
+  const el=st.sel?document.querySelector(st.sel):null;
+  let r=null;
+  if(el){ const b=el.getBoundingClientRect(); if(b.width>4&&b.height>4&&b.bottom>10&&b.top<innerHeight-10) r=b; }
+  if(r){
+    veil.style.background='transparent';
+    const sp=document.createElement('div');
+    sp.style.cssText='position:fixed;left:'+(r.left-6)+'px;top:'+(r.top-6)+'px;width:'+(r.width+12)+'px;height:'+(r.height+12)+'px;border-radius:12px;box-shadow:0 0 0 3px #60a5fa,0 0 0 9999px rgba(8,20,45,.62);pointer-events:none';
+    veil.appendChild(sp);
+  } else { veil.style.background='rgba(8,20,45,.62)'; }
+  const mob=innerWidth<700;
+  const card=document.createElement('div');
+  const W=Math.min(330,innerWidth-24);
+  let pos;
+  if(mob){ pos='left:12px;right:12px;bottom:14px;width:auto'; }
+  else if(r){
+    const left=Math.max(12,Math.min(r.left, innerWidth-W-12));
+    if(r.bottom+230<innerHeight) pos='left:'+left+'px;top:'+(r.bottom+16)+'px;width:'+W+'px';
+    else if(r.top>240) pos='left:'+left+'px;top:'+(r.top-216)+'px;width:'+W+'px';
+    else pos='left:'+Math.max(12,Math.min(r.right+18,innerWidth-W-12))+'px;top:'+Math.max(12,r.top-8)+'px;width:'+W+'px';
+  } else { pos='left:50%;top:50%;transform:translate(-50%,-50%);width:'+W+'px'; }
+  card.style.cssText='position:fixed;'+pos+';z-index:100502;background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(15,23,42,.35);padding:18px;font-family:inherit';
+  card.innerHTML='<div style="font-size:11px;font-weight:800;letter-spacing:.14em;color:#2563eb;margin-bottom:7px">ÉTAPE '+(i+1)+' SUR '+TOUR_STEPS.length+'</div>'
+    +'<div style="font-size:15px;font-weight:800;color:#0f172a;margin-bottom:6px">'+st.t+'</div>'
+    +'<div style="font-size:13px;color:#64748b;line-height:1.5;margin-bottom:14px">'+st.p+'</div>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">'
+    +'<div style="display:flex;gap:5px">'+TOUR_STEPS.map((_,k)=>'<i style="display:block;width:'+(k===i?'16px':'6px')+';height:6px;border-radius:3px;background:'+(k===i?'#2563eb':'#e2e8f0')+'"></i>').join('')+'</div>'
+    +'<div style="display:flex;gap:7px">'
+    +'<button onclick="tourEnd()" style="font-family:inherit;font-size:13px;font-weight:600;border-radius:9px;padding:8px 14px;border:1px solid #e2e8f0;background:#fff;color:#334155;cursor:pointer">Quitter</button>'
+    +'<button onclick="tourNext()" style="font-family:inherit;font-size:13px;font-weight:600;border-radius:9px;padding:8px 14px;border:none;background:#2563eb;color:#fff;cursor:pointer">'+(i>=TOUR_STEPS.length-1?'Terminer':'Suivant')+'</button>'
+    +'</div></div>';
+  veil.appendChild(card);
+}
+window.tourNext=function(){ if(window._tourIdx>=TOUR_STEPS.length-1){ tourEnd(); return; } window._tourIdx++; tourShow(); };
+window.tourEnd=function(){
+  const v=document.getElementById('tour-veil'); if(v) v.remove();
+  try{ localStorage.setItem('tour_vue_local','1'); }catch(_){ }
+  try{ if(state.profile) state.profile.tour_vue=true; if(state.user&&!state.demo) sb.from('profiles').update({tour_vue:true}).eq('id',state.user.id).then(()=>{}); }catch(_){ }
+};
+window.tourStart=tourStart;
 function frToast(m){
   const s=String(m||'');
   const RULES=[
     [/row-level security|RLS/i,"Action non autorisée pour votre compte. Si cela vous semble anormal, contactez PREVA Conseils."],
-    [/duplicate key|already exists|unique constraint/i,"Cet élément existe déjà — enregistrement en double impossible."],
+    [/duplicate key|already exists|unique constraint/i,"Cet élément existe déjà — modifiez la fiche existante plutôt que d'en créer une nouvelle."],
     [/violates foreign key/i,"Impossible : cet élément est encore utilisé ailleurs dans l'application."],
     [/violates check constraint/i,"Valeur non autorisée — merci de vérifier votre saisie."],
     [/JWT expired|invalid claim|token is expired|Session expired/i,"Votre session a expiré — reconnectez-vous puis réessayez."],
@@ -1083,11 +1160,11 @@ function frToast(m){
     [/New password should be different/i,"Le nouveau mot de passe doit être différent de l'ancien."],
     [/Password should be at least/i,"Mot de passe trop court."],
     [/rate limit|too many requests/i,"Trop de tentatives — patientez une minute puis réessayez."],
-    [/Failed to fetch|NetworkError|network request failed|Load failed|fetch failed/i,"Connexion impossible — vérifiez votre connexion internet puis réessayez."],
+    [/Failed to fetch|NetworkError|network request failed|Load failed|fetch failed/i,"Connexion impossible — vérifiez votre connexion internet puis réessayez : votre saisie reste à l'écran, rien n'est perdu."],
     [/timeout|timed out/i,"Le serveur met trop de temps à répondre — réessayez dans un instant."],
     [/permission denied/i,"Accès refusé pour votre compte."],
-    [/not.?found|does not exist/i,"Élément introuvable — il a peut-être été supprimé. Actualisez la page."],
-    [/payload too large|exceeded the maximum allowed size|too large/i,"Fichier trop volumineux."],
+    [/not.?found|does not exist/i,"Élément introuvable — il a peut-être été supprimé par un autre utilisateur. Actualisez la page (F5) puis réessayez."],
+    [/payload too large|exceeded the maximum allowed size|too large/i,"Fichier trop volumineux — réduisez sa taille (photo en qualité normale, PDF compressé) puis réessayez."],
     [/invalid input syntax|invalid uuid/i,"Format de saisie invalide — merci de vérifier les champs."],
     [/is not defined|Cannot read propert|is not a function|undefined is not|null is not/i,"Erreur technique inattendue — réessayez. Si le problème persiste, signalez-le à PREVA Conseils."],
   ];
@@ -1456,6 +1533,11 @@ async function afterLogin(){
     if(state.profile?.role==='agent'){ renderAgentApp(); return; }
     if(!location.hash || location.hash==='#/login') location.hash='#/';
     renderApp();
+    // Visite guidée : uniquement à la toute première connexion d'un nouveau compte
+    try{
+      const _tv = state.profile && state.profile.tour_vue===false && !localStorage.getItem('tour_vue_local');
+      if(_tv) setTimeout(()=>{ try{ tourStart(); }catch(_){ } },1200);
+    }catch(_){ }
   }catch(e){ console.error(e); toast('Erreur de chargement du profil','err'); renderAuth('login'); }
 }
 
@@ -4610,8 +4692,8 @@ async function viewDashboard(c){
   const inScopePhotos = arr => arr.filter(x=>erpIds.includes(x.erp_id));
 
   try{
-    const [ob,re,it,ph,cv,dg,pn,tb] = await Promise.all([
-      sb.from('obligations').select('id,erp_id,libelle,prochaine_echeance,statut,criticite,domaine'),
+    const [ob,re,it,ph,cv,dg,pn,tb,ccN,docN] = await Promise.all([
+      sb.from('obligations').select('id,erp_id,libelle,prochaine_echeance,statut,criticite,domaine,derniere_verif'),
       sb.from('reserves').select('id,erp_id,libelle,criticite,statut,date_limite,localisation,observations,tableau_id'),
       sb.from('interventions').select('id,erp_id,code_int,objet,statut,date_prevue,type,domaine,nb_relances,reponse_a_traiter,prestataire_id,date_proposee,proposition_commentaire,demande_envoyee_le,demande_destinataire'),
       sb.from('photos_urgentes').select('id,erp_id,niveau_urgence,statut,commentaire,created_at,localisation,traitement,traitement_date,photo_path'),
@@ -4619,6 +4701,8 @@ async function viewDashboard(c){
       sb.from('documents').select('id,erp_id,client_id,prestataire_id,nom_original,fichier_path,date_intervention_prevue,date_intervention_fin,pv_statut,source_devis_id,categorie,date_document').in('categorie',['devis_signe','pv_reception']),
       sb.from('prestataires').select('id,nom'),
       sb.from('tableaux_reserves').select('id,source,organisme,date_intervention,created_at'),
+      sb.from('client_contacts').select('id',{count:'exact',head:true}),
+      sb.from('documents').select('id',{count:'exact',head:true}),
     ]);
     window._convInterIds = new Set(((cv&&cv.data)||[]).map(x=>x.intervention_id).filter(Boolean));
     const obs=inScope(ob.data||[]), res=inScope(re.data||[]), its=inScope(it.data||[]), phs=inScopePhotos(ph.data||[]);
@@ -4825,10 +4909,39 @@ async function viewDashboard(c){
         }).join('') : '<div class="empty" style="padding:24px">'+I.chk+'<h3>Aucune réserve</h3><p>Aucune levée de réserve sur ce périmètre.</p></div>'}
       </div></div></div>`;
 
+    // ── Checklist de démarrage (pattern 06) : cochée par l'usage réel, jamais à la main.
+    //    Visible tant que tout n'est pas en place ; disparaît d'elle-même à 6/6. Masquée en supervision.
+    const obSteps=[
+      {t:'Créer votre premier établissement',d:'Sa fiche, sa catégorie, son QR code.',done:(state.erps||[]).length>0,go:"navigate('/erps')"},
+      {t:'Renseigner vos contacts',d:'Direction, référent sécurité, service maintenance…',done:((ccN&&ccN.count)||0)>0,go:"navigate('/clients')"},
+      {t:'Générer votre plan de maintenance',d:'Il crée vos vérifications périodiques.',done:((ob&&ob.data)||[]).length>0,go:"navigate('/plan-maintenance')"},
+      {t:'Saisir les dates de dernière vérification',d:"Ce sont elles qui activent l'échéancier.",done:((ob&&ob.data)||[]).some(o=>o.derniere_verif),go:"navigate('/verifications')"},
+      {t:'Déposer un premier rapport',d:'Le plus récent suffit pour démarrer.',done:((docN&&docN.count)||0)>0,go:"navigate('/documents')"},
+      {t:'Suivre vos réserves',d:'Depuis un PV de commission ou un rapport de bureau de contrôle.',done:(((tb&&tb.data)||[]).length>0)||(((re&&re.data)||[]).length>0),go:"navigate('/tableaux-reserves')"},
+    ];
+    const obDone=obSteps.filter(x=>x.done).length;
+    const onboardHtml=(window._supervision||obDone>=6)?'':`
+      <div class="card" style="margin-bottom:16px"><div class="card-pad">
+        <h3 style="font-size:15px;margin:0 0 3px">Premiers pas — ${obDone} sur 6</h3>
+        <p style="font-size:12.5px;color:var(--muted);margin:0 0 10px">${obSteps[3].done?('Encore '+(6-obDone)+' étape'+(6-obDone>1?'s':'')+' pour un suivi complet.'):"Il vous reste l'essentiel : l'échéancier n'est pas encore actif."}</p>
+        <div>
+          ${obSteps.map((x,i)=>`<div ${x.done?'':`onclick="${x.go}" style="cursor:pointer"`} title="${x.done?'Fait ✓':'Cliquer pour y aller'}">
+            <div style="display:flex;align-items:flex-start;gap:11px;padding:9px 0;border-bottom:${i<5?'1px solid var(--line-2)':'none'}">
+              <span style="width:19px;height:19px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;margin-top:1px;${x.done?'background:#16a34a;color:#fff':'border:1.5px dashed #cbd5e1;color:#94a3b8'}">${x.done?'✓':(i+1)}</span>
+              <span style="min-width:0;flex:1">
+                <b style="display:block;font-size:13.5px;${x.done?'color:var(--muted);text-decoration:line-through;text-decoration-color:#cbd5e1':'color:var(--ink)'}">${x.t}</b>
+                <small style="color:var(--muted-2);font-size:12px">${x.d}</small>
+              </span>
+              ${x.done?'':'<span style="flex:0 0 auto;color:var(--primary);font-size:12px;font-weight:700;margin-top:3px">→</span>'}
+            </div>
+          </div>`).join('')}
+        </div>
+      </div></div>`;
     c.innerHTML=`<div class="page-head"><div class="t"><h1>Tableau de bord</h1><p>Vos priorités, triées par criticité.</p></div>
-      <div class="actions"><button class="btn primary" onclick="quickIntervention()">${I.plus} Demande d'intervention</button><button class="btn" onclick="formInter(null,null,'programmer')" title="Intervention convenue par téléphone : enregistrer directement la date">Programmer une intervention</button>
+      <div class="actions"><button class="btn primary" id="btn-quick-inter" onclick="quickIntervention()">${I.plus} Demande d'intervention</button><button class="btn" onclick="formInter(null,null,'programmer')" title="Intervention convenue par téléphone : enregistrer directement la date">Programmer une intervention</button>
         </div></div>
       ${cfgHint()}
+      ${onboardHtml}
       <div class="kpis">${kpis.map(kpiCard).join('')}</div>
       <div class="card" style="overflow:hidden"><div class="card-pad" style="padding:0">
         <div onclick="dashPrioSectionToggle()" title="Cliquer pour replier/déplier" style="background:linear-gradient(135deg,#2563eb,#2563ebcc);color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
@@ -5376,7 +5489,7 @@ window.clientUserLinkGo=async function(clientId){
   const email=(document.getElementById('cl_email').value||'').trim().toLowerCase();
   const msg=document.getElementById('cl_msg'), btn=document.getElementById('cl_go');
   const err=t=>{ msg.style.color='#dc2626'; msg.textContent=t; };
-  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return err('Adresse email invalide.');
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return err('Adresse email invalide — vérifiez l\'arobase et le point (exemple : nom@societe.fr).');
   btn.disabled=true; btn.textContent='Recherche…';
   try{
     const {data:prof,error:eP}=await sb.from('profiles').select('id,nom,role').eq('email',email).maybeSingle();
@@ -5436,7 +5549,7 @@ window.clientUserCreateGo=async function(clientId){
   const pwd=(document.getElementById('cu_pwd').value||'').trim();
   const msg=document.getElementById('cu_msg'), btn=document.getElementById('cu_go');
   const err=t=>{ msg.style.color='#dc2626'; msg.textContent=t; };
-  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return err('Adresse email invalide.');
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return err('Adresse email invalide — vérifiez l\'arobase et le point (exemple : nom@societe.fr).');
   if(pwd.length<12) return err('Mot de passe : 12 caractères minimum.');
   btn.disabled=true; btn.textContent='Création…';
   try{
@@ -6428,7 +6541,8 @@ function formErp(er,clientId){
       <div class="fld"><label>Catégorie</label><select id="f_cat">
         <option value="">—</option>
         ${[1,2,3,4,5].map(n=>`<option value="${n}"${(String(e.categorie||'').match(/[1-5]/)||[''])[0]===String(n)?' selected':''}>${n}${n===1?'re':'e'} catégorie</option>`).join('')}
-      </select></div>
+      </select>
+      <div class="aide">Elle détermine la fréquence de toutes vos vérifications. <b>En cas de doute, reprenez celle inscrite sur votre dernier PV de commission</b> — ne l'estimez pas à partir de l'effectif.</div></div>
       <div class="fld"><label>Niveaux</label><input id="f_niv" placeholder="R+2…" value="${esc(e.niveaux)}"></div></div>
     <div class="row2"><div class="fld"><label>Effectif public</label><input id="f_efp" type="number" value="${esc(e.effectif_public)}"></div>
       <div class="fld"><label>Effectif salarié</label><input id="f_efs" type="number" value="${esc(e.effectif_salarie)}"></div></div>
@@ -6772,7 +6886,7 @@ function renderErpTab(tab,d){
   if(tab==='equip'){
     const eqList=d.eq||[];
     if(!eqList.length){
-      w.innerHTML='<div style="margin-top:24px">'+emptyBlock('🔧','Aucun équipement','Appliquez un plan de maintenance à cet ERP pour créer les équipements.')+'</div>';
+      w.innerHTML='<div style="margin-top:24px">'+emptyBlock('🔧','Aucun équipement','Les équipements naissent du plan de maintenance : générez-le pour cet ERP et chaque ligne (extincteurs, SSI, désenfumage…) apparaîtra ici.',`<button class="btn primary" onclick="navigate('/plan-maintenance')">Ouvrir le plan de maintenance</button>`)+'</div>';
       return;
     }
     // Rendu local + rechargement des unités après ajout/modif/suppression
@@ -7021,8 +7135,10 @@ async function formOblig(erpId, preEquip){
       <select id="f_equip" onchange="obligPickEquip()"><option value="">— choisir un équipement —</option>${equipOpts}</select></div>`:''}
     <div class="fld"><label>Libellé <span class="req">*</span></label><input id="f_lib" placeholder="Vérification annuelle SSI"></div>
     <div class="row2"><div class="fld"><label>Domaine</label><input id="f_dom" placeholder="SSI, Électricité…"></div>
-      <div class="fld"><label>Périodicité</label><input id="f_per" placeholder="annuelle"></div></div>
-    <div class="row2"><div class="fld"><label>Dernière vérification</label><input id="f_dv" type="date"></div>
+      <div class="fld"><label>Périodicité</label><input id="f_per" placeholder="annuelle">
+      <div class="aide">Mal choisie, elle fausse l'échéancier pendant des années sans alerte. <b>Reprenez celle indiquée sur le dernier rapport</b> du vérificateur.</div></div></div>
+    <div class="row2"><div class="fld"><label>Dernière vérification</label><input id="f_dv" type="date">
+      <div class="aide">C'est la date d'ancrage : les échéances suivantes s'en déduisent. <b>Reportez la date figurant sur le rapport</b>, pas celle de la facture ni celle du passage.</div></div>
       <div class="fld"><label>Prochaine échéance</label><input id="f_pe" type="date"></div></div>
     <div class="row2"><div class="fld"><label>Acteur</label><select id="f_act" onchange="obligActeurChange()"><option value="">—</option><option>Mainteneur</option><option>Bureau de contrôle</option><option>Exploitant</option></select></div>
       <div class="fld"><label>Criticité</label><select id="f_crit"><option value="moyen">Moyen</option><option value="majeur">Majeur</option><option value="critique">Critique</option><option value="faible">Faible</option><option value="info">Information</option></select></div></div>
@@ -7034,7 +7150,8 @@ async function formOblig(erpId, preEquip){
   <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">Créer</button></div>`);
   if(preEquip){ const s=$('#f_equip'); if(s){ s.value=preEquip; obligPickEquip(); } }
   $('#save').onclick=async()=>{
-    const lib=$('#f_lib').value.trim(); if(!lib){toast('Le libellé est requis','err');return;}
+    const lib=$('#f_lib').value.trim(); if(!lib){toast('Le libellé est requis — décrivez la vérification (ex. « Vérification annuelle SSI »).','err');return;}
+    const _dv0=$('#f_dv').value; if(_dv0 && _dv0>todayISO()){toast('La date de dernière vérification est dans le futur — corrigez-la pour que la prochaine échéance puisse être calculée.','err');return;}
     const pe=$('#f_pe').value; const st=pe&&pe<todayISO()?'en_retard':'applicable';
     const dom=$('#f_dom').value||null;
     const prestId=($('#f_prest')&&$('#oblig_prest_wrap').style.display!=='none')?($('#f_prest').value||null):null;
@@ -7101,10 +7218,12 @@ function formObligEdit(o){
           ${['Exploitant','Mainteneur','Bureau de contrôle'].map(a=>`<option value="${a}"${o.acteur===a?' selected':''}>${a}</option>`).join('')}
         </select>
       </div>
-      <div class="fld"><label>Périodicité</label><input id="f_per" value="${esc(o.periodicite||'')}" placeholder="annuelle"></div>
+      <div class="fld"><label>Périodicité</label><input id="f_per" value="${esc(o.periodicite||'')}" placeholder="annuelle">
+      <div class="aide">Mal choisie, elle fausse l'échéancier pendant des années sans alerte. <b>Reprenez celle indiquée sur le dernier rapport</b> du vérificateur.</div></div>
     </div>
     <div class="row2">
-      <div class="fld"><label>Dernière vérification</label><input id="f_dv" type="date" value="${esc(o.derniere_verif||'')}"></div>
+      <div class="fld"><label>Dernière vérification</label><input id="f_dv" type="date" value="${esc(o.derniere_verif||'')}">
+      <div class="aide">C'est la date d'ancrage : les échéances suivantes s'en déduisent. <b>Reportez la date figurant sur le rapport</b>, pas celle de la facture ni celle du passage.</div></div>
       <div class="fld"><label>Prochaine échéance</label><input id="f_pe" type="date" value="${esc(o.prochaine_echeance||'')}"></div>
     </div>
     <div class="row2">
@@ -7125,6 +7244,7 @@ function formObligEdit(o){
   $('#save').onclick=async()=>{
     const dom=$('#f_dom').value.trim(); if(!dom){toast('Le domaine est requis','err');return;}
     const lib=$('#f_lib').value.trim()||dom;
+    const _dv0=$('#f_dv').value; if(_dv0 && _dv0>todayISO()){toast('La date de dernière vérification est dans le futur — corrigez-la pour que la prochaine échéance puisse être calculée.','err');return;}
     const pe=$('#f_pe').value;
     const st=$('#f_stat').value||(pe&&pe<todayISO()?'en_retard':'applicable');
     try{
@@ -7400,7 +7520,7 @@ async function sendQrConsigne(token,nom,code){
     if(!msg){toast('Message vide','err');return;}
     const sig=(document.getElementById('qr_signataire').value||'').trim();
     const recipients=[...document.querySelectorAll('#qr_dest_list input:checked')].map(cb=>cb.value).filter(Boolean);
-    if(!recipients.length){toast('S\u00e9lectionnez au moins un destinataire','err');return;}
+    if(!recipients.length){toast('Aucun destinataire sélectionné — cochez au moins une adresse ou un numéro avant l\'envoi.','err');return;}
     const btn=document.getElementById('qr_send_btn');
     btn.disabled=true; btn.textContent='Envoi en cours\u2026';
     const _sm=msg.replace(/&/g,'&amp;').replace(/\x3c/g,'&lt;').replace(/\x3e/g,'&gt;').replace(/\n/g,'<br>');
@@ -8254,7 +8374,8 @@ async function viewReserves(c){
     });
     c.innerHTML=`<div class="page-head"><div class="t"><h1>Levées des réserves</h1><p>${reserves.length} réserve(s) — dossier PV de commission de sécurité, par client et ERP.</p></div>
       <div class="actions"><button class="btn primary" onclick="formReserve()">${I.plus} Nouvelle levée de réserve</button></div></div>
-      ${clientIds.length?body:emptyBlock(I.reserve,'Aucune réserve','Saisissez une levée de réserve.',`<button class="btn primary" onclick="formReserve()">${I.plus} Saisir une réserve</button>`)}`;
+      ${secHelp('reserves','Faire produire la preuve par celui qui a agi',"Attribuez une réserve à un prestataire : il reçoit un lien, décrit son intervention, joint ses photos et signe depuis son téléphone. Vous validez ou vous refusez — la décision reste la vôtre.")}
+      ${clientIds.length?body:emptyBlock(I.reserve,'Aucune réserve enregistrée','Les réserves viennent de vos PV de commission et rapports de bureaux de contrôle : ouvrez le Classeur et cliquez « Extraire réserves » sur un rapport. Vous pouvez aussi en saisir une à la main.',`<button class="btn primary" onclick="navigate('/documents')">Ouvrir le Classeur</button> <button class="btn" onclick="formReserve()">${I.plus} Saisir à la main</button>`)}`;
   }catch(e){ c.innerHTML=errBlock(e); }
 }
 
@@ -9452,7 +9573,7 @@ window.crUpdatePolitesse=function(){
 window.crAddPhotos=async function(files){
   for(const f of files){
     if(!(f.type&&f.type.startsWith('image/'))){ toast('Seules les images sont acceptées ici','err'); continue; }
-    if(f.size>20*1024*1024){ toast(f.name+' : trop volumineux (max 20 Mo)','err'); continue; }
+    if(f.size>20*1024*1024){ toast(f.name+' : fichier trop volumineux (maximum 20 Mo) — reprenez la photo en qualité normale ou compressez le PDF.','err'); continue; }
     try{ const du=await fileToDataUrl(f); const im=await loadImgDataUrl(du); if(im) _crPhotos.push({dataUrl:im.dataUrl,w:im.w,h:im.h,commentaire:''}); }catch(e){}
   }
   crRenderPhotos();
@@ -9630,7 +9751,7 @@ let _reportAttachments=[];
 window.addReportAttachments=function(files){
   for(const f of files){
     if(!(f.type&&(f.type.startsWith('image/')||f.type==='application/pdf'))){ toast('Seuls les images et PDF sont acceptés','err'); continue; }
-    if(f.size>20*1024*1024){ toast(f.name+' : trop volumineux (max 20 Mo)','err'); continue; }
+    if(f.size>20*1024*1024){ toast(f.name+' : fichier trop volumineux (maximum 20 Mo) — reprenez la photo en qualité normale ou compressez le PDF.','err'); continue; }
     _reportAttachments.push(f);
   }
   renderReportAttList();
@@ -10538,7 +10659,7 @@ window.renderPtgRecap=function(){
   const fmtTime=d=>new Date(d).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
   const fmtDateFr=d=>new Date(d).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'});
   const persH=p=>{ if(!p.heure_depart) return null; const d=(new Date(p.heure_depart)-new Date(p.heure_arrivee))/3.6e6; return d>0?d*(p.nb_intervenants||1):0; };
-  if(!rows.length){ wrap.innerHTML=emptyBlock(I.qr,'Aucun pointage','Aucune donnée à récapituler.'); return; }
+  if(!rows.length){ wrap.innerHTML=emptyBlock(I.qr,'Aucun pointage sur cette période','Le récapitulatif se remplit dès que les intervenants pointent en scannant le QR code affiché dans vos établissements.',`<button class="btn" onclick="navigate('/erps')">Voir les ERP et leurs QR codes</button>`); return; }
   const byClient={};
   rows.forEach(p=>{
     const erp=erpById[p.erp_id];
@@ -10690,8 +10811,8 @@ async function viewRapports(c){
     const recus=list.filter(r=>(r.statut||'')==='recu').length;
     const nbClients=new Set(list.map(r=>{const cl=clientOfRap(r);return cl?cl.id:'__';})).size;
     const head=`<div class="page-head"><div class="t"><h1>Rapports reçus</h1><p>${total} rapport(s) transmis par email, classés automatiquement par client.</p></div>
-      <div class="actions"><button class="btn" onclick="releverRapports(this)">↻ Relever maintenant</button></div></div>`;
-    if(!total){ c.innerHTML=head+emptyBlock(I.doc,'Aucun rapport reçu',"Dès qu'un prestataire enverra un rapport à l'adresse @conformite-securite.fr d'un client, il apparaîtra ici automatiquement."); return; }
+      <div class="actions"><button class="btn" onclick="releverRapports(this)">↻ Relever maintenant</button></div></div>`+secHelp('rapports','Les rapports arrivent et se classent tout seuls',"Chaque client dispose d'une adresse email dédiée : le prestataire y envoie son rapport, il est rattaché au bon client et au bon type. Votre seul geste : vérifier la ligne puis la marquer « Classé » — elle rejoint le Classeur.");
+    if(!total){ c.innerHTML=head+emptyBlock(I.doc,'Aucun rapport reçu',"Chaque client dispose d'une adresse email dédiée : dès qu'un prestataire y envoie son rapport, il apparaît ici et se classe automatiquement.",`<button class="btn" onclick="navigate('/clients')">Voir l'adresse dédiée de chaque client</button>`); return; }
     const kpis=`<div class="row3" style="margin-bottom:18px">
       ${kpiCard(['Rapports reçus',total,'',''])}
       ${kpiCard(['À traiter',recus,'',''])}
@@ -11447,7 +11568,7 @@ function formDoc(prefiles){
     const isDevisSigne=catFromType(type)==='devis_signe';
     const date_intervention_prevue=isDevisSigne?(($('#f_int_date')?.value)||null):null;
     let date_intervention_fin=isDevisSigne?(($('#f_int_fin')?.value)||null):null;
-    if(date_intervention_fin&&date_intervention_prevue&&date_intervention_fin<date_intervention_prevue){ toast('La date de fin est avant la date de début','err'); btn.disabled=false; btn.textContent='Déposer'; return; }
+    if(date_intervention_fin&&date_intervention_prevue&&date_intervention_fin<date_intervention_prevue){ toast('La date de fin est avant la date de début — inversez les deux dates, ou videz le champ « au » pour un seul jour.','err'); btn.disabled=false; btn.textContent='Déposer'; return; }
     if(date_intervention_fin&&!date_intervention_prevue) date_intervention_fin=null;
     const wantInter=isDevisSigne&&date_intervention_prevue&&($('#f_int_create')?.checked);
     try{
@@ -13058,6 +13179,7 @@ window.trvExtractLines=async function(url){
 window.viewTableauxReserves=async function(c){
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Tableaux de réserves</h1><p>1 rapport = 1 tableau, créé automatiquement à l'arrivée du rapport dans le Classeur. Le prestataire signe ses levées, toi seul peux modifier le tableau.</p></div>
     </div>
+    ${secHelp('tableaux','Un rapport = un tableau, créé tout seul',"À l'arrivée d'un rapport dans le Classeur, chaque prescription devient une ligne numérotée. Le prestataire signe ses levées en ligne ; vous seul pouvez modifier le tableau — c'est votre registre de preuves pour la commission.")}
     <div id="trv_filtres" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px"></div>
     <div id="trv_stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px"></div>
     <div id="trv_synth" style="margin-bottom:16px"></div>
@@ -13153,7 +13275,7 @@ window.trvRenderList=function(tabs,res){
   const stat=(l,v,c2)=>`<div class="card" style="padding:12px 14px"><div style="font-size:22px;font-weight:800;color:${c2}">${v}</div><div style="font-size:11.5px;color:var(--muted);font-weight:600">${l}</div></div>`;
   const aval=tabs.filter(t=>t.statut==='a_valider').length;
   if(st) st.innerHTML=(aval?stat('⏳ À valider',aval,'#d97706'):'')+stat('Tableaux',tabs.length,'#2563eb')+stat('À lever',totOuv,'#dc2626')+stat('Levées',res.length-totOuv,'#16a34a')+stat('En retard',ret,ret?'#dc2626':'#94a3b8')+stat('Récidives',rec,rec?'#9333ea':'#94a3b8')+stat('Taux de levée',taux+' %',taux===100?'#16a34a':'#d97706');
-  if(!tabs.length){ box.innerHTML='<div class="card card-pad" style="color:var(--muted)">Aucun tableau pour le moment — crée le premier depuis un rapport du Classeur.</div>'; return; }
+  if(!tabs.length){ box.innerHTML=emptyBlock(I.doc,'Aucune réserve enregistrée','Les tableaux de réserves viennent de vos rapports : PV de commission de sécurité ou rapport de bureau de contrôle. Ouvrez le Classeur et cliquez « Extraire réserves » sur un rapport — chaque prescription devient une ligne à suivre.',`<button class="btn primary" onclick="navigate('/documents')">Ouvrir le Classeur</button>`); return; }
   const erpOf=id=>{ const e=(state.erps||[]).find(x=>x.id===id); return e?e.nom:'Établissement'; };
   const clientName=id=>{ const c=(state.clients||[]).find(x=>x.id===id); return c?(c.nom||c.raison_sociale||'Client'):'Sans client'; };
   const card=t=>{
@@ -13519,7 +13641,7 @@ window.trvSmsGo=async function(tabId){
   const mobiles=[...new Set([...Object.keys(window._tvSel||{}),...(document.getElementById('tv_mob').value||'').split(/[,;]/).map(s=>s.replace(/[\s.\-]/g,'')).filter(Boolean)])];
   const bad=mobiles.find(x=>!/^(\+33|0)[67]\d{8}$/.test(x));
   if(bad){toast('Numéro invalide : '+bad,'err');return;}
-  if(!mobiles.length){toast('Choisis au moins un destinataire','err');return;}
+  if(!mobiles.length){toast('Aucun destinataire coché — cochez au moins un numéro ou une adresse, ou complétez la fiche du prestataire.','err');return;}
   const btn=document.getElementById('tv_go'); btn.disabled=true; btn.textContent='Préparation…';
   try{
     const ids=[];
@@ -13865,7 +13987,7 @@ window.gedExtractRes=async function(docId){
         <div class="modal-foot"><button class="btn" onclick="closeModal()">Fermer</button>
           <button class="btn primary" onclick="gedOcrRun('${esc(docId)}')">🔍 Lancer la lecture OCR</button></div>`);
     }
-    else if(a.statut==='erreur') toast('Analyse impossible : '+(a.detail||'erreur'),'err');
+    else if(a.statut==='erreur') toast('Le rapport n\'a pas pu être analysé ('+(a.detail||'erreur')+') — réessayez avec le PDF d\'origine du vérificateur, pas un scan photo.','err');
     else toast('Document déjà analysé','ok');
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
 };
@@ -13976,7 +14098,7 @@ window.trvAnalyze=async function(docId){
     const lines=await trvExtractLines(s.signedUrl);
     const parsed=trvParseVeritas(lines);
     trvShowValidation(parsed,d);
-  }catch(e){ toast('Analyse impossible : '+(e.message||e),'err'); }
+  }catch(e){ toast('Le rapport n\'a pas pu être analysé ('+(e.message||e)+') — réessayez avec le PDF d\'origine du vérificateur.','err'); }
   wait.style.display='none';
 };
 window.trvShowValidation=function(parsed,doc){
@@ -14212,7 +14334,7 @@ window.trvMailPrest=async function(tabId){
 window.trvMailSend=async function(tabId){
   const to=trvMailRecipients(), emailRe=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if(!trvMailSelectedRows().length){ toast('Sélectionne au moins une réserve à inclure','err'); return; }
-  if(!to.length){ toast('Sélectionne au moins un destinataire','err'); return; }
+  if(!to.length){ toast('Aucun destinataire sélectionné — cochez au moins un destinataire avant l\'envoi.','err'); return; }
   const bad=to.find(e=>!emailRe.test(e));
   if(bad){ toast('E-mail invalide : '+bad,'err'); return; }
   const cc=trvMailCc();
@@ -14835,7 +14957,10 @@ window.levSignSubmit=async function(rid){
     levRender();
     toast((window._levEt==='partielle')?'Levée partielle signée':'Levée signée','ok');
   }catch(e){
-    const msg=(e.message||e)==='levee_verrouillee'?'Cette levée est déjà signée et verrouillée':'Erreur : '+(e.message||e);
+    const _s=String(e.message||e);
+    const msg=_s==='levee_verrouillee'?'Cette levée est déjà signée et verrouillée'
+      :(/failed to fetch|network|load failed/i.test(_s)?'La connexion a été interrompue — votre signature n\'est pas perdue : vérifiez le réseau puis validez à nouveau.'
+      :'L\'enregistrement de la signature n\'a pas abouti ('+_s+') — réessayez, votre saisie est conservée.');
     toast(msg,'err'); btn.disabled=false; btn.textContent='Valider la signature';
   }
 };
@@ -15028,8 +15153,8 @@ window.ficheIdDl=function(){
 window.ficheIdSend=async function(){
   const emails=[...new Set([...Object.keys(window._fiSel||{}),...(document.getElementById('fi_mails').value||'').split(/[,;\s]+/).filter(Boolean)])];
   const bad=emails.find(x=>!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x));
-  if(bad){toast('Email invalide : '+bad,'err');return;}
-  if(!emails.length){toast('Choisis au moins un destinataire','err');return;}
+  if(bad){toast('Adresse invalide : '+bad+' — corrigez-la avant l\'envoi (exemple : nom@societe.fr).','err');return;}
+  if(!emails.length){toast('Aucun destinataire coché — cochez au moins un numéro ou une adresse, ou complétez la fiche du prestataire.','err');return;}
   const subj=(document.getElementById('fi_subj').value||'').trim()||"Fiche d'identité";
   const msg=(document.getElementById('fi_msg').value||'').trim();
   const btn=document.getElementById('fi_go'); btn.disabled=true; btn.textContent='Génération…';
@@ -15559,12 +15684,12 @@ window.arCreate=async function(){
   const badM=mobiles.find(x=>!/^(\+33|0)[67]\d{8}$/.test(x));
   if(badM){toast('Numéro invalide : '+badM,'err');return;}
   const badE=mails.find(x=>!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x));
-  if(badE){toast('Email invalide : '+badE,'err');return;}
+  if(badE){toast('Adresse invalide : '+badE+' — corrigez-la avant l\'envoi (exemple : nom@societe.fr).','err');return;}
   const btn=document.getElementById('ar_go'); btn.disabled=true; btn.textContent='Génération…';
   try{
     const {data:erp,error:e1}=await sb.from('erps').select('id,nom,client_id,qr_token').eq('id',erpId).maybeSingle();
     if(e1||!erp) throw (e1||new Error('Établissement introuvable'));
-    if(!erp.qr_token) throw new Error('Cet établissement n\'a pas encore de QR/lien public.');
+    if(!erp.qr_token) throw new Error('Cet établissement n\'a pas encore de lien public — ouvrez sa fiche (menu ERP) : le lien se génère automatiquement, puis relancez l\'envoi.');
     const hash=await _qrSha256(pwd);
     const exp=new Date(Date.now()+hours*3600*1000);
     const who=state.profile?.nom||state.user?.email||'';
@@ -15622,7 +15747,7 @@ window.arCreate=async function(){
         Validité : <b>${valLabel}</b> (expire le ${expStr})<br>
         ${smsN?'📱 '+smsN+' SMS '+(window._arDirect?'envoyé'+(smsN>1?'s':'')+' à l\'instant ✓':'pris en charge par le robot (≤ 5 min)')+'<br>':''}
         ${mailN?'✉️ '+mailN+' email'+(mailN>1?'s':'')+' envoyé'+(mailN>1?'s':'')+'<br>':''}
-        ${mailErr?'<span style="color:#dc2626">⚠ '+mailErr+' email(s) en échec</span>':''}
+        ${mailErr?'<span style="color:#dc2626">⚠ '+mailErr+' email(s) en échec — vérifiez l\'adresse sur la fiche du prestataire puis renvoyez</span>':''}
       </div>
       <div class="fld" style="margin:0"><label>Lien à accès direct (code inclus)</label><div style="display:flex;gap:6px"><input readonly value="${esc(link)}&c=${encodeURIComponent(pwd)}" style="flex:1;min-width:0;font-size:12px"><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(link)}&c='+encodeURIComponent('${esc(pwd)}'));toast('Lien copié','ok')">Copier</button></div></div>
       <div class="fld" style="margin:0"><label>Mot de passe</label><div style="display:flex;gap:6px"><input readonly value="${esc(pwd)}" style="flex:1;font-weight:700;letter-spacing:2px"><button class="btn" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(pwd)}');toast('Mot de passe copié','ok')">Copier</button></div></div>
@@ -15665,7 +15790,7 @@ async function devisUploadSigned(docId){
       const btn=document.getElementById('ds_go'); btn.disabled=true; btn.textContent='Envoi…';
       const date_intervention_prevue=document.getElementById('ds_int_date')?.value||null;
       let date_intervention_fin=document.getElementById('ds_int_fin')?.value||null;
-      if(date_intervention_fin&&date_intervention_prevue&&date_intervention_fin<date_intervention_prevue){ toast('La date de fin est avant la date de début','err'); btn.disabled=false; btn.textContent='Déposer'; return; }
+      if(date_intervention_fin&&date_intervention_prevue&&date_intervention_fin<date_intervention_prevue){ toast('La date de fin est avant la date de début — inversez les deux dates, ou videz le champ « au » pour un seul jour.','err'); btn.disabled=false; btn.textContent='Déposer'; return; }
       if(date_intervention_fin&&!date_intervention_prevue) date_intervention_fin=null;
       const wantInter=!!(date_intervention_prevue && document.getElementById('ds_int_create')?.checked && d.erp_id);
       try{
@@ -15922,6 +16047,7 @@ window.viewTravaux=async function(c){
   c.innerHTML=`<style>${TX_CSS}</style>
     <div class="page-head"><div><h1>Travaux</h1>
       <p class="sub">Chaque devis suivi de la signature jusqu'au PV de réception — les dates alimentent l'agenda, les pièces le Classeur.</p></div></div>
+    ${secHelp('travaux','Du devis au PV de réception, sans rien perdre',"Un devis déposé ouvre un dossier. Déposez le signé : les dates des travaux alimentent l'agenda, et au terme l'application réclame le PV de réception — la pièce qui clôt le dossier et déclenche les garanties.")}
     <div id="tx-wrap"><div style="text-align:center;color:var(--muted);padding:40px 0">Chargement…</div></div>
     <div class="tx-ov" id="tx-ov" onclick="txClose()"></div>
     <aside class="tx-dr" id="tx-dr" aria-label="Détail du dossier">
@@ -16219,7 +16345,7 @@ window.txReport=function(id){
     const btn=document.getElementById('txr_go'); btn.disabled=true; btn.textContent='Report…';
     const du=document.getElementById('txr_du').value||null;
     let au=document.getElementById('txr_au').value||null;
-    if(au&&(!du||au<du)){ toast('La date de fin est avant la date de début','err'); btn.disabled=false; btn.textContent='Reporter'; return; }
+    if(au&&(!du||au<du)){ toast('La date de fin est avant la date de début — inversez les deux dates, ou videz le champ « au » pour un seul jour.','err'); btn.disabled=false; btn.textContent='Reporter'; return; }
     if(au&&!du) au=null;
     const motif=sel.value==='__autre__'?(document.getElementById('txr_motif_txt').value||'').trim():sel.value;
     const hist=(Array.isArray(d.dates_historique)?d.dates_historique:[]).concat([{du:d.date_intervention_prevue,au:d.date_intervention_fin,motif:motif||null,change_le:new Date().toISOString().slice(0,10)}]);
@@ -16477,7 +16603,7 @@ window.gpaRender=function(c){
     ${ouv.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">${ouv.map(carteOuvrage).join('')}</div>`
       :emptyBlock('🛡','Aucun ouvrage sous garantie','Ajoutez un ouvrage réceptionné — ou créez-le depuis un PV de réception.')}`;
   } else if(st.t==='ouv'){
-    body=ouv.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">${ouv.map(carteOuvrage).join('')}</div>`:emptyBlock('🛡','Aucun ouvrage','—');
+    body=ouv.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">${ouv.map(carteOuvrage).join('')}</div>`:emptyBlock('🛡','Aucun ouvrage sous garantie','Ajoutez un ouvrage réceptionné — ou créez-le en un clic depuis un PV de réception de travaux.',`<button class="btn primary" onclick="gpaFormOuvrage()">＋ Ouvrage sous garantie</button>`);
   } else if(st.t==='res'){
     const rows=D.r.filter(x=>ouv.some(o0=>o0.id===x.ouvrage_id)).map(x=>{
       const o0=ouv.find(y=>y.id===x.ouvrage_id);
@@ -16488,7 +16614,7 @@ window.gpaRender=function(c){
         ${x.photo_path?`<button class="btn sm" onclick="previewDoc('${x.photo_path.replace(/'/g,"\\'")}','Photo réserve','documents')">📷</button>`:''}
         ${x.statut!=='levee'?`<button class="btn sm primary" onclick="gpaLeverReserve('${x.id}')">Lever ✓</button>`:''}
       </div>`;}).join('');
-    body=rows||emptyBlock('📋','Aucune réserve','Les réserves notifiées pendant la garantie apparaissent ici.');
+    body=rows||emptyBlock('📋','Aucune réserve de garantie','Un désordre constaté pendant la garantie se notifie depuis la fiche de l\'ouvrage concerné — il apparaîtra ici avec son suivi de levée.');
   } else {
     const rows=D.l.filter(x=>ouv.some(o0=>o0.id===x.ouvrage_id)).slice().reverse().map(x=>{
       const o0=ouv.find(y=>y.id===x.ouvrage_id);
@@ -16498,10 +16624,11 @@ window.gpaRender=function(c){
         ${pillRel(x.type)}
         <button class="btn sm" onclick="gpaCourrierPdf('${x.ouvrage_id}','${x.type}','${esc(x.lrar_numero||'')}')">📄 Courrier</button>
       </div>`;}).join('');
-    body=rows||emptyBlock('✉️','Aucune relance','Relance simple → recommandée → mise en demeure, avec courrier PDF.');
+    body=rows||emptyBlock('✉️','Aucune relance envoyée','Les relances s\'envoient depuis la fiche d\'un ouvrage sous garantie : relance simple → recommandée → mise en demeure, avec le courrier PDF généré à chaque étape.');
   }
   c.innerHTML=`<div class="page-head"><div><h1>Garanties GPA</h1><p class="sub">Parfait achèvement · bon fonctionnement · décennale</p></div>
     <div class="actions"><button class="btn primary" onclick="gpaFormOuvrage()">＋ Ouvrage sous garantie</button></div></div>
+    ${secHelp('gpa','Trois garanties, trois horloges',"Après réception des travaux, vous pouvez exiger la reprise des désordres : 1 an (parfait achèvement), 2 ans (bon fonctionnement des équipements), 10 ans (décennale). Notifiez chaque désordre avant l'échéance — l'application suit les dates et prépare les courriers de relance.")}
     <div class="eqx-bar" style="margin-top:4px"><div class="eqx-seg">${tabs.map(([k,lab])=>`<button class="${st.t===k?'on':''}" onclick="window._gpaTab.t='${k}';gpaRender()">${lab}</button>`).join('')}</div></div>
     ${body}`;
 };
@@ -17438,6 +17565,7 @@ async function viewPreparationCS(c){
         <input type="time" id="cs_time" value="${esc(savedTime)}" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:#fff;font-size:14px;font-weight:600" oninput="localStorage.setItem('cs_commission_time_${erpId}',this.value)">
       </div>
     </div>
+    <div style="font-size:11px;color:rgba(255,255,255,.85);line-height:1.5;margin-top:10px;border-left:3px solid rgba(255,255,255,.45);padding:6px 10px;border-radius:0 8px 8px 0;background:rgba(255,255,255,.08)">Cette date pilote les convocations et les relances de vos prestataires. <b style="color:#fff">Vérifiez-la sur la convocation officielle</b> avant d'envoyer les demandes d'assistance.</div>
   </div>`;
 
   html+=`<div style="display:flex;justify-content:flex-end;margin:-10px 0 20px">
@@ -17668,7 +17796,7 @@ window.smsTplSaveNew=smsTplSaveNew;
 async function smsComposerSubmit(){
   const dedup=[...new Set([...document.querySelectorAll('.sms-rcp-chk:checked')].map(x=>x.value))];
   const message=(document.getElementById('sms-body')?.value||'').trim();
-  if(!dedup.length){ toast('Sélectionnez au moins un destinataire','err'); return; }
+  if(!dedup.length){ toast('Aucun destinataire sélectionné — cochez au moins un destinataire avant l\'envoi.','err'); return; }
   if(!message){ toast('Message vide','err'); return; }
   const btn=document.getElementById('sms-send-btn'); btn.disabled=true; const oldTxt=btn.textContent; btn.textContent='…';
   const ctx=window._smsContext||{};
@@ -18142,6 +18270,8 @@ async function viewPlanMaintenance(c){
     </select>
     <button class="btn" onclick="pmSaveAsModel()">💾 Sauvegarder</button>
   </div></div>
+
+  ${secHelp('planmaint','La bibliothèque qui fabrique votre échéancier',"Composez la liste des équipements à vérifier (extincteurs, SSI, désenfumage…), puis enregistrez-la dans un ERP : chaque ligne devient une vérification périodique datée. Saisissez ensuite les dates de dernière vérification — c'est ce qui active l'échéancier et les relances.")}
 
   <!-- Formulaire d'ajout rapide -->
   <div class="card" style="padding:16px 18px;margin-bottom:16px">
@@ -19680,7 +19810,7 @@ async function qrAccesSendMailGo(id,btn){
   const extra=(document.getElementById('qa-mail-extra')?.value||'').trim();
   if(extra&&extra.includes('@')) to.push(extra.toLowerCase());
   const dedup=[...new Set(to)];
-  if(!dedup.length){ toast('Sélectionnez au moins un destinataire','err'); return; }
+  if(!dedup.length){ toast('Aucun destinataire sélectionné — cochez au moins un destinataire avant l\'envoi.','err'); return; }
   const subject=(document.getElementById('qa-mail-subj')?.value||'').trim()||('Votre accès aux rapports de vérification — '+(c?c.raison_sociale:'PREVA Conseils'));
   const bodyEl=document.getElementById('qa-mail-body');
   const html=bodyEl?bodyEl.innerHTML:_qrAccesMailHtml(a,c);
@@ -19877,7 +20007,8 @@ async function formPrest(p){
         <div class="fld" style="margin-bottom:10px"><label>Code postal</label><input id="f_code_postal" value="${esc(p.code_postal||'')}" placeholder="75001" inputmode="numeric"></div>
         <div class="fld" style="margin-bottom:10px"><label>Ville</label><input id="f_ville" value="${esc(p.ville||'')}" placeholder="Paris"></div>
         <div class="fld" style="margin-bottom:10px"><label>Téléphone (fixe ou mobile) <span class="req" style="color:#dc2626">*</span></label><input id="f_telephone" type="tel" value="${esc(p.telephone||'')}" placeholder="01 23 45 67 89"></div>
-        <div class="fld" style="margin-bottom:10px"><label>Email <span class="req" style="color:#dc2626">*</span></label><input id="f_email" type="email" value="${esc(p.email_rapports||'')}" placeholder="contact@entreprise.fr"></div>
+        <div class="fld" style="margin-bottom:10px"><label>Email <span class="req" style="color:#dc2626">*</span></label><input id="f_email" type="email" value="${esc(p.email_rapports||'')}" placeholder="contact@entreprise.fr">
+        <div class="aide">C'est par cette adresse que partent vos demandes d'intervention et qu'arrivent les rapports classés automatiquement. <b>Une faute de frappe casse tout le circuit</b> — recopiez-la depuis un email reçu du prestataire.</div></div>
         <div class="fld" style="margin-bottom:10px"><label>SIRET</label><input id="f_siret" value="${esc(p.siret||'')}" placeholder="123 456 789 00012" inputmode="numeric"></div>
 
         <div class="fld" style="margin-bottom:10px"><label>SIREN</label><input id="f_siren" value="${esc(p.siren||'')}" placeholder="123 456 789" inputmode="numeric"></div>
@@ -20700,7 +20831,8 @@ async function renderCsConfirm(){
         return;
       }
       btn.disabled=false; btn.textContent='✅ Confirmer ma présence et l\'envoi d\'un devis';
-      document.getElementById('cs_confirm_body').insertAdjacentHTML('beforeend','<p style="color:#ef4444;text-align:center;margin-top:12px;font-size:13px">Une erreur est survenue, merci de réessayer dans un instant.</p>');
+      const _off=/failed to fetch|network|load failed/i.test(String((error&&error.message)||''));
+      document.getElementById('cs_confirm_body').insertAdjacentHTML('beforeend','<p style="color:#ef4444;text-align:center;margin-top:12px;font-size:13px">'+(_off?'La connexion a été interrompue — vérifiez votre réseau puis appuyez à nouveau sur le bouton : rien n\'a été perdu.':'L\'enregistrement n\'a pas abouti. Réessayez dans un instant — si cela persiste, contactez PREVA Conseils (06 64 91 84 48).')+'</p>');
       return;
     }
     document.getElementById('cs_confirm_body').innerHTML=`
@@ -20785,7 +20917,7 @@ async function renderConfirmInter(token){
       root.innerHTML=propScreen(fmtL(d),com);
     }catch(e){
       btnSend.disabled=false; btnSend.textContent='Envoyer ma proposition →';
-      root.querySelector('#cfp_err')||btnSend.insertAdjacentHTML('afterend','<p id="cfp_err" style="color:#ef4444;font-size:12.5px;text-align:center;margin:10px 0 0">Une erreur est survenue (lien déjà utilisé ?). Merci de réessayer ou de contacter PREVA Conseils.</p>');
+      root.querySelector('#cfp_err')||btnSend.insertAdjacentHTML('afterend','<p id="cfp_err" style="color:#ef4444;font-size:12.5px;text-align:center;margin:10px 0 0">La confirmation n\'a pas abouti — ce lien a peut-être déjà été utilisé. Réessayez ; si le problème persiste, appelez PREVA Conseils (06 64 91 84 48).</p>');
     }
   };
   const btnConf=document.getElementById('cfp_confirm');
@@ -20886,11 +21018,11 @@ function qrPrestLoginForm(msg){
     const btn=document.getElementById('qr-prest-go'); if(btn){btn.disabled=true;btn.textContent='…';}
     try{
       const { data, error } = await sb.functions.invoke('qr-erp-docs',{ body:{ token:window.__qrTok, auth:{ password:pwd } } });
-      if(error||!data||!data.session){ qrPrestLoginForm((data&&data.error)||'Mot de passe invalide ou expiré'); return; }
+      if(error||!data||!data.session){ qrPrestLoginForm((data&&data.error)||'Code incorrect ou accès expiré — vérifiez le code reçu ; s\'il date de plusieurs jours, demandez un nouvel accès.'); return; }
       const sess={ session:data.session, prestataire:data.prestataire||'', mode:data.mode||'', exp:new Date(data.expires_at).getTime() };
       try{ localStorage.setItem('qr_prest_sess',JSON.stringify(sess)); }catch(e){}
       if(sess.mode==='tableau') qrTablView(sess); else qrPrestShowRapports(sess);
-    }catch(e){ qrPrestLoginForm('Mot de passe invalide ou expiré'); }
+    }catch(e){ qrPrestLoginForm('Code incorrect ou accès expiré — vérifiez le code reçu ; s\'il date de plusieurs jours, demandez un nouvel accès.'); }
   };
   const btn=document.getElementById('qr-prest-go'); if(btn) btn.onclick=go;
   const inp=document.getElementById('qr-prest-pwd'); if(inp) inp.addEventListener('keydown',e=>{ if(e.key==='Enter') go(); });
