@@ -4351,14 +4351,15 @@ function fxStyle(){ if(document.getElementById('fx-style')) return; const s=docu
 `; document.head.appendChild(s); }
 window._fx={cont:{},vc:[],prog:{}};
 async function fxLoad(){
-  const [c,v,p]=await Promise.all([
+  const [c,v,p,a]=await Promise.all([
     sb.from('formation_contenus').select('*'),
     sb.from('formation_videos_client').select('*'),
-    sb.from('formation_progression').select('*').eq('user_id',state.user.id)
+    sb.from('formation_progression').select('*').eq('user_id',state.user.id),
+    sb.from('formation_audios').select('*').order('position')
   ]);
   const cont={}; (c.data||[]).forEach(x=>cont[x.module_no]=x);
   const prog={}; (p.data||[]).forEach(x=>prog[x.module_no]=x);
-  window._fx={cont,vc:v.data||[],prog};
+  window._fx={cont,vc:v.data||[],prog,auds:a.data||[]};
 }
 async function fxUpsert(no,fields){
   try{
@@ -4448,7 +4449,7 @@ async function fxOpen(no){
   } else {
     playerHtml=`<div class="ph"><div><div style="font-size:26px;margin-bottom:8px">🎬</div>Vidéo en préparation pour ce module.<br><b style="color:#fff">La fiche ci-dessous couvre tout le contenu</b> — lisez-la puis validez la question.</div></div>`;
   }
-  const audio=cont.audio_path;
+  const auds=(window._fx.auds||[]).filter(a=>a.module_no===no);
   const avis=cont.avis_expert||m.avis;
   c.innerHTML=`<button class="fx-back" onclick="navigate('/formation')">← Retour à la formation</button>
   <div class="fx-lesson">
@@ -4459,10 +4460,10 @@ async function fxOpen(no){
         <span style="font-size:11px;font-weight:700;background:rgba(255,255,255,.14);border-radius:20px;padding:3px 10px">${m.dur}</span></div>
       ${playerHtml}
     </div>
-    <div class="fx-aud" id="fx-audbar" style="${audio?'':'display:none'}">
+    ${auds.map((a,i)=>`<div class="fx-aud">
       <div class="ava">🎧</div>
-      <div class="am"><small>LE MOT DE L’EXPERT — MESSAGE AUDIO</small><audio controls preload="metadata" id="fx-audio"></audio></div>
-    </div>
+      <div class="am"><small>${a.titre?esc(a.titre):('LE MOT DE L’EXPERT'+(auds.length>1?' — MESSAGE '+(i+1)+' / '+auds.length:' — MESSAGE AUDIO'))}</small><audio controls preload="metadata" id="fx-audio-${a.id}"></audio></div>
+    </div>`).join('')}
     <div class="fx-lb">
       <div>
         <div class="fx-obj"><b>À la fin de ce module, vous saurez :</b> ${esc(m.obj)}</div>
@@ -4479,6 +4480,7 @@ async function fxOpen(no){
     </div>
     <div class="fx-foot">
       <button class="btn primary" onclick="navigate('${m.act[0]}')">Faire maintenant → ${esc(m.act[1])}</button>
+      <button class="btn" onclick="fxFiche(${m.no})">📄 Fiche de synthèse</button>
       ${no<10?`<button class="btn" onclick="fxOpen(${no+1})">Module suivant ▶</button>`:''}
       <span class="rule">Module « terminé » = contenu consulté <b>+ la question validée</b>. Votre progression est enregistrée sur votre compte : ordinateur et téléphone partagent le même avancement.</span>
     </div>
@@ -4486,7 +4488,7 @@ async function fxOpen(no){
   window.scrollTo({top:0});
   // sources signées (stockage)
   if(vid && !vid.url && vid.path){ try{ const {data}=await sb.storage.from('documents').createSignedUrl(vid.path,3600); const v=document.getElementById('fx-video'); if(v&&data?.signedUrl) v.src=data.signedUrl; }catch(_){} }
-  if(audio){ try{ const {data}=await sb.storage.from('documents').createSignedUrl(audio,3600); const a=document.getElementById('fx-audio'); if(a&&data?.signedUrl) a.src=data.signedUrl; else document.getElementById('fx-audbar').style.display='none'; }catch(_){ document.getElementById('fx-audbar').style.display='none'; } }
+  for(const a of auds){ try{ const {data}=await sb.storage.from('documents').createSignedUrl(a.audio_path,3600); const el=document.getElementById('fx-audio-'+a.id); if(el&&data?.signedUrl) el.src=data.signedUrl; }catch(_){} }
 }
 window.fxOpen=fxOpen;
 function fxAnswer(no,i){
@@ -4506,6 +4508,52 @@ function fxAnswer(no,i){
   }
 }
 window.fxAnswer=fxAnswer;
+/* ── Fiche de synthèse : PDF déposé par l'admin, sinon fiche générée ── */
+async function fxFiche(no){
+  const m=FORM_MODULES.find(x=>x.no===no); if(!m) return;
+  const cont=(window._fx.cont||{})[no]||{};
+  if(cont.fiche_path){
+    try{ const {data}=await sb.storage.from('documents').createSignedUrl(cont.fiche_path,3600);
+      if(data?.signedUrl){ window.open(data.signedUrl,'_blank'); return; } }catch(_){}
+  }
+  const avis=cont.avis_expert||m.avis;
+  const w=window.open('','_blank'); if(!w){ toast('Autorisez l’ouverture de fenêtres pour voir la fiche','err'); return; }
+  w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Fiche — Module ${m.no} · ${esc(m.t)}</title>
+  <style>@page{size:A4;margin:14mm}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#eef1f6}
+  .page{max-width:186mm;margin:0 auto;background:#fff;padding:12mm 14mm;box-shadow:0 4px 30px rgba(15,23,42,.15)}
+  @media print{body{background:#fff}.page{box-shadow:none;padding:0}.noprint{display:none}}
+  .top{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #1a44ad;padding-bottom:8px}
+  .brand{font-weight:800;letter-spacing:2.5px;font-size:11px;color:#1a44ad}
+  .mod{font-size:10px;font-weight:800;color:#64748b;letter-spacing:1.5px}
+  h1{font-size:22px;margin:14px 0 4px}
+  .obj{background:#f0f6ff;border-left:4px solid #1a44ad;padding:9px 12px;font-size:12.5px;line-height:1.55;margin:12px 0 16px;border-radius:0 8px 8px 0}
+  h2{font-size:12px;letter-spacing:1.5px;color:#1a44ad;margin:16px 0 8px;text-transform:uppercase}
+  .et{display:flex;gap:10px;margin-bottom:9px;font-size:12.5px;line-height:1.55}
+  .et .n{flex:0 0 auto;width:20px;height:20px;border-radius:50%;background:#1a44ad;color:#fff;font-weight:800;font-size:11px;display:grid;place-items:center;margin-top:1px}
+  .warn{background:#fffbeb;border:1px solid #fde68a;border-radius:9px;padding:9px 12px;font-size:12px;color:#78350f;line-height:1.55;margin:14px 0}
+  .warn b{color:#92400e}
+  .avis{background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:10px 13px;font-size:12px;font-style:italic;color:#1e293b;line-height:1.6}
+  .avis .lab{font-style:normal;font-weight:800;font-size:10px;letter-spacing:1.5px;color:#1a44ad;display:block;margin-bottom:4px}
+  .q{border:1.5px dashed #94a3b8;border-radius:9px;padding:10px 13px;font-size:12px;margin-top:14px;line-height:1.6}
+  .q b{display:block;margin-bottom:4px}
+  .foot{margin-top:16px;font-size:9.5px;color:#94a3b8;text-align:center}
+  .btnp{position:fixed;right:16px;top:16px;background:#1a44ad;color:#fff;border:none;border-radius:9px;padding:11px 18px;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 6px 20px rgba(26,68,173,.4)}
+  </style></head><body>
+  <button class="btnp noprint" onclick="window.print()">🖨 Imprimer / enregistrer en PDF</button>
+  <div class="page">
+    <div class="top"><span class="brand">CONFORMITÉ SÉCURITÉ · FORMATION</span><span class="mod">MODULE ${m.no} · CHAPITRE ${m.ch} — ${esc(FORM_CHAPS[m.ch].toUpperCase())}</span></div>
+    <h1>${esc(m.t)}</h1>
+    <div class="obj"><b>À la fin de ce module, vous saurez :</b> ${esc(m.obj)}</div>
+    <h2>Les 4 étapes</h2>
+    ${m.et.map((e,i)=>`<div class="et"><span class="n">${i+1}</span><span><b>${esc(e[0])}</b> ${esc(e[1])}</span></div>`).join('')}
+    <div class="warn">⚠️ <b>L’erreur classique —</b> ${esc(m.err)}</div>
+    <div class="avis"><span class="lab">L’AVIS DE L’EXPERT</span>« ${esc(avis)} »</div>
+    <div class="q"><b>La question du module :</b> ${esc(m.q.t)}<br>✅ ${esc(m.q.a[m.q.g])}</div>
+    <div class="foot">PREVA CONSEILS — conformite-securite.fr · Fiche de synthèse du module ${m.no}</div>
+  </div></body></html>`);
+  w.document.close();
+}
+window.fxFiche=fxFiche;
 /* ── Examen final : 5 questions ── */
 function fxExam(){
   fxStyle();
@@ -4596,13 +4644,15 @@ async function fxAdmin(){
   const body=FORM_MODULES.map(m=>{
     const c=window._fx.cont[m.no]||{};
     const vcs=(window._fx.vc||[]).filter(v=>v.module_no===m.no);
-    const hasV=!!(c.video_url||c.video_path), hasA=!!c.audio_path;
+    const mauds=(window._fx.auds||[]).filter(a=>a.module_no===m.no);
+    const hasV=!!(c.video_url||c.video_path), hasA=mauds.length>0, hasF=!!c.fiche_path;
     return `<div style="border:1px solid var(--line);border-radius:11px;margin-bottom:9px;overflow:hidden">
       <div onclick="fxAdmTog(${m.no})" style="display:flex;align-items:center;gap:9px;padding:10px 13px;cursor:pointer;flex-wrap:wrap;background:var(--surface)">
         <span style="font-size:9.5px;font-weight:800;color:var(--muted);width:70px;flex:0 0 auto">MODULE ${m.no}</span>
         <b style="flex:1;min-width:140px;font-size:13px">${esc(m.t)}</b>
         <span style="font-size:10px;font-weight:800;border-radius:20px;padding:2px 8px;${hasV?'background:#dcfce7;color:#166534':'background:#fef3c7;color:#92400e'}">🎬 ${hasV?'vidéo':'à ajouter'}</span>
-        <span style="font-size:10px;font-weight:800;border-radius:20px;padding:2px 8px;${hasA?'background:#ede9fe;color:#6d28d9':'background:#fef3c7;color:#92400e'}">🎙 ${hasA?'audio':'à ajouter'}</span>
+        <span style="font-size:10px;font-weight:800;border-radius:20px;padding:2px 8px;${hasA?'background:#ede9fe;color:#6d28d9':'background:#fef3c7;color:#92400e'}">🎙 ${hasA?(mauds.length+' audio'+(mauds.length>1?'s':'')):'à ajouter'}</span>
+        <span style="font-size:10px;font-weight:800;border-radius:20px;padding:2px 8px;${hasF?'background:#dbeafe;color:#1d4ed8':'background:#f1f5f9;color:#64748b'}">📄 ${hasF?'fiche PDF':'fiche auto'}</span>
         ${vcs.length?`<span style="font-size:10px;font-weight:800;border-radius:20px;padding:2px 8px;background:#dbeafe;color:#1d4ed8">🔒 ${vcs.length} client</span>`:''}
       </div>
       <div id="fxadm-${m.no}" style="display:none;background:var(--surface-2);border-top:1px solid var(--line);padding:13px">
@@ -4612,11 +4662,20 @@ async function fxAdmin(){
           <label class="btn sm" style="cursor:pointer">📁 …ou fichier vidéo (mp4, ≤ 50 Mo)<input type="file" accept="video/mp4,video/webm" style="display:none" onchange="fxAdmFile(${m.no},'video',this)"></label>
           ${c.video_path?`<span style="font-size:11px;color:#166534;font-weight:700">✓ fichier en place</span><button class="btn sm" onclick="fxAdmClear(${m.no},'video_path')">🗑</button>`:''}
         </div>
-        <div class="fld" style="margin-bottom:2px"><label>🎙 Message audio de l’expert — mémo vocal (m4a, mp3…, ≤ 20 Mo)</label></div>
+        <div class="fld" style="margin-bottom:2px"><label>🎙 Messages audio de l’expert — vos enregistrements, un ou plusieurs par module (m4a, mp3…, ≤ 20 Mo chacun)</label></div>
+        ${mauds.map((a,i)=>`<div style="display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;margin-bottom:6px;flex-wrap:wrap">
+          <span style="font-weight:800;color:#6d28d9;background:#ede9fe;border-radius:6px;padding:2px 8px;font-size:11px">🎙 ${i+1}</span>
+          <span style="color:var(--ink);flex:1;min-width:120px">${esc(a.titre||'Message '+(i+1))}</span>
+          <button class="btn sm" onclick="fxAdmDelAudio('${a.id}')">🗑</button></div>`).join('')}
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-          <label class="btn sm" style="cursor:pointer">📁 Choisir / glisser l’enregistrement<input type="file" accept="audio/*" style="display:none" onchange="fxAdmFile(${m.no},'audio',this)"></label>
-          ${hasA?`<span style="font-size:11px;color:#6d28d9;font-weight:700">✓ audio en place</span><button class="btn sm" onclick="fxAdmClear(${m.no},'audio_path')">🗑</button>`:''}
+          <input id="fxa-audtitre-${m.no}" placeholder="Titre du message (optionnel — ex. « Le conseil terrain »)" style="flex:1;min-width:190px">
+          <label class="btn sm" style="cursor:pointer">📁 ＋ Ajouter l’enregistrement<input type="file" accept="audio/*" style="display:none" onchange="fxAdmAudioAdd(${m.no},this)"></label>
           <span id="fxa-audmsg-${m.no}" style="font-size:11px;color:var(--muted)"></span>
+        </div>
+        <div class="fld" style="margin-bottom:2px"><label>📄 Fiche de synthèse du module (PDF, ≤ 15 Mo — compressée automatiquement)</label></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <label class="btn sm" style="cursor:pointer">📁 Déposer la fiche PDF<input type="file" accept="application/pdf" style="display:none" onchange="fxAdmFile(${m.no},'fiche',this)"></label>
+          ${hasF?`<span style="font-size:11px;color:#1d4ed8;font-weight:700">✓ fiche PDF en place</span><button class="btn sm" onclick="fxAdmClear(${m.no},'fiche_path')">🗑</button>`:`<span style="font-size:11px;color:var(--muted)">sans PDF, une fiche générée depuis le contenu du module est proposée automatiquement</span>`}
         </div>
         <div class="fld"><label>💬 L’avis de l’expert (affiché dans le module — modifiable à tout moment)</label>
           <textarea id="fxa-avis-${m.no}" rows="3" style="width:100%;font-family:inherit;line-height:1.5">${esc(c.avis_expert||m.avis)}</textarea></div>
@@ -4664,20 +4723,46 @@ async function fxAdmSave(no){
 window.fxAdmSave=fxAdmSave;
 async function fxAdmFile(no,kind,input){
   const f=input.files&&input.files[0]; if(!f) return;
-  const maxMo=kind==='audio'?20:50;
-  if(f.size>maxMo*1024*1024){ toast('Fichier trop lourd ('+Math.round(f.size/1048576)+' Mo) — maximum '+maxMo+' Mo. '+(kind==='video'?'Préférez un lien YouTube non répertorié.':'Réenregistrez un mémo vocal standard.'),'err'); input.value=''; return; }
-  const msg=document.getElementById('fxa-audmsg-'+no); if(msg&&kind==='audio') msg.textContent='Envoi en cours…';
+  const maxMo=kind==='fiche'?15:50;
+  if(f.size>maxMo*1024*1024){ toast('Fichier trop lourd ('+Math.round(f.size/1048576)+' Mo) — maximum '+maxMo+' Mo. '+(kind==='video'?'Préférez un lien YouTube non répertorié.':''),'err'); input.value=''; return; }
   try{
+    let up=f;
+    if(kind==='fiche'&&typeof compressPdf==='function'){ try{ up=await compressPdf(f); }catch(_){ up=f; } }
     const ext=(f.name.split('.').pop()||'bin').toLowerCase().replace(/[^a-z0-9]/g,'');
     const path=`formation/${kind}/m${no}-${Date.now()}.${ext}`;
+    const {error}=await sb.storage.from('documents').upload(path,up,{contentType:up.type||f.type||undefined});
+    if(error) throw error;
+    await fxAdmSaveRow(no, kind==='fiche'?{fiche_path:path}:{video_path:path});
+    toast((kind==='fiche'?'Fiche de synthèse':'Vidéo')+' du module '+no+' en place','ok');
+    fxAdmin();
+  }catch(e){ toast('Envoi impossible : '+(e.message||e),'err'); }
+}
+window.fxAdmFile=fxAdmFile;
+async function fxAdmAudioAdd(no,input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  if(f.size>20*1024*1024){ toast('Enregistrement trop lourd ('+Math.round(f.size/1048576)+' Mo) — maximum 20 Mo. Un mémo vocal standard convient parfaitement.','err'); input.value=''; return; }
+  const msg=document.getElementById('fxa-audmsg-'+no); if(msg) msg.textContent='Envoi en cours…';
+  try{
+    const titre=document.getElementById('fxa-audtitre-'+no)?.value.trim()||null;
+    const ext=(f.name.split('.').pop()||'m4a').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const path=`formation/audio/m${no}-${Date.now()}.${ext}`;
     const {error}=await sb.storage.from('documents').upload(path,f,{contentType:f.type||undefined});
     if(error) throw error;
-    await fxAdmSaveRow(no, kind==='audio'?{audio_path:path}:{video_path:path});
-    toast((kind==='audio'?'Audio':'Vidéo')+' du module '+no+' en place','ok');
+    const pos=(window._fx.auds||[]).filter(a=>a.module_no===no).length;
+    const {error:e2}=await sb.from('formation_audios').insert({module_no:no,titre,audio_path:path,position:pos});
+    if(e2) throw e2;
+    toast('Message audio ajouté au module '+no,'ok');
     fxAdmin();
   }catch(e){ toast('Envoi impossible : '+(e.message||e),'err'); if(msg) msg.textContent=''; }
 }
-window.fxAdmFile=fxAdmFile;
+window.fxAdmAudioAdd=fxAdmAudioAdd;
+async function fxAdmDelAudio(id){
+  try{ const {error}=await sb.from('formation_audios').delete().eq('id',id); if(error) throw error;
+    window._fx.auds=(window._fx.auds||[]).filter(a=>a.id!==id);
+    toast('Message audio retiré','ok'); fxAdmin();
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+}
+window.fxAdmDelAudio=fxAdmDelAudio;
 async function fxAdmClear(no,col){
   try{ const u={}; u[col]=null; await fxAdmSaveRow(no,u); toast('Retiré','ok'); fxAdmin(); }
   catch(e){ toast('Erreur : '+(e.message||e),'err'); }
