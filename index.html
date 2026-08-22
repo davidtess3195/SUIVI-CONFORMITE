@@ -2477,7 +2477,7 @@ async function viewAdmin(c){
       {data:docSizes}
     ] = await Promise.all([
       sb.from('profiles').select('*').order('created_at',{ascending:false}),
-      sb.from('clients').select('id,code_client,raison_sociale,statut,created_at,abonnement_formule,abonnement_montant,abonnement_debut,abonnement_echeance'),
+      sb.from('clients').select('id,code_client,raison_sociale,statut,created_at,abonnement_formule,abonnement_montant,abonnement_debut,abonnement_echeance,sms_credits'),
       sb.from('erps').select('id,code_erp,nom,statut,client_id,created_at'),
       sb.from('interventions').select('id,statut,type,created_at').order('created_at',{ascending:false}),
       sb.from('reserves').select('id,criticite,statut,created_at'),
@@ -2620,6 +2620,7 @@ async function viewAdmin(c){
           <div class="m"><b>${nbU}</b><small>Utilisateur${nbU>1?'s':''}</small></div>
           <div class="m"><b>${nbErp}</b><small>ERP</small></div>
           <div class="m"><b style="font-size:13px;line-height:1.5">${lastAccessOf(x.id)}</b><small>Dernier accès</small></div>
+          <div class="m"><b style="color:${(x.sms_credits||0)<=10?'#dc2626':((x.sms_credits||0)<=50?'#d97706':'#16a34a')}">${x.sms_credits||0}</b><small>SMS restants</small></div>
         </div>
         <div class="barw"><div class="barl"><span>${x.abonnement_formule==='essai'?"Période d'essai":'Abonnement'}</span><b style="color:${lblColor}">${lbl}</b></div>
           <div class="bar"><i style="width:${barPct}%;background:${barBg}"></i></div></div>
@@ -2627,6 +2628,7 @@ async function viewAdmin(c){
           <button class="btn sm primary" onclick="supervisionEnter('${x.id}')" title="Voir l'application comme ce client la voit" style="display:inline-flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Voir son espace</button>
           <button class="btn sm" onclick="aboUpgradeModal('${x.id}')">${x.abonnement_formule==='essai'?'Passer en abonnement':'Abonnement'}</button>
           <button class="btn sm" onclick="navigate('/clients/${x.id}')">Fiche client</button>
+          <button class="btn sm" onclick="smxRecharge('${x.id}')">📱 Recharger SMS</button>
           <button class="btn sm danger" onclick="aboCancel('${x.id}')">${x.abonnement_formule==='essai'?"Annuler l'essai":'Résilier'}</button>
           <button class="btn sm danger" title="Suppression définitive du client et de toutes ses données" onclick="clientDeleteModal('${x.id}','${esc(x.raison_sociale).replace(/'/g,'&#39;')}')">🗑 Purger</button>
         </div>
@@ -3287,6 +3289,56 @@ window.adminJrMore=async function(){
 };
 
 /* Modifier / faire évoluer l'abonnement d'un client */
+/* ── Recharge du pack SMS d'un client : packs payants ou SMS offerts ── */
+window.smxRecharge=async function(clientId){
+  try{
+    const {data:cl}=await sb.from('clients').select('id,raison_sociale,sms_credits').eq('id',clientId).maybeSingle();
+    if(!cl){ toast('Client introuvable','err'); return; }
+    const PACKS=[[200,30],[500,60],[1100,120]];
+    openModal(`<div class="modal-head"><h2>📱 Pack SMS — ${esc(cl.raison_sociale)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body">
+      <div style="display:flex;align-items:center;gap:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:11px 14px;margin-bottom:14px">
+        <span style="font-size:20px">📱</span>
+        <div><b style="font-size:16px;color:${(cl.sms_credits||0)<=10?'#dc2626':((cl.sms_credits||0)<=50?'#d97706':'#16a34a')}">${cl.sms_credits||0} SMS restants</b>
+        <div style="font-size:11.5px;color:var(--muted)">Le solde se décrémente à chaque envoi (crédits réels OVH) — jamais de remise à zéro.</div></div>
+      </div>
+      <div class="fld" style="margin-bottom:6px"><label>Packs payants (grille PREVA)</label></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+        ${PACKS.map(([q,p])=>`<button class="btn" style="flex-direction:column;padding:12px 6px;display:flex;align-items:center;gap:2px" onclick="smxRechargeGo('${clientId}',${q},${p},false)">
+          <b style="font-size:17px">${q} SMS</b><span style="font-size:12px;color:var(--muted)">${p} € HT</span></button>`).join('')}
+      </div>
+      <div class="fld" style="margin-bottom:6px"><label>🎁 Offrir des SMS (gratuit — geste commercial, bienvenue…)</label></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="smx_qte" type="number" min="1" step="1" placeholder="Quantité" style="width:110px">
+        <input id="smx_motif" placeholder="Motif (optionnel — ex. « geste commercial »)" style="flex:1;min-width:170px">
+        <button class="btn primary" onclick="smxRechargeGo('${clientId}',null,0,true)">Offrir</button>
+      </div>
+      <div id="smx_histo" style="margin-top:14px;font-size:12px;color:var(--muted)">Chargement de l'historique…</div>
+    </div>`);
+    try{
+      const {data:h}=await sb.from('sms_recharges').select('quantite,montant,gratuit,motif,created_at').eq('client_id',clientId).order('created_at',{ascending:false}).limit(8);
+      const el=document.getElementById('smx_histo');
+      if(el) el.innerHTML=(h&&h.length)?('<b style="color:var(--ink)">Dernières recharges</b><br>'+h.map(r=>new Date(r.created_at).toLocaleDateString('fr-FR')+' — +'+r.quantite+' SMS '+(r.gratuit?'(offerts'+(r.motif?' · '+esc(r.motif):'')+')':('· '+(r.montant||0)+' € HT'))).join('<br>')):'Aucune recharge pour l\'instant.';
+    }catch(_){}
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+window.smxRechargeGo=async function(clientId,qte,montant,gratuit){
+  try{
+    if(gratuit){ qte=parseInt(document.getElementById('smx_qte')?.value,10); if(!qte||qte<1){ toast('Indique la quantité de SMS à offrir','err'); return; } }
+    const motif=gratuit?(document.getElementById('smx_motif')?.value.trim()||'SMS offerts'):null;
+    const {data:cl}=await sb.from('clients').select('sms_credits,raison_sociale').eq('id',clientId).maybeSingle();
+    const nouveau=(cl?.sms_credits||0)+qte;
+    const {error}=await sb.from('clients').update({sms_credits:nouveau}).eq('id',clientId);
+    if(error) throw error;
+    const {error:e2}=await sb.from('sms_recharges').insert({client_id:clientId,quantite:qte,montant:gratuit?0:montant,gratuit:!!gratuit,motif});
+    if(e2) throw e2;
+    try{ await sb.from('audit_log').insert({user_id:state.user.id,user_label:state.profile?.nom||state.user.email,action:'sms_recharge',entite:'clients',entite_id:clientId,details:{client:cl?.raison_sociale,quantite:qte,montant:gratuit?0:montant,gratuit:!!gratuit,motif,nouveau_solde:nouveau}}); }catch(_){}
+    _modalDirty=false; closeModal();
+    toast('+'+qte+' SMS '+(gratuit?'offerts':'(pack '+montant+' € HT)')+' — nouveau solde : '+nouveau,'ok');
+    viewAdmin(document.getElementById('content'));
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
 /* Annulation d'un essai / résiliation d'un abonnement : le client sort de la liste,
    ses comptes sont suspendus (connexion refusée), aucune donnée n'est supprimée. */
 window.aboCancel=async function(clientId){
@@ -4306,6 +4358,33 @@ const NI={
  trvx:NICON('<path d="M2 18h20"/><path d="M4 18v-3a8 8 0 0 1 5-7.4"/><path d="M20 18v-3a8 8 0 0 0-5-7.4"/><path d="M10 5a2 2 0 0 1 4 0v6h-4z"/>'),
  grad:NICON('<path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12.5V17c0 1.66 2.69 3 6 3s6-1.34 6-3v-4.5"/><path d="M22 10v6"/>'),
 };
+/* ── Packs SMS par client : solde, garde-fou, débit ── */
+function smsClientOfErp(erpId){ const e=(state.erps||[]).find(x=>x.id===erpId); return e?e.client_id:null; }
+function smsScopeClient(){ if(window._supervision) return window._supervision;
+  if(state.currentClient&&state.currentClient!=='all') return state.currentClient;
+  if(state.currentErp&&state.currentErp!=='all') return smsClientOfErp(state.currentErp);
+  if(state.profile&&state.profile.role!=='admin'&&(state.clients||[]).length===1) return state.clients[0].id;
+  return null; }
+async function smsPackInfo(clientId){
+  if(!clientId) return {pack:false};
+  try{ const {data}=await sb.from('clients').select('sms_credits,abonnement_formule').eq('id',clientId).maybeSingle();
+    if(!data||!data.abonnement_formule) return {pack:false};
+    return {pack:true,solde:data.sms_credits||0};
+  }catch(_){ return {pack:false}; }
+}
+/* true = envoi autorisé (client sans pack : toujours autorisé) */
+async function smsGuard(clientId,nb){
+  const i=await smsPackInfo(clientId);
+  if(!i.pack) return true;
+  nb=nb||1;
+  if((i.solde||0)<nb){ toast('Pack SMS épuisé — le SMS ne part pas. Contactez PREVA CONSEILS pour recharger.','err'); return false; }
+  if(i.solde-nb<=20) setTimeout(()=>toast('⚠ Pack SMS bientôt épuisé : '+(i.solde-nb)+' SMS restant(s).','err'),900);
+  return true;
+}
+async function smsDebit(clientId,used){ if(!clientId||!used) return; try{ await sb.rpc('sms_debit',{p_client:clientId,p_n:used}); }catch(_){ } }
+window.smsClientOfErp=smsClientOfErp; window.smsScopeClient=smsScopeClient;
+window.smsPackInfo=smsPackInfo; window.smsGuard=smsGuard; window.smsDebit=smsDebit;
+
 /* ── Vérifications en retard (tableau de bord) : styles, pictos et actions ── */
 function dpxStyle(){ if(document.getElementById('dpx-style')) return; const s=document.createElement('style'); s.id='dpx-style'; s.textContent=`
 .dpx-card{background:var(--surface);border:1px solid var(--line);border-radius:13px;overflow:hidden}
@@ -13681,7 +13760,7 @@ async function pvGenerate(){
       if(dtVal){
         const message=`PREVA Conseils : rappel — PV de réception de travaux (${erp.nom||'ERP'}) à compléter et signer avec le client lors de la visite du ${dateVisiteStr}. Document reçu par email.`;
         const who=state.profile?.nom||state.user?.email||'';
-        const rows=mobilesTo.map(mob=>({destinataire:mob,message,send_at:new Date(dtVal).toISOString(),contexte:{type:'pv_reception',fichier:path},created_by:who}));
+        const rows=mobilesTo.map(mob=>({destinataire:mob,message,send_at:new Date(dtVal).toISOString(),contexte:{type:'pv_reception',fichier:path},created_by:who,client_id:(typeof client!=='undefined'&&client&&client.id)||null,erp_id:(typeof erpId!=='undefined'?erpId:null)}));
         const {error:e2}=await sb.from('sms_scheduled').insert(rows);
         if(e2) throw e2;
         suivi+=' · '+mobilesTo.length+' rappel'+(mobilesTo.length>1?'s':'')+' SMS programmé'+(mobilesTo.length>1?'s':'')+' le '+new Date(dtVal).toLocaleString('fr-FR');
@@ -13917,14 +13996,17 @@ window.quickSmsSend=async function(mode){
   const b2=document.getElementById(mode==='now'?'qs_go2':'qs_go'); if(b2) b2.disabled=true;
   try{
     const who=state.profile?.nom||state.user?.email||'';
-    const mkRow=(m,st,sent)=>({destinataire:m,message:msg,send_at:when.toISOString(),statut:st,sent_at:sent,contexte:{type:'manuel',contact:(window._qsSel&&window._qsSel[m])?window._qsSel[m].label+' ('+window._qsSel[m].prest+')':null},created_by:who});
+    const cid=smsScopeClient();
+    const mkRow=(m,st,sent)=>({destinataire:m,message:msg,send_at:when.toISOString(),statut:st,sent_at:sent,contexte:{type:'manuel',contact:(window._qsSel&&window._qsSel[m])?window._qsSel[m].label+' ('+window._qsSel[m].prest+')':null},created_by:who,client_id:cid,erp_id:(state.currentErp!=='all'?state.currentErp:null)});
     if(mode==='now'){
-      let direct=false;
+      if(!(await smsGuard(cid,to.length))){ btn.disabled=false; btn.textContent=old; if(b2) b2.disabled=false; return; }
+      let direct=false, usedCr=to.length;
       try{
         const {data,error}=await sb.functions.invoke('send-sms',{body:{to,message:msg}});
-        if(!error && data && data.ok) direct=true;
+        if(!error && data && data.ok){ direct=true; usedCr=Math.max(to.length,Number(data.credits)||0)||to.length; }
       }catch(_){}
       if(direct){
+        smsDebit(cid,usedCr);
         try{ await sb.from('sms_scheduled').insert(to.map(m=>mkRow(m,'sent',new Date().toISOString()))); }catch(_){}
         closeModal();
         toast(to.length+' SMS envoyé'+(to.length>1?'s':'')+' à l\'instant ✓','ok');
@@ -14558,8 +14640,9 @@ window.trvSmsGo=async function(tabId){
     const msg=(document.getElementById('tv_msg').value||'').trim()+'\n'+link+'\nCode si demandé : '+pwd+'\nValable '+valLabel+'.';
     btn.textContent='Envoi…';
     let direct=false;
-    try{ const {data,error:eD}=await sb.functions.invoke('send-sms',{body:{to:mobiles,message:msg}}); if(!eD && data && data.ok) direct=true; }catch(_){}
-    try{ await sb.from('sms_scheduled').insert(mobiles.map(m=>({destinataire:m,message:msg,send_at:new Date().toISOString(),statut:direct?'sent':'pending',sent_at:direct?new Date().toISOString():null,contexte:{type:'tableau_docs',erp:erp.nom},created_by:who}))); }catch(_){}
+    const _smsOk=await smsGuard(erp.client_id,mobiles.length);
+    if(_smsOk){ try{ const {data,error:eD}=await sb.functions.invoke('send-sms',{body:{to:mobiles,message:msg}}); if(!eD && data && data.ok){ direct=true; smsDebit(erp.client_id,Math.max(mobiles.length,Number(data.credits)||0)||mobiles.length); } }catch(_){} }
+    try{ await sb.from('sms_scheduled').insert(mobiles.map(m=>({destinataire:m,message:msg,send_at:new Date().toISOString(),statut:direct?'sent':'pending',sent_at:direct?new Date().toISOString():null,contexte:{type:'tableau_docs',erp:erp.nom},created_by:who,client_id:erp.client_id||null,erp_id:erp.id||null}))); }catch(_){}
     document.getElementById('tv_form').style.display='none';
     document.getElementById('tv_result').innerHTML=`<div style="display:flex;flex-direction:column;gap:10px">
       <div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.4);border-radius:11px;padding:12px 14px;font-size:13px">
@@ -15369,8 +15452,9 @@ window.trvSendGo=async function(tabId,erpId,erpNom,org,nb){
     let smsN=0, direct=false;
     if(mobiles.length){
       const msg=`PREVA Conseils — Levées de réserves à signer : ${erpNom} (${org||'organisme'}, ${nb} obs.)\nAccès direct (1 clic) :\n${link}\nCode si demandé : ${pwd}\nValable ${valLabel}.`;
-      if(!programme){ try{ const {data,error:eD}=await sb.functions.invoke('send-sms',{body:{to:mobiles,message:msg}}); if(!eD && data && data.ok) direct=true; }catch(_){} }
-      const rows=mobiles.map(m=>({destinataire:m,message:msg,send_at:sendAt.toISOString(),statut:direct?'sent':'pending',sent_at:direct?new Date().toISOString():null,contexte:{type:'levee_tableau',erp:erpNom},created_by:who}));
+      if(!programme){ const _ok4=await smsGuard(erp.client_id,mobiles.length);
+        if(_ok4){ try{ const {data,error:eD}=await sb.functions.invoke('send-sms',{body:{to:mobiles,message:msg}}); if(!eD && data && data.ok){ direct=true; smsDebit(erp.client_id,Math.max(mobiles.length,Number(data.credits)||0)||mobiles.length); } }catch(_){} } }
+      const rows=mobiles.map(m=>({destinataire:m,message:msg,send_at:sendAt.toISOString(),statut:direct?'sent':'pending',sent_at:direct?new Date().toISOString():null,contexte:{type:'levee_tableau',erp:erpNom},created_by:who,client_id:erp.client_id||null,erp_id:erpId||null}));
       const {error:e3}=await sb.from('sms_scheduled').insert(rows);
       if(direct||!e3) smsN=rows.length;
     }
@@ -15692,8 +15776,13 @@ window.trvNotifPrestGo=async function(tabId){
       if(mob&&/^(\+33|0)[67]\d{8}$/.test(mob)){
         try{
           const msg='PREVA Conseils — '+nb+' réserve(s) à lever et signer : '+(erp.nom||'')+'.\nVotre lien personnel :\n'+link+'\nValable jusqu\'au '+exp.toLocaleDateString('fr-FR')+'.';
-          const {data,error}=await sb.functions.invoke('send-sms',{body:{to:[mob],message:msg}});
-          sentS=!error&&data&&data.ok;
+          if(await smsGuard(t.client_id,1)){
+            const {data,error}=await sb.functions.invoke('send-sms',{body:{to:[mob],message:msg}});
+            sentS=!error&&data&&data.ok;
+            if(sentS){ const _u=Math.max(1,Number(data.credits)||0)||1; smsDebit(t.client_id,_u);
+              try{ await sb.from('sms_scheduled').insert({destinataire:mob,message:msg,send_at:new Date().toISOString(),statut:'sent',sent_at:new Date().toISOString(),contexte:{type:'levees_notif',erp:erp.nom||''},created_by:who,client_id:t.client_id||null,erp_id:t.erp_id||null,credits:_u}); }catch(_){}
+            }
+          }
         }catch(_){}
       }
       results.push({nom:p.nom||'Prestataire',nb,link,sentE,sentS,email,mob});
@@ -16067,11 +16156,22 @@ window.viewHistoSms=async function(c){
     <div class="actions"><button class="btn primary" onclick="quickSmsModal()">＋ Nouveau SMS</button></div></div>
     <div id="hs_box"><div style="display:grid;place-items:center;padding:30px"><div class="spin"></div></div></div>`;
   try{
-    const {data,error}=await sb.from('sms_scheduled').select('id,destinataire,message,send_at,sent_at,statut,contexte,created_by,created_at').order('created_at',{ascending:false}).limit(300);
+    const {data,error}=await sb.from('sms_scheduled').select('id,destinataire,message,send_at,sent_at,statut,contexte,created_by,created_at,client_id,erp_id,credits').order('created_at',{ascending:false}).limit(300);
     if(error) throw error;
     let _rows=data||[];
-    { const okE=new Set(erpsPerimetre(false).map(e=>e.id));
-      _rows=_rows.filter(r=>{ const eid=r.contexte&&r.contexte.erp_id; if(eid) return okE.has(eid); return !window._supervision; }); }
+    // Cloisonnement : en supervision on ne voit que le client supervisé ; côté PREVA, les SMS des abonnés n'apparaissent pas
+    if(window._supervision){ _rows=_rows.filter(r=>r.client_id===window._supervision); }
+    else if(state.profile?.role==='admin'){ _rows=_rows.filter(r=>!r.client_id||!isClientAbonne(r.client_id)); }
+    // Solde du pack : affiché au client abonné (et en supervision)
+    try{
+      const _cid=window._supervision||((state.profile?.role!=='admin'&&(state.clients||[]).length===1)?state.clients[0].id:null);
+      if(_cid){ const inf=await smsPackInfo(_cid);
+        if(inf.pack){ const col=inf.solde<=10?'#dc2626':(inf.solde<=50?'#d97706':'#16a34a');
+          const bx=document.getElementById('hs_box');
+          if(bx) bx.insertAdjacentHTML('beforebegin',`<div class="card card-pad" style="margin-bottom:12px;display:flex;align-items:center;gap:11px;flex-wrap:wrap"><span style="font-size:19px">📱</span><b style="font-size:15px;color:${col}">Pack SMS : ${inf.solde} restant(s)</b><span style="font-size:12px;color:var(--muted)">${inf.solde<=20?'Pensez à recharger auprès de PREVA CONSEILS — à 0, les SMS ne partent plus (les emails continuent).':'Le solde se décrémente à chaque SMS envoyé.'}</span></div>`);
+        }
+      }
+    }catch(_){}
     hsRender(_rows);
   }catch(e){ document.getElementById('hs_box').innerHTML='<div class="card card-pad" style="color:var(--danger,#dc2626)">Erreur de chargement : '+esc(e.message||e)+'</div>'; }
 };
@@ -16587,8 +16687,9 @@ window.arCreate=async function(){
     if(mobiles.length){
       const msg=`PREVA Conseils — ${ids.length} rapport${ids.length>1?'s':''} : ${erp.nom}\nAccès direct (1 clic) :\n${link}&c=${encodeURIComponent(pwd)}\nCode si demandé : ${pwd}\nValable ${valLabel} (jusqu'au ${expStr})`;
       let direct=false;
-      try{ const {data,error:eD}=await sb.functions.invoke('send-sms',{body:{to:mobiles,message:msg}}); if(!eD && data && data.ok) direct=true; }catch(_){}
-      const rows=mobiles.map(m=>({destinataire:m,message:msg,send_at:new Date().toISOString(),statut:direct?'sent':'pending',sent_at:direct?new Date().toISOString():null,contexte:{type:'acces_rapports',erp:erp.nom},created_by:who}));
+      const _ok6=await smsGuard(erp.client_id,mobiles.length);
+      if(_ok6){ try{ const {data,error:eD}=await sb.functions.invoke('send-sms',{body:{to:mobiles,message:msg}}); if(!eD && data && data.ok){ direct=true; smsDebit(erp.client_id,Math.max(mobiles.length,Number(data.credits)||0)||mobiles.length); } }catch(_){} }
+      const rows=mobiles.map(m=>({destinataire:m,message:msg,send_at:new Date().toISOString(),statut:direct?'sent':'pending',sent_at:direct?new Date().toISOString():null,contexte:{type:'acces_rapports',erp:erp.nom},created_by:who,client_id:erp.client_id||null,erp_id:erp.id||null}));
       const {error:e3}=await sb.from('sms_scheduled').insert(rows);
       if(direct || !e3) smsN=rows.length;
       window._arDirect=direct;
@@ -18686,13 +18787,15 @@ async function smsComposerSubmit(){
   const btn=document.getElementById('sms-send-btn'); btn.disabled=true; const oldTxt=btn.textContent; btn.textContent='…';
   const ctx=window._smsContext||{};
   const who=state.profile?.nom||state.user?.email||'';
+  const _c7=ctx.client_id||ctx.clientId||smsScopeClient();
+  const _e7=ctx.erp_id||ctx.erpId||(state.currentErp!=='all'?state.currentErp:null);
 
   if(window._smsMode==='later'){
     const dtVal=document.getElementById('sms-sched-dt')?.value;
     if(!dtVal){ toast('Choisissez une date/heure','err'); btn.disabled=false; btn.textContent=oldTxt; return; }
     const sendAt=new Date(dtVal).toISOString();
     try{
-      const rows=dedup.map(phone=>({destinataire:phone,message,send_at:sendAt,contexte:ctx,created_by:who}));
+      const rows=dedup.map(phone=>({destinataire:phone,message,send_at:sendAt,contexte:ctx,created_by:who,client_id:_c7,erp_id:_e7}));
       const {error}=await sb.from('sms_scheduled').insert(rows);
       if(error) throw error;
       closeModal(); toast('SMS programmé pour '+dedup.length+' destinataire'+(dedup.length>1?'s':'')+' — '+new Date(sendAt).toLocaleString('fr-FR'),'ok');
@@ -18700,14 +18803,17 @@ async function smsComposerSubmit(){
     return;
   }
 
-  let ok=0,fail=0;
+  let ok=0,fail=0,_used7=0;
+  if(!(await smsGuard(_c7,dedup.length))){ btn.disabled=false; btn.textContent=oldTxt; return; }
   for(const phone of dedup){
     try{
       const {data,error}=await sb.functions.invoke('send-sms',{body:{to:[phone],message}});
       if(error||(data&&data.error)) throw new Error((data&&data.error)||error.message);
-      ok++;
+      ok++; const _u=Math.max(1,Number(data&&data.credits)||0)||1; _used7+=_u;
+      try{ await sb.from('sms_scheduled').insert({destinataire:phone,message,send_at:new Date().toISOString(),statut:'sent',sent_at:new Date().toISOString(),contexte:ctx,created_by:who,client_id:_c7,erp_id:_e7,credits:_u}); }catch(_){}
     }catch(e){ fail++; }
   }
+  if(_used7) smsDebit(_c7,_used7);
   closeModal();
   if(ok>0) toast(ok+' SMS envoyé'+(ok>1?'s':''),'ok');
   if(fail>0) toast(fail+' SMS en échec','err');
@@ -18815,12 +18921,16 @@ window.pcvSend=async function(canal,btn){
       const tels=[...new Set(checked.map(x=>x.dataset.tel).filter(Boolean))];
       if(!tels.length) throw new Error('Aucun des contacts cochés n\'a de numéro de téléphone.');
       const smsTxt=msg+(com?'\nConstat : '+com:'');
+      const _c8=ctx.client_id||ctx.clientId||smsScopeClient();
+      if(!(await smsGuard(_c8,tels.length))) throw new Error('Pack SMS épuisé — utilisez le canal email, ou rechargez le pack.');
+      let _used8=0;
       for(const to of tels){
         const {data,error}=await sb.functions.invoke('send-sms',{body:{to:[to],message:smsTxt}});
         if(error||(data&&data.error)) throw new Error((data&&data.error)||error.message);
-        okN++;
-        try{ await sb.from('sms_scheduled').insert({destinataire:to,message:smsTxt,send_at:new Date().toISOString(),statut:'sent',sent_at:new Date().toISOString(),contexte:{type:'prevenir_client',erp:ctx.erpNom||'',prestataire:ctx.prestNom||''},created_by:who}); }catch(_){}
+        okN++; const _u=Math.max(1,Number(data&&data.credits)||0)||1; _used8+=_u;
+        try{ await sb.from('sms_scheduled').insert({destinataire:to,message:smsTxt,send_at:new Date().toISOString(),statut:'sent',sent_at:new Date().toISOString(),contexte:{type:'prevenir_client',erp:ctx.erpNom||'',prestataire:ctx.prestNom||''},created_by:who,client_id:_c8,erp_id:ctx.erp_id||ctx.erpId||null,credits:_u}); }catch(_){}
       }
+      if(_used8) smsDebit(_c8,_used8);
     }
     try{ await sb.from('audit_log').insert({user_id:state.user.id,user_label:who,action:'client_prevenu',entite:'interventions',details:{canal,client:ctx.clientNom||'',erp:ctx.erpNom||'',prestataire:ctx.prestNom||'',nb:okN}}); }catch(_){}
     const ovl=document.getElementById('pcv_overlay'); if(ovl) ovl.remove();
@@ -18874,6 +18984,7 @@ async function csEnvoyerAssistance(catKey,catLabel,erpId){
 
   if(!checked.length && !checkedSms.length){toast('Aucun email ni SMS sélectionné','info');return;}
 
+  window._csSmsAllow=undefined; window._csSmsCid=null;
   // Grouper par prestataire
   const byPrest={};
   for(const cb of checked){
@@ -18969,9 +19080,14 @@ async function csEnvoyerAssistance(catKey,catLabel,erpId){
 
       if(pdata.sms.length){
         const smsFinal=smsMsg.replace('{lien}',confirmUrl).trim() + (smsMsg.includes(confirmUrl)?'':(' '+confirmUrl));
+        if(window._csSmsAllow===undefined){ window._csSmsCid=smsClientOfErp(erpId); window._csSmsAllow=await smsGuard(window._csSmsCid,1); }
         for(const phone of pdata.sms){
+          if(!window._csSmsAllow){ failSms++; continue; }
           const r=await sb.functions.invoke('send-sms',{body:{to:[phone],message:smsFinal}});
-          if(r.error || (r.data&&r.data.error)) failSms++; else okSms++;
+          if(r.error || (r.data&&r.data.error)) failSms++;
+          else { okSms++; const _u=Math.max(1,Number(r.data&&r.data.credits)||0)||1; smsDebit(window._csSmsCid,_u);
+            try{ await sb.from('sms_scheduled').insert({destinataire:phone,message:smsFinal,send_at:new Date().toISOString(),statut:'sent',sent_at:new Date().toISOString(),contexte:{type:'cs_assistance',erp:cleanNom||''},created_by:(state.profile&&state.profile.nom)||(state.user&&state.user.email)||'',client_id:window._csSmsCid||null,erp_id:erpId||null,credits:_u}); }catch(_){}
+          }
         }
       }
     }
