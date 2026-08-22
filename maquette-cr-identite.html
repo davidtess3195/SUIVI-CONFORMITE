@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquette — Compte rendu : identité de l'émetteur, tampon &amp; signature par abonné</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--blue:#2563eb}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',system-ui,sans-serif;background:#dfe4ec;color:var(--ink);padding:34px 18px 70px}
+  .wrap{max-width:1060px;margin:0 auto}
+  h1.doc{font-family:'Space Grotesk',sans-serif;font-size:24px}
+  .doc-sub{color:#475569;font-size:14px;margin:8px 0 26px;line-height:1.6;max-width:860px}
+  h2.sec{font-family:'Space Grotesk',sans-serif;font-size:17px;margin:30px 0 10px}
+  .stage{background:#eef1f6;border:1px solid #cbd5e1;border-radius:18px;padding:20px}
+
+  /* ── 1. La section dans la page Compte rendu ── */
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;max-width:640px}
+  .card .pad{padding:18px 20px}
+  .card h3{font-size:14px;color:var(--blue);margin-bottom:4px}
+  .card .hint{font-size:12px;color:var(--muted);margin-bottom:14px}
+  .slots{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:640px){.slots{grid-template-columns:1fr}}
+  .slot{border:1px solid var(--line);border-radius:12px;padding:13px 14px;background:#f8fafc}
+  .slot .t{font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:7px;margin-bottom:9px}
+  .slot .zone{border:2px dashed #cbd5e1;border-radius:10px;background:#fff;height:86px;display:grid;place-items:center;color:#94a3b8;font-size:12px;text-align:center;padding:8px}
+  .slot .zone.filled{border-style:solid;border-color:#bbf7d0;position:relative}
+  .slot .zone.filled img{max-height:64px;max-width:88%}
+  .slot .acts{display:flex;gap:6px;margin-top:8px}
+  .btn{font-size:11.5px;font-weight:700;border-radius:8px;padding:6px 11px;border:1px solid var(--line);background:#fff;color:#334155;cursor:pointer}
+  .btn.p{background:var(--blue);border-color:var(--blue);color:#fff}
+  .btn.d{color:#b91c1c;border-color:#fecaca}
+  .once{margin-top:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:9px 12px;font-size:12px;color:#166534}
+
+  /* ── 2. Comparatif bas de lettre ── */
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:820px){.duo{grid-template-columns:1fr}}
+  .sheet{background:#fff;border:1px solid var(--line);border-radius:12px;padding:20px 22px;font-size:11.5px;line-height:1.5;position:relative;overflow:hidden}
+  .sheet .accent{position:absolute;top:0;left:0;right:0;height:3px;background:var(--blue)}
+  .sheet .who{font-size:10px;font-weight:800;letter-spacing:.08em;border-radius:99px;padding:3px 10px;display:inline-block;margin-bottom:12px}
+  .sheet.preva .who{background:#eff6ff;color:#1d4ed8}
+  .sheet.abo .who{background:#f0fdf4;color:#166534}
+  .exp{display:flex;justify-content:space-between;gap:14px;margin-bottom:10px}
+  .exp .lab{font-size:8.5px;font-weight:800;letter-spacing:.06em;color:#94a3b8;display:block}
+  .exp b{font-size:12.5px}
+  .exp small{color:#64748b;display:block;font-size:10.5px}
+  .sig-zone{margin-top:14px;text-align:right;position:relative;min-height:74px}
+  .sig-zone .fait{font-size:10.5px;color:#475569}
+  .sig-script{font-family:'Brush Script MT','Segoe Script',cursive;font-size:26px;color:#1e293b;transform:rotate(-4deg);display:inline-block;margin-top:4px}
+  .stamp{position:absolute;right:84px;bottom:6px;width:56px;height:56px;border:2.4px solid rgba(29,78,216,.65);border-radius:50%;display:grid;place-items:center;font-size:6.4px;font-weight:800;color:rgba(29,78,216,.75);text-align:center;transform:rotate(-9deg);line-height:1.35;background:rgba(239,246,255,.5)}
+  .stamp.green{border-color:rgba(22,101,52,.6);color:rgba(22,101,52,.75);background:rgba(240,253,244,.5)}
+  .sig-nom{font-weight:800;font-size:11.5px;margin-top:2px}
+  .sig-soc{font-size:9.5px;color:#94a3b8}
+  .foot{border-top:1px solid #e2e8f0;margin-top:14px;padding-top:7px;font-size:7.6px;color:#94a3b8;text-align:center;line-height:1.5}
+
+  /* ── 3. Cloisonnement ── */
+  .notes{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px 24px;box-shadow:0 4px 16px rgba(15,23,42,.06);margin-top:26px}
+  .note{display:flex;gap:11px;padding:9px 0;border-bottom:1px solid #eef2f7;font-size:13.5px;line-height:1.6}
+  .note:last-child{border-bottom:none}
+  .note .who2{flex:0 0 auto;font-size:10px;font-weight:800;letter-spacing:.06em;background:#eff6ff;color:#1d4ed8;border-radius:7px;padding:4px 8px;margin-top:2px;white-space:nowrap;height:fit-content}
+  .note b{color:var(--ink)}
+  .note span.tx{color:#475569}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 class="doc">Maquette — l'identité du compte rendu suit celui qui le génère</h1>
+  <p class="doc-sub">Correction du défaut signalé : aujourd'hui, tout compte rendu sort au nom de PREVA CONSEILS avec ta signature et ton tampon, même généré par un abonné. Après correction : <b>chacun émet ses courriers à sa propre identité</b> — et chaque abonné téléverse <b>une seule fois</b> son tampon et sa signature.</p>
+
+  <h2 class="sec">1 · La nouvelle section dans la page Compte rendu (visible par les abonnés uniquement)</h2>
+  <div class="stage">
+    <div class="card"><div class="pad">
+      <h3>5 · Signature &amp; tampon</h3>
+      <div class="hint">Téléversés une seule fois, ils s'apposeront automatiquement sur tous vos comptes rendus. Photo ou scan (PNG/JPG), compressés automatiquement.</div>
+      <div class="slots">
+        <div class="slot">
+          <div class="t">🖋 Ma signature <span style="font-weight:400;color:#94a3b8;font-size:10.5px">— personnelle</span></div>
+          <div class="zone filled"><span class="sig-script" style="font-size:22px">M. Bouldoires</span></div>
+          <div class="acts"><button class="btn">↻ Remplacer</button><button class="btn d">Supprimer</button></div>
+        </div>
+        <div class="slot">
+          <div class="t">🔵 Tampon de l'entreprise <span style="font-weight:400;color:#94a3b8;font-size:10.5px">— partagé par vos comptes</span></div>
+          <div class="zone">📷 Ajouter le tampon<br><span style="font-size:10.5px">(prenez-le simplement en photo)</span></div>
+          <div class="acts"><button class="btn p">+ Téléverser</button></div>
+        </div>
+      </div>
+      <div class="once">✅ <b>Une seule fois.</b> Une fois enregistrés, plus rien à faire : chaque nouveau compte rendu sort signé et tamponné. Sans signature téléversée, le courrier laisse un espace « Signature : » à signer à la main — il n'est jamais bloqué.</div>
+    </div></div>
+  </div>
+
+  <h2 class="sec">2 · Le même courrier, deux identités — selon qui le génère</h2>
+  <div class="stage">
+    <div class="duo">
+      <div class="sheet preva"><span class="accent"></span>
+        <span class="who">GÉNÉRÉ PAR TOI (PREVA)</span>
+        <div class="exp">
+          <div><span class="lab">EXPÉDITEUR</span><b>PREVA CONSEILS</b><small>5 rue Marceline<br>95110 SANNOIS<br>David Lahouel</small></div>
+          <div style="text-align:right"><span class="lab">DESTINATAIRE</span><b>FAM VAL D'ETAI</b><small>À l'attention du directeur</small></div>
+        </div>
+        <div class="sig-zone">
+          <div class="fait">Fait à Sannois, le 22/08/2026<br>L'auteur du rapport,</div>
+          <span class="sig-script">Lahouel</span>
+          <span class="stamp">PREVA<br>CONSEILS<br>★ 95110 ★<br>SANNOIS</span>
+          <div class="sig-nom">David LAHOUEL</div>
+          <div class="sig-soc">PREVA CONSEILS</div>
+        </div>
+        <div class="foot">Siège social : 5 rue Marceline 95110 SANNOIS · APE 8559A · SIRET 479 635 328 00038<br>Tél : 01.34.17.61.33 · contact@preva-conseils.fr · SARL au capital de 20 000 €</div>
+      </div>
+
+      <div class="sheet abo"><span class="accent" style="background:#16a34a"></span>
+        <span class="who">GÉNÉRÉ PAR MARVIN (ABONNÉ)</span>
+        <div class="exp">
+          <div><span class="lab">EXPÉDITEUR</span><b>Le Bon marche</b><small>24 rue de Sèvres<br>75007 Paris<br>Marvin Bouldoires</small></div>
+          <div style="text-align:right"><span class="lab">DESTINATAIRE</span><b>Apave</b><small>À l'attention de M. Dupont</small></div>
+        </div>
+        <div class="sig-zone">
+          <div class="fait">Fait à Paris, le 22/08/2026<br>L'auteur du rapport,</div>
+          <span class="sig-script">M. Bouldoires</span>
+          <span class="stamp green">LE BON<br>MARCHE<br>★ 75007 ★<br>PARIS</span>
+          <div class="sig-nom">Marvin BOULDOIRES</div>
+          <div class="sig-soc">Le Bon marche</div>
+        </div>
+        <div class="foot">Le Bon marche · 24 rue de Sèvres, 75007 Paris · SIRET 512 384 291 00017<br>Document émis via CONFORMITÉ SÉCURITÉ — app.conformite-securite.fr</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3 style="font-family:'Space Grotesk',sans-serif;font-size:16px;margin-bottom:8px">Le cloisonnement — efficace et durable, garanti par la base</h3>
+    <div class="note"><span class="who2">RÈGLE 1</span><span class="tx"><b>La signature suit la personne, le tampon suit l'entreprise.</b> La signature de Marvin est rattachée à SON compte ; le tampon « Le Bon marche » est rattaché à SA fiche client. Si un jour deux comptes travaillent dans la même entreprise : même tampon, chacun sa signature.</span></div>
+    <div class="note"><span class="who2">RÈGLE 2</span><span class="tx"><b>Verrouillé par la base de données, pas par l'écran.</b> Les fichiers sont déposés dans le stockage privé, dans le dossier du client, protégés par les mêmes règles RLS que ses documents : un client ne peut ni voir, ni utiliser, ni deviner le tampon d'un autre — même en forgeant des requêtes. C'est le même cloisonnement, déjà testé, que pour les SMS et le classeur.</span></div>
+    <div class="note"><span class="who2">RÈGLE 3</span><span class="tx"><b>Ton identité PREVA devient inaccessible aux abonnés.</b> Ta signature, ton tampon et tes mentions légales (SIRET, APE, adresse) ne sont apposés QUE si le compte générateur est admin ou consultant PREVA — vérifié sur le rôle en base, pas sur l'affichage. Plus jamais un document tiers signé en ton nom.</span></div>
+    <div class="note"><span class="who2">DURABLE</span><span class="tx"><b>Une seule fois, pour toujours.</b> Téléversement unique, compression automatique, réutilisation sur tous les courriers futurs. Remplacement ou suppression possibles à tout moment ; le journal d'activité trace chaque changement de tampon/signature.</span></div>
+    <div class="note"><span class="who2">DESTINATAIRE</span><span class="tx"><b>Par défaut plus logique pour un abonné :</b> le destinataire proposé en premier devient un prestataire ou bureau de contrôle (Apave…), plus « son propre client ». Toi tu gardes ton fonctionnement actuel (destinataire = ton client).</span></div>
+  </div>
+</div>
+</body>
+</html>
