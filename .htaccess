@@ -1,0 +1,9 @@
+# ── CONFORMITÉ SÉCURITÉ — redirection forcée vers HTTPS ──
+RewriteEngine On
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Sécurité : une fois passé en HTTPS, le navigateur n'essaiera plus jamais le HTTP
+<IfModule mod_headers.c>
+Header always set Strict-Transport-Security "max-age=31536000"
+</IfModule>
