@@ -4306,6 +4306,56 @@ const NI={
  trvx:NICON('<path d="M2 18h20"/><path d="M4 18v-3a8 8 0 0 1 5-7.4"/><path d="M20 18v-3a8 8 0 0 0-5-7.4"/><path d="M10 5a2 2 0 0 1 4 0v6h-4z"/>'),
  grad:NICON('<path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12.5V17c0 1.66 2.69 3 6 3s6-1.34 6-3v-4.5"/><path d="M22 10v6"/>'),
 };
+/* ── Vérifications en retard (tableau de bord) : styles, pictos et actions ── */
+function dpxStyle(){ if(document.getElementById('dpx-style')) return; const s=document.createElement('style'); s.id='dpx-style'; s.textContent=`
+.dpx-card{background:var(--surface);border:1px solid var(--line);border-radius:13px;overflow:hidden}
+.dpx-h{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.dpx-h b{font-size:14px;color:var(--ink)}
+.dpx-n{background:#dc2626;color:#fff;font-size:11.5px;font-weight:800;border-radius:20px;padding:2px 9px}
+.dpx-h small{color:var(--muted);font-size:11.5px;margin-left:auto}
+.dpx-row{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line-2)}
+.dpx-row:last-child{border-bottom:none}
+.dpx-dj{flex:0 0 auto;width:54px;height:46px;border-radius:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;line-height:1}
+.dpx-dj b{font-size:17px;font-weight:800}
+.dpx-dj small{font-size:8.5px;font-weight:700;opacity:.85;margin-top:2px;text-transform:uppercase;letter-spacing:.05em}
+.dpx-dj.l3{background:linear-gradient(135deg,#b91c1c,#7f1d1d)}
+.dpx-dj.l2{background:linear-gradient(135deg,#ef4444,#b91c1c)}
+.dpx-dj.l1{background:linear-gradient(135deg,#f59e0b,#ea580c)}
+.dpx-ic{flex:0 0 auto;width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(135deg,#2563eb,#1a44ad);box-shadow:0 2px 7px rgba(26,68,173,.3)}
+.dpx-ic svg{width:19px;height:19px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.dpx-tx{flex:1;min-width:0}
+.dpx-tx b{font-size:13.5px;color:var(--ink);display:block}
+.dpx-tx small{font-size:11.5px;color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dpx-act{flex:0 0 auto;display:grid;grid-template-columns:112px 72px;gap:6px}
+.dpx-act .btn{width:100%;text-align:center;justify-content:center}
+@media(max-width:640px){
+  .dpx-row{flex-wrap:wrap;gap:9px}
+  .dpx-tx{flex-basis:calc(100% - 118px)}
+  .dpx-tx small{white-space:normal}
+  .dpx-act{flex-basis:100%;grid-template-columns:1fr 84px}
+}`; document.head.appendChild(s); }
+function dpxIco(n){ n=(n||'').toLowerCase();
+  const S=p=>'<svg viewBox="0 0 24 24">'+p+'</svg>';
+  if(/extinct/.test(n)) return S('<rect x="8" y="8" width="8" height="13" rx="2.5"/><path d="M12 8V5m0 0h4M12 5l-4-2M8 12h8"/>');
+  if(/commission/.test(n)) return S('<path d="M3 22h18M5 22V10M9.7 22V10M14.3 22V10M19 22V10M2 10l10-6 10 6z"/>');
+  if(/ventil|vmc|a[ée]rat/.test(n)) return S('<path d="M3 8h10a3 3 0 1 0-3-3M3 12h14a3 3 0 1 1-3 3M3 16h7a2.5 2.5 0 1 1-2.5 2.5"/>');
+  if(/d[ée]senfum/.test(n)) return S('<path d="M4 14c2-1 4-1 6 0s4 1 6 0 3-1 4 0M4 18c2-1 4-1 6 0s4 1 6 0 3-1 4 0M8 10V4m4 6V6m4 4V4"/>');
+  if(/d[ée]rat|d[ée]sinsect|nuisible|punaise/.test(n)) return S('<circle cx="12" cy="13" r="5"/><path d="M12 8V5M8.5 9.5 6.5 7.5M15.5 9.5l2-2M7 13H4M20 13h-3M8.5 16.5l-2 2M15.5 16.5l2 2"/>');
+  if(/ascenseur|monte|[ée]l[ée]vat/.test(n)) return S('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 12l1.8-2.4L12.5 12M13 14.5l1.8 2.4 1.7-2.4"/>');
+  if(/porte|portail|rideau/.test(n)) return S('<rect x="6.5" y="3" width="11" height="18" rx="1.5"/><circle cx="14.5" cy="12" r="1"/>');
+  if(/[ée]lectr|tgbt|[ée]clairage|bloc|baes/.test(n)) return S('<path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/>');
+  if(/ssi|alarme|incendie|d[ée]tect/.test(n)) return S('<path d="M12 3c1.5 3.5 4 5 4 8.5a4 4 0 0 1-8 0C8 8 10.5 6.5 12 3z"/><path d="M5 13a7 7 0 0 0 14 0"/>');
+  if(/gaz|chauff|chaudi/.test(n)) return S('<path d="M12 3c1 3 5 5.5 5 9.5a5 5 0 0 1-10 0C7 8.5 11 6 12 3z"/>');
+  if(/cuisine|hotte/.test(n)) return S('<path d="M4 10h16M6 10V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v4M6 10v10M18 10v10M9 14h6"/>');
+  if(/sprink|ria|colonne|robinet/.test(n)) return S('<path d="M12 3v6M12 9c-3 0-5 2-5 5a5 5 0 0 0 10 0c0-3-2-5-5-5zM8 3h8"/>');
+  return S('<path d="M14.7 6.3a4.6 4.6 0 0 0-6.1 6.1L3 18l3 3 5.6-5.6a4.6 4.6 0 0 0 6.1-6.1L14 13l-3-3 3.7-3.7z"/>');
+}
+window.dpxProg=function(i){ const r=(window._dpx||[])[i]; if(!r) return;
+  if(r.isCS){ navigate('/preparation-cs'); return; }
+  formInter(r.erp,{domaine:r.dom});
+};
+window.dpxOpen=function(i){ const r=(window._dpx||[])[i]; if(r) navigate('/erps/'+r.erp+'?t=oblig'); };
+
 /* ── Présence quotidienne : 1 pointage discret par utilisateur (indicateur d'activité admin) ── */
 async function actPing(){
   try{
@@ -5551,8 +5601,32 @@ async function viewDashboard(c){
       ['PV à établir',pvAEtablir.length,pvRetard.length?'critique':'majeur','Travaux réalisés, PV attendu','🧾','js:dashScrollPv()'],
     ];
 
+    // ── Vérifications en retard : liste dédiée (compteur de jours en ancre — maquette validée) ──
+    const dpxRows=enRetard.map(o=>{
+      const days=Math.max(1,Math.floor((Date.now()-new Date((o.prochaine_echeance||today)+'T00:00:00').getTime())/864e5));
+      const dom=o.domaine||o.libelle||'Vérification';
+      let extra=(o.libelle&&o.libelle!==dom)?o.libelle:'';
+      if(extra){ extra=extra.replace(new RegExp('^'+dom.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*[—–-]\\s*','i'),''); if(extra===dom) extra=''; }
+      const isCS=/commission/i.test(dom);
+      if(isCS) extra='';
+      const erpNom=(state.currentErp==='all'&&state.erps.length>1)?(state.erps.find(e=>e.id===o.erp_id)?.nom||''):'';
+      return {days,dom,extra,isCS,erp:o.erp_id,ech:o.prochaine_echeance,erpNom};
+    }).sort((a,b)=>b.days-a.days);
+    window._dpx=dpxRows;
+    dpxStyle();
+    const dpxBlock=dpxRows.length?`<div class="dpx-card">
+      <div class="dpx-h"><b>Vérifications en retard</b><span class="dpx-n">${dpxRows.length}</span><small>la plus ancienne : ${dpxRows[0].days} jour${dpxRows[0].days>1?'s':''}</small></div>
+      ${dpxRows.map((r,i)=>{
+        const lv=r.days>30?'l3':(r.days>7?'l2':'l1');
+        const sub=['échéance du '+fmtDate(r.ech), r.erpNom, r.extra].filter(Boolean).join(' · ');
+        return `<div class="dpx-row">
+          <span class="dpx-dj ${lv}"><b>${r.days}</b><small>jour${r.days>1?'s':''}</small></span>
+          <span class="dpx-ic">${dpxIco(r.dom)}</span>
+          <span class="dpx-tx"><b>${esc(r.isCS?'Visite de la commission de sécurité':r.dom)}</b><small>${esc(sub)}</small></span>
+          <span class="dpx-act"><button class="btn sm primary" onclick="dpxProg(${i})">${r.isCS?'Préparer':'Programmer'}</button><button class="btn sm" onclick="dpxOpen(${i})">Ouvrir</button></span>
+        </div>`; }).join('')}
+    </div>`:'';
     const priorities = [
-      ...enRetard.map(o=>({c:'critique',isRetard:true,t:'Vérification en retard — '+(o.domaine||''),d:o.libelle,loc:fmtDate(o.prochaine_echeance),go:'/erps/'+o.erp_id+'?t=oblig'})),
       ...sansRep.map(i=>({c:'critique',t:'Prestataire sans réponse',d:(i.objet||i.domaine||'')+' — relancé '+(i.nb_relances||0)+'×',loc:'',go:'/interventions'})),
       ...its.filter(i=>i.statut==='date_proposee'&&i.date_proposee).map(i=>({c:'majeur',t:'Autre date proposée par le prestataire',d:(i.objet||i.domaine||'')+' — propose le '+fmtDate(i.date_proposee)+(i.proposition_commentaire?' · « '+i.proposition_commentaire+' »':''),loc:'',go:'/interventions'})),
       ...aRepondre.map(i=>({c:'majeur',t:'Réponse prestataire à traiter',d:i.objet||i.domaine||'',loc:'',go:'/interventions'})),
@@ -5755,10 +5829,11 @@ async function viewDashboard(c){
         <div onclick="dashPrioSectionToggle()" title="Cliquer pour replier/déplier" style="background:linear-gradient(135deg,#2563eb,#2563ebcc);color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
           <span id="dashprio-sec-chev" style="transition:transform .2s;transform:rotate(${(window._dashPrioSectionOpen!==false)?'90':'0'}deg);font-size:18px;line-height:1">›</span>
           <h2 style="font-size:16px;margin:0;color:#fff">À traiter en priorité</h2>
-          <span style="margin-left:auto;background:rgba(255,255,255,.22);color:#fff;font-size:12px;font-weight:600;padding:2px 10px;border-radius:999px">${priorities.length} action(s)</span>
+          <span style="margin-left:auto;background:rgba(255,255,255,.22);color:#fff;font-size:12px;font-weight:600;padding:2px 10px;border-radius:999px">${priorities.length+dpxRows.length} action(s)</span>
         </div>
         <div id="dashprio-section-body" style="display:${(window._dashPrioSectionOpen!==false)?'block':'none'};padding:12px">
-        ${priorities.length?`<div class="tbl-wrap" style="border:none;box-shadow:none;border-radius:0">
+        ${dpxBlock}
+        ${priorities.length?`<div class="tbl-wrap" style="border:none;box-shadow:none;border-radius:0${dpxRows.length?';margin-top:12px':''}">
         <table class="tbl prio-tbl"><tbody>${priorities.map(p=>{
           const miniature = p.photoPath
             ? `<img src="${publicPhoto(p.photoPath)}" style="width:44px;height:34px;object-fit:cover;border-radius:5px;margin-left:8px;vertical-align:middle;cursor:zoom-in" onerror="this.style.display='none'" onclick="event.stopPropagation();zoomPhoto('${publicPhoto(p.photoPath)}')">`
@@ -5776,7 +5851,7 @@ async function viewDashboard(c){
               <div style="color:var(--muted);font-size:12.5px">${esc(p.d||'')}</div></td>
             <td style="text-align:right;color:${p.isRetard?'#b91c1c':'var(--muted)'}"><b>${esc(p.loc||'')}</b></td></tr>`;
         }).join('')}</tbody></table></div>`
-        :`<div class="empty">${I.chk}<h3>Tout est à jour</h3><p>Aucune action critique en attente sur ce périmètre.</p></div>`}
+        :(dpxRows.length?'':`<div class="empty">${I.chk}<h3>Tout est à jour</h3><p>Aucune action critique en attente sur ce périmètre.</p></div>`)}
         </div>
       </div></div>
       ${pvSection}
