@@ -817,12 +817,16 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 @media(max-width:640px){
   html,body{overflow-x:hidden}
   .content{padding:14px}
-  .topbar{flex-wrap:wrap;gap:9px;padding:9px 13px}
+  .topbar{flex-wrap:wrap;gap:8px;padding:9px 12px;min-height:0}
   .scope{order:3;width:100%}
   .scope-sel{flex:1;min-width:0;padding:6px 9px}
   .scope-sel select{max-width:none;width:100%;min-width:0}
-  .search{margin-left:auto}
-  .search input{width:140px}
+  /* Une seule rangée compacte : recherche extensible, boutons serrés à droite */
+  .search{flex:1;margin-left:0;min-width:0}
+  .search input{width:100%;min-width:50px}
+  .topbar .tb-out{margin-left:0;padding:7px 8px}
+  .topbar .tb-brand{margin-right:0}
+  .topbar #tbAvatar{width:28px !important;height:28px !important}
   .page-head{flex-direction:column;align-items:stretch;gap:12px}
   .page-head .actions{display:flex;flex-wrap:wrap;gap:8px}
   .page-head .actions .btn{flex:1;justify-content:center}
@@ -897,6 +901,20 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   table.tbl.prio-tbl td b{white-space:normal;overflow-wrap:anywhere}
   /* Photo : vraie vignette compacte, sous le texte, cliquable pour agrandir */
   .prio-tbl img{width:120px !important;height:88px !important;max-width:120px;object-fit:cover;display:block;margin:8px 0 2px !important;border-radius:9px;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+}
+/* Annuaire prestataires & bureaux de contrôle — lecture téléphone :
+   chaque cellule devient un bloc empilé (libellé au-dessus du contenu),
+   les pastilles de spécialités passent à la ligne au lieu de déborder. */
+@media (max-width:640px){
+  table.tbl.anx-tbl td{display:block;text-align:left}
+  table.tbl.anx-tbl td::before{display:block;margin-bottom:6px;flex:none;white-space:normal}
+  table.tbl.anx-tbl .anx-tags{justify-content:flex-start}
+  table.tbl.anx-tbl .anx-tag{white-space:normal;overflow-wrap:anywhere;text-align:left}
+  table.tbl.anx-tbl .anx-chip{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+  table.tbl.anx-tbl .anx-ct{text-align:left}
+  table.tbl.anx-tbl .anx-ct a,.anx-tbl .anx-ct span{overflow-wrap:anywhere}
+  table.tbl.anx-tbl .anx-acts{justify-content:flex-start;opacity:1}
+  table.tbl.anx-tbl td[style*="max-width"]{max-width:none !important}
 }
 /* Pièces jointes des réserves — lecture téléphone */
 @media (max-width:640px){
@@ -21191,7 +21209,7 @@ function renderPrestTable(rows, categorie){
   const ICO_PEN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>';
   const ICO_SEND='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13M22 2 15 22l-4-9-9-4 19-7z"/></svg>';
 
-  target.innerHTML=`<div class="tbl-wrap"><table class="tbl">
+  target.innerHTML=`<div class="tbl-wrap"><table class="tbl anx-tbl">
     <thead><tr>
       <th>${cat==='bureau_de_controle'?'Bureau de contrôle':'Prestataire'}</th><th>Clients</th><th>Contact</th><th>Accès plateforme</th><th style="text-align:right">Actions</th>
     </tr></thead>
