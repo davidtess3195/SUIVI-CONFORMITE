@@ -4725,6 +4725,7 @@ async function fxFiche(no){
   .foot{margin-top:16px;font-size:9.5px;color:#94a3b8;text-align:center}
   .btnp{position:fixed;right:16px;top:16px;background:#1a44ad;color:#fff;border:none;border-radius:9px;padding:11px 18px;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 6px 20px rgba(26,68,173,.4)}
   </style></head><body>
+  <button class="noprint" onclick="window.close()" title="Fermer cette page" style="position:fixed;left:14px;top:14px;z-index:9999;background:#0f172a;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-weight:800;font-size:14px;font-family:Arial,sans-serif;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.35)">\u2715 Fermer</button>
   <button class="btnp noprint" onclick="window.print()">🖨 Imprimer / enregistrer en PDF</button>
   <div class="page">
     <div class="top"><span class="brand">CONFORMITÉ SÉCURITÉ · FORMATION</span><span class="mod">MODULE ${m.no} · CHAPITRE ${m.ch} — ${esc(FORM_CHAPS[m.ch].toUpperCase())}</span></div>
@@ -4837,6 +4838,7 @@ async function fxAttestation(){
   .btnp{position:fixed;right:18px;top:18px;background:#1a44ad;color:#fff;border:none;border-radius:10px;padding:12px 20px;font-weight:800;font-size:14px;font-family:'Inter',Arial,sans-serif;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:20}
   .lock{position:fixed;right:18px;top:18px;background:#111827;color:#e5e7eb;border:1px solid #374151;border-radius:10px;padding:12px 18px;font-size:13px;font-family:'Inter',Arial,sans-serif;z-index:20;max-width:320px;line-height:1.5}
   </style></head><body>
+  <button class="noprint" onclick="window.close()" title="Fermer cette page" style="position:fixed;left:14px;top:14px;z-index:9999;background:#0f172a;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-weight:800;font-size:14px;font-family:Arial,sans-serif;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.35)">\u2715 Fermer</button>
   ${unlocked?'<button class="btnp noprint" onclick="window.print()">\ud83d\udda8 Imprimer / enregistrer en PDF</button>'
             :'<div class="lock noprint">\ud83d\udd12 <b>Aper\u00e7u.</b> L\u2019impression se d\u00e9bloque quand les 10 modules et l\u2019examen final sont valid\u00e9s.</div>'}
   <div class="sheet">
@@ -9292,7 +9294,7 @@ function printDossier(clientId, erpId){
     .sub{color:#555;font-size:12px;margin-bottom:16px}table{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:11px}
     th,td{border:1px solid #ccc;padding:5px 6px;text-align:left;vertical-align:top}th{background:#f1f5f9}
     .ft{margin-top:24px;font-size:10px;color:#888;border-top:1px solid #ddd;padding-top:6px}@media print{.noprint{display:none}}</style></head>
-    <body><h1>Dossier de levées de réserves</h1>
+    <body><button class="noprint" onclick="window.close()" title="Fermer cette page" style="position:fixed;left:14px;top:14px;z-index:9999;background:#0f172a;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-weight:800;font-size:14px;font-family:Arial,sans-serif;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.35)">\u2715 Fermer</button><h1>Dossier de levées de réserves</h1>
     <div class="sub">${esc2(client?client.raison_sociale:'')}${client&&client.ville?' — '+esc2((client.code_postal||'')+' '+client.ville):''} · Édité le ${new Date().toLocaleDateString('fr-FR')} · PREVA CONSEILS</div>
     ${sections||'<p>Aucune réserve.</p>'}
     <div class="ft">PV de commission de sécurité — document généré par PREVA CONSEILS.</div>
@@ -18042,7 +18044,7 @@ window.sinGenerate=async function(){
     const html=sinHtml(ctx,form,D);
     const w=window.open('','_blank');
     if(!w){ toast('Autorisez les fenêtres pop-up pour générer le dossier','err'); btn.disabled=false; btn.textContent='Générer le dossier'; return; }
-    w.document.write(html); w.document.close();
+    w.document.write(html.replace('</body>','<style>@media print{.noprint{display:none !important}}</style>'+'<button class="noprint" onclick="window.close()" title="Fermer cette page" style="position:fixed;left:14px;top:14px;z-index:9999;background:#0f172a;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-weight:800;font-size:14px;font-family:Arial,sans-serif;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.35)">✕ Fermer</button>'+'</body>')); w.document.close();
     closeModal();
     toast('Dossier sinistre généré — imprimez ou enregistrez en PDF','ok');
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
