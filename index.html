@@ -1523,6 +1523,15 @@ async function afterLogin(){
       setTimeout(()=>toast('Accès démonstration expiré — contactez PREVA CONSEILS pour prolonger','err'),300);
       return;
     }
+    // Comptes suspendus / désactivés : connexion refusée
+    if(state.profile?.statut==='suspendu' || state.profile?.statut==='desactive'){
+      const _st=state.profile.statut;
+      await sb.auth.signOut();
+      state.user=null; state.profile=null;
+      renderAuth('login');
+      setTimeout(()=>toast(_st==='desactive'?'Compte désactivé — contactez PREVA CONSEILS.':'Compte suspendu — contactez PREVA CONSEILS au 06 64 91 84 48.','err'),300);
+      return;
+    }
     // DEMO MODE — activer si is_demo=true sur le profil
     if(state.profile?.is_demo){
       state.demo=true;
@@ -2592,6 +2601,19 @@ async function viewAdmin(c){
       const barBg=(j!==null&&j<0)?'#ef4444':x.abonnement_formule==='essai'?'linear-gradient(90deg,#f59e0b,#fbbf24)':'linear-gradient(90deg,#2563eb,#60a5fa)';
       const nbU=nbUsersOf(x.id);
       const nbErp=(erps||[]).filter(e=>e.client_id===x.id).length;
+      // Les comptes de ce client : prénom, nom, email — directement depuis la base
+      const cptUids=(userClients||[]).filter(l=>l.client_id===x.id).map(l=>l.user_id);
+      const cpts=(users||[]).filter(u=>cptUids.includes(u.id)&&u.role!=='admin'&&u.role!=='consultant');
+      const RL={exploitant:'Exploitant',lecture:'Lecture',agent:'Terrain'};
+      const cptsHtml=cpts.length?`<div style="flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;margin-top:2px">
+        ${cpts.map(u=>{ const nomC=[u.prenom,u.nom].filter(Boolean).join(' ')||u.email||'—'; const st=u.statut==='actif'?'':(u.statut==='suspendu'?' · suspendu':' · désactivé');
+          return `<span style="display:inline-flex;align-items:center;gap:7px;background:var(--surface-2);border:1px solid var(--line);border-radius:99px;padding:4px 6px 4px 11px;font-size:12px">
+            <b>${esc(nomC)}</b><span style="color:var(--muted)">${RL[u.role]||esc(u.role)}${st}</span>
+            ${u.email?`<a href="mailto:${esc(u.email)}" title="Écrire à ${esc(u.email)}" style="color:var(--primary);text-decoration:none;font-weight:600">${esc(u.email)}</a>
+            <button class="btn sm" title="Copier l'email" style="padding:2px 8px;border-radius:99px" onclick="navigator.clipboard.writeText('${esc(u.email)}').then(()=>toast('Email copié : ${esc(u.email)}','ok'))">📋</button>`:'<span style="color:var(--muted)">sans email</span>'}
+            <button class="btn sm danger" title="Purger ce compte : suppression définitive de l'accès et de l'email dans Supabase" style="padding:2px 8px;border-radius:99px" onclick="adminDeleteUser('${u.id}')">🗑</button>
+          </span>`; }).join('')}
+      </div>`:`<div style="flex-basis:100%;font-size:12px;color:var(--muted);margin-top:2px">Aucun compte de connexion rattaché — « Fiche client » pour en créer un.</div>`;
       return `<div class="adm2-abo" style="border:none;border-top:1px solid var(--line-2);border-radius:0;box-shadow:none;margin:0">
         <div class="who"><b>${esc(x.raison_sociale)}</b><small>Client depuis le ${new Date(x.created_at).toLocaleDateString('fr-FR')} <span class="adm2-chip" style="${x.abonnement_formule==='essai'?'background:#fef3c7;color:#92400e':''};margin-left:4px">${FRMLBL[x.abonnement_formule]||esc(x.abonnement_formule)}</span>${x.abonnement_montant?` <span style="font-weight:600">· ${x.abonnement_montant} € HT</span>`:''}</small></div>
         <div class="adm2-meta">
@@ -2605,7 +2627,10 @@ async function viewAdmin(c){
           <button class="btn sm primary" onclick="supervisionEnter('${x.id}')" title="Voir l'application comme ce client la voit" style="display:inline-flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Voir son espace</button>
           <button class="btn sm" onclick="aboUpgradeModal('${x.id}')">${x.abonnement_formule==='essai'?'Passer en abonnement':'Abonnement'}</button>
           <button class="btn sm" onclick="navigate('/clients/${x.id}')">Fiche client</button>
+          <button class="btn sm danger" onclick="aboCancel('${x.id}')">${x.abonnement_formule==='essai'?"Annuler l'essai":'Résilier'}</button>
+          <button class="btn sm danger" title="Suppression définitive du client et de toutes ses données" onclick="clientDeleteModal('${x.id}','${esc(x.raison_sociale).replace(/'/g,'&#39;')}')">🗑 Purger</button>
         </div>
+        ${cptsHtml}
       </div>`;
     }).join('');
     const abosBlock=`<div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">
@@ -3262,6 +3287,47 @@ window.adminJrMore=async function(){
 };
 
 /* Modifier / faire évoluer l'abonnement d'un client */
+/* Annulation d'un essai / résiliation d'un abonnement : le client sort de la liste,
+   ses comptes sont suspendus (connexion refusée), aucune donnée n'est supprimée. */
+window.aboCancel=async function(clientId){
+  try{
+    const [{data:cl},{data:links}]=await Promise.all([
+      sb.from('clients').select('id,raison_sociale,abonnement_formule').eq('id',clientId).maybeSingle(),
+      sb.from('user_clients').select('user_id').eq('client_id',clientId)
+    ]);
+    if(!cl){ toast('Client introuvable','err'); return; }
+    const uids=(links||[]).map(l=>l.user_id);
+    const {data:us}=uids.length?await sb.from('profiles').select('id,nom,prenom,email,role,statut').in('id',uids):{data:[]};
+    const cibles=(us||[]).filter(u=>u.role!=='admin'&&u.role!=='consultant');
+    const essai=cl.abonnement_formule==='essai';
+    openModal(`<div class="modal-head"><h2>${essai?"Annuler l'essai":'Résilier'} — ${esc(cl.raison_sociale)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body">
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 13px;font-size:12.5px;color:#7f1d1d;line-height:1.55;margin-bottom:13px">
+        <b>Ce qui va se passer :</b><br>
+        · le client sort de la liste des abonnés (${essai?'essai annulé':'abonnement résilié'}) ;<br>
+        · ${cibles.length?cibles.length+' compte(s) de connexion suspendu(s) — connexion refusée avec un message les invitant à vous contacter':'aucun compte à suspendre'} ;<br>
+        · <b>aucune donnée n'est supprimée</b> : établissements, documents et historique restent en base.<br>
+        Réversible à tout moment : repassez le compte en « actif » (carte Utilisateurs) et redonnez une formule via « Abonnement ».
+      </div>
+      ${cibles.length?`<div style="font-size:12px;color:var(--muted);margin-bottom:12px">Comptes concernés : ${cibles.map(u=>esc([u.prenom,u.nom].filter(Boolean).join(' ')||u.email||'—')).join(' · ')}</div>`:''}
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn ghost" onclick="closeModal()">Garder le client</button>
+        <button class="btn danger" id="abo_cancel_go">${essai?"Confirmer l'annulation":'Confirmer la résiliation'}</button>
+      </div>
+    </div>`);
+    document.getElementById('abo_cancel_go').onclick=async()=>{
+      try{
+        const {error}=await sb.from('clients').update({abonnement_formule:null,abonnement_montant:null,abonnement_echeance:null}).eq('id',clientId);
+        if(error) throw error;
+        for(const u of cibles){ try{ await sb.from('profiles').update({statut:'suspendu'}).eq('id',u.id); }catch(_){ } }
+        try{ await sb.from('audit_log').insert({user_id:state.user.id,user_label:state.profile?.nom||state.user.email,action:essai?'essai_annule':'abonnement_resilie',entite:'clients',entite_id:clientId,details:{client:cl.raison_sociale,comptes_suspendus:cibles.map(u=>u.email||u.nom)}}); }catch(_){ }
+        _modalDirty=false; closeModal();
+        toast((essai?'Essai annulé — ':'Abonnement résilié — ')+cl.raison_sociale+(cibles.length?' · '+cibles.length+' compte(s) suspendu(s)':''),'ok');
+        viewAdmin(document.getElementById('content'));
+      }catch(e){ toast(frToast?frToast(e.message||String(e)):'Erreur','err'); }
+    };
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
 window.aboUpgradeModal=async function(clientId){
   try{
     const {data:cl}=await sb.from('clients').select('id,raison_sociale,abonnement_formule,abonnement_montant,abonnement_debut,abonnement_echeance').eq('id',clientId).maybeSingle();
