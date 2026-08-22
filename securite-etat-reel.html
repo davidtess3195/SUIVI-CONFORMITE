@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CONFORMITÉ SÉCURITÉ — Sécurité : état réel des protections</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--blue:#1a44ad}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',system-ui,sans-serif;background:#f1f5f9;color:var(--ink);padding:38px 20px 80px}
+  .wrap{max-width:980px;margin:0 auto}
+  .head{background:#0e1b2e;color:#fff;border-radius:18px;padding:30px 34px;margin-bottom:26px}
+  .head .brand{font-weight:800;letter-spacing:2.5px;font-size:13px;color:#9db8e8}
+  .head h1{font-family:'Space Grotesk',sans-serif;font-size:27px;margin:8px 0 6px}
+  .head p{color:#b4c4e6;font-size:13.5px;line-height:1.6;max-width:760px}
+  .head .meta{display:flex;gap:22px;margin-top:16px;flex-wrap:wrap;font-size:12px;color:#8ea6d6}
+  .head .meta b{color:#fff;font-weight:700}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:26px}
+  @media(max-width:700px){.kpis{grid-template-columns:1fr}}
+  .kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px;text-align:center}
+  .kpi b{font-family:'Space Grotesk',sans-serif;font-size:30px;color:var(--blue);display:block}
+  .kpi span{font-size:12.5px;color:var(--muted)}
+  h2.sec{font-family:'Space Grotesk',sans-serif;font-size:18px;margin:30px 0 12px}
+  .couche{background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;margin-bottom:14px;display:flex}
+  .couche .tag{flex:0 0 118px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#fff;padding:18px 8px}
+  .couche .tag b{font-family:'Space Grotesk',sans-serif;font-size:30px;line-height:1}
+  .couche .tag small{font-size:9.5px;font-weight:800;letter-spacing:.12em}
+  .couche .tag .nm{font-size:11px;font-weight:800;letter-spacing:.1em;margin-top:6px;text-align:center}
+  .c1 .tag{background:linear-gradient(160deg,#1a44ad,#2563eb)} .c2 .tag{background:linear-gradient(160deg,#6d28d9,#8b5cf6)}
+  .c3 .tag{background:linear-gradient(160deg,#b45309,#f59e0b)} .c4 .tag{background:linear-gradient(160deg,#166534,#22c55e)}
+  .couche ul{list-style:none;padding:14px 22px;flex:1}
+  .couche li{padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:13.5px;line-height:1.55;display:flex;gap:9px}
+  .couche li:last-child{border-bottom:none}
+  .couche li::before{content:'✓';flex:0 0 auto;width:19px;height:19px;border-radius:6px;background:#dcfce7;color:#15803d;font-weight:800;font-size:12px;display:grid;place-items:center;margin-top:1px}
+  .couche li b{font-weight:700}
+  .couche li small{color:var(--muted)}
+  .ow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:760px){.ow{grid-template-columns:1fr}}
+  .oc{background:#fff;border:1px solid var(--line);border-radius:13px;padding:14px 16px;display:flex;gap:13px;align-items:flex-start}
+  .oc .code{flex:0 0 52px;height:40px;border-radius:9px;display:grid;place-items:center;font-weight:800;font-size:13px}
+  .oc.ok .code{background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
+  .oc.mid .code{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+  .oc b{font-size:13.5px;display:block}
+  .oc span{font-size:12.3px;color:var(--muted);line-height:1.5}
+  .oc .st{font-size:10.5px;font-weight:800;letter-spacing:.06em;border-radius:99px;padding:2px 9px;margin-left:7px;vertical-align:2px}
+  .oc.ok .st{background:#dcfce7;color:#166534} .oc.mid .st{background:#fef3c7;color:#92400e}
+  .next{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px 24px;margin-top:26px}
+  .next .n{display:flex;gap:11px;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:13.5px;line-height:1.6}
+  .next .n:last-child{border-bottom:none}
+  .next .who{flex:0 0 auto;font-size:10px;font-weight:800;letter-spacing:.06em;background:#eff6ff;color:#1d4ed8;border-radius:7px;padding:4px 8px;margin-top:2px;white-space:nowrap;height:fit-content}
+  .foot{margin-top:26px;font-size:11.5px;color:#94a3b8;text-align:center;line-height:1.7}
+  @media print{ body{background:#fff;padding:0} .head{border-radius:0} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <div class="brand">CONFORMITÉ SÉCURITÉ · PREVA CONSEILS</div>
+    <h1>Sécurité — état réel des protections</h1>
+    <p>Ce document décrit les protections <b>effectivement actives</b> sur app.conformite-securite.fr : chacune est vérifiable, soit dans les en-têtes HTTP du site (testables publiquement), soit dans les règles de sécurité de la base de données, soit dans le comportement observable de l'application. Aucune protection décorative n'est comptée.</p>
+    <div class="meta"><span>Version : <b>1.0</b></span><span>Établi le : <b>22 août 2026</b></span><span>Périmètre : <b>application web + base de données + hébergement</b></span></div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><b>30</b><span>protections actives, réelles et vérifiables</span></div>
+    <div class="kpi"><b>10 / 10</b><span>catégories OWASP Top 10 (2021) couvertes</span></div>
+    <div class="kpi"><b>0</b><span>protection décorative comptée — chaque ligne est vérifiable</span></div>
+  </div>
+
+  <h2 class="sec">Architecture en 4 couches</h2>
+
+  <div class="couche c1">
+    <div class="tag"><b>9</b><small>CONTRÔLES</small><span class="nm">RÉSEAU</span></div>
+    <ul>
+      <li><span><b>HTTPS forcé</b> — toute connexion HTTP est redirigée (301) vers HTTPS</span></li>
+      <li><span><b>HSTS 1 an</b> — le navigateur refuse définitivement le HTTP après la première visite</span></li>
+      <li><span><b>Certificat TLS Let's Encrypt</b> — renouvelé automatiquement (OVH)</span></li>
+      <li><span><b>Content-Security-Policy</b> — liste blanche stricte : seuls nos CDN identifiés peuvent fournir des scripts ; tout envoi de données vers un domaine non autorisé est bloqué par le navigateur <small>(anti-injection &amp; anti-exfiltration)</small></span></li>
+      <li><span><b>Anti-clickjacking</b> — X-Frame-Options DENY + frame-ancestors 'none' : l'application ne peut pas être piégée dans un cadre invisible</span></li>
+      <li><span><b>X-Content-Type-Options nosniff</b> — pas d'interprétation détournée des fichiers</span></li>
+      <li><span><b>Referrer-Policy</b> — les adresses internes ne fuient pas vers les sites externes</span></li>
+      <li><span><b>Permissions-Policy</b> — caméra, micro et géolocalisation refusés aux contenus tiers</span></li>
+      <li><span><b>Isolation des fenêtres (COOP)</b> — les onglets ouverts par d'autres sites ne peuvent pas piloter l'application</span></li>
+    </ul>
+  </div>
+
+  <div class="couche c2">
+    <div class="tag"><b>8</b><small>CONTRÔLES</small><span class="nm">SESSION</span></div>
+    <ul>
+      <li><span><b>Mots de passe chiffrés (bcrypt)</b> — jamais stockés ni transmis en clair</span></li>
+      <li><span><b>Limitation serveur des tentatives</b> — rate-limiting Supabase Auth sur les connexions et envois d'emails</span></li>
+      <li><span><b>Verrouillage 5 échecs / 15 min</b> — côté application, avec message explicite du temps restant</span></li>
+      <li><span><b>Déconnexion automatique après 30 min d'inactivité</b> — avertissement à 28 min (« Je suis là »), événement journalisé</span></li>
+      <li><span><b>Jetons de session signés (JWT)</b> — durée limitée, renouvellement automatique, invalidés à la déconnexion</span></li>
+      <li><span><b>Comptes suspendus / désactivés bloqués</b> — contrôle du statut à chaque connexion</span></li>
+      <li><span><b>Récupération par lien à usage unique</b> — « Mot de passe oublié » sans divulgation d'existence du compte</span></li>
+      <li><span><b>Double authentification (TOTP)</b> — code à 6 chiffres exigé pour le compte administrateur, à la connexion et à la restauration de session ; activation par QR code, événements journalisés</span></li>
+    </ul>
+  </div>
+
+  <div class="couche c3">
+    <div class="tag"><b>7</b><small>CONTRÔLES</small><span class="nm">DONNÉES</span></div>
+    <ul>
+      <li><span><b>Cloisonnement par client (RLS)</b> — le filtrage est appliqué <b>par la base de données elle-même</b>, pas seulement par l'écran : un client ne peut pas lire les données d'un autre, même en forgeant des requêtes. Testé à chaque livraison</span></li>
+      <li><span><b>Rôles et permissions (RBAC)</b> — admin, consultant, exploitant, lecture, terrain : chaque rôle a ses droits, vérifiés côté serveur</span></li>
+      <li><span><b>Stockage privé + liens signés</b> — les documents (PV, rapports, photos) ne sont accessibles que par des liens temporaires signés</span></li>
+      <li><span><b>Chiffrement au repos (AES-256) et en transit (TLS)</b> — infrastructure Supabase</span></li>
+      <li><span><b>Sauvegardes automatiques quotidiennes</b> — restauration possible (Supabase)</span></li>
+      <li><span><b>RGPD</b> — conservation 5 ans <b>par enregistrement</b> (glissante), purge automatisée, politique de confidentialité publiée</span></li>
+      <li><span><b>SMS &amp; emails cloisonnés</b> — crédits décomptés par client, historique invisible aux autres, comptes démo sans envoi réel</span></li>
+    </ul>
+  </div>
+
+  <div class="couche c4">
+    <div class="tag"><b>6</b><small>CONTRÔLES</small><span class="nm">APPLICATION</span></div>
+    <ul>
+      <li><span><b>Échappement systématique du HTML</b> — tout contenu saisi est neutralisé à l'affichage (anti-XSS)</span></li>
+      <li><span><b>Requêtes paramétrées</b> — aucun SQL construit à partir de texte saisi (anti-injection SQL), via l'API Supabase</span></li>
+      <li><span><b>Fonctions serveur à double contrôle</b> — les opérations sensibles (suppression de comptes, envois) revérifient l'identité et le rôle côté serveur</span></li>
+      <li><span><b>Journal d'audit horodaté</b> — connexions admin, créations, purges, recharges SMS, déconnexions de sécurité</span></li>
+      <li><span><b>Confirmations renforcées</b> — les suppressions définitives exigent la saisie du nom + vérification réelle du résultat</span></li>
+      <li><span><b>Bibliothèques auto-hébergées, versions figées</b> — plus aucun script tiers au chargement : la chaîne d'approvisionnement logicielle est entièrement maîtrisée sur nos serveurs</span></li>
+    </ul>
+  </div>
+
+  <h2 class="sec">Correspondance OWASP Top 10 — 2021 (évaluation honnête)</h2>
+  <div class="ow">
+    <div class="oc ok"><div class="code">A01</div><div><b>Contrôle d'accès <span class="st">COUVERT</span></b><span>RLS base de données + rôles + contrôle de statut à la connexion. Le cloisonnement est testé par simulation de comptes réels.</span></div></div>
+    <div class="oc ok"><div class="code">A02</div><div><b>Défaillances cryptographiques <span class="st">COUVERT</span></b><span>TLS + HSTS, bcrypt pour les mots de passe, AES-256 au repos, liens de fichiers signés à durée limitée.</span></div></div>
+    <div class="oc ok"><div class="code">A03</div><div><b>Injection <span class="st">COUVERT</span></b><span>Requêtes paramétrées (API Supabase), échappement HTML systématique, CSP en dernier rempart.</span></div></div>
+    <div class="oc ok"><div class="code">A04</div><div><b>Conception non sécurisée <span class="st">COUVERT</span></b><span>Confirmations renforcées, moindre privilège, comptes démo isolés — et modélisation de menaces documentée par parcours critique (annexe ci-dessous).</span></div></div>
+    <div class="oc ok"><div class="code">A05</div><div><b>Mauvaise configuration <span class="st">COUVERT</span></b><span>En-têtes durcis (CSP, HSTS, nosniff, XFO…), RLS activé par défaut sur les tables, clés publiques/privées séparées.</span></div></div>
+    <div class="oc ok"><div class="code">A06</div><div><b>Composants vulnérables <span class="st">COUVERT</span></b><span>Bibliothèques auto-hébergées à versions figées : aucun composant ne peut changer à notre insu. Mise à jour = décision explicite, testée avant déploiement.</span></div></div>
+    <div class="oc ok"><div class="code">A07</div><div><b>Authentification &amp; sessions <span class="st">COUVERT</span></b><span>Anti-bruteforce serveur + application, double authentification TOTP (admin), déconnexion d'inactivité, jetons à durée limitée, statuts de compte.</span></div></div>
+    <div class="oc ok"><div class="code">A08</div><div><b>Intégrité logicielle <span class="st">COUVERT</span></b><span>Scripts servis exclusivement depuis notre propre domaine (auto-hébergement), CSP en liste blanche en dernier rempart : aucun code tiers ne peut être substitué.</span></div></div>
+    <div class="oc ok"><div class="code">A09</div><div><b>Journalisation &amp; surveillance <span class="st">COUVERT</span></b><span>Journal d'audit horodaté des actions sensibles et événements de sécurité, consultable dans l'admin.</span></div></div>
+    <div class="oc ok"><div class="code">A10</div><div><b>SSRF <span class="st">COUVERT</span></b><span>Aucune récupération d'URL fournie par l'utilisateur côté serveur ; destinations réseau verrouillées par liste blanche.</span></div></div>
+  </div>
+
+  <h2 class="sec">Annexe — modélisation de menaces par parcours critique</h2>
+  <div class="ow">
+    <div class="oc ok"><div class="code" style="font-size:17px">🔑</div><div><b>Connexion</b><span>Menaces : vol de mot de passe, force brute, session volée. Contrôles : bcrypt, rate-limiting serveur, verrouillage 5/15 min, double authentification TOTP (admin), déconnexion d'inactivité, contrôle du statut du compte, jetons à durée limitée.</span></div></div>
+    <div class="oc ok"><div class="code" style="font-size:17px">✍️</div><div><b>Levée de réserve signée</b><span>Menaces : falsification, rejeu, accès non autorisé au lien. Contrôles : liens signés à durée limitée, levée verrouillée après signature (immuable), horodatage et traçabilité, cloisonnement RLS par client.</span></div></div>
+    <div class="oc ok"><div class="code" style="font-size:17px">🗑️</div><div><b>Suppression / purge</b><span>Menaces : suppression accidentelle ou malveillante. Contrôles : réservée au rôle admin (vérifié en base), confirmation par saisie du nom, vérification réelle du résultat, journal d'audit horodaté, sauvegardes quotidiennes.</span></div></div>
+    <div class="oc ok"><div class="code" style="font-size:17px">📱</div><div><b>Envois SMS / emails</b><span>Menaces : usurpation, épuisement du crédit d'autrui, spam. Contrôles : crédits décomptés par client (fonction serveur atomique), comptes démo bloqués, historique cloisonné, alerte de seuil, fonctions serveur avec vérification de rôle.</span></div></div>
+  </div>
+
+  <div class="next">
+    <h3 style="font-family:'Space Grotesk',sans-serif;font-size:16px;margin-bottom:8px">Amélioration continue — prochaines étapes</h3>
+    <div class="n"><span class="who">MOYEN TERME</span><span><b>Alerte automatique</b> sur événements de sécurité anormaux (rafales d'échecs de connexion, purges massives) par email à l'exploitant de la plateforme.</span></div>
+    <div class="n"><span class="who">MOYEN TERME</span><span><b>Test d'intrusion externe</b> par un tiers indépendant, pour confronter l'ensemble à un regard extérieur.</span></div>
+  </div>
+
+  <div class="foot">
+    CONFORMITÉ SÉCURITÉ · PREVA CONSEILS — document d'état des lieux, version 1.0 du 22/08/2026.<br>
+    Les en-têtes HTTP sont vérifiables publiquement (ex. securityheaders.com sur app.conformite-securite.fr) ; le cloisonnement base de données est testé par simulation de comptes à chaque évolution.
+  </div>
+</div>
+</body>
+</html>
