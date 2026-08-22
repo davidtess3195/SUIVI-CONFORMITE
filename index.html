@@ -1579,6 +1579,7 @@ function renderRoute(){
   if(hash==='/admin-login'){ renderAdminAuth(); return; }
   if(!state.user){ renderAuth('login'); return; }
   try{ actPing(); }catch(_){ }
+  try{ smsChipRefresh(); }catch(_){ }
   const parts = hash.split('?')[0].split('/').filter(Boolean);
   const base = '/'+(parts[0]||'');
   setActiveNav(base);
@@ -3328,13 +3329,14 @@ window.smxRechargeGo=async function(clientId,qte,montant,gratuit){
     const motif=gratuit?(document.getElementById('smx_motif')?.value.trim()||'SMS offerts'):null;
     const {data:cl}=await sb.from('clients').select('sms_credits,raison_sociale').eq('id',clientId).maybeSingle();
     const nouveau=(cl?.sms_credits||0)+qte;
-    const {error}=await sb.from('clients').update({sms_credits:nouveau}).eq('id',clientId);
+    const {error}=await sb.from('clients').update({sms_credits:nouveau,sms_alerte_envoyee:false}).eq('id',clientId);
     if(error) throw error;
     const {error:e2}=await sb.from('sms_recharges').insert({client_id:clientId,quantite:qte,montant:gratuit?0:montant,gratuit:!!gratuit,motif});
     if(e2) throw e2;
     try{ await sb.from('audit_log').insert({user_id:state.user.id,user_label:state.profile?.nom||state.user.email,action:'sms_recharge',entite:'clients',entite_id:clientId,details:{client:cl?.raison_sociale,quantite:qte,montant:gratuit?0:montant,gratuit:!!gratuit,motif,nouveau_solde:nouveau}}); }catch(_){}
     _modalDirty=false; closeModal();
     toast('+'+qte+' SMS '+(gratuit?'offerts':'(pack '+montant+' € HT)')+' — nouveau solde : '+nouveau,'ok');
+    smsChipRefresh(true);
     viewAdmin(document.getElementById('content'));
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
 };
@@ -4381,7 +4383,85 @@ async function smsGuard(clientId,nb){
   if(i.solde-nb<=20) setTimeout(()=>toast('⚠ Pack SMS bientôt épuisé : '+(i.solde-nb)+' SMS restant(s).','err'),900);
   return true;
 }
-async function smsDebit(clientId,used){ if(!clientId||!used) return; try{ await sb.rpc('sms_debit',{p_client:clientId,p_n:used}); }catch(_){ } }
+async function smsDebit(clientId,used){
+  if(!clientId||!used) return;
+  try{
+    const {data}=await sb.rpc('sms_debit',{p_client:clientId,p_n:used});
+    smsChipRefresh(true);
+    if(typeof data==='number'&&data>=0) smsAlerteMaybe(clientId,data);
+  }catch(_){ }
+}
+/* Email d'alerte à David : une seule fois au franchissement du seuil de 10 (maquette validée) */
+async function smsAlerteMaybe(clientId,solde){
+  try{
+    if(solde==null||solde>10) return;
+    const {data:need}=await sb.rpc('sms_alerte_check',{p_client:clientId});
+    if(need!==true) return;
+    const d30=new Date(Date.now()-30*864e5).toISOString();
+    const [cRes,consRes,rechRes]=await Promise.all([
+      sb.from('clients').select('raison_sociale,sms_credits').eq('id',clientId).maybeSingle(),
+      sb.from('sms_scheduled').select('credits').eq('client_id',clientId).eq('statut','sent').gte('sent_at',d30),
+      sb.from('sms_recharges').select('quantite,gratuit,montant,created_at').eq('client_id',clientId).order('created_at',{ascending:false}).limit(1)
+    ]);
+    const cl=cRes&&cRes.data||{}; const nomC=cl.raison_sociale||'Client'; const sold=cl.sms_credits!=null?cl.sms_credits:solde;
+    const conso=((consRes&&consRes.data)||[]).reduce((t,r)=>t+(r.credits||1),0);
+    const jours=conso>0?Math.max(1,Math.round(sold/(conso/30))):null;
+    const r0=((rechRes&&rechRes.data)||[])[0];
+    const rechTxt=r0?((r0.gratuit?(r0.quantite+' SMS offerts'):(r0.quantite+' SMS · '+(r0.montant||0)+' € HT'))+' — '+new Date(r0.created_at).toLocaleDateString('fr-FR')):'—';
+    const html=`<div style="background:#eef1f6;padding:24px 12px;font-family:Arial,Helvetica,sans-serif">
+    <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
+      <div style="background:#0e1b2e;color:#fff;padding:18px 24px">
+        <div style="font-weight:800;letter-spacing:2px;font-size:13px">CONFORMIT\u00c9 S\u00c9CURIT\u00c9</div>
+        <div style="font-size:11.5px;color:#b4c4e6;margin-top:2px">Alerte commerciale \u2014 pack SMS client</div></div>
+      <div style="background:#fef2f2;border-bottom:1px solid #fecaca;padding:14px 24px">
+        <table cellpadding="0" cellspacing="0"><tr>
+          <td style="width:52px;height:52px;border-radius:12px;background:#dc2626;color:#fff;text-align:center;font-weight:800;font-size:22px">${sold}</td>
+          <td style="padding-left:12px"><b style="font-size:15px;color:#7f1d1d">Le pack SMS de ${esc(nomC)} est presque \u00e9puis\u00e9</b><br>
+          <span style="font-size:12.5px;color:#b91c1c">Seuil d'alerte franchi (10 SMS) \u2014 c'est le moment d'envoyer un devis de recharge.</span></td></tr></table></div>
+      <div style="padding:20px 24px;font-size:13.5px;line-height:1.65;color:#334155">
+        <p style="margin:0 0 12px">Bonjour David,</p>
+        <p style="margin:0 0 12px">Le solde SMS de ce client vient de passer sous le seuil d'alerte :</p>
+        <table style="width:100%;border-collapse:collapse;margin:4px 0 16px;font-size:13px">
+          <tr><td style="border:1px solid #e2e8f0;padding:8px 12px;background:#f8fafc;font-weight:600;color:#475569;width:46%">Client</td><td style="border:1px solid #e2e8f0;padding:8px 12px"><b>${esc(nomC)}</b></td></tr>
+          <tr><td style="border:1px solid #e2e8f0;padding:8px 12px;background:#f8fafc;font-weight:600;color:#475569">SMS restants</td><td style="border:1px solid #e2e8f0;padding:8px 12px"><b style="color:#dc2626">${sold}</b></td></tr>
+          <tr><td style="border:1px solid #e2e8f0;padding:8px 12px;background:#f8fafc;font-weight:600;color:#475569">Consomm\u00e9s sur 30 jours</td><td style="border:1px solid #e2e8f0;padding:8px 12px">${conso} SMS</td></tr>
+          <tr><td style="border:1px solid #e2e8f0;padding:8px 12px;background:#f8fafc;font-weight:600;color:#475569">\u00c9puisement estim\u00e9</td><td style="border:1px solid #e2e8f0;padding:8px 12px">${jours?('sous ~'+jours+' jour'+(jours>1?'s':'')+' au rythme actuel'):'\u2014'}</td></tr>
+          <tr><td style="border:1px solid #e2e8f0;padding:8px 12px;background:#f8fafc;font-weight:600;color:#475569">Derni\u00e8re recharge</td><td style="border:1px solid #e2e8f0;padding:8px 12px">${esc(rechTxt)}</td></tr>
+        </table>
+        <div style="background:#f0f6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;margin:0 0 16px">
+          <b style="display:block;font-size:12px;color:#1d4ed8;letter-spacing:.06em;margin-bottom:7px">RAPPEL DE TA GRILLE \u2014 POUR LE DEVIS</b>
+          <table style="width:100%;font-size:13px;border-collapse:collapse">
+            <tr><td style="padding:4px 0;color:#1e293b">Pack 200 SMS</td><td style="padding:4px 0;text-align:right;font-weight:700">30 \u20ac HT</td></tr>
+            <tr><td style="padding:4px 0;color:#1e293b">Pack 500 SMS</td><td style="padding:4px 0;text-align:right;font-weight:700">60 \u20ac HT</td></tr>
+            <tr><td style="padding:4px 0;color:#1e293b">Pack 1100 SMS</td><td style="padding:4px 0;text-align:right;font-weight:700">120 \u20ac HT</td></tr>
+          </table></div>
+        <p style="font-size:12.5px;color:#64748b;margin:0 0 12px">\u00c0 0, ses SMS ne partiront plus (ses emails continuent) et il verra le message \u00ab Pack \u00e9puis\u00e9 \u2014 contactez PREVA CONSEILS \u00bb. Tu peux recharger \u2014 ou offrir des SMS \u2014 depuis sa carte abonn\u00e9.</p>
+        <p style="text-align:center;margin:18px 0 6px"><a href="https://app.conformite-securite.fr/#/admin" style="display:inline-block;background:#1a44ad;color:#fff;text-decoration:none;padding:12px 28px;border-radius:9px;font-weight:700;font-size:14px">Ouvrir l'admin \u2192 Recharger ce client</a></p>
+      </div>
+      <div style="padding:14px 24px;border-top:1px solid #eef2f7;font-size:11px;color:#94a3b8;text-align:center">PREVA CONSEILS \u2014 conformite-securite.fr \u00b7 Alerte automatique, envoy\u00e9e une fois par franchissement de seuil.</div>
+    </div></div>`;
+    await sb.functions.invoke('send-client-email',{body:{to:['contact@conformite-securite.fr'],subject:'\u26a0\ufe0f Pack SMS bient\u00f4t \u00e9puis\u00e9 \u2014 '+nomC+' ('+sold+' restants)',html}});
+  }catch(_){ }
+}
+window.smsAlerteMaybe=smsAlerteMaybe;
+/* Pastille 📱 du bandeau du haut : solde du pack, pour le client abonné (et en supervision) */
+async function smsChipRefresh(force){
+  try{
+    const el=document.getElementById('tb-sms'); if(!el) return;
+    const now=Date.now();
+    if(!force && window._smsChipAt && now-window._smsChipAt<60000) return;
+    window._smsChipAt=now;
+    const cid=window._supervision||((state.profile&&state.profile.role!=='admin'&&(state.clients||[]).length===1)?state.clients[0].id:null);
+    if(!cid){ el.style.display='none'; return; }
+    const i=await smsPackInfo(cid);
+    if(!i.pack){ el.style.display='none'; return; }
+    const col=i.solde<=10?'#f87171':(i.solde<=50?'#fbbf24':'#4ade80');
+    const n=document.getElementById('tb-sms-n');
+    if(n){ n.textContent='\ud83d\udcf1 '+i.solde; n.style.color=col; }
+    el.style.display='inline-flex';
+  }catch(_){ }
+}
+window.smsChipRefresh=smsChipRefresh;
 window.smsClientOfErp=smsClientOfErp; window.smsScopeClient=smsScopeClient;
 window.smsPackInfo=smsPackInfo; window.smsGuard=smsGuard; window.smsDebit=smsDebit;
 
@@ -5183,6 +5263,7 @@ function renderApp(){
             <svg class="sc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </div>
         </div>
+        <button id="tb-sms" class="tb-out" title="Pack SMS — solde restant (cliquer : historique SMS)" onclick="navigate('/historique-sms')" style="display:none"><b id="tb-sms-n" style="font-size:13px;font-weight:800"></b></button>
         <button class="tb-out" title="Mon compte" aria-label="Mon compte" onclick="accountModal()" style="margin-right:2px;display:inline-flex;align-items:center;gap:7px"><span id="tbAvatar" style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#93c5fd,#2563eb);background-size:cover;background-position:center;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;flex:0 0 auto;box-shadow:0 1px 4px rgba(15,23,42,.25)"></span><span>Mon compte</span></button>
         <button class="tb-out" title="Se déconnecter" aria-label="Se déconnecter" onclick="logout()">${I.out}<span>Déconnexion</span></button>
       </header>
