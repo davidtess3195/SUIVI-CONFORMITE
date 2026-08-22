@@ -6482,42 +6482,56 @@ window.cfMailChoicePick=function(radio){
   mail.value = radio.value==='__autre__' ? '' : radio.value;
   if(radio.value==='__autre__') mail.focus();
 };
+// Comparaison tolérante : majuscules/minuscules, accents et espaces multiples ignorés
+function cdNorm(s){ return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase(); }
+window.cdCheck=function(inp){
+  const ok = cdNorm(inp.value)===cdNorm(window._cdNom||'');
+  const b=document.getElementById('cd_go'); if(b) b.disabled=!ok;
+};
 window.clientDeleteModal=async function(clientId,clientNom){
+  window._cdNom=clientNom;
   openModal(`<div class="modal-head"><h2>🗑 Supprimer — ${esc(clientNom)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
-    <div class="modal-body"><div id="cd_body">${loadingBlock()}</div></div>
-    <div class="modal-foot"></div>`);
-  try{
-    const [{count:nbErps},{count:nbDocs},{count:nbRes},{count:nbUsers}]=await Promise.all([
-      sb.from('erps').select('id',{count:'exact',head:true}).eq('client_id',clientId),
-      sb.from('documents').select('id',{count:'exact',head:true}).eq('client_id',clientId),
-      sb.from('reserves').select('id, erps!inner(client_id)',{count:'exact',head:true}).eq('erps.client_id',clientId),
-      sb.from('user_clients').select('user_id',{count:'exact',head:true}).eq('client_id',clientId)
-    ]);
-    document.getElementById('cd_body').innerHTML=`
+    <div class="modal-body"><div id="cd_body">
       <div style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.35);border-radius:11px;padding:14px 16px;font-size:13.5px;line-height:1.6">
         ⚠️ <b>Suppression définitive et irréversible.</b> Seront détruits avec ce client :
         <ul style="margin:8px 0 0;padding-left:20px">
-          <li><b>${nbErps||0}</b> établissement(s) (ERP) et tout leur contenu</li>
-          <li><b>${nbDocs||0}</b> document(s) référencé(s) dans le Classeur</li>
+          <li><b id="cd_nerp">…</b> établissement(s) (ERP) et tout leur contenu</li>
+          <li><b id="cd_ndoc">…</b> document(s) référencé(s) dans le Classeur</li>
           <li>toutes leurs réserves, tableaux, comptes rendus et pointages</li>
-          ${nbUsers?`<li><b>${nbUsers}</b> compte(s) de connexion perdront tout accès</li>`:''}
+          <li id="cd_nusr" style="display:none"><b>0</b> compte(s) de connexion perdront tout accès</li>
         </ul>
       </div>
       <div style="font-size:12px;color:var(--muted);margin-top:10px">Les fichiers déjà déposés (PDF, photos) resteront dans le stockage — pense à les nettoyer séparément si besoin.</div>
-      <div class="fld" style="margin:14px 0 0"><label>Tape le nom exact du client pour confirmer : <b>${esc(clientNom)}</b></label>
-        <input id="cd_confirm" placeholder="${esc(clientNom)}" oninput="document.getElementById('cd_go').disabled=(this.value.trim()!=='${esc(clientNom).replace(/'/g,"\\'")}')"></div>`;
-    document.querySelector('.modal-foot').innerHTML=`<button class="btn" onclick="closeModal()">Annuler</button>
-      <button class="btn danger" id="cd_go" disabled onclick="clientDeleteGo('${clientId}')">Supprimer définitivement</button>`;
-  }catch(e){ document.getElementById('cd_body').innerHTML=`<span style="color:var(--critique)">Erreur : ${esc(e.message||e)}</span>`; }
+      <div class="fld" style="margin:14px 0 0"><label>Tape le nom du client pour confirmer : <b>${esc(clientNom)}</b> <span style="font-weight:400;color:var(--muted)">(majuscules et accents sans importance)</span></label>
+        <input id="cd_confirm" placeholder="${esc(clientNom)}" oninput="cdCheck(this)"></div>
+    </div></div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+      <button class="btn danger" id="cd_go" disabled onclick="clientDeleteGo('${clientId}')">Supprimer définitivement</button></div>`);
+  // Les compteurs sont purement informatifs : s'ils échouent, le bouton reste utilisable
+  try{
+    const [{count:nbErps},{count:nbDocs},{count:nbUsers}]=await Promise.all([
+      sb.from('erps').select('id',{count:'exact',head:true}).eq('client_id',clientId),
+      sb.from('documents').select('id',{count:'exact',head:true}).eq('client_id',clientId),
+      sb.from('user_clients').select('user_id',{count:'exact',head:true}).eq('client_id',clientId)
+    ]);
+    const e1=document.getElementById('cd_nerp'), e2=document.getElementById('cd_ndoc'), e3=document.getElementById('cd_nusr');
+    if(e1) e1.textContent=nbErps||0;
+    if(e2) e2.textContent=nbDocs||0;
+    if(e3 && nbUsers){ e3.style.display=''; e3.querySelector('b').textContent=nbUsers; }
+  }catch(_){ const e1=document.getElementById('cd_nerp'), e2=document.getElementById('cd_ndoc'); if(e1)e1.textContent='?'; if(e2)e2.textContent='?'; }
 };
 window.clientDeleteGo=async function(clientId){
   const btn=document.getElementById('cd_go'); btn.disabled=true; btn.textContent='Suppression…';
   try{
-    const {error}=await sb.from('clients').delete().eq('id',clientId);
+    // .select('id') : on vérifie que la ligne a réellement été supprimée (sinon erreur claire)
+    const {data:del,error}=await sb.from('clients').delete().eq('id',clientId).select('id');
     if(error) throw error;
-    toast('Client supprimé','ok');
+    if(!del||!del.length) throw new Error('La suppression n\'a rien retiré — le client a peut-être déjà été supprimé, ou vos droits ont changé. Rafraîchissez la page (F5) et réessayez.');
+    try{ await sb.from('audit_log').insert({user_id:state.user.id,user_label:(state.profile&&state.profile.nom)||'',action:'client_deleted',entite:'clients',details:{client:window._cdNom||'',mode:'bouton purger'}}); }catch(_){}
+    toast('Client supprimé définitivement','ok');
     closeModal();
-    navigate('/clients');
+    await loadScope(); if(window.fillScopeSelectors) fillScopeSelectors();
+    if((location.hash||'').indexOf('#/clients')===0) navigate('/clients'); else renderRoute();
   }catch(e){ btn.disabled=false; btn.textContent='Supprimer définitivement'; toast('Erreur : '+(e.message||e),'err'); }
 };
 window.clientUserLink=function(clientId,clientNom){
