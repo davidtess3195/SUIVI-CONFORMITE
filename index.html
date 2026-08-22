@@ -32,19 +32,21 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- Sécurité (intégrité logicielle) : bibliothèques auto-hébergées, versions figées.
+     Plus aucun script tiers au chargement — la chaîne d'approvisionnement est maîtrisée. -->
+<script src="lib-xlsx-0.18.5.full.min.js"></script>
+<script src="lib-supabase-2.112.3.min.js"></script>
+<script defer src="lib-qrcode-1.0.0.min.js"></script>
 <script>
 (function(){
   var s=document.createElement('script');
-  s.src='https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+  s.src='lib-heic2any-0.0.4.min.js';
   s.onerror=function(){window._heicLoadFailed=true;};
   document.head.appendChild(s);
 })();
 </script>
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script defer src="lib-pdf-3.11.174.min.js"></script>
+<script defer src="lib-jspdf-2.5.1.umd.min.js"></script>
 <style>
 :root{
   --bg:#eef1f6; --surface:#ffffff; --surface-2:#f6f8fb;
@@ -1501,6 +1503,15 @@ async function boot(){
 }
 
 async function afterLogin(){
+  // Sécurité : si la double authentification est activée, le code est exigé
+  // aussi à la restauration de session (retour sur l'app, rechargement de page)
+  try{
+    if(window.secMfaGate && !(await secMfaGate())){
+      await sb.auth.signOut(); state.user=null; state.profile=null;
+      renderAuth('login'); toast('Code de double authentification requis pour continuer.','err');
+      return;
+    }
+  }catch(_){}
   try{
     const _tmoA=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);
     let prof=null;
@@ -1822,9 +1833,24 @@ async function doAdminLogin(){
   btn.disabled=true;
   btn.innerHTML='<div class="spin" style="width:18px;height:18px;border-width:2px;border-color:rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite"></div>';
   err.style.display='none';
+  const lockA=secLockInfo(email);
+  if(lockA.bloque){
+    showAdmErr('Trop de tentatives — connexion verrouillée encore '+lockA.minutes+' min.');
+    btn.disabled=false;
+    btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Acc&#233;der admin';
+    return;
+  }
   try{
     const {data,error}=await sb.auth.signInWithPassword({email,password:pwd});
-    if(error) throw error;
+    if(error){ secEchec(email); throw error; }
+    secReset(email);
+    if(!(await secMfaGate())){
+      await sb.auth.signOut(); state.user=null; state.profile=null;
+      showAdmErr('Connexion annulée — le code de double authentification est requis.');
+      btn.disabled=false;
+      btn.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Acc&#233;der admin';
+      return;
+    }
     state.user=data.user;
     // Charger le profil et vérifier le rôle admin
     const {data:prof}=await sb.from('profiles').select('*').eq('id',state.user.id).single();
@@ -1879,13 +1905,182 @@ function trAuthErr(e){
 }
 window.trAuthErr=trAuthErr;
 
+/* ══════════ SÉCURITÉ — verrouillage anti-bruteforce (5 échecs / 15 min) ══════════
+   Complément côté navigateur du rate-limiting serveur de Supabase : après 5 mots de
+   passe erronés sur un même email, la connexion est verrouillée 15 minutes ici aussi,
+   avec un message clair au lieu d'un rejet silencieux. */
+const SEC_MAX_ECHECS=5, SEC_FENETRE_MS=15*60*1000;
+function secKey(email){ return 'cs_sec_'+encodeURIComponent(String(email||'').toLowerCase()); }
+function secLockInfo(email){
+  try{
+    const d=JSON.parse(localStorage.getItem(secKey(email))||'null'); if(!d) return {bloque:false,echecs:0};
+    const recents=(d.t||[]).filter(x=>Date.now()-x<SEC_FENETRE_MS);
+    if(recents.length>=SEC_MAX_ECHECS){
+      const fin=Math.min.apply(null,recents)+SEC_FENETRE_MS;
+      return {bloque:true,echecs:recents.length,minutes:Math.max(1,Math.ceil((fin-Date.now())/60000))};
+    }
+    return {bloque:false,echecs:recents.length};
+  }catch(_){ return {bloque:false,echecs:0}; }
+}
+function secEchec(email){ try{ const k=secKey(email); const d=JSON.parse(localStorage.getItem(k)||'{"t":[]}'); d.t=(d.t||[]).filter(x=>Date.now()-x<SEC_FENETRE_MS); d.t.push(Date.now()); localStorage.setItem(k,JSON.stringify(d)); }catch(_){} }
+function secReset(email){ try{ localStorage.removeItem(secKey(email)); }catch(_){} }
+
+/* ══════════ SÉCURITÉ — déconnexion automatique après 30 min d'inactivité ══════════
+   Avertissement à 28 min (« Je suis là » pour rester connecté), déconnexion à 30 min,
+   événement tracé dans le journal d'activité. */
+const SEC_INACT_MS=30*60*1000, SEC_AVERT_MS=28*60*1000;
+let _secLast=Date.now(), _secAverti=false, _secDeco=false;
+['mousemove','mousedown','keydown','touchstart','scroll'].forEach(ev=>addEventListener(ev,function(){
+  _secLast=Date.now();
+  if(_secAverti){ _secAverti=false; const b=document.getElementById('sec-inact-warn'); if(b) b.remove(); }
+},{passive:true}));
+setInterval(async function(){
+  if(!state.user||_secDeco) return;
+  const idle=Date.now()-_secLast;
+  if(idle>=SEC_INACT_MS){
+    _secDeco=true;
+    try{ await sb.from('audit_log').insert({user_id:state.user.id,user_label:(state.profile&&state.profile.nom)||'',action:'sec_deconnexion_inactivite',entite:'session',details:{minutes:Math.round(idle/60000)}}); }catch(_){}
+    try{ await sb.auth.signOut(); }catch(_){}
+    location.reload();
+  } else if(idle>=SEC_AVERT_MS && !_secAverti){
+    _secAverti=true;
+    const b=document.createElement('div'); b.id='sec-inact-warn';
+    b.style.cssText='position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:2147483000;background:#0e1b2e;color:#fff;padding:12px 18px;border-radius:12px;font-size:13.5px;box-shadow:0 8px 30px rgba(0,0,0,.35);display:flex;gap:12px;align-items:center;max-width:92vw';
+    b.innerHTML='🔒 Par sécurité, déconnexion dans 2 minutes d\'inactivité. <button class="btn sm primary" onclick="this.parentNode.remove()">Je suis là</button>';
+    document.body.appendChild(b);
+  }
+},30000);
+
+/* ══════════ SÉCURITÉ — double authentification TOTP (compte admin) ══════════
+   Activation dans « Mon compte » (QR code à scanner avec Google Authenticator ou
+   équivalent), puis code à 6 chiffres exigé à chaque connexion et à chaque
+   restauration de session tant que le niveau AAL2 n'est pas atteint. */
+window.secMfaFactors=async function(){
+  try{
+    const {data,error}=await sb.auth.mfa.listFactors();
+    if(error||!data) return {verified:[],all:[]};
+    const all=data.all||[];
+    return {verified:all.filter(f=>f.status==='verified'&&f.factor_type==='totp'), all};
+  }catch(_){ return {verified:[],all:[]}; }
+};
+window.secMfaGate=async function(){
+  try{
+    if(window._mfaOk) return true;
+    const {data,error}=await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+    if(error||!data) return true;
+    if(data.nextLevel==='aal2'&&data.currentLevel!==data.nextLevel){
+      const {verified}=await secMfaFactors();
+      if(!verified.length) return true;
+      const ok=await secMfaAsk(verified[0].id);
+      if(ok) window._mfaOk=true;
+      return ok;
+    }
+    window._mfaOk=true;
+    return true;
+  }catch(_){ return true; }
+};
+window.secMfaAsk=function(factorId){
+  return new Promise(function(res){
+    const old=document.getElementById('mfa_ov'); if(old) old.remove();
+    const ov=document.createElement('div'); ov.id='mfa_ov';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(8,15,30,.72);z-index:2147483200;display:grid;place-items:center;padding:20px';
+    ov.innerHTML='<div style="background:#fff;border-radius:16px;padding:26px 28px;max-width:370px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)">'
+      +'<div style="font-size:34px">🔐</div>'
+      +'<h3 style="font-size:17px;margin:8px 0 4px;color:#0f172a">Double authentification</h3>'
+      +'<p style="font-size:13px;color:#64748b;margin:0 0 14px">Saisis le code à 6 chiffres affiché par ton application d\'authentification.</p>'
+      +'<input id="mfa_in" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" style="width:100%;text-align:center;font-size:24px;letter-spacing:8px;padding:10px;border:1px solid #e2e8f0;border-radius:10px;color:#0f172a">'
+      +'<div id="mfa_err" style="color:#dc2626;font-size:12px;min-height:16px;margin-top:6px"></div>'
+      +'<div style="display:flex;gap:8px;margin-top:10px">'
+      +'<button class="btn" style="flex:1" id="mfa_cancel">Annuler</button>'
+      +'<button class="btn primary" style="flex:1" id="mfa_go">Valider</button>'
+      +'</div></div>';
+    document.body.appendChild(ov);
+    const done=v=>{ ov.remove(); res(v); };
+    ov.querySelector('#mfa_cancel').onclick=function(){ done(false); };
+    const go=async function(){
+      const code=(ov.querySelector('#mfa_in').value||'').trim();
+      if(!/^\d{6}$/.test(code)){ ov.querySelector('#mfa_err').textContent='6 chiffres attendus.'; return; }
+      try{
+        const {data:ch,error:e1}=await sb.auth.mfa.challenge({factorId:factorId}); if(e1) throw e1;
+        const {error:e2}=await sb.auth.mfa.verify({factorId:factorId,challengeId:ch.id,code:code}); if(e2) throw e2;
+        done(true);
+      }catch(e){ ov.querySelector('#mfa_err').textContent='Code incorrect — réessaie.'; ov.querySelector('#mfa_in').value=''; ov.querySelector('#mfa_in').focus(); }
+    };
+    ov.querySelector('#mfa_go').onclick=go;
+    ov.querySelector('#mfa_in').addEventListener('keydown',function(e){ if(e.key==='Enter') go(); });
+    setTimeout(function(){ const i=ov.querySelector('#mfa_in'); if(i) i.focus(); },60);
+  });
+};
+window.secMfaBlock=async function(){
+  const box=document.getElementById('mfa_box'); if(!box) return;
+  const r=await secMfaFactors();
+  if(r.verified.length){
+    box.innerHTML='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="color:#16a34a;font-weight:700;font-size:13px">✅ Activée</span>'
+      +'<span style="font-size:12px;color:var(--muted)">Un code à 6 chiffres est exigé à chaque connexion.</span>'
+      +'<button class="btn sm danger" style="margin-left:auto" onclick="secMfaOff(\''+r.verified[0].id+'\')">Désactiver</button></div>';
+  } else {
+    box.innerHTML='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="color:#b45309;font-weight:700;font-size:13px">Désactivée</span>'
+      +'<span style="font-size:12px;color:var(--muted)">Code à 6 chiffres via une application (Google Authenticator, Microsoft Authenticator…).</span>'
+      +'<button class="btn sm primary" style="margin-left:auto" onclick="secMfaOn()">Activer</button></div>';
+  }
+};
+window.secMfaOn=async function(){
+  const box=document.getElementById('mfa_box'); if(!box) return;
+  box.innerHTML='<span style="color:var(--muted);font-size:12.5px">Préparation…</span>';
+  try{
+    const r=await secMfaFactors();
+    for(const f of r.all){ if(f.status!=='verified'){ try{ await sb.auth.mfa.unenroll({factorId:f.id}); }catch(_){} } }
+    const {data,error}=await sb.auth.mfa.enroll({factorType:'totp',friendlyName:'PREVA CONSEILS'});
+    if(error) throw error;
+    const qr=(data.totp&&data.totp.qr_code)||'';
+    const qrHtml=qr.indexOf('data:')===0?'<img src="'+qr+'" style="width:170px;height:170px;border:1px solid var(--line);border-radius:10px;background:#fff">'
+      :'<div style="width:170px;height:170px;border:1px solid var(--line);border-radius:10px;background:#fff;overflow:hidden">'+qr+'</div>';
+    box.innerHTML='<div style="text-align:center">'
+      +'<p style="font-size:12.5px;color:var(--muted);margin:0 0 10px;text-align:left">1. Scanne ce QR code avec ton application d\'authentification<br>2. Saisis le code à 6 chiffres qu\'elle affiche</p>'
+      +'<div style="display:flex;justify-content:center">'+qrHtml+'</div>'
+      +'<div style="font-size:10.5px;color:var(--muted);margin:8px 0;word-break:break-all">Clé manuelle : <b>'+esc((data.totp&&data.totp.secret)||'')+'</b></div>'
+      +'<div style="display:flex;gap:8px;justify-content:center;align-items:center">'
+      +'<input id="mfa_code" inputmode="numeric" maxlength="6" placeholder="123456" style="width:120px;text-align:center;font-size:17px;letter-spacing:4px;padding:8px;border:1px solid var(--line);border-radius:9px">'
+      +'<button class="btn sm primary" onclick="secMfaOnVerify(\''+data.id+'\')">Confirmer</button>'
+      +'<button class="btn sm" onclick="secMfaBlock()">Annuler</button>'
+      +'</div></div>';
+  }catch(e){ box.innerHTML='<span style="color:var(--critique);font-size:12.5px">Double authentification indisponible : '+esc(e.message||String(e))+'</span>'; }
+};
+window.secMfaOnVerify=async function(factorId){
+  const code=(document.getElementById('mfa_code')&&document.getElementById('mfa_code').value||'').trim();
+  if(!/^\d{6}$/.test(code)){ toast('Code : 6 chiffres attendus','err'); return; }
+  try{
+    const {data:ch,error:e1}=await sb.auth.mfa.challenge({factorId:factorId}); if(e1) throw e1;
+    const {error:e2}=await sb.auth.mfa.verify({factorId:factorId,challengeId:ch.id,code:code}); if(e2) throw e2;
+    window._mfaOk=true;
+    try{ await sb.from('audit_log').insert({user_id:state.user.id,user_label:(state.profile&&state.profile.nom)||'',action:'sec_mfa_activee',entite:'session',details:{}}); }catch(_){}
+    toast('Double authentification activée ✅','ok');
+    secMfaBlock();
+  }catch(e){ toast('Code incorrect — réessaie.','err'); }
+};
+window.secMfaOff=async function(factorId){
+  try{
+    const {error}=await sb.auth.mfa.unenroll({factorId:factorId}); if(error) throw error;
+    try{ await sb.from('audit_log').insert({user_id:state.user.id,user_label:(state.profile&&state.profile.nom)||'',action:'sec_mfa_desactivee',entite:'session',details:{}}); }catch(_){}
+    toast('Double authentification désactivée','ok');
+    secMfaBlock();
+  }catch(e){ toast(e.message||String(e),'err'); }
+};
+
 async function doAuth(mode,btn){
   const email=$('#email')?.value.trim(), pwd=$('#pwd')?.value, nom=$('#nom')?.value.trim(), prenom=$('#prenom')?.value.trim();
   btn.disabled=true; const old=btn.textContent; btn.textContent='…';
   try{
     if(mode==='login'){
+      const lock=secLockInfo(email);
+      if(lock.bloque) throw {message:'Trop de tentatives — connexion verrouillée encore '+lock.minutes+' min. Réessaie plus tard ou utilise « Mot de passe oublié ? ».'};
       const {error}=await sb.auth.signInWithPassword({email,password:pwd});
-      if(error) throw error;
+      if(error){ secEchec(email); throw error; }
+      secReset(email);
+      if(!(await secMfaGate())){
+        await sb.auth.signOut();
+        throw {message:'Connexion annulée — le code de double authentification est requis.'};
+      }
       const {data}=await sb.auth.getSession(); state.user=data.session.user; await afterLogin();
     } else if(mode==='signup'){
       if(!prenom) throw {message:'Merci de saisir ton prénom.'};
@@ -1930,10 +2125,13 @@ window.accountModal=function(){
         <input type="password" id="ac_p1" autocomplete="new-password" placeholder="12 caractères minimum"></div>
       <div class="fld" style="margin-bottom:0"><label>Confirmer le nouveau mot de passe</label>
         <input type="password" id="ac_p2" autocomplete="new-password" placeholder="Répète le même mot de passe"></div>
+      ${state.profile&&state.profile.role==='admin'?`<div class="fld" style="margin:14px 0 0"><label>🔐 Double authentification</label>
+        <div id="mfa_box" style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 13px;font-size:13px;color:var(--muted)">Chargement…</div></div>`:''}
       <div id="ac_msg" style="font-size:12.5px;margin-top:10px"></div>
     </div>
     <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
       <button class="btn primary" id="ac_go" onclick="accountSavePwd()">Enregistrer le nouveau mot de passe</button></div>`);
+  setTimeout(()=>{ if(document.getElementById('mfa_box')) secMfaBlock(); },80);
   setTimeout(async()=>{ const el=document.getElementById('acAvatar'); if(!el) return; el.textContent=accInitiales();
     const path=state.profile&&state.profile.photo_path;
     if(path){ try{ const {data}=await sb.storage.from('documents').createSignedUrl(path,3600);
@@ -2208,8 +2406,8 @@ function ensureHeicLib(){
   return new Promise((resolve)=>{
     if(window.heic2any) return resolve(window.heic2any);
     const cdns=[
+      'lib-heic2any-0.0.4.min.js',
       'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js',
-      'https://unpkg.com/heic2any@0.0.4/dist/heic2any.min.js',
       'https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.4/heic2any.min.js'
     ];
     let idx=0;
@@ -2307,7 +2505,7 @@ async function compressPdf(file, qualite=0.78, dpi=110){
     const pdfjsLib = window['pdfjs-dist/build/pdf'];
     if(!pdfjsLib){ console.warn('PDF.js non chargé'); return file; }
     pdfjsLib.GlobalWorkerOptions.workerSrc =
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      'lib-pdf-3.11.174.worker.min.js';
 
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
@@ -10263,7 +10461,7 @@ function dataUrlToImg(dataUrl){
 }
 async function pdfFileToImages(file){
   const pdfjsLib=window['pdfjs-dist/build/pdf']; if(!pdfjsLib) return [];
-  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  pdfjsLib.GlobalWorkerOptions.workerSrc='lib-pdf-3.11.174.worker.min.js';
   const buf=await file.arrayBuffer();
   const pdf=await pdfjsLib.getDocument({data:buf}).promise;
   const out=[]; const maxPages=Math.min(pdf.numPages,15);
@@ -14819,7 +15017,7 @@ window._loadTesseract=function(){
   return new Promise((res,rej)=>{
     if(window.Tesseract) return res();
     const s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.0/tesseract.min.js';
+    s.src='lib-tesseract-5.1.0.min.js';
     s.onload=()=>res(); s.onerror=()=>rej(new Error('chargement OCR impossible'));
     document.head.appendChild(s);
   });
@@ -21651,7 +21849,7 @@ async function dlPrestDoc(path, download=false){
     // Visionneuse PDF.js
     const pdfjsLib=window['pdfjs-dist/build/pdf'];
     if(!pdfjsLib){ window.open(url,'_blank'); return; }
-    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    pdfjsLib.GlobalWorkerOptions.workerSrc='lib-pdf-3.11.174.worker.min.js';
 
     openModal(`<div class="modal-head" style="padding:12px 16px;gap:10px">
       <h2 style="font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px">${esc(nom)}</h2>
