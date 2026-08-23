@@ -2384,26 +2384,36 @@ function acStyle(){ if(document.getElementById('ac-style'))return; const st=docu
 .ac-head h2{font-size:16px;margin:0;font-weight:800;letter-spacing:-.2px}
 .ac-head h2 small{display:block;font-size:11px;color:var(--muted);font-weight:500;margin-top:1px}
 .ac-head .sp{flex:1}
-.ac-kpis{display:flex;gap:9px;flex-wrap:wrap;padding:13px 16px 4px}
-.ac-kpi{flex:1;min-width:104px;background:var(--surface-2,#f6f8fb);border:1px solid var(--line);border-radius:11px;padding:9px 12px}
-.ac-kpi b{font-size:18px;display:block;line-height:1.1}
-.ac-kpi small{font-size:10.5px;color:var(--muted)}
-.ac-kpi.warn{border-color:#fde68a;background:#fffbeb}.ac-kpi.warn b{color:#b45309}
-.ac-mxwrap{overflow-x:auto;margin:12px 16px 16px;border:1px solid var(--line);border-radius:13px}
-table.acmx{border-collapse:collapse;width:100%;min-width:520px}
+.ac-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:13px 16px 2px}
+.ac-kpi{display:flex;align-items:center;gap:11px;background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:11px 13px;box-shadow:0 1px 3px rgba(15,23,42,.04)}
+.ac-kpi .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;flex:0 0 auto;background:#eef4ff}
+.ac-kpi .ic svg{width:18px;height:18px;stroke:#2563eb;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ac-kpi b{font-size:19px;display:block;line-height:1.05;letter-spacing:-.3px}
+.ac-kpi small{font-size:10.5px;color:var(--muted);font-weight:600}
+.ac-tables{padding:12px 16px 16px;display:flex;flex-direction:column;gap:12px}
+.ac-mxwrap{overflow-x:auto;border:1px solid var(--line);border-radius:13px}
+table.acmx{border-collapse:collapse;width:100%;min-width:460px}
 table.acmx th,table.acmx td{padding:0;text-align:center}
-table.acmx thead th{background:var(--surface-2,#f6f8fb);border-bottom:1px solid var(--line);padding:10px 8px;vertical-align:bottom}
+table.acmx thead th{background:var(--surface-2,#f6f8fb);border-bottom:1px solid var(--line);padding:13px 8px;vertical-align:bottom}
+table.acmx thead th:not(.corner){width:150px}
 table.acmx thead th.corner{text-align:left;font-size:10px;font-weight:800;letter-spacing:.05em;color:var(--muted);text-transform:uppercase;position:sticky;left:0;z-index:2;background:var(--surface-2,#f6f8fb)}
-.ac-bcol{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:84px}
-.ac-bcol .bi{width:30px;height:30px;border-radius:9px;background:#eef4ff;display:grid;place-items:center}
-.ac-bcol .bi svg{width:15px;height:15px;stroke:#2563eb;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.ac-bcol b{font-size:11px;line-height:1.2;max-width:92px}
+.ac-bcol{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:110px}
+.ac-bcol .bi{width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,#eef4ff,#dbe9ff);display:grid;place-items:center;box-shadow:inset 0 0 0 1px #d6e4ff}
+.ac-bcol .bi svg{width:24px;height:24px;stroke:#2563eb;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ac-bcol b{font-size:12.5px;line-height:1.25;max-width:138px}
+.ac-bghost{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:110px;cursor:pointer;opacity:.85}
+.ac-bghost:hover{opacity:1}
+.ac-bghost .bi{width:46px;height:46px;border-radius:13px;border:2px dashed #b9cdf2;background:#f8fbff;display:grid;place-items:center}
+.ac-bghost .bi svg{width:20px;height:20px;stroke:#7fa3e8;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.ac-bghost b{font-size:11.5px;color:#5b81c9;font-weight:700;line-height:1.25}
+.ac-bghost small{font-size:10px;color:var(--muted-2,#94a3b8)}
+td.ac-gcell{border-left:1px solid var(--line-2,#eef2f7);background:repeating-linear-gradient(45deg,#fafcff,#fafcff 7px,#f3f7fd 7px,#f3f7fd 14px) !important}
 table.acmx tbody tr{border-bottom:1px solid var(--line-2,#eef2f7);cursor:pointer}
 table.acmx tbody tr:last-child{border-bottom:none}
 table.acmx tbody tr:hover td{background:#f0f6ff}
 td.ac-who{text-align:left;padding:8px 11px;position:sticky;left:0;background:var(--surface);z-index:1;border-right:1px solid var(--line)}
 table.acmx tbody tr:hover td.ac-who{background:#f0f6ff}
-.ac-acct{display:flex;align-items:center;gap:9px;min-width:186px}
+.ac-acct{display:flex;align-items:center;gap:9px;min-width:186px;max-width:430px}
 .ac-acct .info b{font-size:12.5px;display:block;line-height:1.2}
 .ac-acct .info small{font-size:10.5px;color:var(--muted)}
 .ac-rr{font-size:9px;font-weight:800;border-radius:99px;padding:2px 7px;white-space:nowrap;margin-left:auto}
@@ -2415,9 +2425,43 @@ td.ac-cell{border-left:1px solid var(--line-2,#eef2f7)}
 .ac-no{color:#cbd5e1;font-size:15px}
 tr.ac-all td.ac-cell,tr.ac-all td.ac-who{background:#f0f6ff}
 table.acmx tbody tr.ac-all:hover td{background:#e6f0ff}
-.ac-legend{display:flex;gap:14px;flex-wrap:wrap;padding:0 16px 15px;font-size:11.5px;color:var(--muted)}
-.ac-legend span{display:inline-flex;align-items:center;gap:5px}
-.ac-legend .ac-mark{width:19px;height:19px;font-size:9px}
+/* ── explications sous le tableau (comme la maquette) ── */
+.ac-sect{border-top:1px solid var(--line);padding:15px 16px}
+.ac-sect h3{font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin:0 0 11px}
+.ac-help{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
+.ac-hcard{display:flex;gap:11px;align-items:flex-start}
+.ac-hcard .n{width:26px;height:26px;border-radius:8px;background:#eef4ff;color:#2563eb;display:grid;place-items:center;font-weight:800;font-size:12px;flex:0 0 auto}
+.ac-hcard b.t{font-size:12.5px;display:block;color:var(--ink)}
+.ac-hcard small{font-size:11.5px;color:var(--muted);line-height:1.55}
+.ac-hcard small b{display:inline;color:#334155}
+.ac-lgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px 22px}
+.ac-it{display:flex;gap:10px;align-items:flex-start;font-size:12.5px;line-height:1.5}
+.ac-it .ac-mark{width:24px;height:24px;font-size:10px;flex:0 0 auto}
+.ac-it b{color:var(--ink)}.ac-it span{color:var(--muted)}
+.ac-swatch{width:24px;height:16px;border-radius:5px;background:#f0f6ff;border:1px solid #bfdbfe;flex:0 0 auto;margin-top:2px}
+.ac-dash{width:24px;text-align:center;color:#cbd5e1;font-size:15px;flex:0 0 auto}
+.ac-steps{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;margin-top:4px}
+.ac-step{display:flex;gap:9px;font-size:12.5px;line-height:1.5;color:var(--ink)}
+.ac-step .n{width:19px;height:19px;border-radius:50%;background:#2563eb;color:#fff;font-weight:800;font-size:10px;display:grid;place-items:center;flex:0 0 auto;margin-top:1px}
+/* ── responsive ── */
+.ac-fiche-grid{display:grid;grid-template-columns:200px 1fr;gap:20px}
+@media(max-width:760px){.ac-help{grid-template-columns:1fr}.ac-fiche-grid{grid-template-columns:1fr}}
+@media(max-width:640px){
+  .ac-lgrid,.ac-steps{grid-template-columns:1fr}
+  .ac-kpis{padding:11px 12px 2px;grid-template-columns:1fr 1fr;gap:8px}
+  .ac-kpi{padding:9px 11px;gap:9px}.ac-kpi .ic{width:31px;height:31px}.ac-kpi b{font-size:17px}
+  .ac-tables{padding:10px 12px 13px;gap:10px}.ac-sect{padding:13px 12px}
+  .ac-bcol{min-width:88px}.ac-bcol .bi{width:38px;height:38px}.ac-bcol .bi svg{width:19px;height:19px}.ac-bcol b{font-size:11px;max-width:100px}
+  .ac-bghost{min-width:88px}.ac-bghost .bi{width:38px;height:38px}.ac-bghost b{font-size:10.5px}
+  .ac-head{padding:12px 12px}.ac-head .sp{flex:1 1 100%;height:0}
+  .ac-head .btn{flex:1}
+  table.acmx{min-width:0}
+  table.acmx thead th:not(.corner){width:100px}
+  .ac-acct{min-width:0;max-width:none}
+  .ac-acct .info b{font-size:12px}
+  .ac-rr{display:none}
+
+}
 /* dropzone photo (fiche) */
 .ac-dz{border:2px dashed #bcd0f5;border-radius:16px;background:#f7faff;padding:16px;text-align:center;transition:.15s;cursor:pointer}
 .ac-dz.drag{border-color:#2563eb;background:#eaf2ff;box-shadow:0 0 0 4px rgba(37,99,235,.1)}
@@ -2466,40 +2510,76 @@ function acRenderMatrix(){
   const nSusp=accs.filter(a=>a.statut&&a.statut!=='actif').length;
   const nPhoto=accs.filter(a=>a.photo_path).length;
   const bICON='<svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M10 21v-4h4v4"/></svg>';
-  const thead=`<tr><th class="corner">Compte \\ Bâtiment</th>${erps.map(e=>`<th><div class="ac-bcol"><span class="bi">${bICON}</span><b>${esc(e.nom)}</b></div></th>`).join('')||'<th style="padding:10px 14px;color:var(--muted);font-weight:600;font-size:12px">Aucun bâtiment</th>'}</tr>`;
-  const rowHtml=a=>{
+  /* Groupes de 3 bâtiments : 3 emplacements toujours en place, la suite s'inscrit en dessous. */
+  const groups=[]; for(let i=0;i<erps.length;i+=3) groups.push(erps.slice(i,i+3));
+  if(!groups.length) groups.push([]);
+  const ghostTh=`<th><div class="ac-bghost" onclick="event.stopPropagation();acAddBat()"><span class="bi"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><b>Ajouter un<br>bâtiment</b><small>emplacement libre</small></div></th>`;
+  const rowHtml=(a,ge,nGhost)=>{
     const ri=acRoleInfo(a.role); const susp=a.statut&&a.statut!=='actif';
     const setE=new Set(a.erp_ids||[]);
-    const cells=erps.length?erps.map(e=>`<td class="ac-cell">${setE.has(e.id)?`<span class="ac-mark ${ri.cls}"${susp?' style="opacity:.5"':''}>${ri.l}</span>`:'<span class="ac-no">—</span>'}</td>`).join(''):'<td class="ac-cell"><span class="ac-no">—</span></td>';
+    const cells=ge.map(e=>`<td class="ac-cell">${setE.has(e.id)?`<span class="ac-mark ${ri.cls}"${susp?' style="opacity:.5"':''}>${ri.l}</span>`:'<span class="ac-no">—</span>'}</td>`).join('')+'<td class="ac-gcell"></td>'.repeat(nGhost);
     const sub=susp?'suspendu':(a.client_wide?'tous les bâtiments':((a.erp_ids||[]).length+' bâtiment'+((a.erp_ids||[]).length>1?'s':'')));
-    return `<tr class="${a.client_wide?'ac-all':''}${susp?' ac-susp':''}" onclick="acOpenFiche('${a.id}')"><td class="ac-who"><div class="ac-acct">${acAvatar(a,34,{cam:true})}<div class="info"><b>${esc(a.nom||a.email||'—')}</b><small>${esc(sub)}</small></div><span class="ac-rr ${ri.rr}">${esc(ri.lab)}</span></div></td>${cells}</tr>`;
+    return `<tr class="${a.client_wide?'ac-all':''}${susp?' ac-susp':''}" onclick="acOpenFiche('${a.id}')"><td class="ac-who"><div class="ac-acct">${acAvatar(a,48,{cam:true})}<div class="info"><b>${esc(a.nom||a.email||'—')}</b><small>${esc(sub)}</small></div><span class="ac-rr ${ri.rr}">${esc(ri.lab)}</span></div></td>${cells}</tr>`;
   };
+  const tablesHtml=groups.map((g,gi)=>{
+    const last=gi===groups.length-1;
+    const nGhost=last?Math.max(0,3-g.length):0;
+    const corner=groups.length>1?(g.length>1?`Bâtiments ${gi*3+1} à ${gi*3+g.length}`:`Bâtiment ${gi*3+1}`):'Compte \\ Bâtiment';
+    const thead=`<tr><th class="corner">${corner}</th>${g.map(e=>`<th><div class="ac-bcol"><span class="bi">${bICON}</span><b>${esc(e.nom)}</b></div></th>`).join('')}${ghostTh.repeat(nGhost)}</tr>`;
+    const body=accs.length?accs.map(a=>rowHtml(a,g,nGhost)).join('')
+      :`<tr><td colspan="${g.length+nGhost+1}" style="padding:20px;text-align:center;color:var(--muted);font-size:13px;cursor:default">Aucun compte de connexion. Cliquez sur « Créer un compte ».</td></tr>`;
+    return `<div class="ac-mxwrap"><table class="acmx"><thead>${thead}</thead><tbody>${body}</tbody></table></div>`;
+  }).join('');
   box.innerHTML=`<div class="ac-card">
     <div class="ac-head"><span class="ic"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></span>
       <div><h2>Accès &amp; comptes<small>Qui peut se connecter, à quels bâtiments</small></h2></div>
       <div class="sp"></div>
-      <button class="btn sm" onclick="event.stopPropagation();navigate('/erps')"><svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2.2;vertical-align:-2px"><path d="M12 5v14M5 12h14"/></svg> Bâtiment</button>
+      <button class="btn sm" onclick="event.stopPropagation();acAddBat()"><svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2.2;vertical-align:-2px"><path d="M12 5v14M5 12h14"/></svg> Bâtiment</button>
       <button class="btn primary sm" onclick="event.stopPropagation();acCreateAccount()">＋ Créer un compte</button>
     </div>
     <div class="ac-kpis">
-      <div class="ac-kpi"><b>${erps.length}</b><small>bâtiment${erps.length>1?'s':''}</small></div>
-      <div class="ac-kpi"><b>${nActifs}</b><small>compte${nActifs>1?'s':''} actif${nActifs>1?'s':''}</small></div>
-      <div class="ac-kpi"><b>${nWide}</b><small>accès « tous bâtiments »</small></div>
-      ${nSusp?`<div class="ac-kpi warn"><b>${nSusp}</b><small>suspendu${nSusp>1?'s':''}</small></div>`:`<div class="ac-kpi"><b>${nPhoto}</b><small>photo${nPhoto>1?'s':''}</small></div>`}
+      <div class="ac-kpi"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M10 21v-4h4v4"/></svg></span><div><b>${erps.length}</b><small>Bâtiment${erps.length>1?'s':''}</small></div></div>
+      <div class="ac-kpi"><span class="ic"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><div><b>${nActifs}</b><small>Compte${nActifs>1?'s':''} actif${nActifs>1?'s':''}</small></div></div>
+      <div class="ac-kpi"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span><div><b>${nWide}</b><small>Accès tous bâtiments</small></div></div>
+      ${nSusp?`<div class="ac-kpi"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M10 9v6M14 9v6"/></svg></span><div><b>${nSusp}</b><small>Compte${nSusp>1?'s':''} suspendu${nSusp>1?'s':''}</small></div></div>`
+        :`<div class="ac-kpi"><span class="ic"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span><div><b>${nPhoto}</b><small>Photo${nPhoto>1?'s':''} renseignée${nPhoto>1?'s':''}</small></div></div>`}
     </div>
-    <div class="ac-mxwrap"><table class="acmx"><thead>${thead}</thead><tbody>
-      ${accs.length?accs.map(rowHtml).join(''):`<tr><td colspan="${erps.length+1}" style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Aucun compte de connexion. Cliquez sur « Créer un compte ».</td></tr>`}
-    </tbody></table></div>
-    <div class="ac-legend">
-      <span><span class="ac-mark ac-m-exp">E</span> Exploitant (modifie)</span>
-      <span><span class="ac-mark ac-m-lec">L</span> Lecture seule</span>
-      <span><span class="ac-mark ac-m-adm">S</span> Superviseur PREVA</span>
-      <span><span class="ac-no" style="font-size:14px">—</span> Pas d'accès</span>
-      <span>Ligne bleutée = tous les bâtiments · grisée = suspendu</span>
+    <div class="ac-tables">${tablesHtml}</div>
+    <div class="ac-sect"><h3>Comment ça marche</h3>
+      <div class="ac-help">
+        <div class="ac-hcard"><span class="n">1</span><div><b class="t">Un compte = une connexion</b><small>Chaque personne qui doit accéder à l'appli a son identifiant (email + mot de passe). Jamais de compte partagé.</small></div></div>
+        <div class="ac-hcard"><span class="n">2</span><div><b class="t">Un rôle = ce qu'elle peut faire</b><small><b>Exploitant</b> : gère (écrit). <b>Lecture</b> : consulte seulement. Choisi à la création, modifiable ensuite.</small></div></div>
+        <div class="ac-hcard"><span class="n">3</span><div><b class="t">Un accès = où elle peut aller</b><small>Tous vos bâtiments, ou un seul (ex. un directeur limité à son établissement).</small></div></div>
+      </div>
+    </div>
+    <div class="ac-sect"><h3>Comment lire le tableau</h3>
+      <div class="ac-lgrid">
+        <div class="ac-it"><span class="ac-mark ac-m-exp">E</span><div><b>Exploitant</b> — <span>peut consulter <b>et modifier</b> (interventions, documents, réserves…).</span></div></div>
+        <div class="ac-it"><span class="ac-mark ac-m-lec">L</span><div><b>Lecture seule</b> — <span>peut tout <b>consulter</b> mais rien modifier.</span></div></div>
+        <div class="ac-it"><span class="ac-mark ac-m-adm">S</span><div><b>Superviseur PREVA</b> — <span>votre bureau d'études, présent sur tous les bâtiments.</span></div></div>
+        <div class="ac-it"><span class="ac-dash">—</span><div><b>Pas d'accès</b> — <span>ce compte ne voit pas ce bâtiment.</span></div></div>
+        <div class="ac-it"><span class="ac-swatch"></span><div><b>Ligne bleutée</b> — <span>accès à <b>tous</b> les bâtiments.</span></div></div>
+        <div class="ac-it"><span class="ac-mark ac-m-lec" style="opacity:.5">L</span><div><b>Ligne grisée</b> — <span>compte <b>suspendu</b> : accès coupé sans suppression.</span></div></div>
+      </div>
+    </div>
+    <div class="ac-sect"><h3>Où et comment créer un compte</h3>
+      <p style="font-size:12.5px;color:var(--muted);line-height:1.6;margin:0 0 4px">Le bouton <b style="color:var(--ink)">« ＋ Créer un compte »</b> est en haut à droite du tableau. Un directeur, un responsable maintenance, un agent d'accueil… la personne reçoit ses identifiants et apparaît dans le tableau. La photo s'ajoute ensuite depuis sa fiche (cliquez sa ligne) : glisser-déposer ou 📷.</p>
+      <div class="ac-steps">
+        <div class="ac-step"><span class="n">1</span><div>Cliquez sur <b>« Créer un compte »</b>.</div></div>
+        <div class="ac-step"><span class="n">2</span><div>Renseignez <b>nom + email</b> et le mot de passe provisoire.</div></div>
+        <div class="ac-step"><span class="n">3</span><div>Choisissez le <b>rôle</b> et les <b>bâtiments</b> (tous, ou choisis).</div></div>
+        <div class="ac-step"><span class="n">4</span><div>Validez : la personne apparaît dans le tableau — ajoutez sa <b>photo</b> depuis sa fiche.</div></div>
+      </div>
     </div>
   </div>`;
 }
 window.acRenderMatrix=acRenderMatrix;
+/* Emplacement libre / bouton Bâtiment : ouvre directement la création d'ERP pour ce client */
+window.acAddBat=function(){
+  const D=window._acData||{};
+  if(typeof window.formErp==='function'&&D.clientId) formErp(null,D.clientId);
+  else navigate('/erps');
+};
 
 /* ─── recadrage carré côté navigateur → dataURL JPEG ─── */
 async function acSquareDataUrl(file, size=512){
@@ -2551,7 +2631,7 @@ window.acOpenFiche=function(userId){
   const pwd0=(Math.random().toString(36).slice(2,6)+Math.random().toString(36).slice(2,6)+'-'+Math.random().toString(36).slice(2,6)).replace(/[^a-z0-9-]/gi,'');
   openModal(`<div class="modal-head"><h2>Fiche — ${esc(a.nom||a.email||'')}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
     <div class="modal-body">
-      <div style="display:grid;grid-template-columns:200px 1fr;gap:20px" class="ac-fiche-grid">
+      <div class="ac-fiche-grid">
         <div>
           <label style="display:block;font-size:11.5px;font-weight:700;color:#475569;margin-bottom:5px">Photo</label>
           ${editable?`<div id="ac_dz" class="ac-dz" ondragover="acDzOver(event,1)" ondragleave="acDzOver(event,0)" ondrop="acDzDrop(event,'${a.id}')" onclick="acDzPick('${a.id}')">
