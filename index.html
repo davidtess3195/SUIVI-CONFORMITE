@@ -12955,7 +12955,7 @@ function formDoc(prefiles){
     <div class="row2"><div class="fld"><label>Prestataire <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel)</span></label><select id="f_prest" onchange="docDateSugg()"><option value="">— (optionnel) —</option>${(window._gedPrest||[]).map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select></div>
       <div class="fld"><label id="f_date_lbl">Date du document <span style="color:var(--muted-2);font-weight:400;font-size:11px">(date réelle)</span></label><input id="f_date" type="date" value="${new Date().toISOString().slice(0,10)}">
         <div id="f_date_sugg" style="display:none;margin-top:7px"></div></div></div>
-    <div class="fld" id="f_avis_zone" style="display:none"><label>Avis de la commission</label><select id="f_avis"><option value="">— non précisé —</option><option>Favorable</option><option>Favorable avec prescriptions</option><option>Défavorable</option><option>Avis différé</option></select></div>
+    <div class="fld" id="f_avis_zone" style="display:none"><label id="f_avis_lbl">Avis de la commission</label><select id="f_avis"><option value="">— non précisé —</option><option>Favorable</option><option>Favorable avec prescriptions</option><option>Défavorable</option><option>Avis différé</option></select></div>
     <div id="f_pvsuivi_zone" style="display:none;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface-2)">
       <div style="font-size:12.5px;font-weight:600;margin-bottom:8px">🧾 Suivi du PV de réception de travaux</div>
       <div class="row2">
@@ -13109,7 +13109,22 @@ window.docPreviewFile=function(i){
 };
 window.docTypeChange=function(){
   const t=$('#f_type')?.value; const z=document.getElementById('f_avis_zone');
-  if(z) z.style.display=(t==='PV commission'||t==='RVRAT'||t==='RVRE')?'':'none';
+  const isVerif=(t==='RVRAT'||t==='RVRE');
+  if(z) z.style.display=(t==='PV commission'||isVerif)?'':'none';
+  // Le champ « avis » change de nature selon le type : avis de commission vs remarque de vérification
+  const avLbl=document.getElementById('f_avis_lbl'), avSel=document.getElementById('f_avis');
+  if(avLbl&&avSel){
+    const cur=avSel.value;
+    if(isVerif){
+      avLbl.textContent='Remarque';
+      avSel.innerHTML='<option value="">— non précisé —</option><option>Remarque</option>';
+    }else{
+      avLbl.textContent='Avis de la commission';
+      avSel.innerHTML='<option value="">— non précisé —</option><option>Favorable</option><option>Favorable avec prescriptions</option><option>Défavorable</option><option>Avis différé</option>';
+    }
+    // conserver la sélection si elle existe encore dans la nouvelle liste
+    if([...avSel.options].some(o=>o.value===cur||o.text===cur)) avSel.value=cur;
+  }
   // Zone « suivi PV de réception » : uniquement pour les devis signés
   const pz=document.getElementById('f_pvsuivi_zone');
   if(pz) pz.style.display=(catFromType(t)==='devis_signe')?'':'none';
