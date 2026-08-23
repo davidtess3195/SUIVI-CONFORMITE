@@ -2342,6 +2342,7 @@ async function viewOrganisation(c){
         ${mentionsOk?`<span style="display:inline-flex;align-items:center;gap:6px;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700">✓ Mentions complètes — courriers conformes</span>`:''}
       </div>
     </div>
+    ${(state.profile&&(state.profile.role==='admin'||state.profile.role==='exploitant'))?`<div id="ac-section" style="margin-bottom:18px">${loadingBlock()}</div>`:''}
     ${tetes.map(t=>`
       <div style="font-size:10.5px;font-weight:800;letter-spacing:.1em;color:var(--muted);margin:0 0 7px">${esc(t.fonction.toUpperCase())}</div>
       <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px">
@@ -2365,8 +2366,329 @@ async function viewOrganisation(c){
     </div>
     ${equipe.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:11px">${equipe.map(carte).join('')}</div>`
       :`<div class="card card-pad" style="text-align:center;color:var(--muted)">Aucune personne — ajoute le responsable puis son équipe.</div>`}`;
+  if(state.profile&&(state.profile.role==='admin'||state.profile.role==='exploitant')&&document.getElementById('ac-section')) acLoadAccess(clientId);
 }
 window.viewOrganisation=viewOrganisation;
+
+/* ═══════════════════════════════════════════════════════════════════
+   ACCÈS & COMPTES  —  matrice comptes × bâtiments + photos (v6/v7)
+   Données et écritures via la fonction edge admin-manage-client-user
+   (autorisée admin PREVA ET exploitant sur son propre périmètre).
+   ═══════════════════════════════════════════════════════════════════ */
+window._acSeq=0;
+function acStyle(){ if(document.getElementById('ac-style'))return; const st=document.createElement('style'); st.id='ac-style'; st.textContent=`
+.ac-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--sh,0 4px 16px rgba(15,23,42,.06))}
+.ac-head{background:var(--surface);border-bottom:1px solid var(--line);padding:14px 16px;display:flex;align-items:center;gap:11px;flex-wrap:wrap}
+.ac-head .ic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(135deg,#2563eb,#1e40af);flex:0 0 auto}
+.ac-head .ic svg{width:19px;height:19px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ac-head h2{font-size:16px;margin:0;font-weight:800;letter-spacing:-.2px}
+.ac-head h2 small{display:block;font-size:11px;color:var(--muted);font-weight:500;margin-top:1px}
+.ac-head .sp{flex:1}
+.ac-kpis{display:flex;gap:9px;flex-wrap:wrap;padding:13px 16px 4px}
+.ac-kpi{flex:1;min-width:104px;background:var(--surface-2,#f6f8fb);border:1px solid var(--line);border-radius:11px;padding:9px 12px}
+.ac-kpi b{font-size:18px;display:block;line-height:1.1}
+.ac-kpi small{font-size:10.5px;color:var(--muted)}
+.ac-kpi.warn{border-color:#fde68a;background:#fffbeb}.ac-kpi.warn b{color:#b45309}
+.ac-mxwrap{overflow-x:auto;margin:12px 16px 16px;border:1px solid var(--line);border-radius:13px}
+table.acmx{border-collapse:collapse;width:100%;min-width:520px}
+table.acmx th,table.acmx td{padding:0;text-align:center}
+table.acmx thead th{background:var(--surface-2,#f6f8fb);border-bottom:1px solid var(--line);padding:10px 8px;vertical-align:bottom}
+table.acmx thead th.corner{text-align:left;font-size:10px;font-weight:800;letter-spacing:.05em;color:var(--muted);text-transform:uppercase;position:sticky;left:0;z-index:2;background:var(--surface-2,#f6f8fb)}
+.ac-bcol{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:84px}
+.ac-bcol .bi{width:30px;height:30px;border-radius:9px;background:#eef4ff;display:grid;place-items:center}
+.ac-bcol .bi svg{width:15px;height:15px;stroke:#2563eb;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ac-bcol b{font-size:11px;line-height:1.2;max-width:92px}
+table.acmx tbody tr{border-bottom:1px solid var(--line-2,#eef2f7);cursor:pointer}
+table.acmx tbody tr:last-child{border-bottom:none}
+table.acmx tbody tr:hover td{background:#f0f6ff}
+td.ac-who{text-align:left;padding:8px 11px;position:sticky;left:0;background:var(--surface);z-index:1;border-right:1px solid var(--line)}
+table.acmx tbody tr:hover td.ac-who{background:#f0f6ff}
+.ac-acct{display:flex;align-items:center;gap:9px;min-width:186px}
+.ac-acct .info b{font-size:12.5px;display:block;line-height:1.2}
+.ac-acct .info small{font-size:10.5px;color:var(--muted)}
+.ac-rr{font-size:9px;font-weight:800;border-radius:99px;padding:2px 7px;white-space:nowrap;margin-left:auto}
+.ac-r-exp{background:#dcfce7;color:#166534}.ac-r-lec{background:#e0e7ff;color:#3730a3}.ac-r-adm{background:#fee2e2;color:#b91c1c}
+tr.ac-susp td.ac-who .ac-acct{opacity:.5}
+td.ac-cell{border-left:1px solid var(--line-2,#eef2f7)}
+.ac-mark{width:25px;height:25px;border-radius:8px;display:inline-grid;place-items:center;font-weight:800;font-size:11px;color:#fff}
+.ac-m-exp{background:linear-gradient(135deg,#22c55e,#16a34a)}.ac-m-lec{background:linear-gradient(135deg,#818cf8,#4f46e5)}.ac-m-adm{background:linear-gradient(135deg,#f87171,#dc2626)}
+.ac-no{color:#cbd5e1;font-size:15px}
+tr.ac-all td.ac-cell,tr.ac-all td.ac-who{background:#f0f6ff}
+table.acmx tbody tr.ac-all:hover td{background:#e6f0ff}
+.ac-legend{display:flex;gap:14px;flex-wrap:wrap;padding:0 16px 15px;font-size:11.5px;color:var(--muted)}
+.ac-legend span{display:inline-flex;align-items:center;gap:5px}
+.ac-legend .ac-mark{width:19px;height:19px;font-size:9px}
+/* dropzone photo (fiche) */
+.ac-dz{border:2px dashed #bcd0f5;border-radius:16px;background:#f7faff;padding:16px;text-align:center;transition:.15s;cursor:pointer}
+.ac-dz.drag{border-color:#2563eb;background:#eaf2ff;box-shadow:0 0 0 4px rgba(37,99,235,.1)}
+.ac-dz .ring{width:96px;height:96px;border-radius:50%;margin:0 auto 10px;background:#eef1f6;display:grid;place-items:center;box-shadow:0 0 0 1px var(--line);background-size:cover;background-position:center;overflow:hidden}
+.ac-dz .ring svg{width:44px;height:44px;stroke:#94a3b8;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.ac-dz b{font-size:12.5px;color:#1e293b}
+.ac-dz small{font-size:11px;color:var(--muted);display:block;margin-top:3px}
+.ac-dz .acts{display:flex;gap:8px;justify-content:center;margin-top:10px}
+.ac-dz .acts .a{font-size:11.5px;font-weight:700;border-radius:8px;padding:6px 11px;border:1px solid var(--line);background:#fff;color:#334155;cursor:pointer}
+`; document.head.appendChild(st); }
+
+async function acEdge(action,payload){
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session) throw new Error('Session expirée — reconnecte-toi.');
+  const r=await fetch(SUPABASE_URL+'/functions/v1/admin-manage-client-user',{method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+    body:JSON.stringify(Object.assign({action},payload||{}))});
+  const d=await r.json().catch(()=>({})); if(!r.ok||!d.ok) throw new Error(d.error||('Échec ('+r.status+')')); return d;
+}
+function acRoleInfo(role){ if(role==='admin')return{l:'S',cls:'ac-m-adm',rr:'ac-r-adm',lab:'Superviseur'}; if(role==='lecture')return{l:'L',cls:'ac-m-lec',rr:'ac-r-lec',lab:'Lecture'}; return{l:'E',cls:'ac-m-exp',rr:'ac-r-exp',lab:'Exploitant'}; }
+function acPersonIcon(){ return `<svg viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>`; }
+function acAvatar(acct,size,opt){
+  opt=opt||{}; const id='acav'+(++window._acSeq); const has=!!acct.photo_path;
+  const iconWrap=`<span style="display:grid;place-items:center;width:${Math.round(size*.6)}px;height:${Math.round(size*.6)}px">${acPersonIcon()}</span>`;
+  const st=`width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;display:grid;place-items:center;flex:0 0 auto;border:2px solid #fff;box-shadow:0 1px 4px rgba(15,23,42,.18);background:${has?'#e5edf7':'#eef1f6'};background-size:cover;background-position:center`;
+  if(has) setTimeout(()=>orgImg(id,acct.photo_path),0);
+  const bs=Math.max(15,Math.round(size*.42));
+  const badge=opt.cam?`<span style="position:absolute;right:-2px;bottom:-2px;width:${bs}px;height:${bs}px;border-radius:50%;background:#2563eb;border:2px solid #fff;display:grid;place-items:center;box-shadow:0 1px 3px rgba(15,23,42,.3)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width:${Math.round(size*.2)}px;height:${Math.round(size*.2)}px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>`:'';
+  return `<span style="position:relative;display:inline-flex;flex:0 0 auto"><span id="${id}" style="${st}">${has?'':iconWrap}</span>${badge}</span>`;
+}
+window.acLoadAccess=async function(clientId){
+  acStyle(); const box=document.getElementById('ac-section'); if(!box) return;
+  try{
+    const d=await acEdge('list_access',{client_id:clientId});
+    window._acData={clientId, erps:d.erps||[], accounts:d.accounts||[], callerRole:d.caller_role||''};
+    acRenderMatrix();
+  }catch(e){ box.innerHTML=`<div class="ac-card" style="padding:16px;font-size:13px;color:#b91c1c">Accès & comptes momentanément indisponible : ${esc(e.message||e)}</div>`; }
+};
+function acRenderMatrix(){
+  const box=document.getElementById('ac-section'); if(!box||!window._acData) return;
+  const {erps,accounts}=window._acData;
+  const rank=a=>(a.role==='admin'?0:a.role==='exploitant'?1:2)+(a.statut&&a.statut!=='actif'?10:0);
+  const accs=[...accounts].sort((x,y)=>rank(x)-rank(y)||String(x.nom||'').localeCompare(String(y.nom||'')));
+  const nActifs=accs.filter(a=>!a.statut||a.statut==='actif').length;
+  const nWide=accs.filter(a=>a.client_wide).length;
+  const nSusp=accs.filter(a=>a.statut&&a.statut!=='actif').length;
+  const nPhoto=accs.filter(a=>a.photo_path).length;
+  const bICON='<svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M10 21v-4h4v4"/></svg>';
+  const thead=`<tr><th class="corner">Compte \\ Bâtiment</th>${erps.map(e=>`<th><div class="ac-bcol"><span class="bi">${bICON}</span><b>${esc(e.nom)}</b></div></th>`).join('')||'<th style="padding:10px 14px;color:var(--muted);font-weight:600;font-size:12px">Aucun bâtiment</th>'}</tr>`;
+  const rowHtml=a=>{
+    const ri=acRoleInfo(a.role); const susp=a.statut&&a.statut!=='actif';
+    const setE=new Set(a.erp_ids||[]);
+    const cells=erps.length?erps.map(e=>`<td class="ac-cell">${setE.has(e.id)?`<span class="ac-mark ${ri.cls}"${susp?' style="opacity:.5"':''}>${ri.l}</span>`:'<span class="ac-no">—</span>'}</td>`).join(''):'<td class="ac-cell"><span class="ac-no">—</span></td>';
+    const sub=susp?'suspendu':(a.client_wide?'tous les bâtiments':((a.erp_ids||[]).length+' bâtiment'+((a.erp_ids||[]).length>1?'s':'')));
+    return `<tr class="${a.client_wide?'ac-all':''}${susp?' ac-susp':''}" onclick="acOpenFiche('${a.id}')"><td class="ac-who"><div class="ac-acct">${acAvatar(a,34,{cam:true})}<div class="info"><b>${esc(a.nom||a.email||'—')}</b><small>${esc(sub)}</small></div><span class="ac-rr ${ri.rr}">${esc(ri.lab)}</span></div></td>${cells}</tr>`;
+  };
+  box.innerHTML=`<div class="ac-card">
+    <div class="ac-head"><span class="ic"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></span>
+      <div><h2>Accès &amp; comptes<small>Qui peut se connecter, à quels bâtiments</small></h2></div>
+      <div class="sp"></div>
+      <button class="btn sm" onclick="event.stopPropagation();navigate('/erps')"><svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2.2;vertical-align:-2px"><path d="M12 5v14M5 12h14"/></svg> Bâtiment</button>
+      <button class="btn primary sm" onclick="event.stopPropagation();acCreateAccount()">＋ Créer un compte</button>
+    </div>
+    <div class="ac-kpis">
+      <div class="ac-kpi"><b>${erps.length}</b><small>bâtiment${erps.length>1?'s':''}</small></div>
+      <div class="ac-kpi"><b>${nActifs}</b><small>compte${nActifs>1?'s':''} actif${nActifs>1?'s':''}</small></div>
+      <div class="ac-kpi"><b>${nWide}</b><small>accès « tous bâtiments »</small></div>
+      ${nSusp?`<div class="ac-kpi warn"><b>${nSusp}</b><small>suspendu${nSusp>1?'s':''}</small></div>`:`<div class="ac-kpi"><b>${nPhoto}</b><small>photo${nPhoto>1?'s':''}</small></div>`}
+    </div>
+    <div class="ac-mxwrap"><table class="acmx"><thead>${thead}</thead><tbody>
+      ${accs.length?accs.map(rowHtml).join(''):`<tr><td colspan="${erps.length+1}" style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Aucun compte de connexion. Cliquez sur « Créer un compte ».</td></tr>`}
+    </tbody></table></div>
+    <div class="ac-legend">
+      <span><span class="ac-mark ac-m-exp">E</span> Exploitant (modifie)</span>
+      <span><span class="ac-mark ac-m-lec">L</span> Lecture seule</span>
+      <span><span class="ac-mark ac-m-adm">S</span> Superviseur PREVA</span>
+      <span><span class="ac-no" style="font-size:14px">—</span> Pas d'accès</span>
+      <span>Ligne bleutée = tous les bâtiments · grisée = suspendu</span>
+    </div>
+  </div>`;
+}
+window.acRenderMatrix=acRenderMatrix;
+
+/* ─── recadrage carré côté navigateur → dataURL JPEG ─── */
+async function acSquareDataUrl(file, size=512){
+  const dataUrl=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(new Error('Lecture du fichier impossible')); r.readAsDataURL(file); });
+  const img=await new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=()=>rej(new Error('Fichier image invalide')); im.src=dataUrl; });
+  const w=img.naturalWidth,h=img.naturalHeight; if(!w||!h) throw new Error('Image illisible');
+  const s=Math.min(w,h), sx=(w-s)/2, sy=(h-s)/2;
+  const cv=document.createElement('canvas'); cv.width=size; cv.height=size;
+  const ctx=cv.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,size,size);
+  ctx.drawImage(img,sx,sy,s,s,0,0,size,size);
+  return cv.toDataURL('image/jpeg',0.82);
+}
+async function acHandlePhotoFile(userId,file){
+  if(!file||!file.type||!file.type.startsWith('image/')){ toast('Choisis un fichier image (JPG, PNG…).','err'); return; }
+  const hint=document.getElementById('ac_dz_hint'); if(hint) hint.textContent='Traitement…';
+  try{
+    const durl=await acSquareDataUrl(file);
+    const d=await acEdge('set_photo',{user_id:userId,client_id:window._acData.clientId,data_url:durl});
+    const a=(window._acData.accounts||[]).find(x=>x.id===userId); if(a) a.photo_path=d.photo_path;
+    await acPaintFichePhoto(d.photo_path); acRenderMatrix(); toast('Photo enregistrée ✓','ok');
+  }catch(e){ toast('Erreur photo : '+(e.message||e),'err'); if(hint) hint.textContent='Glissez une photo, ou cliquez'; }
+}
+async function acPaintFichePhoto(path){
+  const ring=document.getElementById('ac_dz_ring'), acts=document.getElementById('ac_dz_acts'), hint=document.getElementById('ac_dz_hint');
+  if(!ring) return;
+  if(path){ ring.innerHTML=''; try{ const {data}=await sb.storage.from('documents').createSignedUrl(path,3600); if(data&&data.signedUrl) ring.style.backgroundImage='url("'+data.signedUrl+'")'; }catch(_){}
+    if(acts) acts.style.display='flex'; if(hint) hint.textContent='Cliquez ou glissez pour remplacer';
+  } else { ring.style.backgroundImage=''; ring.innerHTML=acPersonIcon(); if(acts) acts.style.display='none'; if(hint) hint.textContent='Glissez une photo, ou cliquez'; }
+}
+window.acDzOver=function(ev,on){ ev.preventDefault(); ev.stopPropagation(); const dz=document.getElementById('ac_dz'); if(dz) dz.classList.toggle('drag',!!on); };
+window.acDzDrop=function(ev,userId){ ev.preventDefault(); ev.stopPropagation(); const dz=document.getElementById('ac_dz'); if(dz) dz.classList.remove('drag'); const f=ev.dataTransfer&&ev.dataTransfer.files&&ev.dataTransfer.files[0]; if(f) acHandlePhotoFile(userId,f); };
+window.acDzPick=function(userId){ const i=document.getElementById('ac_dz_input'); if(i) i.click(); };
+window.acDzChange=function(inp,userId){ const f=inp.files&&inp.files[0]; if(f) acHandlePhotoFile(userId,f); inp.value=''; };
+window.acPhotoRemove=async function(userId){
+  try{ await acEdge('set_photo',{user_id:userId,client_id:window._acData.clientId,remove:true});
+    const a=(window._acData.accounts||[]).find(x=>x.id===userId); if(a) a.photo_path=null;
+    await acPaintFichePhoto(null); acRenderMatrix(); toast('Photo retirée','ok');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+window.acOpenFiche=function(userId){
+  const D=window._acData; if(!D) return;
+  const a=(D.accounts||[]).find(x=>x.id===userId); if(!a) return;
+  const isSelf=state.user&&state.user.id===a.id;
+  const editable=(a.role!=='admin'&&a.role!=='consultant')&&!isSelf;
+  const susp=a.statut&&a.statut!=='actif';
+  const ri=acRoleInfo(a.role);
+  const erpChecks=(D.erps||[]).map(e=>`<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;padding:2px 0"><input type="checkbox" class="ac_erp" value="${e.id}"${(a.client_wide||(a.erp_ids||[]).includes(e.id))?' checked':''}>${esc(e.nom)}</label>`).join('')||'<span style="color:var(--muted-2);font-size:12px">Aucun bâtiment</span>';
+  const pwd0=(Math.random().toString(36).slice(2,6)+Math.random().toString(36).slice(2,6)+'-'+Math.random().toString(36).slice(2,6)).replace(/[^a-z0-9-]/gi,'');
+  openModal(`<div class="modal-head"><h2>Fiche — ${esc(a.nom||a.email||'')}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:200px 1fr;gap:20px" class="ac-fiche-grid">
+        <div>
+          <label style="display:block;font-size:11.5px;font-weight:700;color:#475569;margin-bottom:5px">Photo</label>
+          ${editable?`<div id="ac_dz" class="ac-dz" ondragover="acDzOver(event,1)" ondragleave="acDzOver(event,0)" ondrop="acDzDrop(event,'${a.id}')" onclick="acDzPick('${a.id}')">
+            <div class="ring" id="ac_dz_ring">${a.photo_path?'':acPersonIcon()}</div>
+            <b id="ac_dz_hint">${a.photo_path?'Cliquez ou glissez pour remplacer':'Glissez une photo, ou cliquez'}</b>
+            <small>JPG, PNG ou HEIC · sur mobile : appareil ou galerie</small>
+            <div class="acts" id="ac_dz_acts" style="display:${a.photo_path?'flex':'none'}">
+              <span class="a" onclick="event.stopPropagation();acDzPick('${a.id}')">Remplacer</span>
+              <span class="a" onclick="event.stopPropagation();acPhotoRemove('${a.id}')">Retirer</span>
+            </div>
+            <input type="file" id="ac_dz_input" accept="image/*" style="display:none" onchange="acDzChange(this,'${a.id}')">
+          </div>`:`<div style="display:grid;place-items:center">${acAvatar(a,96)}</div>`}
+        </div>
+        <div>
+          <div class="fld"><label>Nom</label><input value="${esc(a.nom||'')}" disabled style="background:var(--surface-2,#f6f8fb)"></div>
+          <div class="fld"><label>Email de connexion</label><input value="${esc(a.email||'')}" disabled style="background:var(--surface-2,#f6f8fb);font-family:Consolas,Menlo,monospace;font-size:12.5px"></div>
+          ${editable?`<div class="row2">
+            <div class="fld"><label>Rôle</label><select id="ac_role"><option value="exploitant"${a.role==='exploitant'?' selected':''}>Exploitant (modifie)</option><option value="lecture"${a.role==='lecture'?' selected':''}>Lecture seule</option></select></div>
+            <div class="fld"><label>Statut</label><div><button class="btn sm ${susp?'':'danger'}" id="ac_statut_btn" onclick="acToggleStatut('${a.id}',${susp?"'actif'":"'suspendu'"})">${susp?'Réactiver le compte':'Suspendre l\'accès'}</button></div></div>
+          </div>
+          <div class="fld"><label>Accès aux bâtiments</label>
+            <div style="display:flex;gap:14px;margin-bottom:7px">
+              <label style="display:flex;gap:6px;align-items:center;font-size:12.5px;font-weight:600"><input type="radio" name="ac_mode" value="all"${a.client_wide?' checked':''} onchange="acModeToggle()">Tous les bâtiments</label>
+              <label style="display:flex;gap:6px;align-items:center;font-size:12.5px;font-weight:600"><input type="radio" name="ac_mode" value="some"${a.client_wide?'':' checked'} onchange="acModeToggle()">Bâtiments choisis</label>
+            </div>
+            <div id="ac_erpbox" style="display:flex;flex-direction:column;gap:2px;max-height:140px;overflow:auto;border:1px solid var(--line);border-radius:9px;padding:8px 10px;${a.client_wide?'opacity:.45;pointer-events:none':''}">${erpChecks}</div>
+          </div>
+          <div class="fld" style="margin-bottom:0"><label>🔑 Réinitialiser le mot de passe</label>
+            <div style="display:flex;gap:8px"><input id="ac_pwd" value="${pwd0}" style="flex:1;font-family:Consolas,Menlo,monospace;font-size:12.5px">
+              <button class="btn sm" onclick="acResetPwd('${a.id}')">Appliquer</button></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px">Communique-le par un canal sûr. La personne pourra le changer ensuite.</div>
+          </div>`:`<div style="background:${isSelf?'#eff6ff':'#fef2f2'};border:1px solid ${isSelf?'#bfdbfe':'#fecaca'};border-radius:10px;padding:11px 13px;font-size:12.5px;color:${isSelf?'#1e40af':'#991b1b'}">${isSelf?'C\'est votre compte — modifiez votre mot de passe et votre photo depuis 👤 Mon compte (en haut à droite).':'Ce compte est un compte du personnel PREVA — géré séparément.'}</div>`}
+          <div id="ac_fiche_msg" style="font-size:12.5px;margin-top:10px"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">${editable?`<button class="btn ghost danger" style="margin-right:auto" onclick="acRevoke('${a.id}')">Retirer du client</button>`:''}
+      <button class="btn" onclick="closeModal()">Fermer</button>${editable?`<button class="btn primary" id="ac_save" onclick="acSaveFiche('${a.id}')">Enregistrer</button>`:''}</div>`);
+  if(a.photo_path) setTimeout(()=>acPaintFichePhoto(a.photo_path),40);
+};
+window.acModeToggle=function(){
+  const some=(document.querySelector('input[name=ac_mode]:checked')||{}).value==='some';
+  const box=document.getElementById('ac_erpbox'); if(box){ box.style.opacity=some?'1':'.45'; box.style.pointerEvents=some?'auto':'none'; }
+};
+window.acToggleStatut=async function(userId,statut){
+  const btn=document.getElementById('ac_statut_btn'); if(btn){ btn.disabled=true; btn.textContent='…'; }
+  try{ await acEdge('set_statut',{user_id:userId,statut});
+    const a=(window._acData.accounts||[]).find(x=>x.id===userId); if(a) a.statut=statut;
+    toast(statut==='suspendu'?'Compte suspendu':'Compte réactivé','ok'); acRenderMatrix(); acOpenFiche(userId);
+  }catch(e){ if(btn){ btn.disabled=false; } toast('Erreur : '+(e.message||e),'err'); }
+};
+window.acResetPwd=async function(userId){
+  const pwd=(document.getElementById('ac_pwd').value||'').trim();
+  const msg=document.getElementById('ac_fiche_msg');
+  if(pwd.length<12){ if(msg){ msg.style.color='#dc2626'; msg.textContent='Mot de passe : 12 caractères minimum.'; } return; }
+  try{ await acEdge('reset_password',{user_id:userId,password:pwd});
+    if(msg){ msg.style.color='#16a34a'; msg.textContent='✅ Mot de passe réinitialisé — communique-le à la personne.'; }
+    toast('Mot de passe réinitialisé','ok');
+  }catch(e){ if(msg){ msg.style.color='#dc2626'; msg.textContent='Erreur : '+(e.message||e); } }
+};
+window.acSaveFiche=async function(userId){
+  const btn=document.getElementById('ac_save'); const msg=document.getElementById('ac_fiche_msg');
+  const role=(document.getElementById('ac_role')||{}).value||'exploitant';
+  const mode=(document.querySelector('input[name=ac_mode]:checked')||{}).value||'all';
+  const erp_ids=[...document.querySelectorAll('.ac_erp:checked')].map(x=>x.value);
+  if(mode==='some'&&!erp_ids.length){ if(msg){ msg.style.color='#dc2626'; msg.textContent='Choisis au moins un bâtiment, ou sélectionne « Tous les bâtiments ».'; } return; }
+  if(btn){ btn.disabled=true; btn.textContent='Enregistrement…'; }
+  try{
+    const a=(window._acData.accounts||[]).find(x=>x.id===userId);
+    if(a&&role!==a.role) await acEdge('set_role',{user_id:userId,role});
+    await acEdge('set_erp_access',{user_id:userId,client_id:window._acData.clientId,mode,erp_ids});
+    if(a){ a.role=role; a.client_wide=(mode==='all'); a.erp_ids=(mode==='all')?(window._acData.erps||[]).map(e=>e.id):erp_ids; }
+    toast('Compte enregistré ✓','ok'); closeModal(); acRenderMatrix();
+  }catch(e){ if(btn){ btn.disabled=false; btn.textContent='Enregistrer'; } if(msg){ msg.style.color='#dc2626'; msg.textContent='Erreur : '+(e.message||e); } }
+};
+window.acRevoke=async function(userId){
+  const a=(window._acData.accounts||[]).find(x=>x.id===userId);
+  if(!confirm('Retirer « '+((a&&a.nom)||'ce compte')+' » de ce client ?\n\nLe compte ne sera pas supprimé (il peut avoir d\'autres clients) mais perdra tout accès à celui-ci.')) return;
+  try{ await acEdge('revoke',{user_id:userId,client_id:window._acData.clientId});
+    window._acData.accounts=(window._acData.accounts||[]).filter(x=>x.id!==userId);
+    toast('Accès retiré','ok'); closeModal(); acRenderMatrix();
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+window.acCreateAccount=function(){
+  const D=window._acData; if(!D) return;
+  const pwd0=(Math.random().toString(36).slice(2,6)+Math.random().toString(36).slice(2,6)+'-'+Math.random().toString(36).slice(2,6)).replace(/[^a-z0-9-]/gi,'');
+  const erpChecks=(D.erps||[]).map(e=>`<label style="display:flex;gap:8px;align-items:center;font-size:12.5px;padding:2px 0"><input type="checkbox" class="acc_erp" value="${e.id}">${esc(e.nom)}</label>`).join('')||'<span style="color:var(--muted-2);font-size:12px">Aucun bâtiment — créez-en un d\'abord</span>';
+  openModal(`<div class="modal-head"><h2>＋ Créer un compte de connexion</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body">
+      <div class="row2"><div class="fld"><label>Nom de la personne</label><input id="acc_nom" placeholder="Prénom NOM"></div>
+        <div class="fld"><label>Email de connexion <span class="req">*</span></label><input id="acc_email" type="email" placeholder="directeur@client.fr"></div></div>
+      <div class="row2"><div class="fld"><label>Rôle</label><select id="acc_role"><option value="exploitant">Exploitant (modifie)</option><option value="lecture">Lecture seule</option></select></div>
+        <div class="fld"><label>Mot de passe provisoire <span class="req">*</span></label>
+          <div style="display:flex;gap:8px"><input id="acc_pwd" value="${pwd0}" style="flex:1;font-family:Consolas,Menlo,monospace;font-size:12.5px">
+          <button class="btn" onclick="document.getElementById('acc_pwd').value=(Math.random().toString(36).slice(2,6)+Math.random().toString(36).slice(2,6)+'-'+Math.random().toString(36).slice(2,6)).replace(/[^a-z0-9-]/gi,'')">↻</button></div></div></div>
+      <div class="fld"><label>Accès aux bâtiments</label>
+        <div style="display:flex;gap:14px;margin-bottom:7px">
+          <label style="display:flex;gap:6px;align-items:center;font-size:12.5px;font-weight:600"><input type="radio" name="acc_mode" value="all" checked onchange="accModeToggle()">Tous les bâtiments</label>
+          <label style="display:flex;gap:6px;align-items:center;font-size:12.5px;font-weight:600"><input type="radio" name="acc_mode" value="some" onchange="accModeToggle()">Bâtiments choisis</label>
+        </div>
+        <div id="acc_erpbox" style="display:flex;flex-direction:column;gap:2px;max-height:140px;overflow:auto;border:1px solid var(--line);border-radius:9px;padding:8px 10px;opacity:.45;pointer-events:none">${erpChecks}</div>
+      </div>
+      <div style="font-size:11.5px;color:var(--muted)">La photo pourra être ajoutée ensuite depuis la fiche (glisser-déposer ou 📷).</div>
+      <div id="acc_msg" style="font-size:12.5px;margin-top:10px"></div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" id="acc_go" onclick="acCreateGo()">Créer le compte</button></div>`);
+};
+window.accModeToggle=function(){
+  const some=(document.querySelector('input[name=acc_mode]:checked')||{}).value==='some';
+  const box=document.getElementById('acc_erpbox'); if(box){ box.style.opacity=some?'1':'.45'; box.style.pointerEvents=some?'auto':'none'; }
+};
+window.acCreateGo=async function(){
+  const D=window._acData; if(!D) return;
+  const nom=(document.getElementById('acc_nom').value||'').trim();
+  const email=(document.getElementById('acc_email').value||'').trim().toLowerCase();
+  const pwd=(document.getElementById('acc_pwd').value||'').trim();
+  const role=(document.getElementById('acc_role')||{}).value||'exploitant';
+  const mode=(document.querySelector('input[name=acc_mode]:checked')||{}).value||'all';
+  const erp_ids=[...document.querySelectorAll('.acc_erp:checked')].map(x=>x.value);
+  const msg=document.getElementById('acc_msg'), btn=document.getElementById('acc_go');
+  const err=t=>{ msg.style.color='#dc2626'; msg.textContent=t; };
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return err('Adresse email invalide (exemple : nom@societe.fr).');
+  if(pwd.length<12) return err('Mot de passe : 12 caractères minimum.');
+  if(mode==='some'&&!erp_ids.length) return err('Choisis au moins un bâtiment, ou « Tous les bâtiments ».');
+  btn.disabled=true; btn.textContent='Création…';
+  try{
+    const payload={email,password:pwd,nom,role,access_mode:mode};
+    if(mode==='some') payload.erp_ids=erp_ids; else payload.client_ids=[D.clientId];
+    await acEdge('create',payload);
+    msg.style.color='#16a34a'; msg.textContent='✅ Compte créé — communique les identifiants.';
+    btn.textContent='Créé ✓';
+    toast('Compte créé','ok');
+    setTimeout(()=>{ closeModal(); acLoadAccess(D.clientId); },1200);
+  }catch(e){ btn.disabled=false; btn.textContent='Créer le compte'; err('Erreur : '+(e.message||e)); }
+};
 
 window.orgFormSociete=function(){
   const {cl,clientId}=window._orgCtx||{}; if(!clientId) return;
