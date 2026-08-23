@@ -12983,7 +12983,7 @@ function formDoc(prefiles){
     const btn=$('#save'); btn.disabled=true;
     const type=$('#f_type').value;
     const date_document=$('#f_date')?.value||null;
-    const avis=((type==='PV commission'||type==='RVAT') && $('#f_avis'))?($('#f_avis').value||null):null;
+    const avis=((type==='PV commission'||type==='RVRAT'||type==='RVRE') && $('#f_avis'))?($('#f_avis').value||null):null;
     const lotSelEl=$('#f_lot_sel'); const lot=(lotSelEl&&lotSelEl.value&&lotSelEl.value!=='__autre__')?lotSelEl.value:(($('#f_lot').value||'').trim()||null);
     const prestataire_id=$('#f_prest')?.value||null;
     // Suivi PV de réception (devis signés uniquement)
@@ -13109,7 +13109,7 @@ window.docPreviewFile=function(i){
 };
 window.docTypeChange=function(){
   const t=$('#f_type')?.value; const z=document.getElementById('f_avis_zone');
-  if(z) z.style.display=(t==='PV commission'||t==='RVAT')?'':'none';
+  if(z) z.style.display=(t==='PV commission'||t==='RVRAT'||t==='RVRE')?'':'none';
   // Zone « suivi PV de réception » : uniquement pour les devis signés
   const pz=document.getElementById('f_pvsuivi_zone');
   if(pz) pz.style.display=(catFromType(t)==='devis_signe')?'':'none';
@@ -13118,7 +13118,7 @@ window.docTypeChange=function(){
   if(lbl){
     const INTERV=['Rapport',"Bon d'intervention",'PV de réception','Maintenance préventive','Maintenance corrective','Compte rendu'];
     const txt = t==='PV commission' ? 'Date de la commission'
-             : t==='RVAT' ? 'Date de la vérification'
+             : (t==='RVRAT'||t==='RVRE') ? 'Date de la vérification'
              : INTERV.includes(t) ? "Date d'intervention"
              : 'Date du document';
     lbl.innerHTML = txt+' <span style="color:var(--muted-2);font-weight:400;font-size:11px">(date réelle)</span>';
@@ -13215,8 +13215,8 @@ window.gedTileSel=function(cid,catIdx){
 function gedRenderList(){
   const host=document.getElementById('ged_list'); if(!host) return;
   gedxStyle();
-  const TYPE_ORDER=['Compte rendu','Rapport','RVAT','PV commission','Courrier mairie','Courrier','Attestation','DOE','Plan','Preuve','Photo'];
-  const TYPE_ICON={'Compte rendu':'📝','Rapport':'📋','RVAT':'⚡','PV commission':'⚖️','Courrier mairie':'🏛️','Courrier':'✉️','Attestation':'✅','DOE':'📐','Plan':'🗺️','Preuve':'📎','Photo':'🖼️'};
+  const TYPE_ORDER=['Compte rendu','Rapport','RVRAT','RVRE','PV commission','Courrier mairie','Courrier','Attestation','DOE','Plan','Preuve','Photo'];
+  const TYPE_ICON={'Compte rendu':'📝','Rapport':'📋','RVRAT':'⚡','RVRE':'🔧','PV commission':'⚖️','Courrier mairie':'🏛️','Courrier':'✉️','Attestation':'✅','DOE':'📐','Plan':'🗺️','Preuve':'📎','Photo':'🖼️'};
   const rows=window._gedAllDocs||[];
   const q=(document.getElementById('ged_search')?.value||'').trim().toLowerCase();
   const rf=document.getElementById('ged_rub')?.value||'';
@@ -13373,7 +13373,7 @@ function gedRenderList(){
 }
 window.gedRenderList=gedRenderList;
 
-const GED_TYPES=['Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Compte rendu','RVAT','PV commission','Courrier mairie','Bureau de contrôle','Maintenance préventive','Maintenance corrective','Consignes de sécurité','Plan de prévention','Permis de feu','Courrier','Attestation','DOE','Plan','Preuve','Photo','Autre'];
+const GED_TYPES=['Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Compte rendu','RVRAT','RVRE','PV commission','Courrier mairie','Bureau de contrôle','Maintenance préventive','Maintenance corrective','Consignes de sécurité','Plan de prévention','Permis de feu','Courrier','Attestation','DOE','Plan','Preuve','Photo','Autre'];
 const GED_CATEGORIES=[['rapport','Rapport'],['devis','Devis'],['devis_signe','Devis signé'],['facture','Facture'],['bon_intervention',"Bon d'intervention"],['pv_reception','PV de réception'],['mail','Mail'],['autre','Autre']];
 
 // Affiche directement le contenu d'un mail reçu (expéditeur, objet, date, corps) dans une modale
@@ -14570,7 +14570,7 @@ window.trvParseVeritas=function(lines){
 };
 
 window.TRV_SOURCES={bureau_de_controle:'Bureau de contrôle',commission:'Commission de sécurité',prestataire:'Prestataire'};
-window.TRV_GED_TYPES=['Rapport','Bureau de contrôle','RVAT','Compte rendu','Maintenance préventive','Maintenance corrective'];
+window.TRV_GED_TYPES=['Rapport','Bureau de contrôle','RVRAT','RVRE','Compte rendu','Maintenance préventive','Maintenance corrective'];
 
 // Extraction du texte d'un PDF en lignes à cellules « ¦ » (même géométrie que le banc d'essai)
 window.trvExtractLines=async function(url){
@@ -17042,7 +17042,7 @@ window.arErpChange=async function(){
   if(!v){ host.innerHTML='<div style="font-size:12px;color:var(--muted);padding:4px 2px">Choisis d\'abord un établissement.</div>'; return; }
   host.innerHTML='<div style="font-size:12px;color:var(--muted);padding:4px 2px">Chargement des rapports…</div>';
   try{
-    const gedTypes=['Rapport','Bureau de contrôle','RVAT','Compte rendu','Maintenance préventive','Maintenance corrective'];
+    const gedTypes=['Rapport','Bureau de contrôle','RVRAT','RVRE','Compte rendu','Maintenance préventive','Maintenance corrective'];
     const {data,error}=await sb.from('documents')
       .select('id,nom_original,type,date_document,created_at,prestataire_id,emetteur,fichier_path,tags')
       .eq('erp_id',v).in('type',gedTypes).not('fichier_path','is',null)
