@@ -2445,19 +2445,24 @@ table.acmx tbody tr.ac-all:hover td{background:#e6f0ff}
 .ac-step .n{width:19px;height:19px;border-radius:50%;background:#2563eb;color:#fff;font-weight:800;font-size:10px;display:grid;place-items:center;flex:0 0 auto;margin-top:1px}
 /* ── responsive ── */
 .ac-fiche-grid{display:grid;grid-template-columns:200px 1fr;gap:20px}
+@media(max-width:920px){
+  table.acmx{min-width:0}
+  table.acmx thead th:not(.corner){width:106px}
+  .ac-bcol{min-width:90px}.ac-bcol .bi{width:38px;height:38px;border-radius:11px}.ac-bcol .bi svg{width:19px;height:19px}.ac-bcol b{font-size:11px;max-width:100px}
+  .ac-bghost{min-width:90px}.ac-bghost .bi{width:38px;height:38px;border-radius:11px}.ac-bghost b{font-size:10.5px}
+  .ac-acct{min-width:0;max-width:none}
+}
 @media(max-width:760px){.ac-help{grid-template-columns:1fr}.ac-fiche-grid{grid-template-columns:1fr}}
 @media(max-width:640px){
   .ac-lgrid,.ac-steps{grid-template-columns:1fr}
   .ac-kpis{padding:11px 12px 2px;grid-template-columns:1fr 1fr;gap:8px}
   .ac-kpi{padding:9px 11px;gap:9px}.ac-kpi .ic{width:31px;height:31px}.ac-kpi b{font-size:17px}
   .ac-tables{padding:10px 12px 13px;gap:10px}.ac-sect{padding:13px 12px}
-  .ac-bcol{min-width:88px}.ac-bcol .bi{width:38px;height:38px}.ac-bcol .bi svg{width:19px;height:19px}.ac-bcol b{font-size:11px;max-width:100px}
-  .ac-bghost{min-width:88px}.ac-bghost .bi{width:38px;height:38px}.ac-bghost b{font-size:10.5px}
+  .ac-bcol{min-width:78px}.ac-bcol .bi{width:34px;height:34px}.ac-bcol .bi svg{width:17px;height:17px}.ac-bcol b{font-size:10.5px;max-width:88px}
+  .ac-bghost{min-width:78px}.ac-bghost .bi{width:34px;height:34px}.ac-bghost b{font-size:10px}
+  table.acmx thead th:not(.corner){width:88px}
   .ac-head{padding:12px 12px}.ac-head .sp{flex:1 1 100%;height:0}
   .ac-head .btn{flex:1}
-  table.acmx{min-width:0}
-  table.acmx thead th:not(.corner){width:100px}
-  .ac-acct{min-width:0;max-width:none}
   .ac-acct .info b{font-size:12px}
   .ac-rr{display:none}
 
