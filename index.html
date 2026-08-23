@@ -881,6 +881,61 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   .wiz-body{padding:14px 14px}
   .wiz-foot{padding:12px 14px}
 }
+/* ── Interventions V5 : filtres pastilles, carré de date, pastille famille, barre de progression ── */
+.iv2-chips{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin:0 0 14px}
+.iv2-chip{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:6px 13px;font-size:12px;font-weight:700;color:#475569;cursor:pointer;display:inline-flex;align-items:center;gap:7px;font-family:inherit}
+.iv2-chip .c{font-size:10.5px;font-weight:800;border-radius:99px;padding:1px 7px;background:#eef2f7;color:#475569}
+.iv2-chip.on{background:#1a44ad;border-color:#1a44ad;color:#fff}
+.iv2-chip.on .c{background:rgba(255,255,255,.22);color:#fff}
+.iv2-srch{display:flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:99px;padding:6px 12px;background:var(--surface);min-width:170px}
+.iv2-srch svg{width:13px;height:13px;stroke:var(--muted-2);fill:none;stroke-width:2;flex:0 0 auto}
+.iv2-srch input{border:none;outline:none;font-size:12px;font-family:inherit;background:none;width:150px;color:var(--ink)}
+.iv2-sort{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:6px 13px;font-size:12px;font-weight:700;color:#475569;cursor:pointer;font-family:inherit;white-space:nowrap}
+.iv2-mois{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin:16px 2px 9px}
+.iv2-mois:first-child{margin-top:0}
+.iv2-row{display:flex;align-items:center;gap:13px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 15px;margin-bottom:9px;box-shadow:0 1px 3px rgba(15,23,42,.03);cursor:pointer;transition:box-shadow .15s}
+.iv2-row:hover{box-shadow:0 5px 16px rgba(15,23,42,.09)}
+.iv2-row.done{opacity:.62}
+.iv2-dj{flex:0 0 auto;width:52px;height:48px;border-radius:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;line-height:1}
+.iv2-dj b{font-size:16px;font-weight:800}
+.iv2-dj small{font-size:8.5px;font-weight:700;opacity:.9;margin-top:2px;text-transform:uppercase;letter-spacing:.05em}
+.iv2-dj.u-late{background:linear-gradient(135deg,#b91c1c,#7f1d1d)}
+.iv2-dj.u-soon{background:linear-gradient(135deg,#f59e0b,#ea580c)}
+.iv2-dj.u-fut{background:linear-gradient(135deg,#2563eb,#1a44ad)}
+.iv2-dj.u-done{background:linear-gradient(135deg,#16a34a,#15803d)}
+.iv2-dj.u-none{background:linear-gradient(135deg,#94a3b8,#64748b)}
+.iv2-tx{flex:1;min-width:0}
+.iv2-tx>b{font-size:13.5px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.iv2-meta{font-size:11.5px;color:var(--muted);margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.iv2-meta .sep{color:#cbd5e1}
+.iv2-mono{width:20px;height:20px;border-radius:6px;color:#fff;display:inline-grid;place-items:center;font-weight:800;font-size:9.5px;flex:0 0 auto}
+.iv2-info{font-size:11.5px;margin-top:3px}
+.iv2-prog{margin-top:8px;display:flex;align-items:center;gap:9px}
+.iv2-prog .track{flex:1;height:6px;border-radius:99px;background:#eef2f7;overflow:hidden}
+.iv2-prog .track i{display:block;height:100%;border-radius:99px}
+.iv2-prog .pct{flex:0 0 auto;font-size:10.5px;font-weight:800;min-width:104px;text-align:right;color:var(--muted)}
+.iv2-prog .f-late{background:linear-gradient(90deg,#ef4444,#b91c1c)}
+.iv2-prog .f-soon{background:linear-gradient(90deg,#f59e0b,#ea580c)}
+.iv2-prog .f-fut{background:linear-gradient(90deg,#60a5fa,#2563eb)}
+.iv2-prog .f-done{background:linear-gradient(90deg,#22c55e,#16a34a)}
+.iv2-prog .pct.late{color:#dc2626}.iv2-prog .pct.soon{color:#b45309}.iv2-prog .pct.done{color:#16a34a}
+.iv2-act{flex:0 0 auto;display:grid;grid-template-columns:122px 96px 34px;gap:6px;align-items:center}
+.iv2-stt{font-size:10.5px;font-weight:700;border-radius:99px;padding:5px 4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--surface-2);border:1px solid var(--line);color:#475569}
+.iv2-act .btn{width:100%;justify-content:center;padding:7px 0;font-size:11.5px;white-space:nowrap}
+.iv2-kb{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;cursor:pointer;color:var(--muted)}
+.iv2-kb svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
+.iv2-fold{margin-top:14px;background:var(--surface);border:1px dashed #cbd5e1;border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:11px;cursor:pointer}
+.iv2-fold .ok{width:30px;height:30px;border-radius:9px;background:var(--surface-2);border:1px solid var(--line);display:grid;place-items:center;color:#16a34a;font-weight:800;flex:0 0 auto}
+.iv2-fold b{font-size:13px}
+.iv2-fold small{color:var(--muted);font-size:11.5px}
+.iv2-fold .spx{flex:1}
+@media(max-width:760px){
+  .iv2-row{flex-wrap:wrap}
+  .iv2-tx{flex-basis:calc(100% - 66px)}
+  .iv2-tx>b{white-space:normal}
+  .iv2-act{flex-basis:100%;grid-template-columns:1fr 1fr 34px}
+  .iv2-prog .pct{min-width:0}
+}
 .ged-grid{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
 .ctr-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .ctr-card .ctr-head{display:flex;align-items:center;gap:9px;padding:14px 16px;border-bottom:1px solid var(--line-2)}
@@ -8852,32 +8907,81 @@ window.saveQrPubUrl=saveQrPubUrl;
 const ITST={a_programmer:['','À programmer','moy'],demandee:['','Demandée','int'],date_proposee:['','Autre date proposée','moy'],programmee:['','Programmée','int'],realisee:['','Réalisée','inf'],
   rapport_attendu:['','Rapport attendu','moy'],rapport_recu:['','Rapport reçu','ok'],a_analyser:['','À analyser','moy'],cloturee:['','Clôturée','ok'],
   annulee_prestataire:['','Annulée (prestataire)','crit'],annulee_exploitant:['','Annulée (exploitant)','crit'],annulee_consultant:['','Annulée','crit'],a_reprogrammer:['','À reprogrammer','moy']};
-function interTable(rows){
+/* ── Interventions V5 : classement des statuts ── */
+const IV2_TERM=['realisee','rapport_recu','cloturee','annulee_prestataire','annulee_exploitant','annulee_consultant'];
+const IV2_TODO=['a_programmer','a_reprogrammer','demandee','date_proposee','rapport_attendu','a_analyser'];
+const IV2_FAM={preventive:['P','#2563eb','Préventive'],corrective:['C','#dc2626','Corrective'],travaux:['T','#d97706','Travaux'],commission_securite:['CS','#7c3aed','Commission de sécurité'],visite:['V','#16a34a','Visite']};
+function iv2Late(i){ const t=new Date().toISOString().slice(0,10); return !IV2_TERM.includes(i.statut)&&!['realisee','rapport_recu'].includes(i.statut)&&i.date_prevue&&i.date_prevue<t; }
+
+function iv2Row(i){
+  const MOIS=['janv','févr','mars','avr','mai','juin','juil','août','sept','oct','nov','déc'];
   const erpName=id=>state.erps.find(e=>e.id===id)?.nom||'';
-  const typeColor={preventive:'#2563eb',corrective:'#dc2626',travaux:'#f59e0b',visite:'#16a34a',commission_securite:'#9333ea'};
-  const typeLabel={preventive:'Préventive',corrective:'Corrective',travaux:'Travaux',visite:'Visite',commission_securite:'Commission de sécurité'};
-  return `<div style="display:flex;flex-direction:column;gap:10px">
-    ${rows.map(i=>{ const dot=typeColor[i.type]||'#94a3b8';
-      const data=JSON.stringify(i).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-      return `<div class="itr-row" style="display:flex;align-items:center;gap:14px;width:100%;padding:11px 16px;border-radius:12px;border:1px solid var(--line);border-left:4px solid ${dot};background:var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.05);cursor:pointer;transition:box-shadow .15s,transform .15s" onmouseenter="this.style.boxShadow='0 6px 20px rgba(0,0,0,.1)';this.style.transform='translateY(-1px)'" onmouseleave="this.style.boxShadow='0 1px 4px rgba(0,0,0,.05)';this.style.transform=''" onclick="formInter(null,${data})">
-        <span style="font-size:10.5px;font-weight:700;color:${dot};background:${dot}18;padding:3px 10px;border-radius:20px;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap">${esc(typeLabel[i.type]||i.type||'—')}</span>
-        <div style="flex:1 1 200px;min-width:0">
-          <div style="font-size:14px;font-weight:700;color:var(--ink);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(i.objet||i.domaine||'—')}</div>
-          ${erpName(i.erp_id)?`<div style="font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(erpName(i.erp_id))}</div>`:''}
-          ${i.statut==='demandee'&&i.demande_envoyee_le?`<div style="font-size:11.5px;color:#1d4ed8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Demande envoyée le ${fmtDate(i.demande_envoyee_le)}${i.demande_destinataire?' à '+esc(i.demande_destinataire):''} — en attente de confirmation</div>`:''}
-          ${i.statut==='date_proposee'&&i.date_proposee?`<div style="font-size:11.5px;color:#92400e;margin-top:2px;white-space:normal">Le prestataire propose le <b>${fmtDate(i.date_proposee)}</b>${i.proposition_commentaire?' — « '+esc(i.proposition_commentaire)+' »':''}</div>`:''}
-        </div>
-        <div class="itr-right" style="display:flex;align-items:center;gap:14px;flex:0 0 auto">
-          <div class="itr-date" style="font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap;width:96px;text-align:right">${fmtDate(i.date_prevue)||'—'}${i.heure_prevue?'<div style="font-weight:500;color:var(--muted);font-size:11.5px">'+String(i.heure_prevue).slice(0,5)+'</div>':''}</div>
-          <span class="mono itr-code" style="font-size:11px;color:var(--muted-2);white-space:nowrap;width:120px">${i.code_int?esc(i.code_int):''}</span>
-          <span class="itr-stat" style="width:104px;display:flex;justify-content:flex-start">${statusPill(i.statut,ITST)}</span>
-          ${i.statut==='demandee'?`<button class="btn sm" style="font-size:12px;white-space:nowrap" title="Le prestataire a confirmé par téléphone : enregistrer la date" onclick="event.stopPropagation();confirmInterTel('${i.id}','${esc(i.date_prevue||'')}')">✓ Confirmer (tél.)</button>`:''}
-          ${i.statut==='date_proposee'&&i.date_proposee?`<button class="btn sm primary" style="font-size:12px;white-space:nowrap" onclick="event.stopPropagation();accepterDateProposee('${i.id}','${esc(i.date_proposee)}')">✓ Accepter le ${new Date(i.date_proposee+'T00:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})}</button>`:''}
-          <button class="btn sm" style="font-size:12px;white-space:nowrap" title="Tableau de bord" onclick="event.stopPropagation();gotoClientDashboard('${i.erp_id}','${esc(i.date_prevue||'')}')">Tableau de bord</button>
-        </div>
-      </div>`;
-    }).join('')}
+  const data=JSON.stringify(i).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  const term=IV2_TERM.includes(i.statut);
+  const today=new Date(); today.setHours(0,0,0,0);
+  // Carré de date + barre de progression : une seule échelle de couleur, l'urgence
+  let djCls='u-none', djD='—', djM='', fCls='f-fut', pct=0, relTxt='date à fixer', relCls='';
+  if(i.date_prevue){
+    const d=new Date(i.date_prevue+'T00:00:00');
+    djD=String(d.getDate()).padStart(2,'0'); djM=MOIS[d.getMonth()]+(d.getFullYear()!==today.getFullYear()?' '+String(d.getFullYear()).slice(2):'');
+    const diff=Math.round((d-today)/864e5);
+    // progression : part du délai consommée depuis la création
+    const start=i.created_at?new Date(i.created_at):null;
+    if(start&&d>start){ pct=Math.round((today-start)/(d-start)*100); pct=Math.max(4,Math.min(100,pct)); } else pct=diff<0?100:50;
+    if(term){ djCls='u-done'; fCls='f-done'; pct=100; relTxt='terminée'; relCls='done'; }
+    else if(diff<0){ djCls='u-late'; fCls='f-late'; pct=100; relTxt='en retard de '+(-diff)+' j'; relCls='late'; }
+    else if(diff===0){ djCls='u-soon'; fCls='f-soon'; pct=100; relTxt="aujourd'hui"; relCls='soon'; }
+    else if(diff<=14){ djCls='u-soon'; fCls='f-soon'; relTxt='dans '+diff+' j'; relCls='soon'; }
+    else { djCls='u-fut'; fCls='f-fut'; relTxt=diff<=92?('dans '+diff+' j'):('dans '+Math.round(diff/30)+' mois'); }
+  } else if(term){ djCls='u-done'; relTxt='terminée'; relCls='done'; fCls='f-done'; pct=100; }
+  const fam=IV2_FAM[i.type]||['•','#64748b',i.type||'—'];
+  const multi=(state.currentErp==='all'||!state.currentErp)&&(state.erps||[]).length>1;
+  // Action contextuelle
+  let action;
+  if(i.statut==='demandee') action=`<button class="btn sm primary" title="Le prestataire a confirmé par téléphone : enregistrer la date" onclick="event.stopPropagation();confirmInterTel('${i.id}','${esc(i.date_prevue||'')}')">✓ Confirmer</button>`;
+  else if(i.statut==='date_proposee'&&i.date_proposee) action=`<button class="btn sm primary" onclick="event.stopPropagation();accepterDateProposee('${i.id}','${esc(i.date_proposee)}')">✓ Accepter</button>`;
+  else if(i.type==='commission_securite'&&!term) action=`<button class="btn sm primary" onclick="event.stopPropagation();navigate('/preparation-cs')">Préparer</button>`;
+  else if(['a_programmer','a_reprogrammer'].includes(i.statut)) action=`<button class="btn sm primary" onclick="event.stopPropagation();formInter(null,${data})">Programmer</button>`;
+  else action=`<button class="btn sm ${term?'':'primary'}" onclick="event.stopPropagation();formInter(null,${data})">Ouvrir</button>`;
+  return `<div class="iv2-row${term?' done':''}" onclick="formInter(null,${data})">
+    <span class="iv2-dj ${djCls}"><b>${djD}</b><small>${djM||'&nbsp;'}</small></span>
+    <div class="iv2-tx">
+      <b>${esc(i.objet||i.domaine||'—')}</b>
+      <div class="iv2-meta"><span class="iv2-mono" style="background:${fam[1]}">${fam[0]}</span><span style="font-weight:600;color:#475569">${esc(fam[2])}</span>
+        ${multi&&erpName(i.erp_id)?`<span class="sep">·</span><span>${esc(erpName(i.erp_id))}</span>`:''}
+        ${i.code_int?`<span class="sep">·</span><span class="mono" style="font-size:10.5px;color:var(--muted-2)">${esc(i.code_int)}</span>`:''}
+        ${i.heure_prevue?`<span class="sep">·</span><span>${String(i.heure_prevue).slice(0,5)}</span>`:''}
+      </div>
+      ${i.statut==='demandee'&&i.demande_envoyee_le?`<div class="iv2-info" style="color:#1d4ed8">Demande envoyée le ${fmtDate(i.demande_envoyee_le)}${i.demande_destinataire?' à '+esc(i.demande_destinataire):''} — en attente de confirmation</div>`:''}
+      ${i.statut==='date_proposee'&&i.date_proposee?`<div class="iv2-info" style="color:#92400e">Le prestataire propose le <b>${fmtDate(i.date_proposee)}</b>${i.proposition_commentaire?' — « '+esc(i.proposition_commentaire)+' »':''}</div>`:''}
+      <div class="iv2-prog"><span class="track"><i class="${fCls}" style="width:${pct}%"></i></span><span class="pct ${relCls}">${relTxt}</span></div>
+    </div>
+    <div class="iv2-act">
+      <span class="iv2-stt">${esc((ITST[i.statut]||['',i.statut||'—'])[1])}</span>
+      ${action}
+      <button class="iv2-kb" title="Tableau de bord (calendrier du mois)" onclick="event.stopPropagation();gotoClientDashboard('${i.erp_id}','${esc(i.date_prevue||'')}')"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></button>
+    </div>
   </div>`;
+}
+
+function interTable(rows,flat){
+  rows=rows||[];
+  if(flat) return rows.map(iv2Row).join('')||'';
+  const todo=[],avenir=[],term=[];
+  rows.forEach(i=>{ if(IV2_TERM.includes(i.statut)) term.push(i); else if(iv2Late(i)||IV2_TODO.includes(i.statut)) todo.push(i); else avenir.push(i); });
+  const showDone=!!window._interShowDone;
+  let h='';
+  if(todo.length) h+=`<div class="iv2-mois">À traiter · ${todo.length}</div>`+todo.map(iv2Row).join('');
+  if(avenir.length) h+=`<div class="iv2-mois">À venir · ${avenir.length}</div>`+avenir.map(iv2Row).join('');
+  if(term.length){
+    const apercu=term.slice(0,3).map(i=>esc(i.objet||i.domaine||'—')).join(' · ');
+    h+=`<div class="iv2-fold" onclick="window._interShowDone=!window._interShowDone;var b=document.getElementById('inter-list');if(b&&window._interData){b.innerHTML=interTable(interSortRows(interFiltered()));}else{renderRoute();}">
+      <span class="ok">✓</span><div><b>${term.length} intervention${term.length>1?'s':''} terminée${term.length>1?'s':''}</b><br><small>${apercu}${term.length>3?' · …':''}</small></div>
+      <span class="spx"></span><button class="btn sm" onclick="event.stopPropagation();this.closest('.iv2-fold').click()">${showDone?'Masquer ▴':'Voir ▾'}</button>
+    </div>`;
+    if(showDone) h+=`<div style="margin-top:10px">${term.map(iv2Row).join('')}</div>`;
+  }
+  return h||'';
 }
 function gotoClientDashboard(erpId, dateISO){
   const erp=state.erps.find(e=>e.id===erpId);
@@ -8928,37 +9032,67 @@ window.accepterDateProposee=async function(interId,dateISO){
     renderRoute();
   }catch(e){ toast('Erreur lors de l\'enregistrement. Merci de réessayer.','err'); }
 };
+/* ── Interventions V5 : filtres par pastilles + recherche + tri ── */
+window.interFiltered=function(){
+  const rows=window._interData||[];
+  const f=window._interFilter||'all';
+  const q=(window._interSearch||'').toLowerCase().trim();
+  const erpName=id=>state.erps.find(e=>e.id===id)?.nom||'';
+  let out=rows;
+  if(f==='late') out=rows.filter(iv2Late);
+  else if(f==='aprog') out=rows.filter(i=>['a_programmer','a_reprogrammer'].includes(i.statut));
+  else if(f==='dem') out=rows.filter(i=>['demandee','date_proposee'].includes(i.statut));
+  else if(f==='rap') out=rows.filter(i=>['rapport_attendu','a_analyser'].includes(i.statut));
+  else if(f==='prog') out=rows.filter(i=>i.statut==='programmee');
+  else if(f==='done') out=rows.filter(i=>IV2_TERM.includes(i.statut));
+  if(q) out=out.filter(i=>((i.objet||'')+' '+(i.domaine||'')+' '+(i.code_int||'')+' '+erpName(i.erp_id)).toLowerCase().includes(q));
+  return out;
+};
+window.interRefreshList=function(){
+  const box=document.getElementById('inter-list'); if(!box) return;
+  const f=window._interFilter||'all';
+  const rows=interSortRows(interFiltered());
+  // Vue filtrée = liste à plat ; vue « Toutes » = groupes + terminées repliées
+  box.innerHTML=(f==='all')?(interTable(rows)||'<div style="color:var(--muted);font-size:13px;padding:14px 4px">Aucune intervention.</div>')
+    :(interTable(rows,true)||'<div style="color:var(--muted);font-size:13px;padding:14px 4px">Aucune intervention ne correspond à ce filtre.</div>');
+  document.querySelectorAll('.iv2-chip[data-f]').forEach(ch=>ch.classList.toggle('on',ch.dataset.f===f));
+};
+window.interSetFilter=function(f){
+  window._interFilter=(window._interFilter===f&&f!=='all')?'all':f;
+  if(f==='done') window._interShowDone=true;
+  interRefreshList();
+};
 async function viewInterventions(c){
-  if(window._interSort===undefined) window._interSort='proches'; // à venir en premier (proche -> lointain), passées reléguées
+  if(window._interSort===undefined) window._interSort='proches';
   // Filtre éventuel passé par le tableau de bord (ex: #/interventions?f=aprog)
-  const _q=(location.hash.split('?')[1]||''); const _filtreAprog=/(^|&)f=aprog(&|$)/.test(_q);
+  const _q=(location.hash.split('?')[1]||'');
+  if(/(^|&)f=aprog(&|$)/.test(_q)) window._interFilter='aprog';
+  else if(window._interFilter===undefined) window._interFilter='all';
+  window._interSearch='';
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Interventions</h1><p>Préventif, dépannages et travaux.</p></div>
     <div class="actions"><button class="btn primary" onclick="formInter()">${I.plus} Demande d'intervention</button><button class="btn" onclick="formInter(null,null,'programmer')" title="Intervention convenue par téléphone : enregistrer directement la date">Programmer une intervention</button></div></div>${loadingBlock()}`;
   try{ let q=sb.from('interventions').select('*'); q=erpFilter(q);
     const {data}=await q;
-    let _rows=data||[];
-    if(_filtreAprog) _rows=_rows.filter(i=>['a_programmer','a_reprogrammer'].includes(i.statut));
+    const _rows=data||[];
     window._interData=_rows;
-    c.querySelector('.loading')||(c.innerHTML=c.innerHTML.split(loadingBlock())[0]);
-    c.innerHTML=`<div class="page-head"><div class="t"><h1>Interventions</h1><p>${_rows.length} intervention(s)${_filtreAprog?' à programmer':''}.</p></div>
+    const n={ all:_rows.length, late:_rows.filter(iv2Late).length,
+      aprog:_rows.filter(i=>['a_programmer','a_reprogrammer'].includes(i.statut)).length,
+      dem:_rows.filter(i=>['demandee','date_proposee'].includes(i.statut)).length,
+      rap:_rows.filter(i=>['rapport_attendu','a_analyser'].includes(i.statut)).length,
+      prog:_rows.filter(i=>i.statut==='programmee').length,
+      done:_rows.filter(i=>IV2_TERM.includes(i.statut)).length };
+    const chip=(f,lbl)=>n[f]||f==='all'?`<button class="iv2-chip${(window._interFilter||'all')===f?' on':''}" data-f="${f}" onclick="interSetFilter('${f}')">${lbl} <span class="c">${n[f]}</span></button>`:'';
+    c.innerHTML=`<div class="page-head"><div class="t"><h1>Interventions</h1><p>${_rows.length} intervention(s).</p></div>
       <div class="actions"><button class="btn primary" onclick="formInter()">${I.plus} Demande d'intervention</button><button class="btn" onclick="formInter(null,null,'programmer')" title="Intervention convenue par téléphone : enregistrer directement la date">Programmer une intervention</button></div></div>
-      ${_filtreAprog?`<div style="display:flex;align-items:center;gap:10px;margin:0 0 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:11px;padding:9px 14px;flex-wrap:wrap">
-        <span style="font-size:13px;color:#9a3412;font-weight:600">Affichage filtré : interventions à programmer uniquement (${_rows.length})</span>
-        <button class="btn sm" style="margin-left:auto" onclick="navigate('/interventions')">Tout afficher ✕</button>
-      </div>`:''}
-      ${(_rows.length)?`<div style="display:flex;align-items:center;gap:10px;margin:0 0 16px;flex-wrap:wrap">
-        <span style="font-size:12.5px;color:var(--muted);font-weight:600">Trier par date</span>
-        <div class="sortseg" role="group" aria-label="Trier par date">
-          <button id="isort-proches" onclick="interSetSort('proches')" title="Interventions à venir, la plus proche d'abord (les passées en bas)" aria-pressed="${window._interSort==='proches'}" class="${window._interSort==='proches'?'on':''}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h4M3 12h7M3 18h11"/><path d="M17 16l3 3 3-3M20 19V5"/></svg>
-            Plus proches
-          </button>
-          <button id="isort-lointaines" onclick="interSetSort('lointaines')" title="Dates les plus lointaines d'abord" aria-pressed="${window._interSort==='lointaines'}" class="${window._interSort==='lointaines'?'on':''}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h11M3 12h7M3 18h4"/><path d="M17 8l3-3 3 3M20 5v14"/></svg>
-            Plus lointaines
-          </button>
-        </div>
-      </div><div id="inter-list">${interTable(interSortRows(_rows))}</div>`:emptyBlock(I.inter,_filtreAprog?'Rien à programmer':'Aucune intervention',_filtreAprog?'Toutes les interventions ont une date prévue.':'Programmez la première vérification préventive.',`<button class="btn ${_filtreAprog?'':'primary'}" onclick="${_filtreAprog?"navigate('/interventions')":'formInter()'}">${_filtreAprog?'Voir toutes les interventions':I.plus+' Programmer'}</button>`)}`;
+      ${_rows.length?`<div class="iv2-chips">
+        ${chip('all','Toutes')}${chip('late','En retard')}${chip('aprog','À programmer')}${chip('dem','Attente prestataire')}${chip('rap','Rapport attendu')}${chip('prog','Programmées')}${chip('done','Terminées')}
+        <span style="flex:1"></span>
+        <span class="iv2-srch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input placeholder="Rechercher…" oninput="window._interSearch=this.value;interRefreshList()"></span>
+        <button class="iv2-sort" id="iv2-sort" onclick="interSetSort(window._interSort==='proches'?'lointaines':'proches')" title="Inverser l'ordre chronologique">⇅ ${window._interSort==='proches'?'Plus proches':'Plus lointaines'}</button>
+      </div>
+      <div id="inter-list"></div>`
+      :emptyBlock(I.inter,'Aucune intervention','Programmez la première vérification préventive.',`<button class="btn primary" onclick="formInter()">${I.plus} Programmer</button>`)}`;
+    if(_rows.length) interRefreshList();
   }catch(e){ c.innerHTML=errBlock(e); }
 }
 function interSortRows(rows){
@@ -8979,9 +9113,8 @@ function interSortRows(rows){
 window.interSetSort=function(dir){
   if(window._interSort===dir) return;
   window._interSort=dir;
-  ['proches','lointaines'].forEach(d=>{ const b=document.getElementById('isort-'+d); if(b){ b.classList.toggle('on',d===dir); b.setAttribute('aria-pressed',String(d===dir)); }});
-  const box=document.getElementById('inter-list');
-  if(box) box.innerHTML=interTable(interSortRows(window._interData||[]));
+  const b=document.getElementById('iv2-sort'); if(b) b.textContent='⇅ '+(dir==='proches'?'Plus proches':'Plus lointaines');
+  interRefreshList();
 };
 function quickIntervention(){ formInter(); } window.quickIntervention=quickIntervention;
 function interDomChange(){ const sel=$('#f_dom_sel'), inp=$('#f_dom'); if(!sel||!inp) return; if(sel.value==='__autre__'){ inp.style.display='block'; inp.focus(); } else if(sel.value){ domChipAdd(sel.value); } sel.value=''; }
