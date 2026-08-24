@@ -13522,7 +13522,7 @@ function formDoc(prefiles){
     const btn=$('#save'); btn.disabled=true;
     const type=$('#f_type').value;
     const date_document=$('#f_date')?.value||null;
-    const avis=((type==='PV commission'||type==='RVRAT'||type==='RVRE') && $('#f_avis'))?($('#f_avis').value||null):null;
+    const avis=((type==='PV commission'||(window.DOC_NC_TYPES||[]).includes(type)) && $('#f_avis'))?($('#f_avis').value||null):null;
     const lotSelEl=$('#f_lot_sel'); const lot=(lotSelEl&&lotSelEl.value&&lotSelEl.value!=='__autre__')?lotSelEl.value:(($('#f_lot').value||'').trim()||null);
     const prestataire_id=$('#f_prest')?.value||null;
     // Suivi PV de réception (devis signés uniquement)
@@ -13646,17 +13646,20 @@ window.docPreviewFile=function(i){
   if(!w) toast('Autorisez les fenêtres pop-up pour visualiser','err');
   setTimeout(()=>{ try{URL.revokeObjectURL(u);}catch(_){}} ,60000);
 };
+/* Types de document qualifiés par « Présence de non conformité : Oui / Non » au dépôt */
+window.DOC_NC_TYPES=['Rapport','Bureau de contrôle','RVRAT','RVRE','PV de réception','Maintenance préventive','Maintenance corrective'];
 window.docTypeChange=function(){
   const t=$('#f_type')?.value; const z=document.getElementById('f_avis_zone');
-  const isVerif=(t==='RVRAT'||t==='RVRE');
-  if(z) z.style.display=(t==='PV commission'||isVerif)?'':'none';
-  // Le champ « avis » change de nature selon le type : avis de commission vs remarque de vérification
+  // Types où l'on qualifie le document par « Présence de non conformité : Oui / Non »
+  const isNC=(window.DOC_NC_TYPES||[]).includes(t);
+  if(z) z.style.display=(t==='PV commission'||isNC)?'':'none';
+  // Le champ « avis » change de nature selon le type : avis de commission vs présence de non conformité
   const avLbl=document.getElementById('f_avis_lbl'), avSel=document.getElementById('f_avis');
   if(avLbl&&avSel){
     const cur=avSel.value;
-    if(isVerif){
-      avLbl.textContent='Remarque';
-      avSel.innerHTML='<option value="">— non précisé —</option><option>Remarque</option>';
+    if(isNC){
+      avLbl.textContent='Présence de non conformité';
+      avSel.innerHTML='<option value="">— non précisé —</option><option>Oui</option><option>Non</option>';
     }else{
       avLbl.textContent='Avis de la commission';
       avSel.innerHTML='<option value="">— non précisé —</option><option>Favorable</option><option>Favorable avec prescriptions</option><option>Défavorable</option><option>Avis différé</option>';
@@ -13835,8 +13838,9 @@ function gedRenderList(){
       return 'Autres'; };
     const byCat={}; docs.forEach(d=>{ const c=catOf(d.type); (byCat[c]=byCat[c]||[]).push(d); });
     const cats=CAT_ORDER.filter(c=>byCat[c]);
-    const avisColor={'Favorable':'#16a34a','Favorable avec prescriptions':'#d97706','Défavorable':'#dc2626','Avis différé':'#64748b'};
-    const avisBadge=a=>a?`<span style="background:${avisColor[a]||'#64748b'};color:#fff;font-size:10.5px;font-weight:600;padding:1px 8px;border-radius:999px;white-space:nowrap;margin-left:6px">${esc(a)}</span>`:'';
+    const avisColor={'Favorable':'#16a34a','Favorable avec prescriptions':'#d97706','Défavorable':'#dc2626','Avis différé':'#64748b','Oui':'#dc2626','Non':'#16a34a'};
+    const avisLabel={'Oui':'Non-conformité : Oui','Non':'Non-conformité : Non'};
+    const avisBadge=a=>a?`<span style="background:${avisColor[a]||'#64748b'};color:#fff;font-size:10.5px;font-weight:600;padding:1px 8px;border-radius:999px;white-space:nowrap;margin-left:6px">${esc(avisLabel[a]||a)}</span>`:'';
     const docDate=d=>d.date_document||d.created_at;
     const rowDoc=d=>{
       const isEmail=!!(d.tags && d.tags.indexOf('cat:')>=0);
