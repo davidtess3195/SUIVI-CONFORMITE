@@ -17333,16 +17333,59 @@ window.hsDelete=async function(id,isFuture,btn){
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='🗑'; }
 };
 window.viewAccesRapports=async function(c){
-  c.innerHTML=`<div class="page-head"><div class="t"><h1>Accès rapports</h1><p>Tous les partages temporaires : en cours, expirés, révoqués.</p></div>
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Accès rapports</h1><p>Partages temporaires et accès permanents prestataires.</p></div>
     <div class="actions"><button class="btn primary" onclick="arModal()">＋ Nouvel accès</button></div></div>
+    <div style="font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin:0 0 8px">⏱ Partages temporaires</div>
     <div id="arh_stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px"></div>
-    <div id="arh_box"><div style="display:grid;place-items:center;padding:30px"><div class="spin"></div></div></div>`;
+    <div id="arh_box"><div style="display:grid;place-items:center;padding:30px"><div class="spin"></div></div></div>
+    <div style="display:flex;align-items:center;gap:10px;margin:26px 0 10px;flex-wrap:wrap">
+      <div style="font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--muted);text-transform:uppercase">🔑 Accès permanents prestataires <span style="font-weight:500;text-transform:none;letter-spacing:0">— mot de passe valable 1 an, lié à un client</span></div>
+      <button class="btn sm" style="margin-left:auto" onclick="quickAcces()">＋ Générer un accès permanent</button>
+    </div>
+    <div id="arh_perm"><div style="display:grid;place-items:center;padding:24px"><div class="spin"></div></div></div>`;
   try{
     const {data,error}=await sb.from('acces_rapports').select('id,erp_id,doc_ids,password_plain,expires_at,actif,created_by,created_at').order('created_at',{ascending:false}).limit(150);
     if(error) throw error;
     const okE=new Set(erpsPerimetre(false).map(e=>e.id));
     arhRender((data||[]).filter(r=>!r.erp_id||okE.has(r.erp_id)));
   }catch(e){ document.getElementById('arh_box').innerHTML='<div class="card card-pad" style="color:var(--danger,#dc2626)">Erreur : '+esc(e.message||e)+'</div>'; }
+  arhRenderPerm();
+};
+/* Accès permanents prestataires (qr_acces_prestataires) — affichés aussi sur cette page */
+window.arhRenderPerm=async function(){
+  const box=document.getElementById('arh_perm'); if(!box) return;
+  try{
+    if(!window._prestCache||!window._prestCache.length){
+      const {data:pd}=await sb.from('prestataires').select('*').order('nom'); window._prestCache=pd||[];
+    }
+    const {data,error}=await sb.from('qr_acces_prestataires').select('*').order('created_at',{ascending:false});
+    if(error) throw error;
+    const acces=data||[]; window._qrAccesCache=acces;
+    if(!acces.length){ box.innerHTML='<div class="card card-pad" style="color:var(--muted)">Aucun accès permanent généré. Le bouton « Générer un accès permanent » crée un mot de passe qu\'un prestataire utilise après avoir scanné le QR de l\'établissement.</div>'; return; }
+    const pById={}; (window._prestCache||[]).forEach(p=>pById[p.id]=p);
+    const cById={}; (state.clients||[]).forEach(x=>cById[x.id]=x);
+    const now=Date.now();
+    const statut=a=>!a.actif?['Révoqué','#6b7280','#f3f4f6']:(new Date(a.expires_at).getTime()<now?['Expiré','#b91c1c','#fef2f2']:['Actif','#166534','#f0fdf4']);
+    box.innerHTML=`<div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Prestataire</th><th>Client</th><th>Mot de passe</th><th>Expire le</th><th>Statut</th><th style="text-align:right">Actions</th></tr></thead>
+      <tbody>${acces.map(a=>{
+        const p=pById[a.prestataire_id], cl=cById[a.client_id];
+        const [sl,sc,sbg]=statut(a);
+        const pj=(a.password_plain||'').replace(/'/g,'');
+        return `<tr>
+          <td><b>${esc(p?p.nom:'—')}</b></td>
+          <td style="font-size:13px">${esc(cl?cl.raison_sociale:'—')}</td>
+          <td><span style="font-family:monospace;font-weight:700;font-size:13.5px;background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:3px 8px">${esc(a.password_plain||'••••••••')}</span>
+            ${a.password_plain?`<button class="btn sm" onclick="navigator.clipboard.writeText('${pj}').then(()=>toast('Mot de passe copié','ok'))" style="margin-left:4px">Copier</button>`:''}</td>
+          <td style="font-size:13px">${fmtDate(a.expires_at)}</td>
+          <td><span style="font-size:11.5px;font-weight:700;color:${sc};background:${sbg};border-radius:20px;padding:3px 10px">${sl}</span></td>
+          <td style="text-align:right"><span style="display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end">
+            ${a.actif&&a.password_plain?`<button class="btn sm" onclick="qrAccesSendMail('${a.id}')">Envoyer</button>`:''}
+            <button class="btn sm" onclick="qrAccesRenew('${a.id}')">Renouveler</button>
+            ${a.actif?`<button class="btn sm" style="color:#b91c1c" onclick="qrAccesRevoke('${a.id}')">Révoquer</button>`:''}
+          </span></td></tr>`; }).join('')}
+      </tbody></table></div>`;
+  }catch(e){ box.innerHTML='<div class="card card-pad" style="color:var(--danger,#dc2626)">Erreur : '+esc(e.message||e)+'</div>'; }
 };
 window.arhRender=function(rows){
   const box=document.getElementById('arh_box'), st=document.getElementById('arh_stats'); if(!box) return;
@@ -21721,10 +21764,16 @@ async function qrAccesCreate(btn){
     await sb.from('qr_acces_prestataires').update({actif:false}).eq('prestataire_id',pid).eq('actif',true);
     const {error}=await sb.from('qr_acces_prestataires').insert({prestataire_id:pid,client_id:cid,password_hash:hash,password_plain:pwd,expires_at:exp.toISOString(),actif:true});
     if(error) throw error;
-    closeModal(); toast('Accès généré : '+pwd,'ok'); renderQrAccesTable();
+    closeModal(); toast('Accès généré : '+pwd,'ok'); qrAccesRefresh();
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; }
 }
 window.qrAccesCreate=qrAccesCreate;
+/* Rafraîchit le tableau des accès permanents là où il est affiché :
+   onglet Prestataires (#prest-list) ET page Accès rapports (#arh_perm). */
+window.qrAccesRefresh=function(){
+  if(document.getElementById('prest-list')) try{ renderQrAccesTable(); }catch(_){}
+  if(document.getElementById('arh_perm')&&window.arhRenderPerm) try{ arhRenderPerm(); }catch(_){}
+};
 
 async function qrAccesRenew(id){
   try{
@@ -21733,7 +21782,7 @@ async function qrAccesRenew(id){
     const exp=new Date(); exp.setFullYear(exp.getFullYear()+1);
     const {error}=await sb.from('qr_acces_prestataires').update({password_hash:hash,password_plain:pwd,expires_at:exp.toISOString(),actif:true}).eq('id',id);
     if(error) throw error;
-    toast('Nouveau mot de passe : '+pwd,'ok'); renderQrAccesTable();
+    toast('Nouveau mot de passe : '+pwd,'ok'); qrAccesRefresh();
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
 }
 window.qrAccesRenew=qrAccesRenew;
@@ -21741,7 +21790,7 @@ window.qrAccesRenew=qrAccesRenew;
 async function qrAccesRevoke(id){
   if(!confirm('Révoquer cet accès ? Le prestataire ne pourra plus consulter les rapports.')) return;
   try{ const {error}=await sb.from('qr_acces_prestataires').update({actif:false}).eq('id',id); if(error) throw error;
-    toast('Accès révoqué','ok'); renderQrAccesTable(); }
+    toast('Accès révoqué','ok'); qrAccesRefresh(); }
   catch(e){ toast('Erreur : '+(e.message||e),'err'); }
 }
 window.qrAccesRevoke=qrAccesRevoke;
