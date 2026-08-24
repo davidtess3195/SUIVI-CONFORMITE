@@ -2198,6 +2198,20 @@ window.accountModal=function(){
           <input type="file" accept="image/*" onchange="accPhotoPick(this)" style="font-size:12px">
         </div>
         <div style="font-size:11px;color:var(--muted);margin-top:4px">Affichée en haut de l'application. Compressée automatiquement.</div></div>
+      <div class="fld"><label>✍ Ma signature <span style="font-weight:400;color:var(--muted)">(apposée sur les comptes rendus)</span></label>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <span id="acSigPrev" style="width:110px;height:52px;border:1px dashed var(--line);border-radius:9px;background:var(--surface-2) center/contain no-repeat;display:grid;place-items:center;font-size:10.5px;color:var(--muted-2,#94a3b8)">aucune</span>
+          <input type="file" accept="image/*" onchange="accStampPick(this,'signature')" style="font-size:12px;max-width:180px">
+          <button class="btn sm" id="acSigDel" style="display:none" onclick="accStampRemove('signature')">Retirer</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Photo ou scan de ta signature, fond blanc ou transparent (PNG conseillé).</div></div>
+      <div class="fld"><label>🖃 Mon tampon <span style="font-weight:400;color:var(--muted)">(cachet de la société, facultatif)</span></label>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <span id="acCachPrev" style="width:60px;height:60px;border:1px dashed var(--line);border-radius:9px;background:var(--surface-2) center/contain no-repeat;display:grid;place-items:center;font-size:10.5px;color:var(--muted-2,#94a3b8)">aucun</span>
+          <input type="file" accept="image/*" onchange="accStampPick(this,'cachet')" style="font-size:12px;max-width:180px">
+          <button class="btn sm" id="acCachDel" style="display:none" onclick="accStampRemove('cachet')">Retirer</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Apposé en travers de la signature sur les documents générés.</div></div>
       <div class="fld"><label>Adresse de connexion</label>
         <input value="${esc(email)}" disabled style="background:var(--surface-2);color:var(--muted)">
         <div style="font-size:11.5px;color:var(--muted);margin-top:4px">Pour changer d'adresse, contacte l'administrateur.</div></div>
@@ -2216,7 +2230,60 @@ window.accountModal=function(){
     const path=state.profile&&state.profile.photo_path;
     if(path){ try{ const {data}=await sb.storage.from('documents').createSignedUrl(path,3600);
       if(data&&data.signedUrl){ el.textContent=''; el.style.backgroundImage='url("'+data.signedUrl+'")'; } }catch(_){ } }
+    accStampPrev('signature'); accStampPrev('cachet');
   },50);
+};
+/* ═══ SIGNATURE & TAMPON PERSONNELS (apposés sur les comptes rendus) ═══ */
+window.accStampPrev=async function(kind){
+  const prev=document.getElementById(kind==='signature'?'acSigPrev':'acCachPrev');
+  const del=document.getElementById(kind==='signature'?'acSigDel':'acCachDel');
+  if(!prev) return;
+  const path=state.profile&&state.profile[kind==='signature'?'signature_path':'cachet_path'];
+  if(!path){ prev.style.backgroundImage=''; prev.textContent=kind==='signature'?'aucune':'aucun'; if(del) del.style.display='none'; return; }
+  try{ const {data}=await sb.storage.from('documents').createSignedUrl(path,3600);
+    if(data&&data.signedUrl){ prev.textContent=''; prev.style.backgroundImage='url("'+data.signedUrl+'")'; if(del) del.style.display=''; }
+  }catch(_){ }
+};
+window.accStampPick=async function(inp,kind){
+  const f=inp.files[0]; if(!f) return;
+  try{
+    let up=f;
+    // PNG conservé tel quel (transparence utile) ; les autres formats sont compressés
+    if(f.type!=='image/png'&&typeof compressImage==='function') up=await compressImage(f,1000,0.85);
+    const col=kind==='signature'?'signature_path':'cachet_path';
+    const path='avatars/'+state.user.id+'/'+kind+'_'+Date.now()+'_'+String(f.name).replace(/[^\w.\-]/g,'_');
+    const {error:ue}=await sb.storage.from('documents').upload(path,up,{contentType:up.type||f.type}); if(ue) throw ue;
+    const {error}=await sb.from('profiles').update({[col]:path}).eq('id',state.user.id); if(error) throw error;
+    state.profile[col]=path; accStampPrev(kind);
+    toast((kind==='signature'?'Signature':'Tampon')+' enregistré ✓','ok');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+  inp.value='';
+};
+window.accStampRemove=async function(kind){
+  const col=kind==='signature'?'signature_path':'cachet_path';
+  try{ const {error}=await sb.from('profiles').update({[col]:null}).eq('id',state.user.id); if(error) throw error;
+    state.profile[col]=null; accStampPrev(kind); toast((kind==='signature'?'Signature retirée':'Tampon retiré'),'ok');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+/* Charge une image de profil (signature/tampon) en dataURL PNG — transparence conservée */
+window.accStampImg=function(path){
+  return new Promise(async resolve=>{
+    if(!path) return resolve(null);
+    try{
+      const {data}=await sb.storage.from('documents').createSignedUrl(path,600);
+      if(!data||!data.signedUrl) return resolve(null);
+      const img=new Image(); img.crossOrigin='anonymous';
+      img.onload=()=>{ try{
+        const maxd=900; let w=img.naturalWidth,h=img.naturalHeight;
+        const sc=Math.min(1,maxd/Math.max(w,h)); w=Math.round(w*sc); h=Math.round(h*sc);
+        const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+        cv.getContext('2d').drawImage(img,0,0,w,h);
+        resolve({dataUrl:cv.toDataURL('image/png'),w,h});
+      }catch(e){ resolve(null); } };
+      img.onerror=()=>resolve(null);
+      img.src=data.signedUrl;
+    }catch(_){ resolve(null); }
+  });
 };
 /* ═══ PÉRIMÈTRE PAR COMPTE : un directeur ne voit que SON établissement ═══ */
 window.applyScopeLock=function(){
@@ -11702,6 +11769,35 @@ async function generateReportPDF(f){
   const rX=PW-M;
   let y=M;
 
+  /* ── Identité de l'émetteur : PREVA pour le personnel, LE CLIENT pour un compte client.
+     Signature & tampon personnalisés du compte connecté (👤 Mon compte) ; le personnel PREVA
+     retombe sur la signature/cachet PREVA intégrés. Piloté par les données → valable
+     automatiquement pour chaque nouveau client. ── */
+  const _pr=state.profile||{};
+  const _staff=(_pr.role==='admin'||_pr.role==='consultant');
+  const EMET={nom:'PREVA CONSEILS',addr:['5 rue Marceline','95110 SANNOIS'],label:'PREVA CONSEILS',
+    sig:window.SIGN_IMG||null,sigRatio:246/360,cach:window.CACHET_IMG||null};
+  if(!_staff){
+    let cl=null;
+    const cid=f.clientId||(state.currentClient!=='all'?state.currentClient:null);
+    if(cid&&Array.isArray(state.clients)) cl=state.clients.find(c=>c.id===cid)||null;
+    if(!cl&&f.erpId){ const er=(state.erps||[]).find(e=>e.id===f.erpId);
+      if(er&&Array.isArray(state.clients)) cl=state.clients.find(c=>c.id===er.client_id)||null; }
+    if(!cl&&Array.isArray(state.clients)&&state.clients.length===1) cl=state.clients[0];
+    const rs=String((cl&&cl.raison_sociale)||_pr.nom||'').trim();
+    EMET.nom=rs.toUpperCase()||'—';
+    EMET.label=rs.toUpperCase();
+    EMET.addr=[cl&&cl.adresse_siege,[cl&&cl.code_postal,cl&&cl.ville].filter(Boolean).join(' ')].filter(x=>x&&String(x).trim());
+    EMET.sig=null; EMET.cach=null; // jamais la signature PREVA sur un compte client
+  }
+  // Signature/tampon personnels du compte connecté : prioritaires pour tout le monde
+  try{
+    const ps=await accStampImg(_pr.signature_path);
+    if(ps){ EMET.sig=ps.dataUrl; EMET.sigRatio=ps.h/ps.w; }
+    const pc=await accStampImg(_pr.cachet_path);
+    if(pc) EMET.cach=pc.dataUrl;
+  }catch(_){ }
+
   // Bandeau d'accent
   doc.setFillColor(37,99,235); doc.rect(0,0,PW,2.5,'F');
 
@@ -11715,12 +11811,13 @@ async function generateReportPDF(f){
   doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(130);
   doc.text('EXPÉDITEUR', M, blockTop);
   doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(20);
-  doc.text('PREVA CONSEILS', M, blockTop+5.5);
+  const _emLines=doc.splitTextToSize(EMET.nom, halfW-4).slice(0,2);
+  doc.text(_emLines, M, blockTop+5.5);
+  let _ey=blockTop+5.5+_emLines.length*5;
   doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(75);
-  doc.text('5 rue Marceline', M, blockTop+10.5);
-  doc.text('95110 SANNOIS', M, blockTop+14.5);
-  if(f.redacteur) doc.text(f.redacteur, M, blockTop+19.5);
-  const expBottom = blockTop + (f.redacteur?23:17);
+  EMET.addr.forEach(l=>{ const ls=doc.splitTextToSize(String(l), halfW-4).slice(0,2); doc.text(ls, M, _ey); _ey+=ls.length*4; });
+  if(f.redacteur){ doc.text(f.redacteur, M, _ey+1); _ey+=5; }
+  const expBottom=_ey+2.5;
 
   const dList=(f.destList&&f.destList.length)?f.destList:[{dest:f.dest||'—',destNom:f.destNom||''}];
   doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(130);
@@ -11786,15 +11883,21 @@ async function generateReportPDF(f){
     doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(60);
     doc.text(ville?('Fait à '+ville+', le '+auj):('Fait le '+auj), rX, y, {align:'right'}); y+=5.5;
     doc.text("L'auteur du rapport,", rX, y, {align:'right'}); y+=3;
-    const _sigW=40, _sigH=_sigW*246/360, _cachW=25;
-    try{ if(window.SIGN_IMG) doc.addImage(SIGN_IMG,'PNG', rX-_sigW, y, _sigW, _sigH); }catch(e){}
+    const _sigW=40, _cachW=25;
+    let _sigH=0;
+    if(EMET.sig){
+      _sigH=Math.min(32,_sigW*(EMET.sigRatio||246/360));
+      try{ doc.addImage(EMET.sig,'PNG', rX-_sigW, y, _sigW, _sigH); }catch(e){}
+    } else {
+      _sigH=14; // espace laissé pour une signature manuscrite
+    }
     // Cachet apposé à cheval sur le bas de la signature : incliné (9°), semi-transparent
-    try{ if(window.CACHET_IMG){
+    try{ if(EMET.cach){
       let gs=null; try{ gs=new doc.GState({opacity:0.82}); doc.setGState(gs); }catch(_){}
-      doc.addImage(CACHET_IMG,'PNG', rX-_sigW-_cachW*0.35, y+_sigH-_cachW*0.7, _cachW, _cachW, undefined, 'FAST', 9);
+      doc.addImage(EMET.cach,'PNG', rX-_sigW-_cachW*0.35, y+_sigH-_cachW*0.7, _cachW, _cachW, undefined, 'FAST', 9);
       try{ if(gs) doc.setGState(new doc.GState({opacity:1})); }catch(_){}
     } }catch(e){}
-    y+=_sigH+(window.CACHET_IMG?_cachW*0.32:0)+3.5;
+    y+=_sigH+(EMET.cach?_cachW*0.32:0)+3.5;
     // Nom en forme administrative : « david lahouel » → « David LAHOUEL »
     const nomProp=s=>{ s=String(s||'').trim(); if(!s) return '';
       const p=s.split(/\s+/); if(p.length===1) return p[0].charAt(0).toUpperCase()+p[0].slice(1);
@@ -11802,8 +11905,10 @@ async function generateReportPDF(f){
     if(f.redacteur){
       doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(25);
       doc.text(nomProp(f.redacteur), rX, y, {align:'right'}); y+=4.3;
-      doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(120);
-      doc.text('PREVA CONSEILS', rX, y, {align:'right'});
+      if(EMET.label){
+        doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(120);
+        doc.text(EMET.label, rX, y, {align:'right'});
+      }
     }
     doc.setTextColor(20); y+=8;
   }
@@ -11884,8 +11989,17 @@ async function generateReportPDF(f){
     doc.setPage(pg);
     doc.setDrawColor(215); doc.line(M,PH-footerH,PW-M,PH-footerH);
     doc.setFont('helvetica','normal'); doc.setFontSize(6.8); doc.setTextColor(120);
-    doc.text('Siège social : 5 rue Marceline 95110 SANNOIS   ·   Code APE 8559A   ·   SIRET 47963532800038', PW/2, PH-10, {align:'center'});
-    doc.text('Tél : 01.34.17.61.33   ·   contact@preva-conseils.fr   ·   SARL au capital de 20 000 €', PW/2, PH-6.6, {align:'center'});
+    if(_staff){
+      doc.text('Siège social : 5 rue Marceline 95110 SANNOIS   ·   Code APE 8559A   ·   SIRET 47963532800038', PW/2, PH-10, {align:'center'});
+      doc.text('Tél : 01.34.17.61.33   ·   contact@preva-conseils.fr   ·   SARL au capital de 20 000 €', PW/2, PH-6.6, {align:'center'});
+    } else {
+      // Mentions du CLIENT émetteur (fiche société de la rubrique Organisation)
+      const _fl1=[EMET.nom, EMET.addr.join(' ')].filter(Boolean).join('   ·   ');
+      const _cl0=(Array.isArray(state.clients)&&(state.clients.find(c=>c.id===(f.clientId||''))||null))||null;
+      const _fl2=[_cl0&&_cl0.siren?('SIREN '+_cl0.siren):'', _cl0&&_cl0.tva_intra?('TVA '+_cl0.tva_intra):'', _cl0&&_cl0.telephone?('Tél : '+_cl0.telephone):'', (_cl0&&_cl0.email_contact)||''].filter(Boolean).join('   ·   ');
+      if(_fl1) doc.text(_fl1, PW/2, PH-10, {align:'center'});
+      if(_fl2) doc.text(_fl2, PW/2, PH-6.6, {align:'center'});
+    }
     doc.setFontSize(7.2); doc.setTextColor(150);
     if(n) doc.text(n+' photo(s)', M, PH-2.8);
     doc.text('Page '+pg+'/'+pages+' · '+gen, PW-M, PH-2.8, {align:'right'});
