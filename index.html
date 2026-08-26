@@ -23383,7 +23383,38 @@ function viewVerifications(content){
     +'.vempty{text-align:center;padding:44px 20px;color:#8494ab;font-size:13.5px}.vempty b{display:block;font-size:15px;color:#475569;margin-bottom:4px}'
     +'.vtoday{display:flex;align-items:center;gap:14px;background:#f2f5fc;border:1px solid #d5dff3;border-radius:12px;padding:11px 16px;margin-bottom:14px}.vtoday .n{font-size:22px;font-weight:800;color:#1a44ad;line-height:1}.vtoday .t{font-size:13px;color:#334155;line-height:1.4}.vtoday .t b{color:#0f172a}'
     +'.vfiltbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}.vfiltbar .lbl{font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#8494ab}'
+    /* ── Onglet « À traiter » V2 : pastilles-résumé, groupes d'urgence, tuile-jours ── */
+    +'.vxsum{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:14px}'
+    +'.vxsum .s{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid #e6eaf1;border-radius:99px;padding:6px 13px 6px 7px;font-size:12.5px;color:#334155;cursor:pointer;box-shadow:0 1px 3px rgba(15,23,42,.05);font-weight:600}'
+    +'.vxsum .s .d{width:23px;height:23px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:800}'
+    +'.vxsum .s.late{border-color:#fecaca}.vxsum .s.late .d{background:#dc2626}'
+    +'.vxsum .s.amber{border-color:#fde68a}.vxsum .s.amber .d{background:#d97706}'
+    +'.vxsum .s.green{border-color:#bbf7d0}.vxsum .s.green .d{background:#16a34a}'
+    +'.vxsum .s.soon{border-color:#c7d7fe}.vxsum .s.soon .d{background:#1a44ad}'
+    +'.vxgh{display:flex;align-items:center;gap:9px;margin:16px 0 9px}'
+    +'.vxgh .dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto}'
+    +'.vxgh b{font-size:13px}'
+    +'.vxgh .ct{font-size:11px;font-weight:800;border-radius:99px;padding:2px 9px}'
+    +'.vxgh.late{color:#b91c1c}.vxgh.late .dot{background:#dc2626}.vxgh.late .ct{background:#fee2e2;color:#b91c1c}'
+    +'.vxgh.amber{color:#b45309}.vxgh.amber .dot{background:#d97706}.vxgh.amber .ct{background:#ffedd5;color:#c2410c}'
+    +'.vxgh.green{color:#15803d}.vxgh.green .dot{background:#16a34a}.vxgh.green .ct{background:#dcfce7;color:#15803d}'
+    +'.vxgh.soon{color:#1d4ed8}.vxgh.soon .dot{background:#1a44ad}.vxgh.soon .ct{background:#dbeafe;color:#1d4ed8}'
+    +'.vxc{display:flex;background:#fff;border:1px solid #e6eaf1;border-radius:14px;margin-bottom:10px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.04)}'
+    +'.vxdays{flex:0 0 86px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:14px 8px;border-right:1px solid #e6eaf1;background:#f6f8fb}'
+    +'.vxdays b{font-size:21px;line-height:1;letter-spacing:-.5px;color:#475569}'
+    +'.vxdays small{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;text-align:center;line-height:1.3;color:#8494ab}'
+    +'.vxc.late .vxdays{background:#fef2f2}.vxc.late .vxdays b{color:#b91c1c}.vxc.late .vxdays small{color:#dc2626}'
+    +'.vxc.soon .vxdays{background:#eff6ff}.vxc.soon .vxdays b{color:#1a44ad}.vxc.soon .vxdays small{color:#3b62c4}'
+    +'.vxmain{flex:1;min-width:0;padding:13px 16px 12px}'
+    +'.vxt{font-size:14.5px;font-weight:700;line-height:1.3;color:#0f172a}'
+    +'.vxmeta{display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;margin-top:5px;font-size:12px;color:#64748b}'
+    +'.vxmeta .m{display:inline-flex;align-items:center;gap:5px}'
+    +'.vxmeta svg{width:13px;height:13px;stroke:#94a3b8;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}'
+    +'.vxwp{display:inline-flex;align-items:center;gap:5px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:99px;padding:2px 9px;font-size:11px;font-weight:700;cursor:pointer}'
+    +'.vbtn.rp{background:#dc2626;color:#fff}'
     +'@media(max-width:640px){'
+    +'.vxdays{flex:0 0 64px}.vxdays b{font-size:17px}.vxmain{padding:11px 12px 11px}'
+    +'.vactions .vdinput{flex:1;min-width:120px}.vactions .vbtn{flex:1 1 auto;justify-content:center}'
     +'.vtabs{flex-wrap:wrap;overflow-x:visible}'
     +'.verif-tab{padding:9px 9px 11px;font-size:12.5px;gap:5px}.vbadge{padding:1px 6px;font-size:10.5px;min-width:16px}'
     +'.vfiltbar{gap:8px}.vfiltbar .lbl{flex-basis:100%;margin-bottom:-2px}'
@@ -23483,14 +23514,15 @@ function viewVerifications(content){
     const al=document.getElementById('valert'),alt=document.getElementById('valerttxt'),aln=document.getElementById('valertn');
     if(al&&alt){
       if(tot>0){
-        al.style.display='flex'; if(aln) aln.textContent=tot;
+        window._valertWanted=true;
+        al.style.display=(vtab==='traiter')?'none':'flex'; if(aln) aln.textContent=tot;
         const parts=[];
         if(vd.repondre.length) parts.push('<b>'+vd.repondre.length+' réponse(s) prestataire</b> à confirmer');
         if(vd.sans_reponse.length) parts.push('<b>'+vd.sans_reponse.length+' demande(s)</b> sans réponse à relancer');
         if(vd.a_programmer.length) parts.push('<b>'+vd.a_programmer.length+' date(s)</b> à saisir');
         if(vd.a_reprogrammer.length) parts.push('<b>'+vd.a_reprogrammer.length+' intervention(s)</b> à reprogrammer');
         alt.innerHTML='À traiter aujourd\'hui : '+parts.join(', ').replace(/,([^,]*)$/,' et$1')+'.';
-      } else al.style.display='none';
+      } else { window._valertWanted=false; al.style.display='none'; }
     }
     // Peuple la barre de filtres globale
     let clients=(state?.clients||[]).slice();
@@ -23506,25 +23538,34 @@ function viewVerifications(content){
   }
   function vrender(){
     const el=document.getElementById('vcontent');if(!el)return;
+    const _al=document.getElementById('valert'); if(_al&&vtab!=='traiter') _al.style.display=window._valertWanted?'flex':'none';
     if(vtab==='reglages'){vUpdateBadges();el.innerHTML=vrsettings();return;}
     if(vtab==='obligations'){vUpdateBadges();el.innerHTML=vrobligations();vRenderObligContent();return;}
     vUpdateBadges();
     if(vtab==='traiter'){
-      // Option B : une seule liste chronologique à plat (toutes les demandes à traiter mélangées), triée par date.
+      // V2 (maquette validée) : groupes par urgence + pastilles-résumé cliquables + tuile-jours.
+      const SECS=[
+        {k:'a_reprogrammer',cls:'late', t:'En retard — à reprogrammer'},
+        {k:'sans_reponse',  cls:'amber',t:'Sans réponse — à relancer'},
+        {k:'repondre',      cls:'green',t:'Réponses prestataires à confirmer'},
+        {k:'a_programmer',  cls:'soon', t:'Dates à confirmer'}
+      ];
+      const groups=SECS.map(s=>Object.assign({},s,{items:vApplySort(vFiltApply(vd[s.k]||[]))})).filter(g=>g.items.length);
       const totalT=(vd.repondre||[]).length+(vd.sans_reponse||[]).length+(vd.a_programmer||[]).length+(vd.a_reprogrammer||[]).length;
-      // Garder l'onglet d'origine de chaque carte pour son style et ses actions.
-      let flat=[];
-      ['repondre','sans_reponse','a_programmer','a_reprogrammer'].forEach(k=>{ (vd[k]||[]).forEach(i=>flat.push({item:i,srcTab:k})); });
-      flat=flat.filter(x=>vFiltApply([x.item]).length);
-      flat=flat.sort((a,b)=>{ const ka=vSortKey(a.item),kb=vSortKey(b.item); if(ka===kb) return 0; return vsort==='asc'?(ka<kb?-1:1):(ka<kb?1:-1); });
-      const shown=flat.length;
+      const shown=groups.reduce((n,g)=>n+g.items.length,0);
       const info=document.getElementById('vfilt_info');
       if(info) info.textContent=(vfiltClient||vfiltErp)?shown+' élément(s) affiché(s) sur '+totalT:'';
+      // le bandeau-phrase est remplacé ici par les pastilles-résumé
+      const al=document.getElementById('valert'); if(al) al.style.display='none';
       if(!shown){
         el.innerHTML='<div class="vempty">'+((vfiltClient||vfiltErp)&&totalT?'<b>Rien à traiter pour cette sélection</b><a style="cursor:pointer;color:#1a44ad;font-weight:700" onclick="vFiltReset()">Afficher tout</a>':'<b>Rien à traiter</b>Les réponses de prestataires, relances et dates à saisir apparaîtront ici.')+'</div>';
         return;
       }
-      el.innerHTML=flat.map(x=>vrcard(x.item,x.srcTab)).join('');
+      const pills=`<div class="vxsum">${groups.map(g=>`<span class="s ${g.cls}" onclick="document.getElementById('vxsec-${g.k}').scrollIntoView({behavior:'smooth',block:'start'})"><span class="d">${g.items.length}</span>${g.t}</span>`).join('')}</div>`;
+      el.innerHTML=pills+groups.map(g=>
+        `<div class="vxgh ${g.cls}" id="vxsec-${g.k}"><span class="dot"></span><b>${g.t}</b><span class="ct">${g.items.length}</span></div>`
+        +g.items.map(i=>vxcard(i,g.k)).join('')
+      ).join('');
       return;
     }
     let items=vd[vtab]||[];
@@ -23584,6 +23625,60 @@ function viewVerifications(content){
         ${i.nb_relances?`<span class="vpill">${i.nb_relances} relance(s)</span>`:''}
         ${i.ref_token?`<span class="vref">Réf ${esc(i.ref_token)}</span>`:''}
       </div>${act}</div>`;
+  }
+  /* Carte « À traiter » V2 (maquette validée) : tuile-jours + méta à icônes + une action principale */
+  function vxcard(i,tab){
+    const e=verp[i.erp_id]||{},pr=vpr[i.prestataire_id]||{};
+    let cl=(window._vClients||[]).find(c=>c.id===e.client_id);
+    // pas de doublon si le nom de l'ERP contient déjà la raison sociale
+    if(cl&&String(e.nom||'').toLowerCase().includes(String(cl.raison_sociale||'').toLowerCase())) cl=null;
+    const dl=vdl(i.date_prevue||i.prochaine_echeance);
+    const late=dl!==null&&dl<0;
+    const tone=late?'late':(dl!==null?'soon':'');
+    const tile=dl===null?'<b>—</b><small>sans date</small>'
+      :late?`<b>−${Math.abs(dl)}&nbsp;j</b><small>de retard</small>`
+      :`<b>${dl}&nbsp;j</b><small>${dl===0?"aujourd'hui":'avant échéance'}</small>`;
+    const bI='<svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M10 21v-4h4v4"/></svg>';
+    const pI='<svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>';
+    const prest=pr.nom?`<span class="m">${pI}${esc(pr.nom)}</span>`
+      :`<span class="m">${pI}<span class="vxwp" onclick="navigate('/prestataires')" title="Ouvrir la page Prestataires pour le renseigner">⚠ Prestataire à renseigner</span></span>`;
+    let act='';
+    if(tab==='repondre'){
+      act=`<div class="vreply"><div class="lbl">Réponse du prestataire</div><div class="txt">${(i.reponse_extrait||'Corps du message non disponible').substring(0,300).replace(/</g,'&lt;')}</div></div>
+      <div class="vactions"><span class="lbl">Date proposée :</span>
+      <input type="date" class="vdinput" id="vd-${i.id}" value="${i.date_proposee||''}">
+      <button class="vbtn g" onclick="verifConfirmer('${i.id}')">Confirmer la date</button>
+      <button class="vbtn s" onclick="verifReporter('${i.id}')">Reporter</button>
+      <button class="vbtn s" onclick="verifSmsRappel('${i.id}','repondre')">SMS</button></div>`;
+    }else if(tab==='sans_reponse'){
+      act=`<div class="vactions"><button class="vbtn o" onclick="verifRelancerManuel('${i.id}','${i.email_to||''}')">Relancer par e-mail</button>
+      <button class="vbtn s" onclick="verifProgrammerTel('${i.id}')">Programmer par téléphone</button>
+      <button class="vbtn s" onclick="verifSmsRappel('${i.id}','sans_reponse')">SMS</button></div>`;
+    }else if(tab==='a_programmer'){
+      act=`<div class="vactions"><span class="lbl">Date convenue :</span>
+      <input type="date" class="vdinput" id="vd-${i.id}" value="${i.date_prevue||''}">
+      <button class="vbtn b" onclick="verifSaisirDate('${i.id}')">Enregistrer la date</button></div>`;
+    }else if(tab==='a_reprogrammer'){
+      act=`${i.motif_annulation?`<div class="vreply"><div class="lbl">Motif du report</div><div class="txt">${esc(i.motif_annulation)}</div></div>`:''}
+      <div class="vactions"><span class="lbl">Nouvelle date :</span>
+      <input type="date" class="vdinput" id="vd-${i.id}" value="">
+      <button class="vbtn rp" onclick="verifSaisirDate('${i.id}')">Reprogrammer</button>
+      <button class="vbtn s" onclick="verifSmsRappel('${i.id}','a_reprogrammer')">Envoyer un SMS</button></div>`;
+    }
+    return `<div class="vxc ${tone}" id="vc-${i.id}">
+      <div class="vxdays">${tile}</div>
+      <div class="vxmain">
+        <div class="vxt">${esc(i.objet||i.domaine||'—')}</div>
+        <div class="vxmeta">
+          <span class="m">${bI}${esc(e.nom||'—')}${cl?' · '+esc(cl.raison_sociale):''}</span>
+          ${prest}
+          ${i.date_prevue?`<span class="m">Prévue le ${vfd(i.date_prevue)}</span>`:''}
+          ${i.date_proposee?`<span class="m">Proposée le ${vfd(i.date_proposee)}</span>`:''}
+          ${i.nb_relances?`<span class="m">${i.nb_relances} relance(s)</span>`:''}
+        </div>
+        ${act}
+      </div>
+    </div>`;
   }
   function vrsettings(){
     const dry=!!vcfg.dry_run;
