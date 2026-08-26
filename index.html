@@ -6241,6 +6241,17 @@ function sepAbonnesActive(){ const r=state.profile&&state.profile.role; return r
 window.sepAbonnesActive=sepAbonnesActive;
 function isClientAbonne(cid){ const c=(state.clients||[]).find(x=>x.id===cid); return !!(c&&c.abonnement_formule); }
 window.isClientAbonne=isClientAbonne;
+/* Séparation côté PREVA : les prestataires rattachés uniquement à des clients abonnés/autonomes
+   ne remontent pas dans l'annuaire ni les outils PREVA (ils restent visibles via la supervision). */
+function filtrerPrestAbonnes(list){
+  if(!sepAbonnesActive()||window._supervision) return list||[];
+  return (list||[]).filter(p=>{
+    const cids=[p.client_id].concat(Array.isArray(p.client_ids)?p.client_ids:[]).filter(Boolean);
+    if(!cids.length) return true;                 // prestataire global PREVA
+    return cids.some(cid=>!isClientAbonne(cid));  // au moins un client géré par PREVA
+  });
+}
+window.filtrerPrestAbonnes=filtrerPrestAbonnes;
 /* ERP du périmètre courant. avecAbonnes=true : inclut aussi les ERP des clients abonnés
    (utilisé pour les photos urgentes / alertes terrain, qui continuent de remonter). */
 function erpsPerimetre(avecAbonnes){
@@ -17360,11 +17371,13 @@ window.arhRenderPerm=async function(){
   const box=document.getElementById('arh_perm'); if(!box) return;
   try{
     if(!window._prestCache||!window._prestCache.length){
-      const {data:pd}=await sb.from('prestataires').select('*').order('nom'); window._prestCache=pd||[];
+      const {data:pd}=await sb.from('prestataires').select('*').order('nom'); window._prestCache=filtrerPrestAbonnes(pd||[]);
     }
     const {data,error}=await sb.from('qr_acces_prestataires').select('*').order('created_at',{ascending:false});
     if(error) throw error;
-    const acces=data||[]; window._qrAccesCache=acces;
+    // séparation : les accès des clients abonnés/autonomes restent dans leur espace
+    const acces=(window.sepAbonnesActive&&sepAbonnesActive()&&!window._supervision)?(data||[]).filter(a=>!isClientAbonne(a.client_id)):(data||[]);
+    window._qrAccesCache=acces;
     if(!acces.length){ box.innerHTML='<div class="card card-pad" style="color:var(--muted)">Aucun accès permanent généré. Le bouton « Générer un accès permanent » crée un mot de passe qu\'un prestataire utilise après avoir scanné le QR de l\'établissement.</div>'; return; }
     const pById={}; (window._prestCache||[]).forEach(p=>pById[p.id]=p);
     const cById={}; (state.clients||[]).forEach(x=>cById[x.id]=x);
@@ -17803,7 +17816,7 @@ window.arCreate=async function(){
 /* ── Accès rapide : génération d'accès avec chargement des prestataires à la demande ── */
 window.quickAcces=async function(){
   if(!window._prestCache || !window._prestCache.length){
-    try{ const {data,error}=await sb.from('prestataires').select('*').order('nom'); if(error) throw error; window._prestCache=data||[]; }
+    try{ const {data,error}=await sb.from('prestataires').select('*').order('nom'); if(error) throw error; window._prestCache=filtrerPrestAbonnes(data||[]); }
     catch(e){ toast('Chargement des prestataires impossible : '+(e.message||e),'err'); return; }
   }
   qrAccesGenModal();
@@ -21609,7 +21622,7 @@ async function viewPrestataires(c, defaultCat){
       sb.from('prest_invitations').select('id,entreprise,email,statut,soumise_le,mail_envoye_le,ouverte_le,created_at,prestataire_id').in('statut',['soumise','creee','envoyee','ouverte']).order('created_at',{ascending:false}),
       sb.from('qr_acces_prestataires').select('prestataire_id,actif,expires_at').eq('actif',true),
     ]);
-    window._prestCache=pr.data||[];
+    window._prestCache=filtrerPrestAbonnes(pr.data||[]);
     window._anx.invs=iv.data||[];
     const now=Date.now();
     window._anx.acces=(qa.data||[]).filter(a=>new Date(a.expires_at).getTime()>now).map(a=>a.prestataire_id);
@@ -21693,7 +21706,8 @@ async function renderQrAccesTable(){
   const target=document.getElementById('prest-list'); if(!target) return;
   target.innerHTML=loadingBlock();
   let acces=[];
-  try{ const {data,error}=await sb.from('qr_acces_prestataires').select('*').order('created_at',{ascending:false}); if(error)throw error; acces=data||[]; }
+  try{ const {data,error}=await sb.from('qr_acces_prestataires').select('*').order('created_at',{ascending:false}); if(error)throw error;
+    acces=(window.sepAbonnesActive&&sepAbonnesActive()&&!window._supervision)?(data||[]).filter(a=>!isClientAbonne(a.client_id)):(data||[]); }
   catch(e){ target.innerHTML=errBlock(e); return; }
   const prests=window._prestCache||[];
   const pById={}; prests.forEach(p=>pById[p.id]=p);
@@ -23538,6 +23552,8 @@ function viewVerifications(content){
   }
   function vrender(){
     const el=document.getElementById('vcontent');if(!el)return;
+    // synchronise l'onglet surligné avec le contenu affiché (utile en arrivant du tableau de bord)
+    document.querySelectorAll('.verif-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===vtab));
     const _al=document.getElementById('valert'); if(_al&&vtab!=='traiter') _al.style.display=window._valertWanted?'flex':'none';
     if(vtab==='reglages'){vUpdateBadges();el.innerHTML=vrsettings();return;}
     if(vtab==='obligations'){vUpdateBadges();el.innerHTML=vrobligations();vRenderObligContent();return;}
@@ -23788,25 +23804,35 @@ function viewVerifications(content){
             <button class="vbtn s" onclick="document.getElementById('pf-${o.id}').style.display='none'">Annuler</button>
           </div>
         </div>`;
-      return `<div class="vcard" style="border-left-color:#0e7490" id="vc-obl-${o.id}">
-        <div class="vc-top">
-          <div style="min-width:0">
-            <div class="vcardtitle">${esc(o.libelle||o.domaine||'—')}</div>
-            <div class="vcardsub">${esc(erp.nom||'—')}${pr.nom?' · '+esc(pr.nom):' · Prestataire non renseigné'}</div>
+      // Style V2 (maquette validée) : tuile-jours + méta à icônes, actions inchangées
+      const _bI='<svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M10 21v-4h4v4"/></svg>';
+      const _pI='<svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>';
+      const tone=dl===null?'':(dl<0?'late':'soon');
+      const tile=dl===null?'<b>—</b><small>sans échéance</small>'
+        :dl<0?`<b>−${Math.abs(dl)}&nbsp;j</b><small>dépassée</small>`
+        :`<b>${dl}&nbsp;j</b><small>${dl===0?"aujourd'hui":'avant échéance'}</small>`;
+      return `<div class="vxc ${tone}" id="vc-obl-${o.id}">
+        <div class="vxdays">${tile}</div>
+        <div class="vxmain">
+          <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+            <div style="min-width:0;flex:1 1 240px">
+              <div class="vxt">${esc(o.libelle||o.domaine||'—')}</div>
+              <div class="vxmeta">
+                <span class="m">${_bI}${esc(erp.nom||'—')}</span>
+                ${pr.nom?`<span class="m">${_pI}${esc(pr.nom)}</span>`:`<span class="m">${_pI}<span class="vxwp" onclick="navigate('/prestataires')" title="Ouvrir la page Prestataires pour le renseigner">⚠ Prestataire à renseigner</span></span>`}
+                ${o.prochaine_echeance?`<span class="m">Échéance le ${vfd(o.prochaine_echeance)}</span>`:''}
+                ${!isCommission&&o.periodicite?`<span class="m">${esc(o.periodicite)}</span>`:''}
+              </div>
+              <div class="vcardmeta" style="margin-top:7px">
+                ${o.criticite?`<span class="vpill ${o.criticite==='critique'?'red':o.criticite==='majeur'?'orange':'blue'}">${critLbl[o.criticite]||esc(o.criticite)}</span>`:''}
+                ${o.derniere_verif?`<span class="vpill green">Dernière vérification le ${vfd(o.derniere_verif)}</span>`:'<span class="vpill red">Jamais vérifiée</span>'}
+              </div>
+            </div>
+            <button class="vbtn b" style="flex:0 0 auto" onclick="document.getElementById('pf-${o.id}').style.display=document.getElementById('pf-${o.id}').style.display==='none'?'block':'none'">Programmer</button>
           </div>
-          <div style="display:flex;gap:8px;align-items:center;flex:0 0 auto">
-            ${dlabel?`<span class="vdl ${dc}">${dlabel}</span>`:''}
-            <button class="vbtn b" onclick="document.getElementById('pf-${o.id}').style.display=document.getElementById('pf-${o.id}').style.display==='none'?'block':'none'">Programmer</button>
-          </div>
+          ${periodiciteSelector}
+          ${programmerForm}
         </div>
-        <div class="vcardmeta">
-          ${o.prochaine_echeance?`<span class="vpill">Échéance le ${vfd(o.prochaine_echeance)}</span>`:''}
-          ${!isCommission&&o.periodicite?`<span class="vpill">${esc(o.periodicite)}</span>`:''}
-          ${o.criticite?`<span class="vpill ${o.criticite==='critique'?'red':o.criticite==='majeur'?'orange':'blue'}">${critLbl[o.criticite]||esc(o.criticite)}</span>`:''}
-          ${o.derniere_verif?`<span class="vpill green">Dernière vérification le ${vfd(o.derniere_verif)}</span>`:'<span class="vpill red">Jamais vérifiée</span>'}
-        </div>
-        ${periodiciteSelector}
-        ${programmerForm}
       </div>`;
     }).join('');
   }
