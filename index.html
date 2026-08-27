@@ -1704,6 +1704,7 @@ function renderRoute(){
   if(base==='/gpa') return viewGpa(content);
   if(base==='/verifications') return viewVerifications(content);
   if(base==='/organisation') return viewOrganisation(content);
+  if(base==='/budget') return viewBudget(content);
   if(base==='/admin') return viewAdmin(content);
   viewDashboard(content);
 }
@@ -2941,6 +2942,297 @@ window.orgDelPersonne=async function(id){
   try{ const {error}=await sb.from('organisation_personnes').delete().eq('id',id); if(error) throw error;
     closeModal(); toast('Personne supprimée','ok'); viewOrganisation(document.getElementById('content'));
   }catch(e){ toast(e.message,'err'); }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   BUDGET CONFORMITÉ (maquette V5 validée)
+   Prévu = budget_previsions (saisi) · Engagé = devis signés · Réalisé = factures
+   4 familles : préventive / corrective / mise en conformité / autre.
+   ═══════════════════════════════════════════════════════════════════ */
+window.BUD_FAMS=[
+  {k:'preventive', l:'Maintenance préventive', d:'contrats + vérifications périodiques réglementaires', col:'#2563eb', ic:'<path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/><circle cx="12" cy="12" r="3.2"/>'},
+  {k:'corrective', l:'Maintenance corrective', d:'dépannages & réparations suite à panne / vétusté', col:'#d97706', ic:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.1-.4-.4-2.1z"/>'},
+  {k:'conformite', l:'Travaux de mise en conformité', d:'levées de réserves · commission & bureau de contrôle', col:'#16a34a', ic:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>'},
+  {k:'autre', l:'Autre', d:'gros entretien / GPA, imprévus, divers — poste libre', col:'#64748b', ic:'<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>'}
+];
+window._bud={mode:'HT',lens:'exp',annee:(new Date()).getFullYear()};
+function budStyle(){ if(document.getElementById('bud-style'))return; const st=document.createElement('style'); st.id='bud-style'; st.textContent=`
+.bud-lens{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.bud-lens button{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:9px 16px;font-size:13px;font-weight:700;color:#475569;cursor:pointer;font-family:inherit}
+.bud-lens button.on{background:#2563eb;border-color:#2563eb;color:#fff}
+.bud-seg{margin-left:auto;display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.bud-seg button{border:none;background:var(--surface);padding:8px 15px;font-size:12.5px;font-weight:800;color:#64748b;cursor:pointer;font-family:inherit}
+.bud-seg button.on{background:#1a44ad;color:#fff}
+.bud-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px}
+.bud-kpi{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:13px 15px}
+.bud-kpi .lab{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:6px}
+.bud-kpi .lab i{width:8px;height:8px;border-radius:3px;display:inline-block;flex:0 0 auto}
+.bud-kpi b{font-size:20px;display:block;margin-top:6px}
+.bud-kpi small{font-size:11px;color:var(--muted-2,#94a3b8)}
+.bud-cols{display:grid;grid-template-columns:1fr 330px;gap:16px;align-items:start}
+.bud-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.bud-card .ch{padding:13px 16px;border-bottom:1px solid var(--line-2,#eef2f7);display:flex;align-items:center;gap:9px}
+.bud-card .ch b{font-size:14px}
+.bud-card .ch small{color:var(--muted);font-size:11.5px;margin-left:auto}
+.bud-card .cb{padding:14px 16px}
+.bud-poste{padding:12px 0;border-bottom:1px solid var(--line-2,#eef2f7)}
+.bud-poste:last-of-type{border-bottom:none}
+.bud-poste .top{display:flex;align-items:center;gap:11px;margin-bottom:8px}
+.bud-poste .pic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--surface-2,#f6f8fb);flex:0 0 auto}
+.bud-poste .pic svg{width:17px;height:17px;stroke:#1a44ad;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.bud-poste .nm{flex:1;min-width:0}
+.bud-poste .nm b{font-size:13.5px}
+.bud-poste .nm small{font-size:11.5px;color:var(--muted);display:block}
+.bud-poste .amt{text-align:right;flex:0 0 auto}
+.bud-poste .amt b{font-size:14px}
+.bud-poste .amt small{font-size:11px;color:var(--muted-2,#94a3b8);display:block}
+.bud-poste .edit{flex:0 0 auto;border:1px solid var(--line);background:var(--surface);border-radius:8px;width:28px;height:28px;display:grid;place-items:center;cursor:pointer;color:#64748b;font-size:13px}
+.bud-bar{height:9px;border-radius:99px;background:#eef2f7;overflow:hidden;display:flex}
+.bud-bar i{height:100%;display:block}
+.bud-dep{font-size:10.5px;font-weight:800;color:#fff;background:#dc2626;border-radius:99px;padding:2px 8px;margin-left:6px;vertical-align:1px}
+.bud-lg{display:flex;gap:16px;font-size:11px;color:var(--muted);margin-top:9px;flex-wrap:wrap}
+.bud-lg span{display:flex;align-items:center;gap:6px}.bud-lg i{width:9px;height:9px;border-radius:3px;display:inline-block}
+.bud-tot{display:flex;align-items:center;gap:11px;padding:13px 16px;background:var(--surface-2,#f6f8fb);border-top:1px solid var(--line)}
+.bud-tot b{font-size:13.5px}.bud-tot .amt{margin-left:auto;text-align:right}
+.bud-al{display:flex;gap:10px;padding:11px 13px;border-radius:11px;font-size:12.5px;line-height:1.5;margin-bottom:9px}
+.bud-al:last-child{margin-bottom:0}
+.bud-al.red{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
+.bud-al.warn{background:#fffbeb;border:1px solid #fde68a;color:#92400e}
+.bud-al.info{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af}
+.bud-al .x{flex:0 0 auto;font-size:15px}
+.bud-years{display:flex;gap:10px;align-items:flex-end;height:120px;padding:6px 4px 0}
+.bud-yr{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;cursor:pointer}
+.bud-yr .col{width:70%;max-width:46px;border-radius:7px 7px 0 0;background:linear-gradient(180deg,#93c5fd,#3b82f6);min-height:4px}
+.bud-yr.cur .col{background:linear-gradient(180deg,#f59e0b,#d97706)}
+.bud-yr .v{font-size:10.5px;font-weight:700}
+.bud-yr .y{font-size:11px;color:var(--muted);font-weight:600}
+.bud-yr .tag{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#1d4ed8}
+.bud-yr.cur .tag{color:#b45309}
+.bud-donut{position:relative;width:160px;height:160px;margin:0 auto}
+.bud-donut .ctr{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.bud-donut .ctr b{font-size:23px;display:block}
+.bud-donut .ctr small{font-size:10.5px;color:var(--muted)}
+.bud-dleg{display:grid;gap:7px;margin-top:12px}
+.bud-dleg .r{display:flex;align-items:center;gap:9px;font-size:12.5px}
+.bud-dleg .r i{width:11px;height:11px;border-radius:4px;flex:0 0 auto}
+.bud-dleg .r b{margin-left:auto}
+table.budmx{width:100%;border-collapse:collapse;font-size:12.5px;min-width:620px}
+table.budmx th,table.budmx td{padding:9px 11px;text-align:right;border-bottom:1px solid var(--line-2,#eef2f7);white-space:nowrap}
+table.budmx thead th{font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:800;border-bottom:1px solid var(--line)}
+table.budmx th.lft,table.budmx td.lft{text-align:left}
+table.budmx thead th .dot{width:8px;height:8px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:middle}
+table.budmx td.lft{font-weight:600}
+table.budmx td.lft small{display:block;font-weight:500;color:var(--muted);font-size:10.5px}
+table.budmx td.dash{color:#cbd5e1}
+table.budmx tfoot td{border-top:2px solid var(--line);font-weight:800;background:var(--surface-2,#f6f8fb)}
+@media(max-width:900px){.bud-kpis{grid-template-columns:repeat(2,1fr)}.bud-cols{grid-template-columns:1fr}}
+@media(max-width:640px){.bud-seg{margin-left:0;width:100%}.bud-seg button{flex:1}.bud-lens button{flex:1 1 auto}}
+`; document.head.appendChild(st); }
+
+function budEur(ht,k){ const v=window._bud.mode==='TTC'?ht*1.2:ht; return k?(Math.round(v/1000)+' k€'):(Math.round(v).toLocaleString('fr-FR')+' €'); }
+function budFamOfDoc(d){ return (d.famille_budget&&['preventive','corrective','conformite','autre'].includes(d.famille_budget))?d.famille_budget:'autre'; }
+async function viewBudget(c){
+  budStyle();
+  let clientId=state.currentClient!=='all'?state.currentClient:(state.clients&&state.clients.length===1?state.clients[0].id:null);
+  if(!clientId){
+    c.innerHTML=`<div class="page-head"><div class="t"><h1>Budget conformité</h1><p>Prévu · engagé · réalisé, en 4 familles.</p></div></div>
+      <div class="card card-pad" style="text-align:center;color:var(--muted)">Choisis un client dans le sélecteur en haut pour afficher son budget.</div>`;
+    return;
+  }
+  const erpId=state.currentErp!=='all'?state.currentErp:null;
+  const an=window._bud.annee;
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Budget conformité</h1><p>Synthèse prévu · engagé · réalisé — ${esc((state.clients.find(x=>x.id===clientId)||{}).raison_sociale||'')}${erpId?' · '+esc((state.erps.find(e=>e.id===erpId)||{}).nom||''):''}</p></div>
+    <div class="actions"><select id="bud_an" class="vdinput" style="height:38px;font-weight:700" onchange="window._bud.annee=parseInt(this.value,10);renderRoute()">
+      ${[an-1,an,an+1,an+2,an+3,an+4].filter((y,i,a)=>a.indexOf(y)===i).map(y=>`<option value="${y}"${y===an?' selected':''}>Exercice ${y}</option>`).join('')}
+    </select></div></div>${loadingBlock()}`;
+  let prev=[],docs=[],prests=[];
+  try{
+    const anMin=an-1, anMax=an+4;
+    let qd=sb.from('documents').select('id,erp_id,client_id,prestataire_id,categorie,type,nom_original,date_document,montant_ht,famille_budget,lot')
+      .in('categorie',['devis_signe','facture']);
+    qd=erpId?qd.eq('erp_id',erpId):qd.eq('client_id',clientId);
+    const [a,b,d2]=await Promise.all([
+      sb.from('budget_previsions').select('*').eq('client_id',clientId).gte('annee',anMin).lte('annee',anMax),
+      qd,
+      sb.from('prestataires').select('id,nom')
+    ]);
+    prev=(a.data||[]).filter(r=>erpId?(r.erp_id===erpId||!r.erp_id):true);
+    docs=(b.data||[]).filter(d=>!erpId||d.erp_id===erpId);
+    prests=d2.data||[];
+  }catch(e){ c.innerHTML='<div class="card card-pad" style="color:#b91c1c">Erreur : '+esc(e.message||e)+'</div>'; return; }
+  window._budCtx={clientId,erpId,prev,docs,prests};
+  budRender(c);
+}
+window.viewBudget=viewBudget;
+function budRender(c){
+  const {clientId,erpId,prev,docs,prests}=window._budCtx;
+  const an=window._bud.annee;
+  const prById={}; prests.forEach(p=>prById[p.id]=p);
+  // prévu par famille (exercice courant) — la ligne ERP précise prime sur la ligne client si les deux existent
+  const prevOf=(annee,fam)=>{
+    const rows=prev.filter(r=>r.annee===annee&&r.famille===fam);
+    if(!rows.length) return 0;
+    const rErp=rows.find(r=>r.erp_id===erpId&&erpId), rCl=rows.find(r=>!r.erp_id);
+    if(erpId) return (rErp?+rErp.montant_ht:0)+(rCl&&!rErp?+rCl.montant_ht:0);
+    return rows.reduce((s,r)=>s+ +r.montant_ht,0);
+  };
+  const docsAn=docs.filter(d=>(d.date_document||'').slice(0,4)==String(an));
+  const engOf=fam=>docsAn.filter(d=>d.categorie==='devis_signe'&&budFamOfDoc(d)===fam).reduce((s,d)=>s+(+d.montant_ht||0),0);
+  const reaOf=fam=>docsAn.filter(d=>d.categorie==='facture'&&budFamOfDoc(d)===fam).reduce((s,d)=>s+(+d.montant_ht||0),0);
+  const F=window.BUD_FAMS.map(f=>({...f,prevu:prevOf(an,f.k),eng:engOf(f.k),rea:reaOf(f.k)}));
+  const tPrev=F.reduce((s,f)=>s+f.prevu,0), tEng=F.reduce((s,f)=>s+f.eng,0), tRea=F.reduce((s,f)=>s+f.rea,0);
+  const sansMontant=docsAn.filter(d=>d.montant_ht==null).length;
+  const E=(ht,k)=>budEur(ht,k);
+  const pct=(n,d)=>d>0?Math.min(100,Math.round(n*100/d)):0;
+  const posteHtml=f=>{
+    const dep=f.prevu>0&&f.eng>f.prevu;
+    const depPct=dep?Math.round((f.eng-f.prevu)*100/f.prevu):0;
+    const wRea=pct(f.rea,Math.max(f.prevu,f.eng)), wEng=Math.max(0,pct(f.eng,Math.max(f.prevu,f.eng))-wRea);
+    return `<div class="bud-poste">
+      <div class="top">
+        <span class="pic"${dep?' style="background:#fef2f2"':''}><svg viewBox="0 0 24 24"${dep?' style="stroke:#dc2626"':''}>${f.ic}</svg></span>
+        <div class="nm"><b>${f.l}${dep?`<span class="bud-dep">DÉPASSÉ +${depPct}%</span>`:''}</b><small>${f.d}</small></div>
+        <div class="amt"><b${dep?' style="color:#dc2626"':''}>${E(dep?f.eng:f.rea)} / ${E(f.prevu)}</b><small>${dep?'engagé / prévu':'réalisé / prévu'}</small></div>
+        <span class="edit" title="Modifier l'enveloppe prévue" onclick="budEditPrev('${f.k}')">✎</span>
+      </div>
+      <div class="bud-bar"><i style="width:${wRea}%;background:#16a34a"></i><i style="width:${wEng}%;background:${dep?'#dc2626':'#f59e0b'}"></i></div>
+    </div>`;
+  };
+  // donut
+  const pRea=pct(tRea,tPrev), pEng=Math.max(0,pct(tEng,tPrev)-pRea), pDispo=Math.max(0,100-pRea-pEng);
+  // pluriannuel : prévu total par année N..N+4
+  const years=[an,an+1,an+2,an+3,an+4].map(y=>({y,tot:window.BUD_FAMS.reduce((s,f)=>s+prevOf(y,f.k),0)}));
+  const maxY=Math.max(1,...years.map(x=>x.tot));
+  const tot5=years.reduce((s,x)=>s+x.tot,0);
+  // alertes
+  const deps=F.filter(f=>f.prevu>0&&f.eng>f.prevu);
+  const alerts=[
+    ...deps.map(f=>`<div class="bud-al red"><span class="x">🚨</span><div><b>Budget dépassé — ${f.l}</b> : engagé ${E(f.eng)} pour un prévu de ${E(f.prevu)} (+${E(f.eng-f.prevu)}, soit +${Math.round((f.eng-f.prevu)*100/f.prevu)}%). <a style="cursor:pointer;font-weight:700;color:#b91c1c" onclick="budEditPrev('${f.k}')">Réajuster l'enveloppe →</a></div></div>`),
+    ...(tPrev>0&&tEng>tPrev*0.9&&tEng<=tPrev?[`<div class="bud-al warn"><span class="x">⚠️</span><div><b>Budget global engagé à ${pct(tEng,tPrev)}%</b> — surveillez les prochains devis.</div></div>`]:[]),
+    ...(sansMontant?[`<div class="bud-al warn"><span class="x">✏️</span><div><b>${sansMontant} devis signé(s) / facture(s) sans montant</b> — renseignez le montant HT depuis le Classeur (Modifier le document) pour fiabiliser ce budget.</div></div>`]:[]),
+    ...(tPrev===0?[`<div class="bud-al info"><span class="x">🗓️</span><div><b>Aucune enveloppe prévue pour ${an}.</b> Cliquez ✎ sur une famille pour saisir vos budgets — l'engagé et le réalisé remontent déjà automatiquement des devis signés et factures.</div></div>`]:[])
+  ].join('')||`<div class="bud-al info"><span class="x">✅</span><div>Aucun dépassement — le budget ${an} est sous contrôle.</div></div>`;
+  // croisements (montants engagés+réalisés des documents, par lot × famille et prestataire × famille)
+  const cell=(rows,fam)=>rows.filter(d=>budFamOfDoc(d)===fam).reduce((s,d)=>s+(+d.montant_ht||0),0);
+  const mkMatrix=(keyFn,labFn)=>{
+    const byKey={};
+    docsAn.filter(d=>d.montant_ht!=null).forEach(d=>{ const k=keyFn(d)||'__na__'; (byKey[k]=byKey[k]||[]).push(d); });
+    const keys=Object.keys(byKey).sort((a,b)=>String(labFn(a)).localeCompare(String(labFn(b))));
+    if(!keys.length) return '<div style="padding:16px;color:var(--muted);font-size:13px">Aucun montant renseigné sur les devis signés / factures de '+an+'. Les croisements se rempliront automatiquement.</div>';
+    const rows=keys.map(k=>{
+      const cells=window.BUD_FAMS.map(f=>{ const v=cell(byKey[k],f.k); return v?`<td>${E(v)}</td>`:'<td class="dash">—</td>'; }).join('');
+      const tot=byKey[k].reduce((s,d)=>s+(+d.montant_ht||0),0);
+      return `<tr><td class="lft">${esc(labFn(k))}</td>${cells}<td style="font-weight:800;background:var(--surface-2,#f6f8fb)">${E(tot)}</td></tr>`;
+    }).join('');
+    const foot=window.BUD_FAMS.map(f=>`<td>${E(cell(docsAn.filter(d=>d.montant_ht!=null),f.k))}</td>`).join('');
+    const totAll=docsAn.filter(d=>d.montant_ht!=null).reduce((s,d)=>s+(+d.montant_ht||0),0);
+    return `<div style="overflow-x:auto"><table class="budmx">
+      <thead><tr><th class="lft">&nbsp;</th>${window.BUD_FAMS.map(f=>`<th><span class="dot" style="background:${f.col}"></span>${f.k==='conformite'?'Mise en conformité':f.k==='preventive'?'Préventive':f.k==='corrective'?'Corrective':'Autre'}</th>`).join('')}<th>Total</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td class="lft">Total par famille</td>${foot}<td>${E(totAll)}</td></tr></tfoot>
+    </table></div>`;
+  };
+  const html=`
+    <div class="bud-lens">
+      <button class="${window._bud.lens==='exp'?'on':''}" onclick="window._bud.lens='exp';budRender(document.getElementById('content'))">Synthèse</button>
+      <button class="${window._bud.lens==='detail'?'on':''}" onclick="window._bud.lens='detail';budRender(document.getElementById('content'))">Plan de maintenance — détail croisé</button>
+      <div class="bud-seg">
+        <button class="${window._bud.mode==='HT'?'on':''}" onclick="window._bud.mode='HT';budRender(document.getElementById('content'))">HT</button>
+        <button class="${window._bud.mode==='TTC'?'on':''}" onclick="window._bud.mode='TTC';budRender(document.getElementById('content'))">TTC</button>
+      </div>
+    </div>
+    ${window._bud.lens==='exp'?`
+    <div class="bud-kpis">
+      <div class="bud-kpi"><div class="lab"><i style="background:#2563eb"></i>Budget annuel</div><b>${E(tPrev)}</b><small>enveloppe prévue</small></div>
+      <div class="bud-kpi"><div class="lab"><i style="background:#d97706"></i>Engagé</div><b>${E(tEng)}</b><small>devis signés</small></div>
+      <div class="bud-kpi"><div class="lab"><i style="background:#16a34a"></i>Réalisé</div><b>${E(tRea)}</b><small>facturé</small></div>
+      <div class="bud-kpi"><div class="lab"><i style="background:#dc2626"></i>Reste à payer</div><b>${E(Math.max(0,tEng-tRea))}</b><small>engagé non réglé</small></div>
+      <div class="bud-kpi"><div class="lab"><i style="background:#64748b"></i>Disponible</div><b>${E(Math.max(0,tPrev-tEng))}</b><small>non encore engagé</small></div>
+    </div>
+    <div class="bud-cols">
+      <div class="bud-card">
+        <div class="ch"><b>Postes budgétaires</b><small>engagé = devis signés · réalisé = factures</small></div>
+        <div class="cb">${F.map(posteHtml).join('')}
+          <div class="bud-lg"><span><i style="background:#16a34a"></i>Réalisé (facturé)</span><span><i style="background:#f59e0b"></i>Engagé (devis signé)</span><span><i style="background:#dc2626"></i>Dépassement</span><span><i style="background:#eef2f7"></i>Disponible</span></div>
+        </div>
+        <div class="bud-tot"><b>Total exercice ${an}</b><div class="amt"><b>${E(tRea)} réalisés</b><small style="color:var(--muted);display:block">sur ${E(tPrev)} prévus · ${E(tEng)} engagés</small></div></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="bud-card"><div class="ch"><b>Consommation du budget</b></div><div class="cb">
+          <div class="bud-donut">
+            <svg viewBox="0 0 42 42" width="160" height="160">
+              <circle cx="21" cy="21" r="15.9" fill="none" stroke="#eef2f7" stroke-width="6"/>
+              ${tPrev>0?`<circle cx="21" cy="21" r="15.9" fill="none" stroke="#16a34a" stroke-width="6" stroke-dasharray="${pRea} ${100-pRea}" stroke-dashoffset="25" stroke-linecap="round"/>
+              <circle cx="21" cy="21" r="15.9" fill="none" stroke="#f59e0b" stroke-width="6" stroke-dasharray="${pEng} ${100-pEng}" stroke-dashoffset="${25-pRea}" stroke-linecap="round"/>`:''}
+            </svg>
+            <div class="ctr"><b>${tPrev>0?pct(tEng,tPrev)+'%':'—'}</b><small>du budget<br>engagé</small></div>
+          </div>
+          <div class="bud-dleg">
+            <div class="r"><i style="background:#16a34a"></i>Réalisé <b>${tPrev>0?pRea+'%':'—'}</b></div>
+            <div class="r"><i style="background:#f59e0b"></i>Engagé à payer <b>${tPrev>0?pEng+'%':'—'}</b></div>
+            <div class="r"><i style="background:#eef2f7"></i>Disponible <b>${tPrev>0?pDispo+'%':'—'}</b></div>
+          </div>
+        </div></div>
+        <div class="bud-card"><div class="ch"><b>À surveiller</b></div><div class="cb">${alerts}</div></div>
+      </div>
+    </div>
+    <div class="bud-card" style="margin-top:16px">
+      <div class="ch"><b>Budget pluriannuel — 5 ans</b><small>N à N+4 · cliquez une année pour saisir ses enveloppes</small></div>
+      <div class="cb">
+        <div class="bud-years">
+          ${years.map((x,i)=>`<div class="bud-yr${i===0?' cur':''}" onclick="window._bud.annee=${x.y};renderRoute()" title="Ouvrir l'exercice ${x.y}">
+            <span class="v">${x.tot?E(x.tot,1):'—'}</span><div class="col" style="height:${Math.max(4,Math.round(x.tot*100/maxY))}%"></div>
+            <span class="y">${x.y} · N${i?'+'+i:''}</span><span class="tag">${i===0?'en cours':(x.tot?'préparé':'à préparer')}</span>
+          </div>`).join('')}
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:8px 12px;background:var(--surface-2,#f6f8fb);border-radius:9px">
+          <span style="font-size:12px;color:var(--muted);font-weight:600">Total prévisionnel sur 5 ans</span>
+          <b style="font-size:16px">${E(tot5)}</b>
+        </div>
+      </div>
+    </div>`
+    :`
+    <div class="bud-card" style="margin-bottom:16px">
+      <div class="ch"><b>Par domaine / lot × famille</b><small>montants engagés + réalisés · exercice ${an}</small></div>
+      <div class="cb" style="padding:0">${mkMatrix(d=>d.lot,(k)=>k==='__na__'?'Non affecté':k)}</div>
+    </div>
+    <div class="bud-card">
+      <div class="ch"><b>Par prestataire × famille</b><small>qui porte quelle dépense</small></div>
+      <div class="cb" style="padding:0">${mkMatrix(d=>d.prestataire_id,(k)=>k==='__na__'?'Non affecté':(prById[k]?prById[k].nom:'—'))}</div>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:12px;line-height:1.6">💡 Les montants proviennent des devis signés et factures du Classeur (montant HT + famille budgétaire, modifiables sur chaque document).</p>`}
+  `;
+  const host=c.querySelector('.page-head'); c.innerHTML=''; if(host) c.appendChild(host);
+  const div=document.createElement('div'); div.innerHTML=html; while(div.firstChild) c.appendChild(div.firstChild);
+}
+window.budRender=budRender;
+/* Saisie / modification de l'enveloppe prévue d'une famille (exercice courant, périmètre courant) */
+window.budEditPrev=function(famK){
+  const {clientId,erpId,prev}=window._budCtx||{}; if(!clientId) return;
+  const f=window.BUD_FAMS.find(x=>x.k===famK); const an=window._bud.annee;
+  const row=prev.find(r=>r.annee===an&&r.famille===famK&&(erpId?r.erp_id===erpId:!r.erp_id));
+  openModal(`<div class="modal-head"><h2>✎ Enveloppe prévue — ${esc(f.l)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body">
+      <div class="fld"><label>Exercice</label><input value="${an}" disabled style="background:var(--surface-2)"></div>
+      <div class="fld" style="margin-bottom:0"><label>Montant prévu (HT)</label>
+        <input id="bp_mt" type="number" min="0" step="100" value="${row?+row.montant_ht:''}" placeholder="Ex. 15000">
+        <div style="font-size:11.5px;color:var(--muted);margin-top:4px">${erpId?'Enveloppe propre à cet établissement.':'Enveloppe globale du client (tous bâtiments).'}</div></div>
+      <div id="bp_msg" style="font-size:12.5px;margin-top:10px"></div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" id="bp_go" onclick="budSavePrev('${famK}')">Enregistrer</button></div>`);
+};
+window.budSavePrev=async function(famK){
+  const {clientId,erpId}=window._budCtx||{}; const an=window._bud.annee;
+  const mt=parseFloat(document.getElementById('bp_mt').value)||0;
+  const btn=document.getElementById('bp_go'); btn.disabled=true; btn.textContent='Enregistrement…';
+  try{
+    const {data:ex}=await sb.from('budget_previsions').select('id').eq('client_id',clientId).eq('annee',an).eq('famille',famK)
+      [erpId?'eq':'is']('erp_id',erpId||null).maybeSingle();
+    if(ex) await sb.from('budget_previsions').update({montant_ht:mt,updated_at:new Date().toISOString()}).eq('id',ex.id);
+    else await sb.from('budget_previsions').insert({client_id:clientId,erp_id:erpId||null,annee:an,famille:famK,montant_ht:mt});
+    closeModal(); toast('Enveloppe enregistrée ✓','ok'); renderRoute();
+  }catch(e){ btn.disabled=false; btn.textContent='Enregistrer'; document.getElementById('bp_msg').textContent='Erreur : '+(e.message||e); }
 };
 
 window.accountSavePwd=async function(){
@@ -5975,7 +6267,7 @@ window.fxAdmDelVC=fxAdmDelVC;
 
 function getNAV(){ return [
   {link:['/','Tableau de bord',NI.dash]},
-  {sec:'etab',   titre:'Établissement',          ic:NI.etab,      items:[['/clients','Clients',NI.clients],['/erps','ERP',NI.erp],['/organisation','Organisation',NI.clients],['/plan-maintenance','Plan de maintenance',NI.plan]]},
+  {sec:'etab',   titre:'Établissement',          ic:NI.etab,      items:[['/clients','Clients',NI.clients],['/erps','ERP',NI.erp],['/organisation','Organisation',NI.clients],['/plan-maintenance','Plan de maintenance',NI.plan],['/budget','Budget',NI.plan]]},
   {sec:'sitdeg', titre:'Situation dégradée',     ic:NI.alert,     items:[['/photos','Photos et vidéos',NI.cam],['/compte-rendu','Compte rendu',NI.cr]]},
   {sec:'prest',  titre:'Suivi des prestataires', ic:NI.briefcase, items:[['/prestataires','Prestataires',NI.wrench],['/conversations','Conversations',NI.chat],['/pointage','Pointage & journal',NI.clock]]},
   {sec:'suivi',  titre:'Suivi et conformité',    ic:NI.shield,    items:[['/interventions','Interventions',NI.tools],['/travaux','Travaux',NI.trvx],['/gpa','Garanties GPA',NI.checks],['/verifications','Vérifications & relances',NI.bell],['/reserves','Levées des réserves',NI.checks],['/tableaux-reserves','Tableaux de réserves',NI.tablo]]},
@@ -13506,6 +13798,10 @@ function formDoc(prefiles){
       <div class="fld"><label id="f_date_lbl">Date du document <span style="color:var(--muted-2);font-weight:400;font-size:11px">(date réelle)</span></label><input id="f_date" type="date" value="${new Date().toISOString().slice(0,10)}">
         <div id="f_date_sugg" style="display:none;margin-top:7px"></div></div></div>
     <div class="fld" id="f_avis_zone" style="display:none"><label id="f_avis_lbl">Avis de la commission</label><select id="f_avis"><option value="">— non précisé —</option><option>Favorable</option><option>Favorable avec prescriptions</option><option>Défavorable</option><option>Avis différé</option></select></div>
+    <div id="f_budget_zone" class="row2" style="display:none">
+      <div class="fld"><label>Montant HT <span style="color:var(--muted-2);font-weight:400;font-size:11px">(alimente le Budget)</span></label><input id="f_montant" type="number" min="0" step="0.01" placeholder="Ex. 1250"></div>
+      <div class="fld"><label>Famille budgétaire</label><select id="f_fambud"><option value="">— à classer —</option><option value="preventive">Maintenance préventive</option><option value="corrective">Maintenance corrective</option><option value="conformite">Travaux de mise en conformité</option><option value="autre">Autre</option></select></div>
+    </div>
     <div id="f_pvsuivi_zone" style="display:none;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface-2)">
       <div style="font-size:12.5px;font-weight:600;margin-bottom:8px">🧾 Suivi du PV de réception de travaux</div>
       <div class="row2">
@@ -13572,7 +13868,10 @@ function formDoc(prefiles){
         const upName=displayName||((fileToUpload && fileToUpload.name) ? fileToUpload.name : file.name);
         const path=folder+'/'+Date.now()+'_'+upName.replace(/[^\w.\-]/g,'_');
         const {error:upErr}=await sb.storage.from('documents').upload(path,fileToUpload,{contentType:(fileToUpload&&fileToUpload.type)||undefined}); if(upErr)throw upErr;
-        const {data:newDoc,error:insErr}=await sb.from('documents').insert({erp_id,client_id,prestataire_id,type,categorie:catFromType(type),lot,date_document,avis,fichier_path:path,nom_original:displayName,...(isDevisSigne?{date_intervention_prevue,date_intervention_fin}:{})}).select('id').single();
+        const _catB=catFromType(type);
+        const _mt=(_catB==='devis_signe'||_catB==='facture')?(parseFloat($('#f_montant')?.value)||null):null;
+        const _fb=(_catB==='devis_signe'||_catB==='facture')?(($('#f_fambud')?.value)||null):null;
+        const {data:newDoc,error:insErr}=await sb.from('documents').insert({erp_id,client_id,prestataire_id,type,categorie:catFromType(type),lot,date_document,avis,fichier_path:path,nom_original:displayName,montant_ht:_mt,famille_budget:_fb,...(isDevisSigne?{date_intervention_prevue,date_intervention_fin}:{})}).select('id').single();
         if(insErr) throw insErr;
         if(wantInter && newDoc){
           if(!erp_id){ toast("Intervention non créée : un ERP est nécessaire pour la planifier",'err'); }
@@ -13681,6 +13980,9 @@ window.docTypeChange=function(){
   // Zone « suivi PV de réception » : uniquement pour les devis signés
   const pz=document.getElementById('f_pvsuivi_zone');
   if(pz) pz.style.display=(catFromType(t)==='devis_signe')?'':'none';
+  // Zone budget (montant HT + famille) : devis signés et factures
+  const bz=document.getElementById('f_budget_zone');
+  if(bz) bz.style.display=(catFromType(t)==='devis_signe'||catFromType(t)==='facture')?'':'none';
   // Libellé de date adapté au type de document
   const lbl=document.getElementById('f_date_lbl');
   if(lbl){
@@ -17928,6 +18230,16 @@ async function gedEditDoc(id){
           <label style="margin-top:7px">au <span style="color:var(--muted-2);font-weight:400;font-size:11px">(vide = un seul jour)</span></label><input id="ged_edit_intfin" type="date" value="${d.date_intervention_fin||''}">
           <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;margin-top:7px;cursor:pointer"><input type="checkbox" id="ged_edit_pvclos" ${d.pv_statut==='clos'?'checked':''} style="accent-color:#2563eb"> Écarter du suivi PV de réception</label></div>`:`<div class="fld"></div>`}
       </div>
+      ${(d.categorie==='devis_signe'||d.categorie==='facture')?`<div class="row2">
+        <div class="fld"><label>Montant HT <span style="color:var(--muted-2);font-weight:400;font-size:11px">(alimente le Budget)</span></label><input id="ged_edit_montant" type="number" min="0" step="0.01" value="${d.montant_ht!=null?+d.montant_ht:''}" placeholder="Ex. 1250"></div>
+        <div class="fld"><label>Famille budgétaire</label><select id="ged_edit_fambud">
+          <option value=""${!d.famille_budget?' selected':''}>— à classer —</option>
+          <option value="preventive"${d.famille_budget==='preventive'?' selected':''}>Maintenance préventive</option>
+          <option value="corrective"${d.famille_budget==='corrective'?' selected':''}>Maintenance corrective</option>
+          <option value="conformite"${d.famille_budget==='conformite'?' selected':''}>Travaux de mise en conformité</option>
+          <option value="autre"${d.famille_budget==='autre'?' selected':''}>Autre</option>
+        </select></div>
+      </div>`:''}
       ${d.email_corps?`<details style="border:1px solid var(--line);border-radius:10px;background:var(--surface-2);overflow:hidden">
         <summary style="padding:10px 12px;cursor:pointer;font-size:13px;font-weight:600;color:var(--ink);user-select:none">📧 Message d'origine${d.email_date?` — ${fmtDate(d.email_date)}`:''}</summary>
         <div style="padding:0 12px 12px;display:flex;flex-direction:column;gap:6px">
@@ -17962,6 +18274,10 @@ async function gedEditDoc(id){
           if(au&&(!du||au<du)) au=null;
           return {date_intervention_prevue:du,date_intervention_fin:au,pv_statut:(document.getElementById('ged_edit_pvclos')?.checked?'clos':null)};
         })():{}),
+        ...((d.categorie==='devis_signe'||d.categorie==='facture')?{
+          montant_ht:(parseFloat(document.getElementById('ged_edit_montant')?.value)||null),
+          famille_budget:((document.getElementById('ged_edit_fambud')?.value)||null)
+        }:{}),
         statut:'classe'
       }).eq('id',id);
       if(error) throw error;
@@ -23426,7 +23742,19 @@ function viewVerifications(content){
     +'.vxmeta svg{width:13px;height:13px;stroke:#94a3b8;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}'
     +'.vxwp{display:inline-flex;align-items:center;gap:5px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:99px;padding:2px 9px;font-size:11px;font-weight:700;cursor:pointer}'
     +'.vbtn.rp{background:#dc2626;color:#fff}'
+    /* ── Onglet « Programmées » V2 : tuile-calendrier + groupes de proximité ── */
+    +'.vxgh.later{color:#475569}.vxgh.later .dot{background:#94a3b8}.vxgh.later .ct{background:#eef1f6;color:#475569}'
+    +'.vpc{display:flex;background:#fff;border:1px solid #e6eaf1;border-radius:14px;margin-bottom:10px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.04)}'
+    +'.vpcal{flex:0 0 92px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 8px;border-right:1px solid #e6eaf1;background:#f6f8fb}'
+    +'.vpcal .dd{font-size:23px;line-height:1;letter-spacing:-.5px;font-weight:800;color:#475569}'
+    +'.vpcal .mm{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-top:2px;color:#64748b}'
+    +'.vpcal .yy{font-size:10px;color:#94a3b8;font-weight:600}'
+    +'.vpcal .in{margin-top:6px;font-size:10px;font-weight:800;border-radius:99px;padding:2px 8px;white-space:nowrap;background:#eef1f6;color:#475569}'
+    +'.vpc.m1 .vpcal{background:#fff7ed}.vpc.m1 .vpcal .dd{color:#c2410c}.vpc.m1 .vpcal .mm{color:#d97706}.vpc.m1 .vpcal .in{background:#ffedd5;color:#c2410c}'
+    +'.vpc.m3 .vpcal{background:#eff6ff}.vpc.m3 .vpcal .dd{color:#1a44ad}.vpc.m3 .vpcal .mm{color:#3b62c4}.vpc.m3 .vpcal .in{background:#dbeafe;color:#1d4ed8}'
+    +'.vp-rat{font-size:11px;font-weight:800;color:#b45309;background:#fff7ed;border:1px solid #fed7aa;border-radius:99px;padding:2px 8px;vertical-align:1px;white-space:nowrap}'
     +'@media(max-width:640px){'
+    +'.vpcal{flex:0 0 74px}.vpcal .dd{font-size:18px}'
     +'.vxdays{flex:0 0 64px}.vxdays b{font-size:17px}.vxmain{padding:11px 12px 11px}'
     +'.vactions .vdinput{flex:1;min-width:120px}.vactions .vbtn{flex:1 1 auto;justify-content:center}'
     +'.vtabs{flex-wrap:wrap;overflow-x:visible}'
@@ -23548,7 +23876,7 @@ function viewVerifications(content){
     vFiltFillErps();
     const gfilt=document.getElementById('vglobal_filters');
     if(gfilt) gfilt.style.display='flex';
-    const seg=document.querySelector('#vglobal_filters .sortseg'); if(seg) seg.style.display=['traiter','repondre','sans_reponse','a_programmer','programmee'].includes(vtab)?'inline-flex':'none';
+    const seg=document.querySelector('#vglobal_filters .sortseg'); if(seg) seg.style.display=['traiter','repondre','sans_reponse','a_programmer'].includes(vtab)?'inline-flex':'none';
   }
   function vrender(){
     const el=document.getElementById('vcontent');if(!el)return;
@@ -23581,6 +23909,27 @@ function viewVerifications(content){
       el.innerHTML=pills+groups.map(g=>
         `<div class="vxgh ${g.cls}" id="vxsec-${g.k}"><span class="dot"></span><b>${g.t}</b><span class="ct">${g.items.length}</span></div>`
         +g.items.map(i=>vxcard(i,g.k)).join('')
+      ).join('');
+      return;
+    }
+    if(vtab==='programmee'){
+      // V2 (maquette validée) : tri du plus proche au plus lointain, groupes de proximité, tuile-calendrier
+      const totalP=(vd.programmee||[]).length;
+      let items=vFiltApply(vd.programmee||[]);
+      const infoP=document.getElementById('vfilt_info');
+      if(infoP) infoP.textContent=(vfiltClient||vfiltErp)?items.length+' élément(s) affiché(s) sur '+totalP:'';
+      if(!items.length){
+        el.innerHTML='<div class="vempty">'+((vfiltClient||vfiltErp)&&totalP?'<b>Aucun élément pour cette sélection</b><a style="cursor:pointer;color:#1a44ad;font-weight:700" onclick="vFiltReset()">Afficher tout</a>':'<b>Aucune intervention programmée</b>Les interventions confirmées avec une date apparaîtront ici.')+'</div>';
+        return;
+      }
+      items=items.slice().sort((a,b)=>String(a.date_prevue||'9999-12-31').localeCompare(String(b.date_prevue||'9999-12-31')));
+      const g={m1:[],m3:[],mx:[]};
+      items.forEach(i=>{ const dl=vdl(i.date_prevue);
+        if(dl===null) g.mx.push(i); else if(dl<=31) g.m1.push(i); else if(dl<=92) g.m3.push(i); else g.mx.push(i); });
+      const SEC=[['m1','Ce mois-ci','amber'],['m3','Sous 3 mois','soon'],['mx','Plus tard','later']];
+      el.innerHTML=SEC.filter(s=>g[s[0]].length).map(s=>
+        `<div class="vxgh ${s[2]}"><span class="dot"></span><b>${s[1]}</b><span class="ct">${g[s[0]].length}</span>${s[0]==='m1'?'<small style="margin-left:auto;color:#94a3b8;font-weight:500;text-transform:none;letter-spacing:0;font-size:11.5px">les plus proches d\'abord</small>':''}</div>`
+        +g[s[0]].map(i=>vpcard(i,s[0])).join('')
       ).join('');
       return;
     }
@@ -23642,12 +23991,19 @@ function viewVerifications(content){
         ${i.ref_token?`<span class="vref">Réf ${esc(i.ref_token)}</span>`:''}
       </div>${act}</div>`;
   }
+  /* Doublon ERP/raison sociale : vrai si ~70% des mots significatifs du client figurent déjà dans le nom de l'ERP */
+  function vDupCl(eNom,rs){
+    const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const en=norm(eNom); const ws=norm(rs).split(/[^a-z0-9]+/).filter(w=>w.length>2);
+    if(!ws.length) return false;
+    return ws.filter(w=>en.includes(w)).length>=Math.ceil(ws.length*0.7);
+  }
   /* Carte « À traiter » V2 (maquette validée) : tuile-jours + méta à icônes + une action principale */
   function vxcard(i,tab){
     const e=verp[i.erp_id]||{},pr=vpr[i.prestataire_id]||{};
     let cl=(window._vClients||[]).find(c=>c.id===e.client_id);
     // pas de doublon si le nom de l'ERP contient déjà la raison sociale
-    if(cl&&String(e.nom||'').toLowerCase().includes(String(cl.raison_sociale||'').toLowerCase())) cl=null;
+    if(cl&&vDupCl(e.nom,cl.raison_sociale)) cl=null;
     const dl=vdl(i.date_prevue||i.prochaine_echeance);
     const late=dl!==null&&dl<0;
     const tone=late?'late':(dl!==null?'soon':'');
@@ -23693,6 +24049,43 @@ function viewVerifications(content){
           ${i.nb_relances?`<span class="m">${i.nb_relances} relance(s)</span>`:''}
         </div>
         ${act}
+      </div>
+    </div>`;
+  }
+  /* Carte « Programmées » V2 (maquette validée) : tuile-calendrier + titre nettoyé */
+  function vpcard(i,grp){
+    const e=verp[i.erp_id]||{},pr=vpr[i.prestataire_id]||{};
+    let cl=(window._vClients||[]).find(c=>c.id===e.client_id);
+    if(cl&&vDupCl(e.nom,cl.raison_sociale)) cl=null;
+    const dl=vdl(i.date_prevue);
+    const MOIS=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+    let cal='<span class="dd">—</span><span class="mm">sans date</span>';
+    if(i.date_prevue){ const d=new Date(i.date_prevue+'T12:00:00');
+      cal=`<span class="dd">${String(d.getDate()).padStart(2,'0')}</span><span class="mm">${MOIS[d.getMonth()]}</span><span class="yy">${d.getFullYear()}</span>`
+        +`<span class="in">${dl<0?'dépassée de '+Math.abs(dl)+' j':dl===0?"aujourd'hui":'dans '+dl+' j'}</span>`; }
+    // titre nettoyé : le rattrapage d'échéance passe en pastille
+    let titre=String(i.objet||i.domaine||'—'); let rat='';
+    const m=titre.match(/échéance dépassée\s*:?\s*([0-9/.\-]+)/i);
+    titre=titre.replace(/^vérification en retard\s*[—–-]\s*/i,'').replace(/\s*\(échéance dépassée[^)]*\)\s*/i,' ').trim();
+    if(titre) titre=titre.charAt(0).toUpperCase()+titre.slice(1);
+    if(m) rat=` <span class="vp-rat">rattrape l'échéance du ${esc(m[1])}</span>`;
+    const bI='<svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M10 21v-4h4v4"/></svg>';
+    const pI='<svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>';
+    const prest=pr.nom?`<span class="m">${pI}${esc(pr.nom)}</span>`
+      :`<span class="m">${pI}<span class="vxwp" onclick="navigate('/prestataires')" title="Ouvrir la page Prestataires pour le renseigner">⚠ Prestataire à renseigner</span></span>`;
+    return `<div class="vpc ${grp}" id="vc-${i.id}">
+      <div class="vpcal">${cal}</div>
+      <div class="vxmain">
+        <div class="vxt">${esc(titre)}${rat}</div>
+        <div class="vxmeta">
+          <span class="m">${bI}${esc(e.nom||'—')}${cl?' · '+esc(cl.raison_sociale):''}</span>
+          ${prest}
+          ${i.ref_token?`<span class="m" style="color:#a4aebd">Réf ${esc(i.ref_token)}</span>`:''}
+        </div>
+        <div class="vactions" style="margin-top:11px">
+          <button class="vbtn g" onclick="verifRealise('${i.id}','${i.obligation_id||''}')">✓ Marquer comme réalisée</button>
+          <button class="vbtn r" onclick="verifNonRealise('${i.id}')">Non réalisée</button>
+        </div>
       </div>
     </div>`;
   }
@@ -23883,7 +24276,7 @@ function viewVerifications(content){
 
   window.verifRefresh=async function(){const el=document.getElementById('vcontent');if(el)el.innerHTML='<div style="text-align:center;padding:32px;color:#94a3b8">Chargement…</div>';await vload();vrender();};
   window.verifSetTab=function(tab){vtab=tab;document.querySelectorAll('.verif-tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
-    const seg=document.querySelector('#vglobal_filters .sortseg'); if(seg) seg.style.display=['traiter','repondre','sans_reponse','a_programmer','programmee'].includes(tab)?'inline-flex':'none';
+    const seg=document.querySelector('#vglobal_filters .sortseg'); if(seg) seg.style.display=['traiter','repondre','sans_reponse','a_programmer'].includes(tab)?'inline-flex':'none';
     vrender();};
   window.verifToggleDry=function(){vcfg.dry_run=!vcfg.dry_run;vrender();};
   window.verifSaveSettings=async function(){
