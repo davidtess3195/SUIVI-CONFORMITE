@@ -244,6 +244,19 @@ h1,h2,h3{font-family:var(--fd);font-weight:600;letter-spacing:-.01em}
 @media(max-width:1250px){.search input{width:122px}.tb-brand span{display:none}.topbar .scope-sel{min-width:120px;max-width:168px}.topbar .scope-sel .sc-val{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:100%}}
 @media(max-width:1080px){.topbar{gap:8px;padding:12px 14px}.tb-brand span{display:none}.topbar .scope-sel{min-width:96px;max-width:150px}.topbar .scope-sel .sc-ic{display:none}.search input{width:102px}}
 .burger{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#dbe4f0;cursor:pointer;flex:0 0 auto}.burger svg{width:15px;height:15px}
+/* ── Icônes du bandeau, téléphone uniquement : 🏠 accueil · 🔍 loupe · ↻ rafraîchir ── */
+.tb-ico{display:none;place-items:center;width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#dbe4f0;cursor:pointer;flex:0 0 auto;padding:0}
+.tb-ico svg{width:16px;height:16px}
+.tb-ico.home svg{color:#93c5fd}
+.tb-srchbar{display:none;position:absolute;left:10px;right:10px;top:8px;height:42px;align-items:center;gap:8px;background:#101b31;border:1px solid rgba(96,165,250,.6);border-radius:11px;padding:0 6px 0 12px;box-shadow:0 0 0 3px rgba(37,99,235,.18);z-index:45}
+.tb-srchbar.on{display:flex}
+.tb-srchbar>svg{width:16px;height:16px;color:#8fa2bd;flex:0 0 auto}
+.tb-srchbar input{flex:1;background:none;border:none;outline:none;color:#fff;font-size:14px;font-family:inherit;min-width:0;height:40px}
+.tb-srchbar input::placeholder{color:#8fa2bd}
+.tb-srchbar .x{display:grid;place-items:center;width:32px;height:32px;border-radius:8px;color:#dbe4f0;cursor:pointer;font-size:15px;flex:0 0 auto}
+@keyframes tbrot{to{transform:rotate(360deg)}}
+.tb-ico.spin svg{animation:tbrot .8s linear infinite}
+@media(max-width:840px){.tb-ico{display:grid}.topbar .search{display:none}}
 .scope{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .scope-sel{display:flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:7px 11px;font-size:13px;box-shadow:var(--sh)}
 .scope-sel svg{width:15px;height:15px;color:var(--muted)}
@@ -6311,8 +6324,11 @@ function renderApp(){
     <div class="main" style="${state.demo?'padding-top:38px':''}">
       <header class="topbar">
         <button class="burger" onclick="toggleSidebar()">${I.menu}</button>
+        <button class="tb-ico home" title="Tableau de bord" aria-label="Tableau de bord" onclick="navigate('/')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></svg></button>
         <div class="tb-brand"><img src="${LOGO_WHITE}" alt=""><span>CONFORMITÉ SÉCURITÉ</span></div>
         <div class="search">${I.search}<input id="globalSearch" placeholder="Rechercher…" onkeydown="if(event.key==='Enter')doSearch(this.value)"></div>
+        <button class="tb-ico" title="Rechercher" aria-label="Rechercher" onclick="tbSearchOpen()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></button>
+        <button class="tb-ico" id="tbRefreshBtn" title="Rafraîchir la page" aria-label="Rafraîchir" onclick="tbRefresh()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
         <div class="scope">
           <div class="scope-sel" id="scopeClientWrap" onclick="scopeToggle(event,this,'client')">
             <span class="sc-ic">${I.clients}</span>
@@ -6328,6 +6344,12 @@ function renderApp(){
         <button id="tb-sms" class="tb-out" title="Pack SMS — solde restant (cliquer : historique SMS)" onclick="navigate('/historique-sms')" style="display:none"><b id="tb-sms-n" style="font-size:13px;font-weight:800"></b></button>
         <button class="tb-out" title="Mon compte" aria-label="Mon compte" onclick="accountModal()" style="margin-right:2px;display:inline-flex;align-items:center;gap:7px"><span id="tbAvatar" style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#93c5fd,#2563eb);background-size:cover;background-position:center;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;flex:0 0 auto;box-shadow:0 1px 4px rgba(15,23,42,.25)"></span><span>Mon compte</span></button>
         <button class="tb-out" title="Se déconnecter" aria-label="Se déconnecter" onclick="logout()">${I.out}<span>Déconnexion</span></button>
+        <div class="tb-srchbar" id="tbSrchBar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="tbSrchInput" placeholder="Rechercher…" autocomplete="off"
+            onkeydown="if(event.key==='Enter'){doSearch(this.value);tbSearchClose();}else if(event.key==='Escape'){tbSearchClose();}">
+          <span class="x" onclick="tbSearchClose()" title="Fermer">✕</span>
+        </div>
       </header>
       <div id="backbar" style="display:none;padding:12px 26px 0"><button class="btn" onclick="goRetour()" style="display:inline-flex;align-items:center;gap:7px;font-weight:700">← Retour</button></div>
       <main class="content" id="content"></main>
@@ -11602,6 +11624,22 @@ window.goRetour=function(){
   else { navigate('/'); }
 };
 window.crRetour=window.goRetour;
+/* ── Bandeau téléphone : recherche dépliable + rafraîchir (maquette validée) ── */
+window.tbSearchOpen=function(){
+  const b=document.getElementById('tbSrchBar'); if(!b) return;
+  b.classList.add('on');
+  const i=document.getElementById('tbSrchInput');
+  if(i){ i.value=''; setTimeout(()=>i.focus(),40); }
+};
+window.tbSearchClose=function(){
+  const b=document.getElementById('tbSrchBar'); if(b) b.classList.remove('on');
+};
+window.tbRefresh=function(){
+  const btn=document.getElementById('tbRefreshBtn');
+  if(btn) btn.classList.add('spin');
+  try{ renderRoute(); }catch(_){ }
+  setTimeout(()=>{ if(btn) btn.classList.remove('spin'); },800);
+};
 async function viewCompteRendu(c){
   const today=new Date().toISOString().slice(0,10);
   let prestList=[]; try{ const {data}=await sb.from('prestataires').select('id,nom,categorie,contacts').order('nom'); prestList=data||[]; }catch(e){}
