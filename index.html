@@ -820,10 +820,6 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 /* ── Bandeau du bas (téléphone) : loupe · logo · maison — fixe au défilement ── */
 .bbar{display:none}
 @media(max-width:840px){
-  /* Défilement natif du navigateur (fluide, avec inertie) au lieu d'un conteneur interne.
-     Avec ce défilement natif, le bandeau du haut en sticky reste parfaitement immobile
-     (fini l'effet « il descend puis se recale » du défilement en conteneur). */
-  html,body{height:auto;min-height:100%}
   .bbar{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;align-items:center;gap:10px;
     background:#0b1220;border-top:1px solid rgba(255,255,255,.09);
     padding:9px 14px calc(9px + env(safe-area-inset-bottom,0px))}
@@ -911,7 +907,7 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   .pcb-act .btn{flex:1;justify-content:center;border-radius:99px}
 }
 @media(max-width:640px){
-  html,body{overflow-x:hidden;overflow-x:clip}
+  html,body{overflow-x:hidden}
   #backbar{padding:8px 14px 0 !important}
   .content{padding:14px}
   .topbar{flex-wrap:wrap;gap:8px;padding:9px 12px;min-height:0}
