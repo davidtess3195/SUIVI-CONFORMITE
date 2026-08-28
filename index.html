@@ -245,8 +245,8 @@ h1,h2,h3{font-family:var(--fd);font-weight:600;letter-spacing:-.01em}
 @media(max-width:1080px){.topbar{gap:8px;padding:12px 14px}.tb-brand span{display:none}.topbar .scope-sel{min-width:96px;max-width:150px}.topbar .scope-sel .sc-ic{display:none}.search input{width:102px}}
 .burger{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#dbe4f0;cursor:pointer;flex:0 0 auto}.burger svg{width:15px;height:15px}
 /* ── Icônes du bandeau, téléphone uniquement : 🏠 accueil · 🔍 loupe · ↻ rafraîchir ── */
-.tb-ico{display:none;place-items:center;width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#dbe4f0;cursor:pointer;flex:0 0 auto;padding:0}
-.tb-ico svg{width:16px;height:16px}
+.tb-ico{display:none;place-items:center;width:42px;height:42px;border-radius:11px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#dbe4f0;cursor:pointer;flex:0 0 auto;padding:0}
+.tb-ico svg{width:19px;height:19px}
 .tb-ico.home svg{color:#93c5fd}
 .tb-srchbar{display:none;position:absolute;left:10px;right:10px;top:8px;height:42px;align-items:center;gap:8px;background:#101b31;border:1px solid rgba(96,165,250,.6);border-radius:11px;padding:0 6px 0 12px;box-shadow:0 0 0 3px rgba(37,99,235,.18);z-index:45}
 .tb-srchbar.on{display:flex}
@@ -377,6 +377,9 @@ table.tbl .mono{font-family:var(--fd);font-weight:600;font-size:12.5px;color:var
 .au2 .fld input::placeholder{color:#9aa5b8}
 .au2-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:6px;color:#64748b;display:grid;place-items:center}
 .au2-cta{display:block;width:100%;background:var(--primary);color:#fff;border:none;border-radius:999px;padding:15px;font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 8px 20px rgba(37,99,235,.35);margin-top:6px;transition:.15s}
+.au2-priv{text-align:center;margin-top:14px;font-size:12px;color:var(--muted,#64748b);line-height:1.5}
+.au2-priv a{color:var(--muted,#64748b);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.au2-priv a:hover{color:var(--primary,#2563eb)}
 .au2-cta:hover{background:var(--primary-d)}
 .au2 .lnk{color:var(--primary);font-weight:700;font-size:12.5px;cursor:pointer}
 .au2-alt{text-align:center;margin-top:18px}
@@ -819,9 +822,17 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   .sidebar{transform:translateX(-100%)}
   .sidebar.open{transform:none}
   .main{margin-left:0}
-  .burger{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16)}
-  .burger svg{width:15px;height:15px}
+  .burger{display:grid;place-items:center;width:42px;height:42px;border-radius:11px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16)}
+  .burger svg{width:18px;height:18px}
   .search input{width:150px}
+  /* Bandeau mobile aligné : rangée 1 = ☰ 🏠 logo … 🔍 ↻ avatar ⎋ ; rangée 2 = sélecteurs pleine largeur */
+  .topbar{flex-wrap:wrap;row-gap:9px;padding:10px 12px;min-height:0}
+  .tb-brand{margin-right:auto}
+  .topbar .scope{order:3;width:100%;display:flex;gap:8px;margin:0}
+  .topbar .scope-sel{flex:1;min-width:0;max-width:none}
+  .topbar .scope-sel .sc-val{max-width:none}
+  .topbar .tb-out{margin:0;padding:8px 9px}
+  .topbar #tbAvatar{width:38px !important;height:38px !important}
   .content{padding:18px}
   .row2,.row3{grid-template-columns:1fr}
   .topbar{padding:10px 16px}
@@ -839,9 +850,9 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   /* Une seule rangée compacte : recherche extensible, boutons serrés à droite */
   .search{flex:1;margin-left:0;min-width:0}
   .search input{width:100%;min-width:50px}
-  .topbar .tb-out{margin-left:0;padding:7px 8px}
-  .topbar .tb-brand{margin-right:0}
-  .topbar #tbAvatar{width:28px !important;height:28px !important}
+  .topbar .tb-out{margin-left:0;padding:8px 9px}
+  .topbar .tb-brand{margin-right:auto}
+  .topbar #tbAvatar{width:38px !important;height:38px !important}
   .page-head{flex-direction:column;align-items:stretch;gap:12px}
   .page-head .actions{display:flex;flex-wrap:wrap;gap:8px}
   .page-head .actions .btn{flex:1;justify-content:center}
@@ -1760,14 +1771,16 @@ function renderAuth(mode){
       <div class="fld"><label>Email</label><input id="email" type="email" placeholder="vous@exemple.fr" autocomplete="email"></div>
       <div class="fld"><label>Mot de passe</label><div style="position:relative"><input id="pwd" type="password" placeholder="••••••••" style="padding-right:46px" autocomplete="current-password">${eye('pwd')}</div>
         <div style="text-align:right;margin-top:8px"><span class="lnk" onclick="renderAuth('reset')">Mot de passe oublié ?</span></div></div>
-      <button class="au2-cta" id="go">Se connecter</button>`,
+      <button class="au2-cta" id="go">Se connecter</button>
+      <div class="au2-priv"><a href="confidentialite.html" target="_blank" rel="noopener">Politique de confidentialité</a></div>`,
     signup: seg('signup')+`
       <p class="au2-hint">Quelques secondes suffisent.</p>
       <div style="display:flex;gap:10px"><div class="fld" style="flex:1;min-width:0"><label>Prénom</label><input id="prenom" placeholder="Jean" autocomplete="given-name"></div>
       <div class="fld" style="flex:1;min-width:0"><label>Nom</label><input id="nom" placeholder="Dupont" autocomplete="family-name"></div></div>
       <div class="fld"><label>Email</label><input id="email" type="email" placeholder="vous@exemple.fr" autocomplete="email"></div>
       <div class="fld"><label>Mot de passe</label><div style="position:relative"><input id="pwd" type="password" placeholder="8 caractères min." style="padding-right:46px" autocomplete="new-password">${eye('pwd')}</div></div>
-      <button class="au2-cta" id="go">Créer le compte</button>`,
+      <button class="au2-cta" id="go">Créer le compte</button>
+      <div class="au2-priv">En créant un compte, vous acceptez notre <a href="confidentialite.html" target="_blank" rel="noopener">politique de confidentialité</a>.</div>`,
     reset:`<h1 class="au2-h">Réinitialiser le mot de passe</h1><p class="au2-hint">On vous envoie un lien par email.</p>
       <div class="fld"><label>Email</label><input id="email" type="email" placeholder="vous@exemple.fr" autocomplete="email"></div>
       <button class="au2-cta" id="go">Envoyer le lien</button>
