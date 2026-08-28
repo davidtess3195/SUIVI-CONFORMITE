@@ -879,6 +879,18 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   .msec-mh .mn{flex:0 0 auto;min-width:27px;height:23px;padding:0 8px;border-radius:99px;display:grid;place-items:center;font-weight:700;font-size:12.5px;background:#dbeafe;color:#1d4ed8}
   .msec-mh .mn.alert{background:#fee2e2;color:#b91c1c}
   .msec-mh .mch{color:#94a3b8;font-size:16px;flex:0 0 auto;transition:transform .2s}
+  /* ── Cartes photo « bandeau » dans À traiter en priorité (maquette B) ── */
+  .pcb{background:var(--surface,#fff);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin:0 0 12px;box-shadow:0 1px 5px rgba(15,23,42,.05)}
+  .pcb-im{height:130px;background-size:cover;background-position:center;position:relative;cursor:zoom-in;background-color:#e2e8f0}
+  .pcb-st{position:absolute;left:9px;top:9px;background:rgba(255,255,255,.95);border-radius:99px;padding:3px 10px;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+  .pcb-st span{font-size:10.5px !important}
+  .pcb-zm{position:absolute;right:8px;bottom:8px;width:26px;height:26px;border-radius:8px;background:rgba(15,23,42,.55);color:#fff;display:grid;place-items:center;font-size:12px}
+  .pcb-bd{padding:10px 12px 12px}
+  .pcb-loc{display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:4px}
+  .pcb-loc svg{width:13px;height:13px;stroke:#2563eb;stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+  .pcb-cm{font-size:11.5px;color:var(--muted);line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .pcb-act{display:flex;gap:8px;margin-top:9px}
+  .pcb-act .btn{flex:1;justify-content:center;border-radius:99px}
 }
 @media(max-width:640px){
   html,body{overflow-x:hidden}
@@ -6961,6 +6973,18 @@ async function viewDashboard(c){
       document.querySelectorAll('.msec-mh .mch').forEach(c=>{ c.style.transform='rotate(0deg)'; });
       if(willOpen){ tgt.style.display='block'; window[map[bid]]=true; const c=el.querySelector('.mch'); if(c) c.style.transform='rotate(90deg)'; }
     };
+    // Carte photo « bandeau » (maquette B validée) — téléphone uniquement
+    const pcb=p=>{ const img=publicPhoto(p.photoPath); const j=img.replace(/'/g,"\\'");
+      return `<div class="pcb">
+        <div class="pcb-im" style="background-image:url('${img}')" onclick="zoomPhoto('${j}')">
+          <span class="pcb-st">${traitementPill(p.traitement,p.traitement_date)}</span>
+          <span class="pcb-zm">🔍</span>
+        </div>
+        <div class="pcb-bd">
+          ${p.loc?`<span class="pcb-loc"><svg viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(p.loc)}</span>`:''}
+          ${p.d?`<div class="pcb-cm">${esc(p.d)}</div>`:''}
+          <div class="pcb-act"><button class="btn sm primary" onclick="navigate('${p.go}')">Traiter</button><button class="btn sm" onclick="zoomPhoto('${j}')">Voir</button></div>
+        </div></div>`; };
     const mh=(bid,toggleJs,ico,title,sub,count,alert,open)=>`<div class="msec-mh" onclick="msecAcc(this,'${bid}')">
       <span class="mic"><svg viewBox="0 0 24 24">${ico}</svg></span>
       <span class="mtx"><b>${title}</b><small>${sub}</small></span>
@@ -7186,6 +7210,8 @@ async function viewDashboard(c){
         '<path class="fl" d="M21 11.6a7.6 7.6 0 0 1-7.6 7.6H6.2L3 21.8V11.6A7.6 7.6 0 0 1 10.6 4h2.8A7.6 7.6 0 0 1 21 11.6z"/><path class="ln" d="M21 11.6a7.6 7.6 0 0 1-7.6 7.6H6.2L3 21.8V11.6A7.6 7.6 0 0 1 10.6 4h2.8A7.6 7.6 0 0 1 21 11.6z"/><circle class="ac" cx="8.4" cy="11.8" r=".9"/><circle class="ac" cx="12" cy="11.8" r=".9"/><circle class="ac" cx="15.6" cy="11.8" r=".9"/>',
         '<path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/>')}
     </div>`;
+    const prioPhotos=isMob?priorities.filter(p=>p.isPhoto&&p.photoPath):[];
+    const prioTbl=isMob?priorities.filter(p=>!(p.isPhoto&&p.photoPath)):priorities;
     c.innerHTML=`${mtilesHtml}<div class="page-head dash-ph"><div class="t"><h1>Tableau de bord</h1><p>Vos priorités, triées par criticité.</p></div>
       <div class="actions"><button class="btn primary" id="btn-quick-inter" onclick="quickIntervention()">${I.plus} Demande d'intervention</button><button class="btn" onclick="formInter(null,null,'programmer')" title="Intervention convenue par téléphone : enregistrer directement la date">Programmer une intervention</button>
         </div></div>
@@ -7206,8 +7232,9 @@ async function viewDashboard(c){
         </div>
         <div id="dashprio-section-body" style="display:${(window._dashPrioSectionOpen!==false)?'block':'none'};padding:12px">
         ${dpxBlock}
-        ${priorities.length?`<div class="tbl-wrap" style="border:none;box-shadow:none;border-radius:0${dpxRows.length?';margin-top:12px':''}">
-        <table class="tbl prio-tbl"><tbody>${priorities.map(p=>{
+        ${prioPhotos.map(pcb).join('')}
+        ${prioTbl.length?`<div class="tbl-wrap" style="border:none;box-shadow:none;border-radius:0${dpxRows.length?';margin-top:12px':''}">
+        <table class="tbl prio-tbl"><tbody>${prioTbl.map(p=>{
           const miniature = p.photoPath
             ? `<img src="${publicPhoto(p.photoPath)}" style="width:44px;height:34px;object-fit:cover;border-radius:5px;margin-left:8px;vertical-align:middle;cursor:zoom-in" onerror="this.style.display='none'" onclick="event.stopPropagation();zoomPhoto('${publicPhoto(p.photoPath)}')">`
             : '';
@@ -7224,7 +7251,7 @@ async function viewDashboard(c){
               <div style="color:var(--muted);font-size:12.5px">${esc(p.d||'')}</div></td>
             <td style="text-align:right;color:${p.isRetard?'#b91c1c':'var(--muted)'}"><b>${esc(p.loc||'')}</b></td></tr>`;
         }).join('')}</tbody></table></div>`
-        :(dpxRows.length?'':`<div class="empty">${I.chk}<h3>Tout est à jour</h3><p>Aucune action critique en attente sur ce périmètre.</p></div>`)}
+        :((dpxRows.length||priorities.length)?'':`<div class="empty">${I.chk}<h3>Tout est à jour</h3><p>Aucune action critique en attente sur ce périmètre.</p></div>`)}
         </div>
       </div></div>
       ${pvSection}
