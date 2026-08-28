@@ -820,10 +820,10 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 /* ── Bandeau du bas (téléphone) : loupe · logo · maison — fixe au défilement ── */
 .bbar{display:none}
 @media(max-width:840px){
-  /* Défilement natif du navigateur (fluide, avec inertie) au lieu d'un conteneur interne */
+  /* Défilement natif du navigateur (fluide, avec inertie) au lieu d'un conteneur interne.
+     Avec ce défilement natif, le bandeau du haut en sticky reste parfaitement immobile
+     (fini l'effet « il descend puis se recale » du défilement en conteneur). */
   html,body{height:auto;min-height:100%}
-  /* Le bandeau du haut défile avec la page (il ne « redescend » plus) — le bandeau du bas prend le relais */
-  .topbar{position:static}
   .bbar{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;align-items:center;gap:10px;
     background:#0b1220;border-top:1px solid rgba(255,255,255,.09);
     padding:9px 14px calc(9px + env(safe-area-inset-bottom,0px))}
