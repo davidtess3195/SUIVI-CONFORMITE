@@ -839,8 +839,13 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   .burger{display:grid;place-items:center;width:42px;height:42px;border-radius:11px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16)}
   .burger svg{width:18px;height:18px}
   .search input{width:150px}
-  /* Bandeau mobile aligné : rangée 1 = ☰ 🏠 logo … 🔍 ↻ avatar ⎋ ; rangée 2 = sélecteurs pleine largeur */
-  .topbar{flex-wrap:wrap;row-gap:9px;padding:10px 12px;min-height:0}
+  /* Bandeau mobile aligné : rangée 1 = ☰ 🏠 logo … 🔍 ↻ avatar ⎋ ; rangée 2 = sélecteurs pleine largeur.
+     position:fixed (cloué au viewport, comme le bandeau du bas) : contrairement au sticky,
+     il ne bouge jamais sur iOS — ni au défilement, ni pendant le rebond élastique. */
+  .topbar{position:fixed;top:0;left:0;right:0;flex-wrap:wrap;row-gap:9px;padding:10px 12px;min-height:0}
+  .main{margin-top:var(--tbh,119px)}
+  /* Geste tactile vertical uniquement : supprime le petit jeu gauche/droite au doigt */
+  body{touch-action:pan-y pinch-zoom}
   .tb-brand{margin-right:auto}
   .topbar .scope{order:3;width:100%;display:flex;gap:8px;margin:0}
   .topbar .scope-sel{flex:1;min-width:0;max-width:none}
@@ -6445,6 +6450,7 @@ function renderApp(){
   if(window.accSyncAvatar) accSyncAvatar();
   if(window.fselInit) fselInit();
   if(window.navRestore) navRestore();
+  tbSyncH(); setTimeout(tbSyncH,300); setTimeout(tbSyncH,900);
   renderRoute();
   if(typeof updateRapportsBadge==='function') updateRapportsBadge();
   if(typeof updatePhotosBadge==='function') updatePhotosBadge();
@@ -11790,6 +11796,18 @@ window.goRetour=function(){
 };
 window.crRetour=window.goRetour;
 /* ── Bandeau téléphone : recherche dépliable + rafraîchir (maquette validée) ── */
+/* Hauteur réelle du bandeau du haut (téléphone) → variable CSS --tbh, pour caler le contenu
+   sous le bandeau cloué en position fixe. Re-mesurée au chargement et à chaque rotation/redimension. */
+window.tbSyncH=function(){ try{
+  const tb=document.querySelector('.topbar'); if(!tb) return;
+  if(window.matchMedia&&matchMedia('(max-width:840px)').matches){
+    const h=tb.offsetHeight; if(h>40) document.documentElement.style.setProperty('--tbh',h+'px');
+  } else document.documentElement.style.removeProperty('--tbh');
+}catch(_){}};
+if(!window._tbhBound){ window._tbhBound=true;
+  window.addEventListener('resize',()=>{ try{ tbSyncH(); }catch(_){ } });
+  window.addEventListener('orientationchange',()=>{ setTimeout(()=>{ try{ tbSyncH(); }catch(_){ } },250); });
+}
 window.tbSearchOpen=function(){
   const b=document.getElementById('tbSrchBar'); if(!b) return;
   // Remonter en haut pour que le champ (dans le bandeau du haut) soit visible,
