@@ -840,10 +840,10 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   .ged-grid{grid-template-columns:1fr !important}
 }
 /* ── Accueil téléphone : 6 pastilles + titre INDICATEURS CLÉS (tableau de bord, ≤840px uniquement) ── */
-.mtiles,.mkpi-head{display:none}
+.mtiles,.mkpi-head,.msec-mh{display:none}
 @media(max-width:840px){
   .dash-ph{display:none !important}
-  .mtiles{display:grid;grid-template-columns:repeat(3,1fr);gap:16px 8px;margin:4px 0 22px}
+  .mtiles{display:grid;grid-template-columns:repeat(3,1fr);gap:20px 10px;margin:14px 0 32px}
   .mtile{display:grid;justify-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
   .mtile:active .mtsq{transform:scale(.95)}
   .mtsq{position:relative;width:min(96px,26vw);aspect-ratio:1/1;border-radius:23px;display:grid;place-items:center;overflow:hidden;transition:transform .12s;box-shadow:0 10px 22px rgba(29,78,216,.32),inset 0 1px 0 rgba(255,255,255,.35)}
@@ -862,6 +862,21 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   .mkpi-head .ic{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#f59e0b,#d97706);display:grid;place-items:center;flex:0 0 auto}
   .mkpi-head .ic svg{width:17px;height:17px;stroke:#fff;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
   .mkpi-head b{font-size:15px;letter-spacing:.05em;color:var(--ink)}
+  /* ── Sections du tableau de bord : bandeaux légers groupés, repliés par défaut (maquette B) ── */
+  .msec{margin-top:0 !important;border-radius:0 !important;box-shadow:none !important;border-left:1px solid var(--line);border-right:1px solid var(--line);border-top:none;border-bottom:none}
+  .msec.msec-first{margin-top:18px !important;border-top:1px solid var(--line);border-radius:17px 17px 0 0 !important}
+  .msec.msec-last{border-bottom:1px solid var(--line);border-radius:0 0 17px 17px !important;margin-bottom:18px !important}
+  .msec .desk-sh{display:none !important}
+  .msec-mh{display:flex;align-items:center;gap:11px;padding:13px 14px;cursor:pointer;user-select:none}
+  .msec:not(.msec-first) .msec-mh{border-top:1px solid var(--line-2)}
+  .msec-mh .mic{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;flex:0 0 auto;background:linear-gradient(135deg,#60a5fa,#3b82f6)}
+  .msec-mh .mic svg{width:19px;height:19px;stroke:#fff;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .msec-mh .mtx{flex:1;min-width:0}
+  .msec-mh .mtx b{display:block;font-size:13.5px;color:var(--ink)}
+  .msec-mh .mtx small{display:block;font-size:11px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .msec-mh .mn{flex:0 0 auto;min-width:27px;height:23px;padding:0 8px;border-radius:99px;display:grid;place-items:center;font-weight:700;font-size:12.5px;background:#dbeafe;color:#1d4ed8}
+  .msec-mh .mn.alert{background:#fee2e2;color:#b91c1c}
+  .msec-mh .mch{color:#94a3b8;font-size:16px;flex:0 0 auto;transition:transform .2s}
 }
 @media(max-width:640px){
   html,body{overflow-x:hidden}
@@ -6932,6 +6947,15 @@ async function viewDashboard(c){
 
     // Levées des réserves — accordéon par client
     window._dashResOpen = window._dashResOpen || new Set();
+    // ── Téléphone : sections repliées par défaut + bandeaux légers (maquette B validée) ──
+    const isMob=window.matchMedia&&matchMedia('(max-width:840px)').matches;
+    if(isMob){ ['_dashPrioSectionOpen','_dashPvOpen','_dashVerifOpen','_dashResSectionOpen','_dashCalSectionOpen'].forEach(k=>{ if(window[k]===undefined) window[k]=false; }); }
+    window.mchev=window.mchev||function(el,bid){ const b=document.getElementById(bid); const c=el.querySelector('.mch'); if(c&&b) c.style.transform=(b.style.display!=='none')?'rotate(90deg)':'rotate(0deg)'; };
+    const mh=(bid,toggleJs,ico,title,sub,count,alert,open)=>`<div class="msec-mh" onclick="${toggleJs};mchev(this,'${bid}')">
+      <span class="mic"><svg viewBox="0 0 24 24">${ico}</svg></span>
+      <span class="mtx"><b>${title}</b><small>${sub}</small></span>
+      ${count===null?'':`<span class="mn${alert?' alert':''}">${count}</span>`}
+      <span class="mch" style="transform:rotate(${open?'90':'0'}deg)">›</span></div>`;
     // ── Vérifications urgentes ──
     const verifUrgents = [
       ...aRepondre.map(i=>({level:'majeur',tag:'📩 Réponse reçue',label:i.objet||i.domaine||'—',id:i.id})),
@@ -6973,8 +6997,12 @@ async function viewDashboard(c){
         </td></tr>`;
     }).join('');
     const pvOpen=(window._dashPvOpen!==false);
-    const pvSection=(devisEnCours.length||devisClos.length)?`<div class="card" id="dash-pv-section" style="overflow:hidden;margin-top:16px;scroll-margin-top:14px"><div class="card-pad" style="padding:0">
-      <div onclick="(function(){window._dashPvOpen=!(window._dashPvOpen!==false);const b=document.getElementById('dash-pv-body');const ch=document.getElementById('dash-pv-chev');if(b)b.style.display=(window._dashPvOpen!==false)?'block':'none';if(ch)ch.style.transform=(window._dashPvOpen!==false)?'rotate(90deg)':'rotate(0deg)'})()" title="Cliquer pour replier/déplier" style="background:linear-gradient(135deg,#7c3aed,#7c3aedcc);color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer;user-select:none">
+    const pvSection=(devisEnCours.length||devisClos.length)?`<div class="card msec" id="dash-pv-section" style="overflow:hidden;margin-top:16px;scroll-margin-top:14px"><div class="card-pad" style="padding:0">
+      ${mh('dash-pv-body',"window._dashPvOpen=!(window._dashPvOpen!==false);var b=document.getElementById('dash-pv-body');if(b)b.style.display=(window._dashPvOpen!==false)?'block':'none'",
+        '<path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/>',
+        'Réceptions de travaux',`${pvAEtablir.length} PV à établir · ${devisEnCours.length} en attente${devisClos.length?' · '+devisClos.length+' clos':''}`,
+        devisEnCours.length,pvRetard.length>0,pvOpen)}
+      <div class="desk-sh" onclick="(function(){window._dashPvOpen=!(window._dashPvOpen!==false);const b=document.getElementById('dash-pv-body');const ch=document.getElementById('dash-pv-chev');if(b)b.style.display=(window._dashPvOpen!==false)?'block':'none';if(ch)ch.style.transform=(window._dashPvOpen!==false)?'rotate(90deg)':'rotate(0deg)'})()" title="Cliquer pour replier/déplier" style="background:linear-gradient(135deg,#7c3aed,#7c3aedcc);color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer;user-select:none">
         <span id="dash-pv-chev" style="transition:transform .2s;transform:rotate(${pvOpen?'90':'0'}deg);font-size:18px;line-height:1">›</span>
         <h2 style="font-size:16px;margin:0;color:#fff">Réceptions de travaux à suivre</h2>
         <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
@@ -6991,8 +7019,11 @@ async function viewDashboard(c){
       </div>
     </div></div>`:'';
 
-    const verifSection = verifUrgents.length ? `<div class="card" style="overflow:hidden;margin-top:16px"><div class="card-pad" style="padding:0">
-      <div onclick="(function(){window._dashVerifOpen=!window._dashVerifOpen;const b=document.getElementById('dash-verif-body');const ch=document.getElementById('dash-verif-chev');if(b)b.style.display=window._dashVerifOpen?'block':'none';if(ch)ch.style.transform=window._dashVerifOpen?'rotate(90deg)':'rotate(0deg)'})()" style="background:transparent;color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
+    const verifSection = verifUrgents.length ? `<div class="card msec" style="overflow:hidden;margin-top:16px"><div class="card-pad" style="padding:0">
+      ${mh('dash-verif-body',"window._dashVerifOpen=!window._dashVerifOpen;var b=document.getElementById('dash-verif-body');if(b)b.style.display=window._dashVerifOpen?'block':'none'",
+        '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+        'Vérifications urgentes','réponses reçues & sans réponse',verifUrgents.length,true,window._dashVerifOpen)}
+      <div class="desk-sh" onclick="(function(){window._dashVerifOpen=!window._dashVerifOpen;const b=document.getElementById('dash-verif-body');const ch=document.getElementById('dash-verif-chev');if(b)b.style.display=window._dashVerifOpen?'block':'none';if(ch)ch.style.transform=window._dashVerifOpen?'rotate(90deg)':'rotate(0deg)'})()" style="background:transparent;color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
         <span id="dash-verif-chev" style="transition:transform .2s;transform:rotate(${window._dashVerifOpen?'90':'0'}deg);font-size:18px;line-height:1">›</span>
         <h2 style="font-size:16px;margin:0;color:#fff">⚠️ Vérifications urgentes</h2>
         <span style="margin-left:auto;background:rgba(255,255,255,.22);color:#fff;font-size:12px;font-weight:600;padding:2px 10px;border-radius:999px">${verifUrgents.length} action(s)</span>
@@ -7067,8 +7098,12 @@ async function viewDashboard(c){
     };
     if(window._dashResSectionOpen===undefined) window._dashResSectionOpen=true;
     const secOpen=window._dashResSectionOpen;
-    const resSection=`<div class="card" style="overflow:hidden;margin-top:16px"><div class="card-pad" style="padding:0">
-      <div onclick="dashResSectionToggle()" title="Cliquer pour replier/déplier" style="background:linear-gradient(135deg,#2563eb,#2563ebcc);color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
+    const _resLev=res.filter(r=>r.statut==='levee').length;
+    const resSection=`<div class="card msec" style="overflow:hidden;margin-top:16px"><div class="card-pad" style="padding:0">
+      ${mh('dashres-section-body','dashResSectionToggle()',
+        '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+        'Levées des réserves',res.length?`${_resLev} levée${_resLev>1?'s':''} · ${res.length-_resLev} à lever`:'aucune réserve sur ce périmètre',res.length,false,secOpen)}
+      <div class="desk-sh" onclick="dashResSectionToggle()" title="Cliquer pour replier/déplier" style="background:linear-gradient(135deg,#2563eb,#2563ebcc);color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
         <span id="dashres-sec-chev" style="transition:transform .2s;transform:rotate(${secOpen?'90':'0'}deg);font-size:18px;line-height:1">›</span>
         <h2 style="font-size:16px;margin:0;color:#fff">Levées des réserves</h2>
         <span style="margin-left:auto;background:rgba(255,255,255,.22);color:#fff;font-size:12px;font-weight:600;padding:2px 10px;border-radius:999px">${res.length} réserve(s)</span></div>
@@ -7148,8 +7183,12 @@ async function viewDashboard(c){
       ${onboardHtml}
       <div class="mkpi-head"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 3 6-7"/><path d="M14 8h4v4"/></svg></span><b>INDICATEURS CLÉS</b></div>
       <div class="kpis">${kpis.map(kpiCard).join('')}</div>
-      <div class="card" style="overflow:hidden"><div class="card-pad" style="padding:0">
-        <div onclick="dashPrioSectionToggle()" title="Cliquer pour replier/déplier" style="background:linear-gradient(135deg,#2563eb,#2563ebcc);color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
+      <div class="card msec msec-first" style="overflow:hidden"><div class="card-pad" style="padding:0">
+        ${mh('dashprio-section-body','dashPrioSectionToggle()',
+          '<path d="M13 2 4.5 14h6L11 22l8.5-12h-6z"/>',
+          'À traiter en priorité',dpxRows.length?`la plus ancienne : ${dpxRows[0].days} jour${dpxRows[0].days>1?'s':''}`:(priorities.length?`${priorities.length} action${priorities.length>1?'s':''} à suivre`:'rien à traiter — tout est à jour'),
+          priorities.length+dpxRows.length,(dpxRows.length>0||priorities.some(p=>p.c==='critique')),(window._dashPrioSectionOpen!==false))}
+        <div class="desk-sh" onclick="dashPrioSectionToggle()" title="Cliquer pour replier/déplier" style="background:linear-gradient(135deg,#2563eb,#2563ebcc);color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
           <span id="dashprio-sec-chev" style="transition:transform .2s;transform:rotate(${(window._dashPrioSectionOpen!==false)?'90':'0'}deg);font-size:18px;line-height:1">›</span>
           <h2 style="font-size:16px;margin:0;color:#fff">À traiter en priorité</h2>
           <span style="margin-left:auto;background:rgba(255,255,255,.22);color:#fff;font-size:12px;font-weight:600;padding:2px 10px;border-radius:999px">${priorities.length+dpxRows.length} action(s)</span>
@@ -7180,8 +7219,13 @@ async function viewDashboard(c){
       ${pvSection}
       ${verifSection}
       ${resSection}
-      <div class="card" style="overflow:hidden;margin-top:16px"><div class="card-pad" style="padding:0">
-        <div onclick="dashCalSectionToggle()" title="Cliquer pour replier/déplier" style="background:linear-gradient(135deg,#2563eb,#2563ebcc);color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
+      <div class="card msec msec-last" style="overflow:hidden;margin-top:16px"><div class="card-pad" style="padding:0">
+        ${(()=>{const fu=its.filter(i=>i.date_prevue&&i.date_prevue>=today).sort((a,b)=>String(a.date_prevue).localeCompare(String(b.date_prevue)));
+          return mh('dashcal-section-body','dashCalSectionToggle()',
+            '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+            'Calendrier des interventions',fu.length?`prochaine : ${fmtDate(fu[0].date_prevue)}${fu[0].objet?' — '+esc(fu[0].objet):''}`:'aucune intervention programmée',
+            fu.length,false,(window._dashCalSectionOpen!==false));})()}
+        <div class="desk-sh" onclick="dashCalSectionToggle()" title="Cliquer pour replier/déplier" style="background:linear-gradient(135deg,#2563eb,#2563ebcc);color:#fff;padding:13px 18px;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
           <span id="dashcal-sec-chev" style="transition:transform .2s;transform:rotate(${(window._dashCalSectionOpen!==false)?'90':'0'}deg);font-size:18px;line-height:1">›</span>
           <h2 style="font-size:16px;margin:0;color:#fff">Calendrier des interventions</h2>
           <span id="dashcal-sec-count" style="margin-left:auto;background:rgba(255,255,255,.22);color:#fff;font-size:12px;font-weight:600;padding:2px 10px;border-radius:999px"></span>
