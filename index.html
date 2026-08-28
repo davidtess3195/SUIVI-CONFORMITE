@@ -982,6 +982,38 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   .wiz-foot{padding:12px 14px}
 }
 /* ── Interventions V5 : filtres pastilles, carré de date, pastille famille, barre de progression ── */
+/* ── Interventions téléphone « Épuré silencieux » : typographie forte, lignes-cheveu, couleur rare ── */
+.ivm{font-feature-settings:'tnum';padding-top:2px}
+.ivm-h{font-weight:900;font-size:27px;letter-spacing:-.6px;color:var(--ink);line-height:1.05}
+.ivm-cnt{color:#94a3b8;font-size:12.5px;margin:4px 0 16px}
+.ivm-cnt b{color:var(--ink);font-weight:700}
+.ivm-cta{display:flex;gap:9px;margin-bottom:6px}
+.ivm-b1{flex:1.15;background:#0f172a;color:#fff;border:none;border-radius:12px;font-size:12.5px;font-weight:600;font-family:inherit;padding:14px 6px;cursor:pointer}
+.ivm-b2{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;background:var(--surface,#fff);border:1.5px solid #d7dce6;border-radius:12px;color:var(--ink);font-size:12.5px;font-weight:600;font-family:inherit;padding:14px 6px;cursor:pointer}
+.ivm-b2 svg{width:16px;height:16px;flex:0 0 auto}
+.ivm-srch{display:flex;align-items:center;gap:9px;padding:12px 2px 10px;border-bottom:1.5px solid var(--line-2,#eef0f4);margin-bottom:2px}
+.ivm-srch>svg{width:15px;height:15px;color:#c3cbd8;flex:0 0 auto}
+.ivm-srch input{flex:1;min-width:0;border:none;outline:none;background:none;font-size:13px;font-family:inherit;color:var(--ink)}
+.ivm-srch input::placeholder{color:#c3cbd8}
+.ivm-tri{flex:0 0 auto;background:none;border:none;color:#94a3b8;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;padding:0}
+.ivm-line{display:flex;align-items:center;gap:11px;padding:14px 2px;border-bottom:1px solid var(--line-2,#eef0f4);font-size:14px;font-weight:500;color:var(--ink);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ivm-line i{width:8px;height:8px;border-radius:50%;font-style:normal;flex:0 0 auto}
+.ivm-line b{margin-left:auto;font-weight:800;font-size:14.5px}
+.ivm-line small{color:#c3cbd8;font-size:15px;font-weight:400}
+.ivm-bk{color:#94a3b8;font-size:13px;font-weight:600;display:inline-block;margin:8px 0 6px;cursor:pointer}
+.ivm-fh{display:flex;align-items:center;gap:9px;margin-bottom:6px}
+.ivm-fh i{width:9px;height:9px;border-radius:50%;font-style:normal;flex:0 0 auto}
+.ivm-fh h3{font-weight:900;font-size:22px;letter-spacing:-.5px;color:var(--ink);margin:0;flex:1}
+.ivm-fh b{font-weight:800;font-size:19px}
+.ivm-it{padding:13px 2px;border-bottom:1px solid var(--line-2,#eef0f4);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ivm-it .r1{display:flex;align-items:baseline;gap:9px}
+.ivm-it .r1 b{font-size:14px;font-weight:700;color:var(--ink);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ivm-it .r1 .dd{flex:0 0 auto;font-weight:800;font-size:13.5px}
+.ivm-it .dd.red{color:#ef4444}.ivm-it .dd.amb{color:#f59e0b}.ivm-it .dd.soon{color:#2563eb}.ivm-it .dd.dark{color:var(--ink)}.ivm-it .dd.gray{color:#c3cbd8}
+.ivm-it .r2{display:flex;align-items:center;gap:8px;margin-top:3px}
+.ivm-it .r2 small{color:#94a3b8;font-size:11.5px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ivm-it .r2 .act{color:#2563eb;font-size:12px;font-weight:700;flex:0 0 auto;cursor:pointer}
+.ivm-it.term .r1 b{color:#94a3b8;font-weight:600}
 .iv2-chips{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin:0 0 14px}
 .iv2-chip{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:6px 13px;font-size:12px;font-weight:700;color:#475569;cursor:pointer;display:inline-flex;align-items:center;gap:7px;font-family:inherit}
 .iv2-chip .c{font-size:10.5px;font-weight:800;border-radius:99px;padding:1px 7px;background:#eef2f7;color:#475569}
@@ -10048,12 +10080,79 @@ window.interFiltered=function(){
 };
 window.interRefreshList=function(){
   const box=document.getElementById('inter-list'); if(!box) return;
+  if(document.getElementById('ivm-states')){ ivmRefresh(box); return; }
   const f=window._interFilter||'all';
   const rows=interSortRows(interFiltered());
   // Vue filtrée = liste à plat ; vue « Toutes » = groupes + terminées repliées
   box.innerHTML=(f==='all')?(interTable(rows)||'<div style="color:var(--muted);font-size:13px;padding:14px 4px">Aucune intervention.</div>')
     :(interTable(rows,true)||'<div style="color:var(--muted);font-size:13px;padding:14px 4px">Aucune intervention ne correspond à ce filtre.</div>');
   document.querySelectorAll('.iv2-chip[data-f]').forEach(ch=>ch.classList.toggle('on',ch.dataset.f===f));
+};
+/* ── Interventions « Épuré silencieux » (téléphone) : écran des états + liste minimaliste ── */
+window.IVM_STATES=[['late','En retard','#ef4444'],['aprog','À programmer','#f59e0b'],['dem','Attente prestataire','#0ea5e9'],['rap','Rapport attendu','#8b5cf6'],['prog','Programmées','#3b82f6'],['done','Terminées','#22c55e']];
+window.ivmCounts=function(){
+  const r=window._interData||[];
+  return { all:r.length, late:r.filter(iv2Late).length,
+    aprog:r.filter(i=>['a_programmer','a_reprogrammer'].includes(i.statut)).length,
+    dem:r.filter(i=>['demandee','date_proposee'].includes(i.statut)).length,
+    rap:r.filter(i=>['rapport_attendu','a_analyser'].includes(i.statut)).length,
+    prog:r.filter(i=>i.statut==='programmee').length,
+    done:r.filter(i=>IV2_TERM.includes(i.statut)).length };
+};
+window.ivmBack=function(){ window._ivmAll=false; window._interSearch='';
+  const inp=document.querySelector('.ivm-srch input'); if(inp) inp.value='';
+  window._interFilter='all'; interRefreshList(); };
+window.ivmAll=function(){ window._ivmAll=true; window._interFilter='all'; interRefreshList(); };
+window.ivmRow=function(i){
+  const MOIS=['janv','févr','mars','avr','mai','juin','juil','août','sept','oct','nov','déc'];
+  const term=IV2_TERM.includes(i.statut);
+  const data=JSON.stringify(i).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  const t0=new Date(); t0.setHours(0,0,0,0);
+  let dd='à fixer', cls='amb';
+  if(i.date_prevue){
+    const d=new Date(i.date_prevue+'T00:00:00'); const diff=Math.round((d-t0)/864e5);
+    const short=String(d.getDate()).padStart(2,'0')+' '+MOIS[d.getMonth()]+(d.getFullYear()!==t0.getFullYear()?' '+String(d.getFullYear()).slice(2):'');
+    if(term){ dd=short; cls='gray'; }
+    else if(diff<0){ dd='−'+(-diff)+' j'; cls='red'; }
+    else if(diff===0){ dd="auj."; cls='soon'; }
+    else { dd=short; cls='dark'; }
+  } else if(term){ dd='terminée'; cls='gray'; }
+  const fam=IV2_FAM[i.type]||['•','#64748b',i.type||'—'];
+  const erpNom=((state.currentErp==='all'||!state.currentErp)&&(state.erps||[]).length>1)?(state.erps.find(e=>e.id===i.erp_id)?.nom||''):'';
+  const sub=[fam[2],erpNom,(i.nb_relances>0?('relancé '+i.nb_relances+'×'):''),(i.heure_prevue?String(i.heure_prevue).slice(0,5):'')].filter(Boolean).join(' · ');
+  let act='Ouvrir', js=`formInter(null,${data})`;
+  if(i.statut==='demandee'){ act='Confirmer'; js=`confirmInterTel('${i.id}','${esc(i.date_prevue||'')}')`; }
+  else if(i.statut==='date_proposee'&&i.date_proposee){ act='Accepter'; js=`accepterDateProposee('${i.id}','${esc(i.date_proposee)}')`; }
+  else if(i.type==='commission_securite'&&!term){ act='Préparer'; js=`navigate('/preparation-cs')`; }
+  else if(['a_programmer','a_reprogrammer'].includes(i.statut)){ act='Programmer'; }
+  return `<div class="ivm-it${term?' term':''}" onclick="formInter(null,${data})">
+    <div class="r1"><b>${esc(i.objet||i.domaine||'—')}</b><span class="dd ${cls}">${dd}</span></div>
+    <div class="r2"><small>${esc(sub)||'&nbsp;'}</small><span class="act" onclick="event.stopPropagation();${js}">${act} ›</span></div>
+  </div>`;
+};
+window.ivmRefresh=function(box){
+  box=box||document.getElementById('inter-list'); if(!box) return;
+  const stBox=document.getElementById('ivm-states'), fh=document.getElementById('ivm-fhead');
+  if(!stBox||!fh) return;
+  const f=window._interFilter||'all';
+  const q=(window._interSearch||'').trim();
+  const n=ivmCounts();
+  const menu=(f==='all'&&!q&&!window._ivmAll);
+  if(menu){
+    stBox.style.display='block'; fh.style.display='none'; box.innerHTML='';
+    stBox.innerHTML=IVM_STATES.filter(([k])=>n[k]>0).map(([k,lbl,col])=>
+      `<div class="ivm-line" onclick="interSetFilter('${k}')"><i style="background:${col}"></i>${lbl}<b>${n[k]}</b><small>›</small></div>`).join('')
+      +`<div class="ivm-line" onclick="ivmAll()"><i style="background:#cbd5e1"></i>Toutes<b>${n.all}</b><small>›</small></div>`;
+    return;
+  }
+  const rows=interSortRows(interFiltered());
+  const meta=IVM_STATES.find(([k])=>k===f);
+  const lbl=q?'Résultats':(meta?meta[1]:'Toutes');
+  const col=q?'#94a3b8':(meta?meta[2]:'#cbd5e1');
+  stBox.style.display='none'; fh.style.display='block';
+  fh.innerHTML=`<span class="ivm-bk" onclick="ivmBack()">← États</span>
+    <div class="ivm-fh"><i style="background:${col}"></i><h3>${lbl}</h3><b style="color:${col}">${rows.length}</b></div>`;
+  box.innerHTML=rows.map(ivmRow).join('')||'<div style="color:var(--muted);font-size:13px;padding:14px 2px">Aucune intervention ne correspond.</div>';
 };
 window.interSetFilter=function(f){
   window._interFilter=(window._interFilter===f&&f!=='all')?'all':f;
@@ -10080,6 +10179,30 @@ async function viewInterventions(c){
       prog:_rows.filter(i=>i.statut==='programmee').length,
       done:_rows.filter(i=>IV2_TERM.includes(i.statut)).length };
     const chip=(f,lbl)=>n[f]||f==='all'?`<button class="iv2-chip${(window._interFilter||'all')===f?' on':''}" data-f="${f}" onclick="interSetFilter('${f}')">${lbl} <span class="c">${n[f]}</span></button>`:'';
+    // ── Téléphone : présentation « Épuré silencieux » (maquette validée) ──
+    const isMobIv=window.matchMedia&&matchMedia('(max-width:840px)').matches;
+    if(isMobIv&&_rows.length){
+      window._ivmAll=false;
+      const nAct=n.late+n.aprog;
+      c.innerHTML=`<div class="ivm">
+        <h2 class="ivm-h">Interventions</h2>
+        <div class="ivm-cnt"><b>${_rows.length}</b> au total${nAct?` — <b>${nAct}</b> demande${nAct>1?'nt':''} une action`:''}</div>
+        <div class="ivm-cta">
+          <button class="ivm-b1" onclick="formInter()">＋ Demande d'intervention</button>
+          <button class="ivm-b2" onclick="formInter(null,null,'programmer')" title="Intervention convenue par téléphone : enregistrer directement la date"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M12 14v4M10 16h4"/></svg>Programmer</button>
+        </div>
+        <div class="ivm-srch">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input placeholder="Rechercher…" oninput="window._interSearch=this.value;interRefreshList()">
+          <button class="ivm-tri" id="iv2-sort" onclick="interSetSort(window._interSort==='proches'?'lointaines':'proches')" title="Inverser l'ordre chronologique">⇅ ${window._interSort==='proches'?'Plus proches':'Plus lointaines'}</button>
+        </div>
+        <div id="ivm-states"></div>
+        <div id="ivm-fhead" style="display:none"></div>
+        <div id="inter-list"></div>
+      </div>`;
+      interRefreshList();
+      return;
+    }
     c.innerHTML=`<div class="page-head"><div class="t"><h1>Interventions</h1><p>${_rows.length} intervention(s).</p></div>
       <div class="actions"><button class="btn primary" onclick="formInter()">${I.plus} Demande d'intervention</button><button class="btn" onclick="formInter(null,null,'programmer')" title="Intervention convenue par téléphone : enregistrer directement la date">Programmer une intervention</button></div></div>
       ${_rows.length?`<div class="iv2-chips">
