@@ -844,8 +844,10 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
      il ne bouge jamais sur iOS — ni au défilement, ni pendant le rebond élastique. */
   .topbar{position:fixed;top:0;left:0;right:0;flex-wrap:wrap;row-gap:9px;padding:10px 12px;min-height:0}
   .main{margin-top:var(--tbh,119px)}
-  /* Geste tactile vertical uniquement : supprime le petit jeu gauche/droite au doigt */
-  body{touch-action:pan-y pinch-zoom}
+  /* Défilement natif du navigateur : les deux bandeaux étant cloués au viewport (fixed),
+     plus aucun élément ne dépend du conteneur — fini le scroll qui se fige (bug iOS des
+     conteneurs internes). L'overflow-x du document supprime tout jeu latéral. */
+  html,body{height:auto;min-height:100%;overflow-x:hidden}
   .tb-brand{margin-right:auto}
   .topbar .scope{order:3;width:100%;display:flex;gap:8px;margin:0}
   .topbar .scope-sel{flex:1;min-width:0;max-width:none}
