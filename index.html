@@ -843,7 +843,7 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .mtiles,.mkpi-head,.msec-mh{display:none}
 @media(max-width:840px){
   .dash-ph{display:none !important}
-  .mtiles{display:grid;grid-template-columns:repeat(3,1fr);gap:20px 10px;margin:14px 0 32px}
+  .mtiles{display:grid;grid-template-columns:repeat(3,1fr);gap:26px 12px;margin:22px 0 42px}
   .mtile{display:grid;justify-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
   .mtile:active .mtsq{transform:scale(.95)}
   .mtsq{position:relative;width:min(96px,26vw);aspect-ratio:1/1;border-radius:23px;display:grid;place-items:center;overflow:hidden;transition:transform .12s;box-shadow:0 10px 22px rgba(29,78,216,.32),inset 0 1px 0 rgba(255,255,255,.35)}
@@ -858,10 +858,12 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   .mtpic .ac{stroke:#bfdbfe;stroke-width:1.7;fill:none}
   .mtile>b{font-size:11.5px;font-weight:600;margin-top:8px;color:var(--ink);text-align:center;line-height:1.25}
   .mtbdg{position:absolute;top:6px;right:6px;min-width:24px;height:24px;padding:0 6px;border-radius:99px;background:#dc2626;border:2.5px solid #fff;color:#fff;font-weight:800;font-size:12px;display:grid;place-items:center;z-index:3;box-shadow:0 2px 6px rgba(0,0,0,.25)}
-  .mkpi-head{display:flex;align-items:center;gap:10px;margin:0 2px 12px}
-  .mkpi-head .ic{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#f59e0b,#d97706);display:grid;place-items:center;flex:0 0 auto}
-  .mkpi-head .ic svg{width:17px;height:17px;stroke:#fff;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
-  .mkpi-head b{font-size:15px;letter-spacing:.05em;color:var(--ink)}
+  .mkpi-head{display:flex;align-items:center;gap:11px;margin:0 2px 12px}
+  .mkpi-head .ic{width:52px;height:52px;border-radius:19px 19px 19px 2px;background:linear-gradient(150deg,#f8ca4d,#f0aa2e);box-shadow:0 5px 12px rgba(240,170,46,.35);display:grid;place-items:center;flex:0 0 auto}
+  .mkpi-head .ic svg{width:27px;height:27px;stroke:#fff;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .mkpi-head b{font-size:16px;letter-spacing:.05em;color:var(--ink)}
+  .mkpi-head.mfil{margin-top:26px}
+  .mfil + .msec.msec-first{margin-top:0 !important}
   /* ── Sections du tableau de bord : bandeaux légers groupés, repliés par défaut (maquette B) ── */
   .msec{margin-top:0 !important;border-radius:0 !important;box-shadow:none !important;border-left:1px solid var(--line);border-right:1px solid var(--line);border-top:none;border-bottom:none}
   .msec.msec-first{margin-top:18px !important;border-top:1px solid var(--line);border-radius:17px 17px 0 0 !important}
@@ -6950,8 +6952,16 @@ async function viewDashboard(c){
     // ── Téléphone : sections repliées par défaut + bandeaux légers (maquette B validée) ──
     const isMob=window.matchMedia&&matchMedia('(max-width:840px)').matches;
     if(isMob){ ['_dashPrioSectionOpen','_dashPvOpen','_dashVerifOpen','_dashResSectionOpen','_dashCalSectionOpen'].forEach(k=>{ if(window[k]===undefined) window[k]=false; }); }
-    window.mchev=window.mchev||function(el,bid){ const b=document.getElementById(bid); const c=el.querySelector('.mch'); if(c&&b) c.style.transform=(b.style.display!=='none')?'rotate(90deg)':'rotate(0deg)'; };
-    const mh=(bid,toggleJs,ico,title,sub,count,alert,open)=>`<div class="msec-mh" onclick="${toggleJs};mchev(this,'${bid}')">
+    // Accordéon exclusif (téléphone) : ouvrir un bandeau replie automatiquement les autres
+    window.msecAcc=window.msecAcc||function(el,bid){
+      const map={'dashprio-section-body':'_dashPrioSectionOpen','dash-pv-body':'_dashPvOpen','dash-verif-body':'_dashVerifOpen','dashres-section-body':'_dashResSectionOpen','dashcal-section-body':'_dashCalSectionOpen'};
+      const tgt=document.getElementById(bid);
+      const willOpen=tgt&&tgt.style.display==='none';
+      Object.keys(map).forEach(id=>{ const b=document.getElementById(id); if(b) b.style.display='none'; window[map[id]]=false; });
+      document.querySelectorAll('.msec-mh .mch').forEach(c=>{ c.style.transform='rotate(0deg)'; });
+      if(willOpen){ tgt.style.display='block'; window[map[bid]]=true; const c=el.querySelector('.mch'); if(c) c.style.transform='rotate(90deg)'; }
+    };
+    const mh=(bid,toggleJs,ico,title,sub,count,alert,open)=>`<div class="msec-mh" onclick="msecAcc(this,'${bid}')">
       <span class="mic"><svg viewBox="0 0 24 24">${ico}</svg></span>
       <span class="mtx"><b>${title}</b><small>${sub}</small></span>
       ${count===null?'':`<span class="mn${alert?' alert':''}">${count}</span>`}
@@ -7183,6 +7193,7 @@ async function viewDashboard(c){
       ${onboardHtml}
       <div class="mkpi-head"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 3 6-7"/><path d="M14 8h4v4"/></svg></span><b>INDICATEURS CLÉS</b></div>
       <div class="kpis">${kpis.map(kpiCard).join('')}</div>
+      <div class="mkpi-head mfil"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 5h12a1.5 1.5 0 0 1 1.5 1.5V18"/><path d="M17.5 18a1.8 1.8 0 0 0 3.6 0V8.5H17.5"/><path d="M4 5v13a1.8 1.8 0 0 0 1.8 1.8h13.5"/><rect x="6.6" y="8" width="4" height="3.4" rx=".5"/><path d="M13 8.4h1.6M6.6 14h8M6.6 16.4h8"/></svg></span><b>FIL D'ACTUALITÉS</b></div>
       <div class="card msec msec-first" style="overflow:hidden"><div class="card-pad" style="padding:0">
         ${mh('dashprio-section-body','dashPrioSectionToggle()',
           '<path d="M13 2 4.5 14h6L11 22l8.5-12h-6z"/>',
