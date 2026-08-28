@@ -815,7 +815,23 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .mob-nav-item.active{color:#60a5fa}
 .mob-badge{background:var(--critique);color:#fff;font-size:9px;font-weight:700;min-width:15px;height:15px;border-radius:8px;display:grid;place-items:center;padding:0 3px;position:absolute;top:-3px;right:-3px}
 .mob-nav-icon{position:relative;display:inline-flex}
-@media(max-width:840px){.mob-nav{display:block}.main{padding-bottom:68px}}
+@media(max-width:840px){.mob-nav{display:block}.main{padding-bottom:80px}}
+
+/* ── Bandeau du bas (téléphone) : loupe · logo · maison — fixe au défilement ── */
+.bbar{display:none}
+@media(max-width:840px){
+  /* Défilement natif du navigateur (fluide, avec inertie) au lieu d'un conteneur interne */
+  html,body{height:auto;min-height:100%}
+  .bbar{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;align-items:center;gap:10px;
+    background:#0b1220;border-top:1px solid rgba(255,255,255,.09);
+    padding:9px 14px calc(9px + env(safe-area-inset-bottom,0px))}
+  .bbar .bib{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#dbe4f0;flex:0 0 auto;cursor:pointer}
+  .bbar .bib svg{width:19px;height:19px}
+  .bbar .bib.home svg{stroke:#93c5fd}
+  .bbar .brand{flex:1;display:flex;align-items:center;justify-content:center;gap:9px;background:none;border:none;color:#fff;font-weight:800;font-size:14px;letter-spacing:-.2px;min-width:0;cursor:pointer;font-family:inherit}
+  .bbar .brand img{width:28px;height:28px;object-fit:contain;flex:0 0 auto}
+  .bbar .brand b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
 
 @media(max-width:840px){
   #backbar{padding:10px 18px 0 !important}
@@ -893,7 +909,7 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   .pcb-act .btn{flex:1;justify-content:center;border-radius:99px}
 }
 @media(max-width:640px){
-  html,body{overflow-x:hidden}
+  html,body{overflow-x:hidden;overflow-x:clip}
   #backbar{padding:8px 14px 0 !important}
   .content{padding:14px}
   .topbar{flex-wrap:wrap;gap:8px;padding:9px 12px;min-height:0}
@@ -6420,6 +6436,11 @@ function renderApp(){
       <div id="backbar" style="display:none;padding:12px 26px 0"><button class="btn" onclick="goRetour()" style="display:inline-flex;align-items:center;gap:7px;font-weight:700">← Retour</button></div>
       <main class="content" id="content"></main>
     </div>
+    <div class="bbar">
+      <button class="bib" title="Rechercher" aria-label="Rechercher" onclick="tbSearchOpen()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></button>
+      <button class="brand" title="Accueil" onclick="navigate('/')"><img src="${LOGO_WHITE}" alt=""><b>CONFORMITÉ SÉCURITÉ</b></button>
+      <button class="bib home" title="Accueil" aria-label="Accueil" onclick="navigate('/')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></svg></button>
+    </div>
   </div>`;
   fillScopeSelectors();
   if(window.applyScopeLock) applyScopeLock();
@@ -11773,6 +11794,9 @@ window.crRetour=window.goRetour;
 /* ── Bandeau téléphone : recherche dépliable + rafraîchir (maquette validée) ── */
 window.tbSearchOpen=function(){
   const b=document.getElementById('tbSrchBar'); if(!b) return;
+  // Remonter en haut pour que le champ (dans le bandeau du haut) soit visible,
+  // notamment quand la loupe du bandeau du bas est utilisée en cours de page.
+  try{ window.scrollTo({top:0,behavior:'auto'}); document.body.scrollTop=0; document.documentElement.scrollTop=0; }catch(_){}
   b.classList.add('on');
   const i=document.getElementById('tbSrchInput');
   if(i){ i.value=''; setTimeout(()=>i.focus(),40); }
@@ -15624,6 +15648,60 @@ window.trvParseVeritas=function(lines){
   return {organisme:org, date_intervention:isoInt, observations:obs};
 };
 
+/* ── Lecteur APAVE : « Liste récapitulative des observations » des rapports de vérification
+   (électricité & co). Localisation = barre MAGASIN/NIVEAU + sous-groupe Ø/· + ligne de contexte.
+   Observation = ligne « R. 4215-03¦desc » + refs NF + numéro (badge) + suite ; (P) = préconisation. */
+window.trvParseApave=function(lines){
+  const all=lines.join('\n');
+  if(!/APAVE/i.test(all)) return {organisme:null,date_intervention:null,observations:[]};
+  const frIso=d=>{const m=(d||'').match(/(\d{2})\/(\d{2})\/(\d{4})/);return m?(m[3]+'-'+m[2]+'-'+m[1]):null;};
+  let dInt=null,m;
+  if(m=all.match(/Du \d{2}\/\d{2}\/\d{4} au (\d{2}\/\d{2}\/\d{4})/)) dInt=frIso(m[1]);
+  if(!dInt&&(m=all.match(/Date\(s\) d'intervention[\s\S]{0,80}?(\d{2}\/\d{2}\/\d{4})/))) dInt=frIso(m[1]);
+  if(!dInt&&(m=all.match(/Date : (\d{2}\/\d{2}\/\d{4})/))) dInt=frIso(m[1]);
+  const start=lines.findIndex(l=>/^Liste récapitulative des observations/.test(l));
+  if(start<0) return {organisme:'Apave',date_intervention:dInt,observations:[]};
+  let end=lines.findIndex((l,i)=>i>start&&/^(Sommaire$|1\. Renseignements)/.test(l));
+  if(end<0) end=lines.length;
+  const SKIP=/^(⏎PAGE⏎$|RAPPORT - VERIFICATION|N° DE RAPPORT|Date : .*Version modèle|Page \d+ ?\/ ?\d+$|Localisation$|Non-conformité - Préconisation|N° Obs|Numéro d'observation récurrente)/;
+  let domain='',loc='',sub='',sub2='';
+  const obs=[]; let cur=null; let pend=[];
+  const domCode=d=>/haute/i.test(d)?'HT':(/basse/i.test(d)?'BT':'');
+  const close=()=>{ if(!cur) return;
+    const txt=cur.desc.join(' ').replace(/\s+/g,' ').trim().replace(/\s?\(P\)\s/g,'\n(P) ');
+    obs.push({numero:cur.n||null,
+      localisation:[loc,sub,sub2,cur.ctx].filter(Boolean).join(' — ')||null,
+      descriptif:txt, code_obs:(domCode(domain)&&cur.n?domCode(domain)+cur.n:(cur.n?String(cur.n):'')),
+      article_ref:cur.refs.join(' · '), date_premier_signalement:null, recidive:false});
+    cur=null; };
+  const flushPend=()=>{ if(pend.length&&cur) cur.desc.push(...pend); pend=[]; };
+  for(let i=start+1;i<end;i++){
+    const L=(lines[i]||'').trim(); if(!L) continue;
+    if(SKIP.test(L)) continue;
+    let m2;
+    if(m2=L.match(/^Observations relatives aux installations du domaine (.+)$/)){ flushPend(); close(); domain=m2[1].trim(); loc='';sub='';sub2=''; continue; }
+    if(m2=L.match(/^R\.? ?(\d{4}-\d{1,2})(?:¦(.*))?$/)){
+      let ctxLine=''; if(pend.length){ const cand=pend[pend.length-1]; if(!/[.!?]$/.test(cand)) ctxLine=pend.pop(); if(cur) cur.desc.push(...pend); pend=[]; }
+      close();
+      cur={n:0,refs:['R. '+m2[1]],desc:[],ctx:ctxLine};
+      if(m2[2]) cur.desc.push(m2[2].trim());
+      continue;
+    }
+    if(cur&&(m2=L.match(/^(\d{1,2})¦NF ([^¦]*)(?:¦(.*))?$/))){ cur.n=cur.n||parseInt(m2[1],10); cur.refs.push('NF '+m2[2].trim()); if(m2[3])cur.desc.push(m2[3].trim()); continue; }
+    if(cur&&(m2=L.match(/^NF ([^¦]*)(?:¦(.*))?$/))){ cur.refs.push('NF '+m2[1].trim()); if(m2[2])cur.desc.push(m2[2].trim()); continue; }
+    if(cur&&(m2=L.match(/^(\d{1,2})$/))){ if(!cur.n) cur.n=parseInt(m2[1],10); continue; }
+    if(cur&&(m2=L.match(/^(\d{1,2})¦(.+)$/))){ if(!cur.n) cur.n=parseInt(m2[1],10); cur.desc.push(m2[2].trim()); continue; }
+    if(/^Ensemble des installations/i.test(L)&&!L.includes('¦')){ flushPend(); close(); loc=L; sub='';sub2=''; continue; }
+    if(m2=L.match(/^Ø ?(.+)$/)){ flushPend(); close(); sub=/Observation\(s\) local/i.test(m2[1])?'':m2[1].trim(); sub2=''; continue; }
+    if(m2=L.match(/^[·•] ?(.+)$/)){ flushPend(); close(); sub2=m2[1].trim(); continue; }
+    const letters=L.replace(/[^A-Za-zÀ-ÿ]/g,''); const caps=letters.replace(/[^A-ZÀ-Þ]/g,'');
+    if(!L.includes('¦')&&letters.length>=4&&caps.length/letters.length>=0.8&&!/^R\.|^NF /.test(L)){ flushPend(); close(); loc=L; sub='';sub2=''; continue; }
+    pend.push(L);
+  }
+  flushPend(); close();
+  return {organisme:'Apave', date_intervention:dInt, observations:obs};
+};
+
 window.TRV_SOURCES={bureau_de_controle:'Bureau de contrôle',commission:'Commission de sécurité',prestataire:'Prestataire'};
 window.TRV_GED_TYPES=['Rapport','Bureau de contrôle','RVRAT','RVRE','Compte rendu','Maintenance préventive','Maintenance corrective'];
 
@@ -16577,7 +16655,8 @@ window.trvAnalyze=async function(docId){
     const {data:s,error}=await sb.storage.from(bucket).createSignedUrl(d.fichier_path,300);
     if(error||!s||!s.signedUrl) throw (error||new Error('fichier introuvable'));
     const lines=await trvExtractLines(s.signedUrl);
-    const parsed=trvParseVeritas(lines);
+    let parsed=trvParseVeritas(lines);
+    if(!parsed.observations.length){ const a=trvParseApave(lines); if(a.observations.length) parsed=a; }
     trvShowValidation(parsed,d);
   }catch(e){ toast('Le rapport n\'a pas pu être analysé ('+(e.message||e)+') — réessayez avec le PDF d\'origine du vérificateur.','err'); }
   wait.style.display='none';
