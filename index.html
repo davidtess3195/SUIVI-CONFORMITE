@@ -861,9 +861,21 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   .ged-grid{grid-template-columns:1fr !important}
 }
 /* ── Accueil téléphone : 6 pastilles + titre INDICATEURS CLÉS (tableau de bord, ≤840px uniquement) ── */
-.mtiles,.mkpi-head,.msec-mh{display:none}
+.mtiles,.mkpi-head,.msec-mh,.trv-abar{display:none}
 @media(max-width:840px){
   .dash-ph{display:none !important}
+  /* Tableau de réserves : trait bleu fin autour de chaque réserve (téléphone) */
+  .trv-res{border:1.5px solid #93b8f5 !important;border-radius:13px !important}
+  /* Tableau de réserves : commandes en bandeau haut (version B), pied masqué (téléphone) */
+  .trv-abar{display:block;background:var(--surface,#fff);padding:10px 14px 12px;border-bottom:1px solid var(--line);box-shadow:0 6px 14px -10px rgba(15,23,42,.25);flex:0 0 auto;position:relative;z-index:2}
+  .trv-abar svg{fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .trv-abar .tab-pri{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;background:var(--brand,#2563eb);border:none;color:#fff;border-radius:12px;font-size:13.5px;font-weight:700;font-family:inherit;padding:12px;margin-bottom:9px;cursor:pointer}
+  .trv-abar .tab-pri svg{width:16px;height:16px;stroke:#fff;stroke-width:2;flex:0 0 auto}
+  .trv-abar .tab-row{display:flex;gap:7px}
+  .trv-abar .tab-row button{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;border:1.5px solid var(--line,#e2e8f0);background:var(--surface-2,#f8fafc);border-radius:11px;padding:8px 2px 7px;font-family:inherit;cursor:pointer}
+  .trv-abar .tab-row svg{width:17px;height:17px;stroke:#334155;stroke-width:1.9}
+  .trv-abar .tab-row span{font-size:10px;font-weight:700;color:var(--muted,#475569);letter-spacing:.1px}
+  .modal-foot.trv-foot{display:none !important}
   .mtiles{display:grid;grid-template-columns:repeat(3,1fr);gap:26px 12px;margin:22px 0 42px}
   .mtile{display:grid;justify-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
   .mtile:active .mtsq{transform:scale(.95)}
@@ -15940,6 +15952,15 @@ window.trvDetail=async function(id){
       :'<span style="color:#dc2626;font-weight:700;font-size:11.5px">● à lever</span>';
     window._trvCur={tabId:t.id,erpId:t.erp_id,erpNom:(erp?erp.nom:'')||'',org:t.organisme||'',nb:rows.length};
     openModal(`<div class="modal-head"><h2>${esc(t.organisme||'Tableau')} — ${esc(erp?erp.nom:'')}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+      ${t.statut!=='a_valider'?`<div class="trv-abar">
+        <button class="tab-pri" onclick="trvAffect('${esc(t.id)}')"><svg viewBox="0 0 24 24"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/></svg>Répartir aux prestataires…</button>
+        <div class="tab-row">
+          <button onclick="trvPdf('${esc(t.id)}')"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z M4 9h16"/></svg><span>PDF</span></button>
+          <button onclick="trvSmsModal('${esc(t.id)}')"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>SMS</span></button>
+          <button onclick="trvSendCur()"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 1 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.4 2.4-2.5-2.5z"/></svg><span>Technicien</span></button>
+          <button onclick="trvMailPrest('${esc(t.id)}')"><svg viewBox="0 0 24 24"><path d="M3 5h18v14H3z M3 6l9 7 9-7"/></svg><span>E-mail</span></button>
+        </div>
+      </div>`:''}
       <div class="modal-body" style="display:flex;flex-direction:column;gap:8px">
         <div style="font-size:12px;color:var(--muted)">${esc(t.titre||'')} · ${rows.length} observation(s)</div>
         ${doc?`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface-2,#f6f8fb);border:1px solid var(--line);border-radius:10px;padding:9px 12px">
@@ -15950,7 +15971,7 @@ window.trvDetail=async function(id){
           </span>
           <button class="btn sm" style="flex:0 0 auto" onclick="trvVoirRapport()">👁 Voir le rapport</button>
         </div>`:`<div style="font-size:12px;color:var(--muted)">Intervention du ${t.date_intervention?new Date(t.date_intervention+'T00:00:00').toLocaleDateString('fr-FR'):'—'} · saisie manuelle (pas de rapport lié)</div>`}
-        ${rows.map(r=>`<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+        ${rows.map(r=>`<div class="trv-res" style="border:1px solid var(--line);border-radius:10px;padding:10px 12px">
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
             <b style="font-size:12.5px">N°${r.numero||'—'}</b>
             ${r.recidive?'<span style="background:rgba(220,38,38,.1);color:#dc2626;border-radius:6px;padding:1px 7px;font-size:10px;font-weight:800">RÉCIDIVE</span>':''}
@@ -15964,7 +15985,7 @@ window.trvDetail=async function(id){
         <button class="btn sm" style="align-self:flex-start" onclick="trvAddRes('${esc(t.id)}','${esc(t.erp_id)}',${rows.length?Math.max.apply(null,rows.map(x=>x.numero||0)):0})">＋ Ajouter une observation</button>
       </div>
       ${t.statut==='a_valider'?`<div style="margin:0 18px;background:rgba(217,119,6,.09);border:1px solid rgba(217,119,6,.45);border-radius:10px;padding:9px 12px;font-size:12.5px">🤖 <b>Tableau préparé automatiquement</b> à la réception du rapport — vérifie les observations ci-dessus, puis valide (ou supprime s'il s'agit d'une fausse détection).</div>`:''}
-      <div class="modal-foot" style="flex-wrap:wrap;gap:8px;row-gap:8px">${t.statut==='a_valider'
+      <div class="modal-foot${t.statut==='a_valider'?'':' trv-foot'}" style="flex-wrap:wrap;gap:8px;row-gap:8px">${t.statut==='a_valider'
         ?`<button class="btn" style="color:#dc2626;border-color:rgba(220,38,38,.4)" onclick="trvSupprimerTab('${esc(t.id)}','${esc(t.rapport_document_id||'')}')">Supprimer (fausse détection)</button>
           <button class="btn primary" onclick="trvValiderTab('${esc(t.id)}')">✓ Valider le tableau</button>`
         :`<button class="btn" style="margin-right:auto" onclick="closeModal()">Fermer</button>
