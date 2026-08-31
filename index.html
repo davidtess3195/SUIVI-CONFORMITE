@@ -14196,7 +14196,7 @@ window.docPreviewFile=function(i){
   setTimeout(()=>{ try{URL.revokeObjectURL(u);}catch(_){}} ,60000);
 };
 /* Types de document qualifiés par « Présence de non conformité : Oui / Non » au dépôt */
-window.DOC_NC_TYPES=['Rapport','Bureau de contrôle','RVRAT','RVRE','PV de réception','Maintenance préventive','Maintenance corrective'];
+window.DOC_NC_TYPES=['Rapport','Bureau de contrôle','Bureau de contrôle RVRAT','Bureau de contrôle RVRE','PV de réception','Maintenance préventive','Maintenance corrective'];
 window.docTypeChange=function(){
   const t=$('#f_type')?.value; const z=document.getElementById('f_avis_zone');
   // Types où l'on qualifie le document par « Présence de non conformité : Oui / Non »
@@ -14227,7 +14227,7 @@ window.docTypeChange=function(){
   if(lbl){
     const INTERV=['Rapport',"Bon d'intervention",'PV de réception','Maintenance préventive','Maintenance corrective','Compte rendu'];
     const txt = t==='PV commission' ? 'Date de la commission'
-             : (t==='RVRAT'||t==='RVRE') ? 'Date de la vérification'
+             : (t==='Bureau de contrôle RVRAT'||t==='Bureau de contrôle RVRE') ? 'Date de la vérification'
              : INTERV.includes(t) ? "Date d'intervention"
              : 'Date du document';
     lbl.innerHTML = txt+' <span style="color:var(--muted-2);font-weight:400;font-size:11px">(date réelle)</span>';
@@ -14324,8 +14324,8 @@ window.gedTileSel=function(cid,catIdx){
 function gedRenderList(){
   const host=document.getElementById('ged_list'); if(!host) return;
   gedxStyle();
-  const TYPE_ORDER=['Compte rendu','Rapport','RVRAT','RVRE','PV commission','Courrier mairie','Courrier','Attestation','DOE','Plan','Preuve','Photo'];
-  const TYPE_ICON={'Compte rendu':'📝','Rapport':'📋','RVRAT':'⚡','RVRE':'🔧','PV commission':'⚖️','Courrier mairie':'🏛️','Courrier':'✉️','Attestation':'✅','DOE':'📐','Plan':'🗺️','Preuve':'📎','Photo':'🖼️'};
+  const TYPE_ORDER=['Compte rendu','Rapport','Bureau de contrôle RVRAT','Bureau de contrôle RVRE','PV commission','Courrier mairie','Courrier','Attestation','DOE','Plan','Preuve','Photo'];
+  const TYPE_ICON={'Compte rendu':'📝','Rapport':'📋','Bureau de contrôle RVRAT':'⚡','Bureau de contrôle RVRE':'🔧','PV commission':'⚖️','Courrier mairie':'🏛️','Courrier':'✉️','Attestation':'✅','DOE':'📐','Plan':'🗺️','Preuve':'📎','Photo':'🖼️'};
   const rows=window._gedAllDocs||[];
   const q=(document.getElementById('ged_search')?.value||'').trim().toLowerCase();
   const rf=document.getElementById('ged_rub')?.value||'';
@@ -14483,7 +14483,7 @@ function gedRenderList(){
 }
 window.gedRenderList=gedRenderList;
 
-const GED_TYPES=['Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Compte rendu','RVRAT','RVRE','PV commission','Courrier mairie','Bureau de contrôle','Maintenance préventive','Maintenance corrective','Consignes de sécurité','Plan de prévention','Permis de feu','Courrier','Attestation','DOE','Plan','Preuve','Photo','Autre'];
+const GED_TYPES=['Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Compte rendu','Bureau de contrôle RVRAT','Bureau de contrôle RVRE','PV commission','Courrier mairie','Bureau de contrôle','Maintenance préventive','Maintenance corrective','Consignes de sécurité','Plan de prévention','Permis de feu','Courrier','Attestation','DOE','Plan','Preuve','Photo','Autre'];
 const GED_CATEGORIES=[['rapport','Rapport'],['devis','Devis'],['devis_signe','Devis signé'],['facture','Facture'],['bon_intervention',"Bon d'intervention"],['pv_reception','PV de réception'],['mail','Mail'],['autre','Autre']];
 
 // Affiche directement le contenu d'un mail reçu (expéditeur, objet, date, corps) dans une modale
@@ -15734,7 +15734,7 @@ window.trvParseApave=function(lines){
 };
 
 window.TRV_SOURCES={bureau_de_controle:'Bureau de contrôle',commission:'Commission de sécurité',prestataire:'Prestataire'};
-window.TRV_GED_TYPES=['Rapport','Bureau de contrôle','RVRAT','RVRE','Compte rendu','Maintenance préventive','Maintenance corrective'];
+window.TRV_GED_TYPES=['Rapport','Bureau de contrôle','Bureau de contrôle RVRAT','Bureau de contrôle RVRE','Compte rendu','Maintenance préventive','Maintenance corrective'];
 
 // Extraction du texte d'un PDF en lignes à cellules « ¦ » (même géométrie que le banc d'essai)
 window.trvExtractLines=async function(url){
@@ -18252,7 +18252,7 @@ window.arErpChange=async function(){
   if(!v){ host.innerHTML='<div style="font-size:12px;color:var(--muted);padding:4px 2px">Choisis d\'abord un établissement.</div>'; return; }
   host.innerHTML='<div style="font-size:12px;color:var(--muted);padding:4px 2px">Chargement des rapports…</div>';
   try{
-    const gedTypes=['Rapport','Bureau de contrôle','RVRAT','RVRE','Compte rendu','Maintenance préventive','Maintenance corrective'];
+    const gedTypes=['Rapport','Bureau de contrôle','Bureau de contrôle RVRAT','Bureau de contrôle RVRE','Compte rendu','Maintenance préventive','Maintenance corrective'];
     const {data,error}=await sb.from('documents')
       .select('id,nom_original,type,date_document,created_at,prestataire_id,emetteur,fichier_path,tags')
       .eq('erp_id',v).in('type',gedTypes).not('fichier_path','is',null)
