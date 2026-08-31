@@ -13353,8 +13353,8 @@ window.releverRapports=async function(btn){
   try{
     const {data,error}=await sb.functions.invoke('traiter-rapports-imap');
     if(error){ let m=error.message||'Erreur'; try{ const j=await error.context.json(); if(j&&j.error) m=j.error; }catch(_){} throw new Error(m); }
-    const n=(data&&typeof data['traités']!=='undefined')?data['traités']:0;
-    toast(n>0?`${n} nouveau(x) rapport(s) reçu(s) ✓`:'Aucun nouveau rapport pour l\'instant','ok');
+    const n=data?((typeof data.traites!=='undefined')?data.traites:(typeof data['traités']!=='undefined'?data['traités']:0)):0;
+    toast(n>0?`${n} nouveau(x) document(s) reçu(s) ✓`:'Aucun nouveau courrier pour l\'instant','ok');
   }catch(e){ toast('Relève impossible : '+(e.message||e),'err'); }
   const cont=document.getElementById('content'); if(cont) viewRapports(cont);
   updateRapportsBadge();
