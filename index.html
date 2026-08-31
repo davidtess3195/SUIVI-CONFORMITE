@@ -7615,8 +7615,21 @@ window.editContact=async function(ct, clientId){
       <div class="row2"><div class="fld"><label>Téléphone</label><input id="ec_tel" value="${esc(ct.telephone||'')}"></div>
         <div class="fld"><label>Mobile</label><input id="ec_mob" value="${esc(ct.mobile||'')}"></div></div>
     </div>
-    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
+    <div class="modal-foot">${ct.id?'<button class="btn danger" id="ec_del" style="margin-right:auto">Supprimer</button>':''}<button class="btn ghost" onclick="closeModal()">Annuler</button>
       <button class="btn primary" id="ec_save">Enregistrer</button></div>`);
+  const _refresh=()=>{ const cont=document.getElementById('content'); const h=location.hash||'';
+    if(h.includes('/erps/')){ const erpId=(h.split('/erps/')[1]||'').split('?')[0]; if(cont&&erpId) viewErp(cont,erpId); }
+    else if(cont) viewClient(cont, clientId); };
+  const _del=document.getElementById('ec_del');
+  if(_del) _del.onclick=async()=>{
+    const who=[ct.prenom,ct.nom].filter(Boolean).join(' ')||'ce contact';
+    if(!confirm('Supprimer '+who+' des contacts du client ?\nCette action est définitive.')) return;
+    _del.disabled=true; _del.textContent='Suppression…';
+    try{
+      const {error}=await sb.from('client_contacts').delete().eq('id',ct.id); if(error) throw error;
+      _modalDirty=false; closeModal(); toast('Contact supprimé','ok'); _refresh();
+    }catch(e){ toast(e.message||'Suppression impossible','err'); _del.disabled=false; _del.textContent='Supprimer'; }
+  };
   document.getElementById('ec_save').onclick=async()=>{
     const btn=document.getElementById('ec_save'); btn.disabled=true; btn.textContent='Enregistrement…';
     let _role=$('#ec_role').value;
