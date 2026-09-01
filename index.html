@@ -14491,7 +14491,9 @@ function gedRenderList(){
         <span class="dt">${esc(dt1)}<small>${dt2}</small></span>
         <span class="gedx-acts">
           ${(((d.tags||'').indexOf('cat:mail')>=0)||(!d.fichier_path&&d.email_corps))?`<button class="btn sm" style="color:#2563eb;border-color:#bfdbfe;font-weight:700" onclick="gedViewMail('${d.id}')">Visualiser</button>`:`<button class="btn sm" style="color:#2563eb;border-color:#bfdbfe;font-weight:700" onclick="previewDoc('${pathJs}','${nmJs}','${bk}')">Visualiser</button>`}
-          ${(d.fichier_path&&/\.pdf$/i.test(d.nom_original||d.fichier_path||'')&&['Rapport','Bureau de contrôle',"Bon d'intervention",'PV commission'].includes(d.type))?`<button class="btn sm" title="Analyser ce rapport et préparer le tableau de levées de réserves" onclick="gedExtractRes('${d.id}')">Extraire réserves</button>`:''}
+          ${(d.fichier_path&&/\.pdf$/i.test(d.nom_original||d.fichier_path||'')&&['Rapport','Bureau de contrôle',"Bon d'intervention",'PV commission'].includes(d.type))?(d.type==='PV commission'
+              ?`<button class="btn sm" title="Analyser ce PV et préparer le tableau de suivi des prescriptions" onclick="gedExtractRes('${d.id}')">Extraire les prescriptions</button>`
+              :`<button class="btn sm" title="Analyser ce rapport et préparer le tableau de levées de réserves" onclick="gedExtractRes('${d.id}')">Extraire réserves</button>`):''}
           ${dcat==='devis_signe'||['devis signé','devis signe'].includes((d.type||'').toLowerCase())?`<button class="btn sm" title="Générer un PV de réception de travaux à partir de ce devis signé" onclick="pvFromDevis('${d.id}')">PV réception</button>`:''}
           ${['devis','devis_signe'].includes(dcat)?`<button class="btn sm" title="Ouvrir ce dossier dans le suivi Travaux" onclick="txGoto('${d.id}')">🧰 Travaux</button>`:''}
           ${dcat==='devis'&&(d.type||'').toLowerCase()==='devis'?`<button class="btn sm" title="Déposer la copie signée scannée de ce devis" onclick="devisUploadSigned('${d.id}')">📎 Déposer le signé</button>`:''}
