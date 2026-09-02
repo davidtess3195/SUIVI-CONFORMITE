@@ -16086,8 +16086,6 @@ window.trvDetail=async function(id){
         <button class="tab-pri" onclick="trvAffect('${esc(t.id)}')"><svg viewBox="0 0 24 24"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/></svg>Répartir aux prestataires…</button>
         <div class="tab-row">
           <button onclick="trvPdf('${esc(t.id)}')"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z M4 9h16"/></svg><span>PDF</span></button>
-          <button onclick="trvSmsModal('${esc(t.id)}')"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>SMS</span></button>
-          <button onclick="trvSendCur()"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 1 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.4 2.4-2.5-2.5z"/></svg><span>Technicien</span></button>
           <button onclick="trvMailPrest('${esc(t.id)}')"><svg viewBox="0 0 24 24"><path d="M3 5h18v14H3z M3 6l9 7 9-7"/></svg><span>E-mail</span></button>
         </div>
       </div>`:''}
@@ -16120,8 +16118,6 @@ window.trvDetail=async function(id){
           <button class="btn primary" onclick="trvValiderTab('${esc(t.id)}')">✓ Valider le tableau</button>`
         :`<button class="btn" style="margin-right:auto" onclick="closeModal()">Fermer</button>
         <button class="btn" style="white-space:nowrap" onclick="trvPdf('${esc(t.id)}')">📄 PDF</button>
-        <button class="btn" style="white-space:nowrap" onclick="trvSmsModal('${esc(t.id)}')">📱 SMS…</button>
-        <button class="btn" style="white-space:nowrap" onclick="trvSendCur()">✍ Technicien…</button>
         <button class="btn" style="white-space:nowrap" onclick="trvMailPrest('${esc(t.id)}')">✉ E-mail prestataire…</button>
         <button class="btn primary" style="white-space:nowrap" onclick="trvAffect('${esc(t.id)}')">Répartir aux prestataires…</button>`}</div>`);
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
@@ -17399,6 +17395,30 @@ function _levSuggest(libelle,prests){
   }
   return '';
 }
+/* « Prévenir le client » depuis la répartition : annonce le passage des techniciens (prestataires affectés + dates cibles) */
+window.trvPrevClient=async function(tabId){
+  try{
+    const [{data:t},{data:rows}]=await Promise.all([
+      sb.from('tableaux_reserves').select('id,erp_id,organisme').eq('id',tabId).maybeSingle(),
+      sb.from('reserves').select('prestataire_id,date_limite,etat_levee').eq('tableau_id',tabId)
+    ]);
+    if(!t){toast('Tableau introuvable','err');return;}
+    const erp=(state.erps||[]).find(e=>e.id===t.erp_id)||{};
+    const ouvertes=(rows||[]).filter(r=>r.etat_levee!=='levee');
+    const pids=[...new Set(ouvertes.map(r=>r.prestataire_id).filter(Boolean))];
+    let noms=[];
+    if(pids.length){ try{ const {data:ps}=await sb.from('prestataires').select('id,nom').in('id',pids); noms=(ps||[]).map(p=>p.nom); }catch(_){} }
+    const dates=ouvertes.map(r=>r.date_limite).filter(Boolean).sort();
+    const dStr=dates.length?new Date(dates[0]+'T00:00:00').toLocaleDateString('fr-FR'):'';
+    const who=noms.length?noms.join(', '):'les prestataires chargés des travaux';
+    const msg='Bonjour,\nSuite au rapport '+(t.organisme?'de '+t.organisme:'')+' concernant votre établissement '+(erp.nom||'')+', nous avons réparti les réserves à lever entre '+who+'.'
+      +(dStr?'\nLes techniciens interviendront à partir du '+dStr+'.':'\nLes techniciens vous contacteront pour convenir des dates de passage.')
+      +'\nVous pouvez suivre l\'avancement des levées depuis votre espace.\nCordialement, PREVA Conseils';
+    prevenirClientModal({erpId:t.erp_id,prestNom:who,prestDest:'',canal:'',
+      banner:'Réserves réparties — '+who,
+      typeLabel:'de levée de réserves',dateStr:dStr,msg});
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
 window.trvAffect=async function(tabId){
   closeModal();
   try{
@@ -17452,6 +17472,7 @@ window.trvAffect=async function(tabId){
           </div>`;}).join('')}
       </div>
       <div class="modal-foot">
+        <button class="btn" style="margin-right:auto" onclick="trvPrevClient('${esc(tabId)}')">📣 Prévenir le client…</button>
         <button class="btn" onclick="trvDetail('${esc(tabId)}')">Annuler</button>
         <button class="btn" onclick="trvAffSave('${esc(tabId)}',false)">Enregistrer</button>
         <button class="btn primary" onclick="trvAffSave('${esc(tabId)}',true)">Enregistrer et notifier…</button></div>`);
@@ -20666,7 +20687,7 @@ window.prevenirClientModal=async function(ctx){
     try{ const {data}=await sb.from('client_contacts').select('*').eq('client_id',cl.id).order('nom'); contacts=data||[]; }catch(_){}
     const old=document.getElementById('pcv_overlay'); if(old) old.remove();
     const erpNom=erp.nom||'';
-    const defMsg='Bonjour,\nPour faire suite aux dysfonctionnements constatés, nous avons sollicité '+(ctx.prestNom||'le prestataire')+' pour une intervention '+(ctx.typeLabel||'')+(ctx.domaine?' ('+ctx.domaine+')':'')+' dans votre établissement '+erpNom+(ctx.dateStr?' — date souhaitée : '+ctx.dateStr:'')+'.\nCordialement, PREVA Conseils';
+    const defMsg=ctx.msg||('Bonjour,\nPour faire suite aux dysfonctionnements constatés, nous avons sollicité '+(ctx.prestNom||'le prestataire')+' pour une intervention '+(ctx.typeLabel||'')+(ctx.domaine?' ('+ctx.domaine+')':'')+' dans votre établissement '+erpNom+(ctx.dateStr?' — date souhaitée : '+ctx.dateStr:'')+'.\nCordialement, PREVA Conseils');
     const rows=contacts.map((c,i)=>{
       const nom=[c.prenom,c.nom].filter(Boolean).join(' ')||c.fonction||'Contact';
       const mail=c.email||'';
@@ -20690,7 +20711,7 @@ window.prevenirClientModal=async function(ctx){
       <div style="padding:15px 20px;overflow-y:auto">
         <div style="display:flex;align-items:center;gap:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:10px 13px;margin-bottom:15px">
           <span style="width:24px;height:24px;border-radius:50%;background:#16a34a;color:#fff;display:grid;place-items:center;font-size:13px;flex:0 0 auto">✓</span>
-          <span style="min-width:0"><b style="font-size:12.5px;color:#166534;display:block">Demande envoyée à ${esc(ctx.prestNom||'')}</b>
+          <span style="min-width:0"><b style="font-size:12.5px;color:#166534;display:block">${esc(ctx.banner||('Demande envoyée à '+(ctx.prestNom||'')))}</b>
           <span style="font-size:11.5px;color:#3f8354">${esc(ctx.prestDest||'')}${ctx.canal?' · par '+esc(ctx.canal):''}</span></span>
         </div>
         <div style="font-size:13.5px;font-weight:800;margin-bottom:3px">Qui prévenir chez le client ?</div>
