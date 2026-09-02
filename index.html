@@ -14098,8 +14098,9 @@ function formDoc(prefiles){
       <div class="fld"><label>Client <span class="req">*</span></label><select id="f_client" onchange="docFormErpOpts();docLotOpts()"><option value="">— choisir —</option>${clientOpts}</select></div>
       <div class="fld"><label>ERP <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel)</span></label><select id="f_erp" onchange="docLotOpts();docDateSugg()"><option value="">— (optionnel) —</option></select></div>
     </div>
-    <div class="row2"><div class="fld"><label>Type</label><select id="f_type" onchange="docTypeChange()">${GED_TYPES.map(t=>`<option>${esc(t)}</option>`).join('')}</select></div>
-      <div class="fld"><label>Lot</label><select id="f_lot_sel" onchange="docLotChange()"><option value="">— choisir —</option><option value="__autre__">✏️ Autre (préciser)…</option></select><input id="f_lot" placeholder="Préciser le lot (SSI, Électricité…)" style="margin-top:6px;display:none"></div></div>
+    <div class="row2"><div class="fld"><label>Type de document</label><select id="f_type" onchange="docTypeChange()">${GED_TYPES.map(t=>`<option>${esc(t)}</option>`).join('')}</select></div>
+      <div class="fld"><label>Rattaché à une vérification <span class="req" id="f_lot_req" style="display:none">*</span></label><select id="f_lot_sel" onchange="docLotChange()"><option value="">— choisir —</option><option value="__autre__">✏️ Autre (préciser)…</option></select><input id="f_lot" placeholder="Préciser le lot (SSI, Électricité…)" style="margin-top:6px;display:none">
+        <div id="f_lot_note" style="display:none;margin-top:7px;background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.25);border-radius:9px;padding:7px 10px;font-size:11px;color:#1e40af;line-height:1.5">Ce type de document suit une vérification : choisis le lot concerné (SSI, Électricité…). C'est ce rattachement qui met à jour le suivi des vérifications de l'établissement.</div></div></div>
     <div class="row2"><div class="fld"><label>Prestataire <span style="color:var(--muted-2);font-weight:400;font-size:11px">(optionnel)</span></label><select id="f_prest" onchange="docDateSugg()"><option value="">— (optionnel) —</option>${(window._gedPrest||[]).map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select></div>
       <div class="fld"><label id="f_date_lbl">Date du document <span style="color:var(--muted-2);font-weight:400;font-size:11px">(date réelle)</span></label><input id="f_date" type="date" value="${new Date().toISOString().slice(0,10)}">
         <div id="f_date_sugg" style="display:none;margin-top:7px"></div></div></div>
@@ -14137,6 +14138,12 @@ function formDoc(prefiles){
     const date_document=$('#f_date')?.value||null;
     const avis=((type==='PV commission'||(window.DOC_NC_TYPES||[]).includes(type)) && $('#f_avis'))?($('#f_avis').value||null):null;
     const lotSelEl=$('#f_lot_sel'); const lot=(lotSelEl&&lotSelEl.value&&lotSelEl.value!=='__autre__')?lotSelEl.value:(($('#f_lot').value||'').trim()||null);
+    if((window.TRV_GED_TYPES||[]).includes(type)&&!lot){
+      btn.disabled=false;
+      toast('Un document « '+type+' » doit être rattaché à une vérification : choisis le lot concerné (SSI, Électricité…) — c\'est ce lien qui met à jour le suivi des vérifications de l\'établissement.','err');
+      if(lotSelEl){ lotSelEl.style.border='1.5px solid #dc2626'; try{lotSelEl.focus();}catch(_){ } setTimeout(()=>{lotSelEl.style.border='';},4000); }
+      return;
+    }
     const prestataire_id=$('#f_prest')?.value||null;
     // Suivi PV de réception (devis signés uniquement)
     const isDevisSigne=catFromType(type)==='devis_signe';
@@ -14266,6 +14273,11 @@ window.docPreviewFile=function(i){
 window.DOC_NC_TYPES=['Rapport','Bureau de contrôle','Bureau de contrôle RVRAT','Bureau de contrôle RVRE','PV de réception','Maintenance préventive','Maintenance corrective'];
 window.docTypeChange=function(){
   const t=$('#f_type')?.value; const z=document.getElementById('f_avis_zone');
+  // Rattachement à une vérification : obligatoire pour les documents qui suivent une vérification
+  const needLot=(window.TRV_GED_TYPES||[]).includes(t);
+  const lotReq=document.getElementById('f_lot_req'), lotNote=document.getElementById('f_lot_note');
+  if(lotReq) lotReq.style.display=needLot?'':'none';
+  if(lotNote) lotNote.style.display=needLot?'':'none';
   // Types où l'on qualifie le document par « Présence de non conformité : Oui / Non »
   const isNC=(window.DOC_NC_TYPES||[]).includes(t);
   if(z) z.style.display=(t==='PV commission'||isNC)?'':'none';
