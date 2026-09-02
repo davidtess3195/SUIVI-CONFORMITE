@@ -9814,9 +9814,18 @@ async function sendQrConsigne(token,nom,code){
     ...(intR.data||[]).map(r=>r.prestataire_id),
     ...(ctR.data||[]).map(r=>r.prestataire_id)
   ])].filter(Boolean);
-  if(!prestIds.length){toast('Aucun prestataire li\u00e9 \u00e0 cet ERP','info');return;}
 
-  const {data:prests}=await sb.from('prestataires').select('id,nom,email_rapports,telephone,contacts').in('id',prestIds);
+  // Prestataires li\u00e9s \u00e0 l'ERP (interventions / contrats) \u2014 sinon, tous ceux du client
+  let prests=[], fallbackClient=false;
+  if(prestIds.length){
+    ({data:prests}=await sb.from('prestataires').select('id,nom,email_rapports,telephone,contacts').in('id',prestIds));
+  }
+  if(!(prests||[]).length && erp.client_id){
+    fallbackClient=true;
+    const q=await sb.from('prestataires').select('id,nom,email_rapports,telephone,contacts').or('client_id.eq.'+erp.client_id+',client_id.is.null').order('nom');
+    prests=q.data||[];
+  }
+  if(!(prests||[]).length){toast('Aucun prestataire enregistr\u00e9 pour ce client \u2014 ajoutez-en un dans la rubrique Prestataires.','info');return;}
 
   // Historique par email
   const histByEmail={};
@@ -9882,6 +9891,7 @@ async function sendQrConsigne(token,nom,code){
   openModal('<div class="modal-head"><h2>\ud83d\udce7 Consigne QR Code</h2><button class="x" onclick="closeModal()">'+I.x+'</button></div>'
     +'<div class="modal-body" style="gap:14px">'
     +'<div><div style="font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Destinataires \u2014 '+esc(nom)+'</div>'
+    +(fallbackClient?'<div style="background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.25);border-radius:9px;padding:7px 10px;font-size:11.5px;color:#1e40af;margin-bottom:8px;line-height:1.5">Aucun prestataire n\u2019est encore li\u00e9 \u00e0 cet \u00e9tablissement (par une intervention ou un contrat) : voici tous les prestataires du client.</div>':'')
     +'<div id="qr_dest_list" style="border:1px solid var(--line);border-radius:9px;padding:4px 12px;max-height:200px;overflow-y:auto">'+recipHtml+'</div></div>'
     +'<div class="fld"><label>Signataire (contact de l\u2019ERP)</label>'
     +'<select id="qr_signataire" style="font-size:13px">'+contactOpts+'</select></div>'
