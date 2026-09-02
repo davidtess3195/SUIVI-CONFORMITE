@@ -861,6 +861,13 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   .ged-grid{grid-template-columns:1fr !important}
 }
 /* ── Accueil téléphone : 6 pastilles + titre INDICATEURS CLÉS (tableau de bord, ≤840px uniquement) ── */
+/* ── Rubrique Réserves fusionnée : onglets Registre / À lever ── */
+.trvf-tabs{display:flex;background:var(--surface-2,#e8edf5);border:1px solid var(--line);border-radius:13px;padding:4px;gap:4px;margin:0 0 16px;max-width:560px}
+.trvf-tabs a{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;text-align:center;border-radius:10px;padding:10px 12px;font-size:13px;font-weight:700;color:var(--muted,#475569);text-decoration:none;white-space:nowrap}
+.trvf-tabs a svg{width:15px;height:15px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.trvf-tabs a.on{background:var(--surface,#fff);color:#2563eb;box-shadow:0 2px 6px rgba(15,23,42,.12)}
+.trvf-tabs a i{font-style:normal;background:rgba(220,38,38,.1);color:#dc2626;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:800}
+@media(max-width:840px){ .trvf-tabs{max-width:none} .trvf-tabs a{font-size:12px;padding:9px 6px;gap:6px} }
 /* ── Tableaux de réserves : filtres à menus + compteurs « carrés brillants » + lignes établissement ── */
 .trv5-filtres{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .trv5-dd{display:flex;align-items:center;gap:9px;border:1.5px solid var(--line);border-radius:11px;padding:6px 12px;background:var(--surface,#fff)}
@@ -1833,7 +1840,7 @@ function renderRoute(){
   try{ smsChipRefresh(); }catch(_){ }
   const parts = hash.split('?')[0].split('/').filter(Boolean);
   const base = '/'+(parts[0]||'');
-  setActiveNav(base);
+  setActiveNav(base==='/tableaux-reserves'?'/reserves':base);
   const erpWrap=document.getElementById('scopeErpWrap'); if(erpWrap) erpWrap.style.display = (base==='/clients') ? 'none' : '';
   const clientWrap=document.getElementById('scopeClientWrap'); if(clientWrap) clientWrap.style.display = (base==='/erps') ? 'none' : '';
   const content = $('#content'); if(!content) { renderApp(); return; }
@@ -5839,7 +5846,7 @@ const FORM_MODULES=[
   q:{t:'Quand saisir la date de la commission ?',a:['La veille de la visite','Dès que la mairie la communique','Après la visite'],g:1}},
  {no:9,ch:3,t:'Faire lever les réserves',dur:'2 min 30',act:['/reserves','Ouvrir les levées de réserves'],
   obj:'confier une réserve à un prestataire et obtenir sa levée signée, sans relance téléphonique.',
-  et:[['Ouvrez « Levées des réserves »','et choisissez la réserve à traiter.'],
+  et:[['Ouvrez « Réserves » (onglet À lever)','et choisissez la réserve à traiter.'],
       ['Attribuez-la à un prestataire',': il reçoit un lien par email ou SMS — sans compte, sans mot de passe.'],
       ['Il signe depuis son téléphone',': description, photos, signature dans le cadre.'],
       ['Vous validez ou refusez','— la levée signée rejoint le dossier de preuves.']],
@@ -6437,7 +6444,7 @@ function getNAV(){ return [
   {sec:'etab',   titre:'Établissement',          ic:NI.etab,      items:[['/clients','Clients',NI.clients],['/erps','ERP',NI.erp],['/organisation','Organisation',NI.clients],['/plan-maintenance','Plan de maintenance',NI.plan],['/budget','Budget',NI.plan]]},
   {sec:'sitdeg', titre:'Situation dégradée',     ic:NI.alert,     items:[['/photos','Photos et vidéos',NI.cam],['/compte-rendu','Compte rendu',NI.cr]]},
   {sec:'prest',  titre:'Suivi des prestataires', ic:NI.briefcase, items:[['/prestataires','Prestataires',NI.wrench],['/conversations','Conversations',NI.chat],['/pointage','Pointage & journal',NI.clock]]},
-  {sec:'suivi',  titre:'Suivi et conformité',    ic:NI.shield,    items:[['/interventions','Interventions',NI.tools],['/travaux','Travaux',NI.trvx],['/gpa','Garanties GPA',NI.checks],['/verifications','Vérifications & relances',NI.bell],['/reserves','Levées des réserves',NI.checks],['/tableaux-reserves','Tableaux de réserves',NI.tablo]]},
+  {sec:'suivi',  titre:'Suivi et conformité',    ic:NI.shield,    items:[['/interventions','Interventions',NI.tools],['/travaux','Travaux',NI.trvx],['/gpa','Garanties GPA',NI.checks],['/verifications','Vérifications & relances',NI.bell],['/reserves','Réserves',NI.tablo]]},
   {sec:'ged',    titre:'Documents',   ic:NI.folderO,   items:[['/documents','Classeur',NI.folder],['/rapports','Rapports reçus',NI.inbox],['/contrats','Contrats de maintenance',NI.contrat]]},
   {link:['/preparation-cs','Commission de sécurité',NI.landmark]},
   {link:['/formation','Formation',NI.grad]},
@@ -10713,7 +10720,7 @@ const ROLE_CONTACT={prestataire:'Prestataire / B. de contrôle',mairie:'Mairie',
 const ROLE_CLIENT={direction:'Direction',gerant:'Gérant / Exploitant',securite:'Responsable sécurité',technique:'Responsable technique',secretaire:'Secrétaire',assistante_direction:'Assistante de direction',responsable_patrimoine:'Responsable patrimoine',chef_service:'Chef de service',agent_maintenance:'Agent de maintenance',mairie:'Mairie',architecte:'Architecte',comptabilite:'Comptabilité',facturation:'Facturation',accueil:'Accueil / Standard',autre:'Autre'};
 async function viewReserves(c){
   window._resvSrcF=window._resvSrcF||'all';
-  c.innerHTML=`<div class="page-head"><div class="t"><h1>Levées des réserves</h1><p>Commissions de sécurité, bureaux de contrôle et prestataires — dossier par client et ERP.</p></div>
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Réserves</h1><p>Commissions de sécurité, bureaux de contrôle et prestataires — dossier par client et ERP.</p></div>
     <div class="actions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <select onchange="window._resvSrcF=this.value;viewReserves(document.getElementById('content'))" style="min-width:190px">
         <option value="all"${window._resvSrcF==='all'?' selected':''}>Origine : toutes</option>
@@ -10722,7 +10729,7 @@ async function viewReserves(c){
         <option value="prestataire"${window._resvSrcF==='prestataire'?' selected':''}>🔧 Prestataire</option>
         <option value="manuel"${window._resvSrcF==='manuel'?' selected':''}>✍ Saisie manuelle</option>
       </select>
-      <button class="btn primary" onclick="formReserve()">${I.plus} Nouvelle levée de réserve</button></div></div>${loadingBlock()}`;
+      <button class="btn primary" onclick="formReserve()">${I.plus} Nouvelle levée de réserve</button></div></div>${trvfTabs('alever')}${loadingBlock()}`;
   try{
     let q=sb.from('reserves').select('*'); q=erpFilter(q);
     const [resR,prestR,docR,intR,ccR,tabR]=await Promise.all([ q, sb.from('prestataires').select('id,nom,categorie,email_rapports,telephone,contacts,client_id,client_ids,affaires'), sb.from('reserve_documents').select('*'), sb.from('reserve_intervenants').select('*').order('created_at'), sb.from('client_contacts').select('*'), sb.from('tableaux_reserves').select('id,source,organisme') ]);
@@ -10868,8 +10875,9 @@ async function viewReserves(c){
       });
       body+=`</div></div></div>`;
     });
-    c.innerHTML=`<div class="page-head"><div class="t"><h1>Levées des réserves</h1><p>${reserves.length} réserve(s) — dossier PV de commission de sécurité, par client et ERP.</p></div>
+    c.innerHTML=`<div class="page-head"><div class="t"><h1>Réserves</h1><p>${reserves.length} réserve(s) — dossier par client et ERP.</p></div>
       <div class="actions"><button class="btn primary" onclick="formReserve()">${I.plus} Nouvelle levée de réserve</button></div></div>
+      ${trvfTabs('alever',reserves.filter(r=>r.etat_levee!=='levee').length)}
       ${secHelp('reserves','Faire produire la preuve par celui qui a agi',"Attribuez une réserve à un prestataire : il reçoit un lien, décrit son intervention, joint ses photos et signe depuis son téléphone. Vous validez ou vous refusez — la décision reste la vôtre.")}
       ${clientIds.length?body:emptyBlock(I.reserve,'Aucune réserve enregistrée','Les réserves viennent de vos PV de commission et rapports de bureaux de contrôle : ouvrez le Classeur et cliquez « Extraire réserves » sur un rapport. Vous pouvez aussi en saisir une à la main.',`<button class="btn primary" onclick="navigate('/documents')">Ouvrir le Classeur</button> <button class="btn" onclick="formReserve()">${I.plus} Saisir à la main</button>`)}`;
   }catch(e){ c.innerHTML=errBlock(e); }
@@ -15859,9 +15867,17 @@ window.trvExtractLines=async function(url){
 };
 
 // ── Page principale
+/* Onglets communs de la rubrique Réserves (Registre = /tableaux-reserves · À lever = /reserves) */
+window.trvfTabs=function(active,badge){
+  return `<div class="trvf-tabs">
+    <a href="#/tableaux-reserves" class="${active==='registre'?'on':''}"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Registre par rapport</a>
+    <a href="#/reserves" class="${active==='alever'?'on':''}"><svg viewBox="0 0 24 24"><path d="m5 13 4 4 10-10"/></svg>À lever<i id="trvf_badge"${badge?'':' style="display:none"'}>${badge||0}</i></a>
+  </div>`;
+};
 window.viewTableauxReserves=async function(c){
-  c.innerHTML=`<div class="page-head"><div class="t"><h1>Tableaux de réserves</h1><p>1 rapport = 1 tableau, créé automatiquement à l'arrivée du rapport dans le Classeur. Le prestataire signe ses levées, toi seul peux modifier le tableau.</p></div>
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Réserves</h1><p>Le registre des rapports et le circuit de levée, au même endroit. 1 rapport = 1 tableau, créé automatiquement à l'arrivée du rapport dans le Classeur.</p></div>
     </div>
+    ${trvfTabs('registre')}
     ${secHelp('tableaux','Un rapport = un tableau, créé tout seul',"À l'arrivée d'un rapport dans le Classeur, chaque prescription devient une ligne numérotée. Le prestataire signe ses levées en ligne ; vous seul pouvez modifier le tableau — c'est votre registre de preuves pour la commission.")}
     <div id="trv_filtres" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px"></div>
     <div id="trv_stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px"></div>
@@ -15982,6 +15998,7 @@ window.trvRenderList=function(tabs,res){
     tx:'<svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
     sand:'<svg viewBox="0 0 24 24"><path d="M6 3h12M6 21h12M8 3v3l4 5 4-5V3M8 21v-3l4-5 4 5v3"/></svg>'};
   const aval=tabs.filter(t=>t.statut==='a_valider').length;
+  const _tb=document.getElementById('trvf_badge'); if(_tb){ _tb.textContent=totOuv; _tb.style.display=totOuv?'':'none'; }
   if(st) st.innerHTML=(aval?stat('À valider',aval,'a',IC.sand,'#d97706'):'')
     +stat('Tableaux',tabs.length,'b',IC.tab,'var(--ink,#0f172a)')
     +stat('À lever',totOuv,'r',IC.alert,'#dc2626')
@@ -16891,7 +16908,7 @@ window.trvCreate=async function(){
     document.getElementById('trv_step2').style.display='none';
     document.getElementById('trv_result').innerHTML=`<div style="background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.4);border-radius:11px;padding:12px 14px;font-size:13px">
       ✅ Tableau créé — <b>${rows.length} observation(s)</b> · ${esc(org||'')} · ${esc(erp.nom||'')}<br>
-      <span style="color:var(--muted);font-size:12px">Les réserves sont dans « Levées des réserves » et l'agenda. Pense à notifier le client.</span></div>`;
+      <span style="color:var(--muted);font-size:12px">Les réserves sont dans « Réserves » (onglet À lever) et l'agenda. Pense à notifier le client.</span></div>`;
     document.getElementById('trv_foot').innerHTML=`<button class="btn" onclick="closeModal();if(location.hash.includes('tableaux-reserves')){viewTableauxReserves(document.getElementById('content'));}">Valider</button>
       <button class="btn primary" onclick="trvNotifyCur()">Notifier le client par SMS…</button>`;
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Valider et créer le tableau ('+rows.length+')'; }
