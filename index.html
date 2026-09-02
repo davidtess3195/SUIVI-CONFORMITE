@@ -16,7 +16,24 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="theme-color" content="#0e1b2e">
 <link rel="manifest" href="/manifest.json">
-<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});}</script>
+<script>
+/* Tue-cache : l'ancien service worker (sw.js) gardait une copie hors-ligne de la page et pouvait
+   servir une version périmée après un déploiement. On le désinstalle et on vide ses caches ;
+   un seul rechargement automatique la première fois, puis plus jamais. */
+if('serviceWorker' in navigator){window.addEventListener('load',function(){
+  navigator.serviceWorker.getRegistrations().then(function(regs){
+    var had=regs.length>0;
+    return Promise.all(regs.map(function(r){return r.unregister();})).then(function(){return had;});
+  }).then(function(had){
+    if(window.caches&&caches.keys) return caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k);}));}).then(function(){return had;});
+    return had;
+  }).then(function(had){
+    try{
+      if(had && !sessionStorage.getItem('sw_purge_reload')){ sessionStorage.setItem('sw_purge_reload','1'); location.reload(); }
+    }catch(_){}
+  }).catch(function(){});
+});}
+</script>
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="CONFORMITÉ SÉCURITÉ">
 <meta property="og:title" content="PREVA — Suivi réglementaire incendie ERP">
@@ -969,6 +986,22 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .rsv-wc.off{border-style:dashed;background:var(--surface-2,#fafbfd)}
 .rsv-wc.off i{background:#eef1f6}
 .rsv-wc.off .lb b{color:#b6c0cf}
+/* signature de la levée */
+.rsv-sig{margin-top:12px;border-top:1px solid var(--line-2,#f1f5f9);padding-top:10px}
+.rsv-sig>small{display:block;font-size:10.5px;font-weight:800;color:var(--muted-2,#94a3b8);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.rsv-sigrow{display:flex;gap:14px;align-items:stretch;flex-wrap:wrap}
+.rsv-sigbox{flex:0 0 250px;border:1.5px solid rgba(22,163,74,.4);background:rgba(22,163,74,.03);border-radius:12px;padding:10px 14px;position:relative;min-height:78px;display:flex;align-items:center;justify-content:center}
+.rsv-sigbox img{max-height:60px;max-width:210px}
+.rsv-sigbox .seal{position:absolute;top:7px;right:9px;background:#16a34a;color:#fff;border-radius:999px;padding:2px 9px;font-size:9.5px;font-weight:800}
+.rsv-sigmeta{flex:1;min-width:190px;display:flex;flex-direction:column;justify-content:center;gap:3px;font-size:12.5px}
+.rsv-sigmeta b{font-size:13px}
+.rsv-sigmeta small{color:var(--muted,#64748b);font-size:11.5px}
+.rsv-sigmeta .h{display:flex;align-items:center;gap:7px;color:#16a34a;font-weight:800;font-size:12px}
+.rsv-sigko{border:2px dashed var(--line,#d7dce6);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:13px;background:var(--surface-2,#fafbfd);flex-wrap:wrap}
+.rsv-sigko .ic{width:38px;height:38px;border-radius:50%;background:#eef1f6;display:flex;align-items:center;justify-content:center;font-size:17px;color:#b6c0cf;flex:0 0 auto}
+.rsv-sigko .tx{flex:1;min-width:160px;font-size:12.5px;color:var(--muted,#64748b);line-height:1.5}
+.rsv-sigko .tx b{display:block;color:var(--ink,#334155)}
+.rsv-sigko .env{border:1.5px solid var(--line,#d7dce6);border-radius:9px;background:var(--surface,#fff);font-size:11.5px;font-weight:700;padding:6px 12px;color:var(--ink,#0f172a);cursor:pointer;white-space:nowrap}
 /* dépôt de pièce */
 .rsv-drop{border:2px dashed #b9c9e6;border-radius:13px;background:rgba(37,99,235,.03);padding:22px 14px;text-align:center;cursor:pointer;font-size:12.5px;color:#475569;transition:all .15s}
 .rsv-drop.over{border-color:#2563eb;background:rgba(37,99,235,.08)}
@@ -10826,6 +10859,11 @@ window.resPrintFiche=async function(rid){
       +'<h2>Intervenants</h2><table>'
       +(ints.length?ints.map(it=>'<tr><td style="width:200px">'+(roleLbl[it.role]||roleLbl.prestataire)+'</td><td>'+nameOf(it).replace(/</g,'&lt;')+'</td></tr>').join(''):'<tr><td colspan="2" class="no">Aucun intervenant enregistré</td></tr>')
       +'</table>'
+      +'<h2>Signature de la levée</h2>'
+      +((r.signature_data&&/^data:image\//.test(r.signature_data))||r.signature_nom
+        ?('<div><b>'+String(r.signature_nom||'Signataire').replace(/</g,'&lt;')+'</b>'+(r.date_realisation?' — signée le '+new Date(r.date_realisation+'T00:00:00').toLocaleDateString('fr-FR'):'')+'</div>'
+          +(r.signature_data&&/^data:image\//.test(r.signature_data)?'<img src="'+r.signature_data+'" style="max-height:70px;margin-top:6px;border:1px solid #e2e8f0;border-radius:8px;padding:4px 10px">':''))
+        :'<div class="ko">NON SIGNÉE à ce jour — le prestataire signera lors de la levée.</div>')
       +(r.observations?'<h2>Observations / remarques</h2><div>'+r.observations.replace(/</g,'&lt;').replace(/\n/g,'<br>')+'</div>':'')
       +'<div class="meta" style="margin-top:22px">Imprimé le '+new Date().toLocaleDateString('fr-FR')+' — PREVA Conseils · CONFORMITÉ SÉCURITÉ</div>'
       +'<script>setTimeout(function(){window.print()},300)<\/script></body></html>');
@@ -10975,6 +11013,22 @@ async function viewReserves(c){
         ${prests9.length?prests9.map(it=>`<span class="rsv-wc"><i>🔧</i><span class="lb"><small>Prestataire</small><b>${esc(nameOf(it))}</b></span></span>`).join(''):`<span class="rsv-wc off"><i>🔧</i><span class="lb"><small>Prestataire</small><b>aucun</b></span></span>`}
         ${roleChip('bet','📐',"Bureau d'études")}${roleChip('architecte','✏️','Architecte')}${roleChip('cssi','🛡️','Coordinateur SSI')}
       </div></div>`;
+      // ── signature de la levée (signée au doigt par le prestataire via le lien sécurisé)
+      const sigOk=!!(r.signature_data&&/^data:image\//.test(r.signature_data))||!!r.signature_nom;
+      const sigPrest=prests9.length?nameOf(prests9[0]):'';
+      const sigHtml=`<div class="rsv-sig"><small>Signature de la levée</small>
+        ${sigOk?`<div class="rsv-sigrow">
+          <div class="rsv-sigbox"><span class="seal">✓ SIGNÉE</span>${r.signature_data&&/^data:image\//.test(r.signature_data)?`<img src="${r.signature_data}" alt="signature">`:`<span style="font-size:15px;font-weight:700;color:#1e293b">${esc(r.signature_nom||'')}</span>`}</div>
+          <div class="rsv-sigmeta"><span class="h">✍ Levée signée sur site</span>
+            <b>${esc(r.signature_nom||'Signataire')}${sigPrest?' — '+esc(sigPrest):''}</b>
+            <small>Signée au doigt${r.date_realisation?' le <b>'+new Date(r.date_realisation+'T00:00:00').toLocaleDateString('fr-FR')+'</b>':''} via le lien sécurisé, lors de l'intervention.</small>
+            <small>Reprise sur « Imprimer la réserve » et le PDF du tableau.</small></div>
+        </div>`
+        :`<div class="rsv-sigko"><span class="ic">✍</span>
+          <span class="tx"><b>Pas encore signée</b>Le prestataire signera au doigt lors de la levée, depuis le lien sécurisé${sigPrest?' ('+esc(sigPrest)+')':''}.</span>
+          ${r.tableau_id?`<button class="env" onclick="event.stopPropagation();trvAffect('${esc(r.tableau_id)}')">↗ Renvoyer le lien</button>`:''}
+        </div>`}
+      </div>`;
       const rOpen=(window._resvOpen||new Set()).has(r.id);
       return `<div style="border:1.5px solid #93b8f5;border-radius:13px;margin-bottom:11px;background:var(--surface);overflow:hidden">
         <div onclick="toggleReserveItem('${r.id}')" title="Cliquer pour déplier / replier" style="display:flex;align-items:center;gap:9px;padding:13px 16px;cursor:pointer;user-select:none;flex-wrap:wrap">
@@ -11000,6 +11054,7 @@ async function viewReserves(c){
             <div class="rsv-prow">${tuiles}</div>
           </div>
           ${galHtml}
+          ${sigHtml}
           ${whoHtml}
           <div style="margin-top:12px">
             <label style="font-size:11.5px;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:8px">Observations / remarques (suivi) <span class="obs-saved" style="color:#16a34a;font-size:11px;opacity:0;transition:opacity .3s">enregistré ✓</span></label>
