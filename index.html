@@ -10976,7 +10976,7 @@ async function viewReserves(c){
         ${roleChip('bet','📐',"Bureau d'études")}${roleChip('architecte','✏️','Architecte')}${roleChip('cssi','🛡️','Coordinateur SSI')}
       </div></div>`;
       const rOpen=(window._resvOpen||new Set()).has(r.id);
-      return `<div style="border:1px solid var(--line);border-radius:12px;margin-bottom:10px;background:var(--surface);overflow:hidden">
+      return `<div style="border:1.5px solid #93b8f5;border-radius:13px;margin-bottom:11px;background:var(--surface);overflow:hidden">
         <div onclick="toggleReserveItem('${r.id}')" title="Cliquer pour déplier / replier" style="display:flex;align-items:center;gap:9px;padding:13px 16px;cursor:pointer;user-select:none;flex-wrap:wrap">
           <span data-rchev="${r.id}" style="color:var(--muted);font-size:17px;line-height:1;display:inline-block;transition:transform .2s;transform:rotate(${rOpen?'90':'0'}deg)">›</span>
           <span style="flex:0 0 auto;font-weight:800;color:#fff;background:linear-gradient(150deg,#fb923c,#ea580c);border-radius:8px;padding:2px 10px;font-size:12px">N°${n}</span>
@@ -10988,6 +10988,7 @@ async function viewReserves(c){
             return '';})()}
           <span style="flex:1;min-width:120px;font-size:14px;font-weight:600;color:var(--ink);line-height:1.45;white-space:pre-wrap;word-break:break-word">${esc(r.libelle)}</span>
           <span style="flex:0 0 auto">${statusPill(r.statut,REST)}</span>
+          <button title="Modifier la réserve" onclick="event.stopPropagation();openReserve('${r.id}')" style="flex:0 0 auto;background:none;border:1px solid var(--line);border-radius:7px;cursor:pointer;padding:3px 8px;font-size:12px;color:var(--muted)">✏</button>
         </div>
         <div data-rbody="${r.id}" style="display:${rOpen?'block':'none'};padding:2px 16px 15px">
           ${r.localisation?`<div style="font-size:13px;color:var(--muted);margin-bottom:8px">Localisation : ${esc(r.localisation)}</div>`:''}
@@ -11006,7 +11007,6 @@ async function viewReserves(c){
           </div>
           <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn sm" onclick="event.stopPropagation();resPrintFiche('${r.id}')">🖨 Imprimer la réserve</button>
-            <button class="btn sm primary" style="margin-left:auto" onclick="openReserve('${r.id}')">Plus de détails / modifier</button>
           </div>
         </div>
       </div>`;
@@ -11054,7 +11054,6 @@ async function viewReserves(c){
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;border-left:3px solid ${color};padding-left:9px">
             <h3 style="font-size:14px;margin:0;color:${color}">${esc(e.nom)}</h3><span style="font-size:12px;color:var(--muted)">${list.length} réserve(s)</span>
             <button class="btn sm" style="margin-left:auto" onclick="printDossier('${cid}','${e.id}')">Dossier ERP</button>
-            <button class="btn sm primary" onclick="formReserve('${e.id}')">${I.plus} Réserve</button>
           </div>
           <div>${list.map(r=>rowHtml(r,numById[r.id])).join('')}</div>
         </div>`;
