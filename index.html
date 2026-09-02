@@ -17422,15 +17422,37 @@ window.trvPrevClient=async function(tabId){
 window.trvAffect=async function(tabId){
   closeModal();
   try{
-    const [{data:t},{data:rows},{data:prests}]=await Promise.all([
+    const [{data:t},{data:rows}]=await Promise.all([
       sb.from('tableaux_reserves').select('*').eq('id',tabId).maybeSingle(),
-      sb.from('reserves').select('id,numero,libelle,localisation,prestataire_id,date_limite,etat_levee').eq('tableau_id',tabId).order('numero'),
-      sb.from('prestataires').select('id,nom,categorie,domaines,email_rapports,telephone,contacts').eq('statut','actif').order('nom')
+      sb.from('reserves').select('id,numero,libelle,localisation,prestataire_id,date_limite,etat_levee').eq('tableau_id',tabId).order('numero')
     ]);
     if(!t){toast('Tableau introuvable','err');return;}
+    // Prestataires rattachés à l'ERP : ceux du client (client_id / client_ids) + ceux ayant une affaire sur cet ERP
+    const _cid=t.client_id||((state.erps||[]).find(e=>e.id===t.erp_id)||{}).client_id||null;
+    const SEL='id,nom,categorie,domaines,email_rapports,telephone,contacts,client_id,client_ids,affaires';
+    let prests=[];
+    if(_cid){
+      const [byCl,byAffAll]=await Promise.all([
+        sb.from('prestataires').select(SEL).eq('statut','actif').or('client_id.eq.'+_cid+',client_ids.cs.{'+_cid+'}').order('nom'),
+        sb.from('prestataires').select(SEL).eq('statut','actif').not('affaires','is',null)
+      ]);
+      const byAff=(byAffAll.data||[]).filter(p=>Array.isArray(p.affaires)&&p.affaires.some(a=>a&&a.erp_id===t.erp_id));
+      const seen=new Set((byCl.data||[]).map(p=>p.id));
+      prests=[...(byCl.data||[]),...byAff.filter(p=>!seen.has(p.id))];
+    }
+    if(!prests.length){
+      const {data:allP}=await sb.from('prestataires').select(SEL).eq('statut','actif').order('nom');
+      prests=allP||[];
+    }
+    // Conserver les prestataires déjà affectés sur des lignes, même hors périmètre
+    const dejaIds=[...new Set((rows||[]).map(r=>r.prestataire_id).filter(Boolean))].filter(id=>!prests.some(p=>p.id===id));
+    if(dejaIds.length){
+      try{ const {data:extra}=await sb.from('prestataires').select(SEL).in('id',dejaIds); prests=[...prests,...(extra||[])]; }catch(_){}
+    }
+    prests.sort((a,b)=>(a.nom||'').localeCompare(b.nom||''));
     window._affPrests=prests||[]; window._affRows=(rows||[]).map(r=>r.id);
     window._affOrig={}; (rows||[]).forEach(r=>{window._affOrig[r.id]={p:r.prestataire_id||'',d:r.date_limite||''};});
-    const opts=sel=>'<option value="">— Prestataire —</option>'+(prests||[]).map(p=>`<option value="${p.id}"${sel===p.id?' selected':''}>${esc(p.nom)}</option>`).join('');
+    const opts=sel=>'<option value="">— Néant —</option>'+(prests||[]).map(p=>`<option value="${p.id}"${sel===p.id?' selected':''}>${esc(p.nom)}</option>`).join('');
     openModal(`<div class="modal-head"><h2>Répartir les réserves aux prestataires</h2><button class="x" onclick="trvDetail('${esc(tabId)}')">${I.x}</button></div>
       <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
         <div style="background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.22);border-radius:10px;padding:10px 14px;font-size:12.5px;line-height:1.5">
