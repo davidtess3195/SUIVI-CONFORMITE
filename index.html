@@ -1395,7 +1395,7 @@ window.tourStart=tourStart;
 function frToast(m){
   const s=String(m||'');
   const RULES=[
-    [/row-level security|RLS/i,"Action non autorisée pour votre compte. Si cela vous semble anormal, contactez PREVA Conseils."],
+    [/row-level security|RLS/i,"Votre compte n'a pas les droits pour cette action. Ce n'est pas un problème de crédit SMS ni d'abonnement — si cette action fait partie de votre usage normal, signalez-le à PREVA Conseils (contact@conformite-securite.fr) : nous ouvrirons le droit rapidement."],
     [/duplicate key|already exists|unique constraint/i,"Cet élément existe déjà — modifiez la fiche existante plutôt que d'en créer une nouvelle."],
     [/violates foreign key/i,"Impossible : cet élément est encore utilisé ailleurs dans l'application."],
     [/violates check constraint/i,"Valeur non autorisée — merci de vérifier votre saisie."],
