@@ -936,6 +936,44 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   .trv5-go{display:none}
   .trv5-reset{margin-left:0}
 }
+/* ── Fiche réserve « Dossier » (Suivi des levées) ── */
+.rsv-prow{display:flex;gap:8px;flex-wrap:wrap}
+.rsv-pt{flex:1;min-width:128px;border-radius:11px;padding:8px 10px;border:1.5px solid var(--line,#e6ebf3);background:var(--surface-2,#fafbfd)}
+.rsv-pt .ic span{width:20px;height:20px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
+.rsv-pt b{font-size:11.5px;font-weight:800;color:var(--ink,#334155);display:block;line-height:1.25;margin-top:3px}
+.rsv-pt em{font-style:normal;display:block;font-size:10px;color:var(--muted-2,#94a3b8);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rsv-pt.ok{border-color:rgba(22,163,74,.35);background:rgba(22,163,74,.04)}
+.rsv-pt.ok .ic span{background:rgba(22,163,74,.14);color:#16a34a}
+.rsv-pt.ko .ic span{background:#eef1f6;color:#b6c0cf}
+.rsv-pt.urgent{border-color:rgba(220,38,38,.4);background:rgba(220,38,38,.04)}
+.rsv-pt.urgent .ic span{background:rgba(220,38,38,.12);color:#dc2626}
+.rsv-pt.urgent em{color:#dc2626;font-weight:700}
+.rsv-gal{margin-top:12px;border-top:1px solid var(--line-2,#f1f5f9);padding-top:10px}
+.rsv-gal>small{display:block;font-size:10.5px;font-weight:800;color:var(--muted-2,#94a3b8);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.rsv-gal .ph-row{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:9px}
+.rsv-ph{width:150px;height:100px;border-radius:12px;overflow:hidden;position:relative;cursor:pointer;background:#e2e8f0 center/cover no-repeat;box-shadow:0 2px 8px rgba(15,23,42,.14);flex:0 0 auto}
+.rsv-ph .cap{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(15,23,42,.75));color:#fff;font-size:10px;font-weight:700;padding:14px 8px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rsv-ph .zm{position:absolute;top:5px;right:5px;background:rgba(15,23,42,.5);color:#fff;border-radius:7px;padding:1px 6px;font-size:10px}
+.rsv-fdoc{display:flex;align-items:center;gap:10px;border:1px solid var(--line,#eef1f6);border-radius:11px;padding:7px 12px;margin-bottom:6px;background:var(--surface,#fbfcfe)}
+.rsv-fdoc .ic{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:14px;flex:0 0 auto;color:#fff}
+.rsv-fdoc b{flex:1;min-width:0;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rsv-fdoc b em{font-style:normal;display:block;font-size:10px;color:var(--muted-2,#94a3b8);font-weight:600}
+.rsv-fdoc .act{border:1.5px solid var(--line,#d7dce6);border-radius:8px;background:var(--surface,#fff);font-size:10.5px;font-weight:700;padding:4px 10px;color:var(--ink,#0f172a);cursor:pointer;flex:0 0 auto}
+.rsv-who{margin-top:12px;border-top:1px solid var(--line-2,#f1f5f9);padding-top:10px}
+.rsv-who>small{display:block;font-size:10.5px;font-weight:800;color:var(--muted-2,#94a3b8);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.rsv-who .wrow{display:flex;gap:8px;flex-wrap:wrap}
+.rsv-wc{display:flex;align-items:center;gap:8px;border:1.5px solid var(--line,#e6ebf3);border-radius:999px;padding:4px 13px 4px 5px;font-size:12px;font-weight:700;color:var(--ink,#334155);background:var(--surface,#fff)}
+.rsv-wc i{font-style:normal;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;background:linear-gradient(150deg,#60a5fa,#2563eb);color:#fff}
+.rsv-wc .lb small{font-size:9px;font-weight:800;color:var(--muted-2,#94a3b8);text-transform:uppercase;letter-spacing:.3px;display:block;line-height:1.1}
+.rsv-wc .lb b{display:block;font-size:11.5px;line-height:1.15}
+.rsv-wc.off{border-style:dashed;background:var(--surface-2,#fafbfd)}
+.rsv-wc.off i{background:#eef1f6}
+.rsv-wc.off .lb b{color:#b6c0cf}
+/* dépôt de pièce */
+.rsv-drop{border:2px dashed #b9c9e6;border-radius:13px;background:rgba(37,99,235,.03);padding:22px 14px;text-align:center;cursor:pointer;font-size:12.5px;color:#475569;transition:all .15s}
+.rsv-drop.over{border-color:#2563eb;background:rgba(37,99,235,.08)}
+.rsv-drop b{display:block;font-size:13px;color:#1d4ed8;margin-bottom:3px}
+@media(max-width:840px){ .rsv-pt{min-width:44%} .rsv-ph{width:31%;min-width:104px;height:84px} }
 .mtiles,.mkpi-head,.msec-mh,.trv-abar{display:none}
 @media(max-width:840px){
   .dash-ph{display:none !important}
@@ -10728,9 +10766,131 @@ function reserveTable(rows){
       <td><b style="display:block;white-space:pre-wrap;word-break:break-word;line-height:1.4">${esc(r.libelle)}</b></td><td>${esc(erpName(r.erp_id))}</td><td>${esc(r.localisation)||'—'}</td>
       <td>${critPill(r.criticite)}</td><td>${fmtDate(r.date_limite)}</td><td>${statusPill(r.statut,REST)}</td></tr>`).join('')}</tbody></table></div>`;
 }
-const TYPE_PIECE={rapport:'Rapport',attestation:'Attestation',bureau_controle:'Bureau de contrôle',pv_commission:'PV commission de sécurité',courrier_mairie:'Courrier de la mairie',autre:'Autre'};
-const ROLE_CONTACT={prestataire:'Prestataire / B. de contrôle',mairie:'Mairie',architecte:'Architecte',moe:"Maître d'œuvre",bet:"Bureau d'études",sdis:'Pompiers / SDIS',proprietaire:'Propriétaire / bailleur',autre:'Autre contact'};
+const TYPE_PIECE={attestation:'Attestation de levée',bon_intervention:"Bon d'intervention",devis:'Devis',plans:'Plans',pv_classement:'PV de classement',photo:'Photo',rapport:'Rapport',bureau_controle:'Bureau de contrôle',pv_commission:'PV commission de sécurité',courrier_mairie:'Courrier de la mairie',autre:'Autre'};
+const ROLE_CONTACT={prestataire:'Prestataire / B. de contrôle',mairie:'Mairie',architecte:'Architecte',moe:"Maître d'œuvre",bet:"Bureau d'études",cssi:'Coordinateur SSI',sdis:'Pompiers / SDIS',proprietaire:'Propriétaire / bailleur',autre:'Autre contact'};
 const ROLE_CLIENT={direction:'Direction',gerant:'Gérant / Exploitant',securite:'Responsable sécurité',technique:'Responsable technique',secretaire:'Secrétaire',assistante_direction:'Assistante de direction',responsable_patrimoine:'Responsable patrimoine',chef_service:'Chef de service',agent_maintenance:'Agent de maintenance',mairie:'Mairie',architecte:'Architecte',comptabilite:'Comptabilité',facturation:'Facturation',accueil:'Accueil / Standard',autre:'Autre'};
+/* ── Fiche réserve : vignettes photos (URLs signées chargées après rendu) ── */
+window.resLoadThumbs=async function(){
+  const els=[...document.querySelectorAll('[data-resthumb]')].filter(e=>!e.dataset.thumbdone);
+  for(const el of els){
+    el.dataset.thumbdone='1';
+    try{ const {data}=await sb.storage.from('documents').createSignedUrl(el.dataset.resthumb,3600);
+      if(data&&data.signedUrl) el.style.backgroundImage='url("'+data.signedUrl+'")'; }catch(_){}
+  }
+};
+/* Imprimer une pièce : image -> fenêtre d'impression dédiée ; PDF -> onglet natif (bouton imprimer du lecteur) */
+window.resPrintDoc=async function(path,name){
+  try{
+    const {data,error}=await sb.storage.from('documents').createSignedUrl(path,600); if(error)throw error;
+    const url=data.signedUrl;
+    if(/\.(png|jpe?g|gif|webp|bmp)$/i.test(name||path)){
+      const w=window.open('','_blank'); if(!w){ window.open(url,'_blank'); return; }
+      w.document.write('<html><head><title>'+(name||'photo')+'</title><style>body{margin:0;display:grid;place-items:center}img{max-width:100%;max-height:100vh}</style></head><body><img src="'+url+'" onload="setTimeout(function(){window.print()},250)"></body></html>');
+      w.document.close();
+    } else window.open(url,'_blank');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+/* Imprimer la réserve : fiche complète avec check-list des pièces (présent/absent) */
+window.resPrintFiche=async function(rid){
+  try{
+    const r=(window._resAll||[]).find(x=>x.id===rid); if(!r){toast('Réserve introuvable','err');return;}
+    const t=r.tableau_id?(window._resTabs||{})[r.tableau_id]:null;
+    const legacy=r.document_path?[{type_piece:r.type_piece,document_path:r.document_path,document_nom:r.document_nom}]:[];
+    const docs=[...legacy,...((window._resDocs||{})[r.id]||[])];
+    const ints=(window._resInts||{})[r.id]||[];
+    const erp=(state.erps||[]).find(e=>e.id===r.erp_id)||{};
+    const cl=(state.clients||[]).find(c=>c.id===erp.client_id)||{};
+    const isImg=d=>/\.(png|jpe?g|gif|webp|bmp|heic)$/i.test(d.document_nom||d.document_path||'')||d.type_piece==='photo';
+    const CT=[['attestation','Attestation de levée'],['bon_intervention',"Bon d'intervention"],['devis','Devis'],['plans','Plans'],['pv_classement','PV de classement'],['photo','Photos']];
+    const has=k=>k==='photo'?docs.some(isImg):docs.some(d=>d.type_piece===k);
+    const nameOf=it=>{const pp=(window._resPrest||[]).find(p=>p.id===it.prestataire_id);return pp?pp.nom:([it.prenom,it.intervenant_nom].filter(Boolean).join(' ')||'Contact');};
+    const roleLbl={prestataire:'Prestataire',bet:"Bureau d'études",architecte:'Architecte',cssi:'Coordinateur SSI',moe:"Maître d'œuvre",mairie:'Mairie',sdis:'SDIS',proprietaire:'Propriétaire',autre:'Autre'};
+    const srcLbl=t?({commission:'Commission de sécurité',bureau_de_controle:t.organisme||'Bureau de contrôle',prestataire:'Prestataire'})[t.source]||t.source:'Saisie manuelle';
+    const w=window.open('','_blank'); if(!w){toast('Autorise les fenêtres pop-up pour imprimer','err');return;}
+    w.document.write('<html><head><title>Réserve — '+(t&&t.numero_tableau?t.numero_tableau:'')+'</title><style>'
+      +'body{font-family:Arial,sans-serif;color:#0f172a;padding:26px;font-size:13px;line-height:1.5}'
+      +'h1{font-size:17px;margin:0 0 2px}h2{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin:18px 0 7px;border-bottom:1px solid #e2e8f0;padding-bottom:3px}'
+      +'.meta{color:#475569;font-size:12px;margin-bottom:4px}.intit{font-size:14.5px;font-weight:700;margin:12px 0;padding:10px 12px;border-left:4px solid #dc2626;background:#f8fafc}'
+      +'table{border-collapse:collapse;width:100%}td{border:1px solid #e2e8f0;padding:6px 9px;font-size:12px}'
+      +'.ok{color:#16a34a;font-weight:700}.ko{color:#dc2626;font-weight:700}.no{color:#94a3b8}'
+      +'</style></head><body>'
+      +'<h1>Levée de réserve — fiche</h1>'
+      +'<div class="meta"><b>'+(cl.raison_sociale||'')+'</b> · '+(erp.nom||'')+'</div>'
+      +'<div class="meta">Tableau d\'origine : <b>'+(t&&t.numero_tableau?t.numero_tableau:'—')+'</b> · Source : '+srcLbl+' · État : '+(['levee','cloturee'].includes(r.statut)?'Levée':'À lever')+'</div>'
+      +'<div class="intit">Réserve : '+(r.libelle||'').replace(/</g,'&lt;')+'</div>'
+      +(r.localisation?'<div class="meta">Localisation : '+r.localisation.replace(/</g,'&lt;')+'</div>':'')
+      +'<h2>Dossier de levée — pièces</h2><table>'
+      +CT.map(([k,l])=>{const ok=has(k);const list=k==='photo'?docs.filter(isImg):docs.filter(d=>d.type_piece===k);
+        return '<tr><td style="width:200px">'+l+'</td><td class="'+(ok?'ok':(k==='attestation'?'ko':'no'))+'">'+(ok?'PRÉSENT':'ABSENT')+'</td><td>'+(ok?list.map(d=>(d.document_nom||'').replace(/</g,'&lt;')).join(', '):'')+'</td></tr>';}).join('')
+      +'</table>'
+      +'<h2>Intervenants</h2><table>'
+      +(ints.length?ints.map(it=>'<tr><td style="width:200px">'+(roleLbl[it.role]||roleLbl.prestataire)+'</td><td>'+nameOf(it).replace(/</g,'&lt;')+'</td></tr>').join(''):'<tr><td colspan="2" class="no">Aucun intervenant enregistré</td></tr>')
+      +'</table>'
+      +(r.observations?'<h2>Observations / remarques</h2><div>'+r.observations.replace(/</g,'&lt;').replace(/\n/g,'<br>')+'</div>':'')
+      +'<div class="meta" style="margin-top:22px">Imprimé le '+new Date().toLocaleDateString('fr-FR')+' — PREVA Conseils · CONFORMITÉ SÉCURITÉ</div>'
+      +'<script>setTimeout(function(){window.print()},300)<\/script></body></html>');
+    w.document.close();
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+/* Ajouter une pièce : glisser-déposer ou parcourir, compression à l'arrivée, renommage obligatoire */
+window.resAddPiece=function(rid,erpId){
+  window._rapFile=null;
+  const types=[['attestation','Attestation de levée'],['bon_intervention',"Bon d'intervention"],['devis','Devis'],['plans','Plans'],['pv_classement','PV de classement'],['photo','Photo'],['autre','Autre']];
+  openModal(`<div class="modal-head"><h2>Ajouter une pièce à la réserve</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:13px">
+      <div id="rap_drop" class="rsv-drop" onclick="document.getElementById('rap_file').click()">
+        <b>Glisser-déposer le document ici</b>ou cliquer pour aller le chercher dans un dossier
+        <div id="rap_chosen" style="margin-top:8px;font-weight:700;color:#0f172a;display:none"></div>
+      </div>
+      <input id="rap_file" type="file" style="display:none" accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx" onchange="rapFileChosen(this.files[0])">
+      <div class="row2">
+        <div class="fld"><label>Type de pièce <span class="req">*</span></label>
+          <select id="rap_type">${types.map(t=>'<option value="'+t[0]+'">'+t[1]+'</option>').join('')}</select></div>
+        <div class="fld"><label>Nom du document <span class="req">*</span> <span style="color:var(--muted-2);font-weight:400;font-size:11px">(renommage obligatoire)</span></label>
+          <div style="display:flex;gap:6px;align-items:center"><input id="rap_name" placeholder="Ex. Attestation SSI volets R+2" style="flex:1;min-width:0"><span id="rap_ext" style="color:var(--muted-2);font-size:12px;font-weight:600"></span></div></div>
+      </div>
+      <div id="rap_info" style="display:none;background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.25);border-radius:9px;padding:7px 10px;font-size:11.5px;color:#1e40af"></div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="rap_go">Déposer la pièce</button></div>`);
+  const drop=document.getElementById('rap_drop');
+  drop.ondragover=e=>{e.preventDefault();drop.classList.add('over');};
+  drop.ondragleave=()=>drop.classList.remove('over');
+  drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over'); if(e.dataTransfer.files&&e.dataTransfer.files[0]) rapFileChosen(e.dataTransfer.files[0]);};
+  window.rapFileChosen=function(f){
+    if(!f) return; window._rapFile=f;
+    const m=(f.name||'').match(/\.[a-zA-Z0-9]+$/); const ext=m?m[0]:''; const base=ext?f.name.slice(0,-ext.length):f.name;
+    document.getElementById('rap_chosen').style.display='block';
+    document.getElementById('rap_chosen').textContent='📎 '+f.name+' ('+Math.round(f.size/1024)+' Ko)';
+    document.getElementById('rap_ext').textContent=ext;
+    const ni=document.getElementById('rap_name'); ni.value=base; try{ni.focus();ni.select();}catch(_){}
+    if(/^image\//.test(f.type||'')&&f.size>250*1024||f.type==='application/pdf'&&f.size>300*1024){
+      const inf=document.getElementById('rap_info'); inf.style.display='block';
+      inf.textContent='Le fichier sera compressé automatiquement au dépôt ('+Math.round(f.size/1024)+' Ko actuellement).';
+    } else document.getElementById('rap_info').style.display='none';
+  };
+  document.getElementById('rap_go').onclick=async function(){
+    const f=window._rapFile;
+    if(!f){ toast('Choisis d\'abord un fichier — glisser-déposer ou clic sur la zone.','err'); return; }
+    const name=(document.getElementById('rap_name').value||'').trim();
+    if(!name){ toast('Le renommage est obligatoire : donne un nom clair au document avant de le déposer.','err'); try{document.getElementById('rap_name').focus();}catch(_){ } return; }
+    const type=document.getElementById('rap_type').value;
+    const btn=this; btn.disabled=true;
+    try{
+      let up=f;
+      if(f.type==='application/pdf'&&f.size>300*1024){ btn.textContent='Compression PDF…'; up=await compressPdf(f); }
+      else if(/^image\//.test(f.type||'')&&f.size>250*1024){ btn.textContent='Compression image…'; try{ up=await compressImage(f,2400,0.8); }catch(_){ up=f; } }
+      btn.textContent='Envoi…';
+      const m=(f.name||'').match(/\.[a-zA-Z0-9]+$/); const ext=m?m[0]:'';
+      const finalName=name+ext;
+      const path=erpId+'/reserves/'+rid+'/'+Date.now()+'_'+finalName.replace(/[^\w.\-]/g,'_');
+      const {error:ue}=await sb.storage.from('documents').upload(path,up); if(ue)throw ue;
+      const {error:ie}=await sb.from('reserve_documents').insert({reserve_id:rid,type_piece:type,document_path:path,document_nom:finalName}); if(ie)throw ie;
+      closeModal(); toast('Pièce « '+finalName+' » classée dans la réserve ✓','ok');
+      window._resvOpen=window._resvOpen||new Set(); window._resvOpen.add(rid);
+      renderRoute();
+    }catch(e){ btn.disabled=false; btn.textContent='Déposer la pièce'; toast('Erreur : '+(e.message||e),'err'); }
+  };
+};
 async function viewReserves(c){
   window._resvSrcF=window._resvSrcF||'all';
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Réserves</h1><p>Commissions de sécurité, bureaux de contrôle et prestataires — dossier par client et ERP.</p></div>
@@ -10745,7 +10905,7 @@ async function viewReserves(c){
       <button class="btn primary" onclick="formReserve()">${I.plus} Nouvelle levée de réserve</button></div></div>${trvfTabs('alever')}<div style="min-height:60vh;display:grid;place-items:start center;padding-top:70px"><div class="spin"></div></div>`;
   try{
     let q=sb.from('reserves').select('*'); q=erpFilter(q);
-    const [resR,prestR,docR,intR,ccR,tabR]=await Promise.all([ q, sb.from('prestataires').select('id,nom,categorie,email_rapports,telephone,contacts,client_id,client_ids,affaires'), sb.from('reserve_documents').select('*'), sb.from('reserve_intervenants').select('*').order('created_at'), sb.from('client_contacts').select('*'), sb.from('tableaux_reserves').select('id,source,organisme') ]);
+    const [resR,prestR,docR,intR,ccR,tabR]=await Promise.all([ q, sb.from('prestataires').select('id,nom,categorie,email_rapports,telephone,contacts,client_id,client_ids,affaires'), sb.from('reserve_documents').select('*'), sb.from('reserve_intervenants').select('*').order('created_at'), sb.from('client_contacts').select('*'), sb.from('tableaux_reserves').select('id,source,organisme,numero_tableau') ]);
     const tabById={}; (tabR.data||[]).forEach(t=>{ tabById[t.id]=t; });
     window._resTabs=tabById;
     const srcOf=r=>{ const t=r.tableau_id?tabById[r.tableau_id]:null; return t?(t.source||'bureau_de_controle'):'manuel'; };
@@ -10773,66 +10933,79 @@ async function viewReserves(c){
       .sort((a,b)=>clientName(a).localeCompare(clientName(b)));
     const openPill=`<span class="pill maj">à lever</span>`;
     const critColor={critique:'#dc2626',majeur:'#ea580c',moyen:'#f59e0b',faible:'#16a34a',info:'#64748b'};
+    const CHECK_TYPES=[['attestation','Attestation de levée'],['bon_intervention',"Bon d'intervention"],['devis','Devis'],['plans','Plans'],['pv_classement','PV de classement'],['photo','Photos']];
+    const isImgDoc=d=>/\.(png|jpe?g|gif|webp|bmp|heic)$/i.test(d.document_nom||d.document_path||'')||d.type_piece==='photo';
     const rowHtml=(r,n)=>{
-      const mkContact=(email,tel,nom)=>{
-        const m = email ? `<a href="mailto:${esc(email)}?subject=${encodeURIComponent('Levée de réserve — '+(r.libelle||''))}" onclick="event.stopPropagation()" title="Écrire à ${esc(nom||email)}" style="text-decoration:none;color:var(--primary);font-size:12px;font-weight:600">Email</a>` : '';
-        const t = tel ? `<a href="tel:${esc(tel)}" onclick="event.stopPropagation()" title="Appeler" style="text-decoration:none;color:var(--primary);font-size:12px;font-weight:600">${esc(tel)}</a>` : '';
-        return [m,t].filter(Boolean).join('<span style="color:var(--line);margin:0 2px">·</span>');
-      };
       const legacy = r.document_path ? [{type_piece:r.type_piece,document_path:r.document_path,document_nom:r.document_nom}] : [];
       const allDocs=[...legacy, ...(docsByReserve[r.id]||[])];
-      const docGroups={}; allDocs.forEach(d=>{ const k=d.type_piece||'autre'; (docGroups[k]=docGroups[k]||[]).push(d); });
-      const docCell = allDocs.length
-        ? Object.keys(docGroups).map(k=>`<div class="doc-fam" style="display:flex;align-items:flex-start;gap:10px;margin-bottom:5px">
-            <span class="doc-fam-lbl" style="font-weight:600;color:var(--ink);flex:0 0 200px;width:200px">${esc(TYPE_PIECE[k]||k)} <span style="color:var(--muted)">(${docGroups[k].length})</span></span>
-            <span style="display:flex;flex-wrap:wrap;gap:4px;flex:1">${docGroups[k].map(d=>`<button class="btn sm" onclick="event.stopPropagation();dlDoc('${esc(d.document_path)}','${esc((d.document_nom||'document').replace(/'/g,'&#39;'))}')" title="${esc(d.document_nom||'')}">${esc(d.document_nom||'Voir')} ↓</button>`).join('')}</span>
-          </div>`).join('')
-        : '<span style="color:var(--muted)">Aucune pièce</span>';
-      // contacts & intervenants : liste dédiée, sinon repli sur l'ancien champ unique
+      const t=r.tableau_id?tabById[r.tableau_id]:null;
+      const done=['levee','cloturee'].includes(r.statut);
+      // ── check-list des 6 pièces du dossier de levée
+      const hasType=k=>k==='photo'?allDocs.some(isImgDoc):allDocs.some(d=>d.type_piece===k);
+      const nOk=CHECK_TYPES.filter(([k])=>hasType(k)).length;
+      const tuiles=CHECK_TYPES.map(([k,lbl])=>{
+        const ok=hasType(k);
+        const first=k==='photo'?allDocs.filter(isImgDoc):allDocs.filter(d=>d.type_piece===k);
+        const em=ok?(k==='photo'?first.length+' photo'+(first.length>1?'s':''):esc(first[0].document_nom||'')):'';
+        const urgent=!ok&&k==='attestation'&&!done;
+        return `<div class="rsv-pt ${ok?'ok':(urgent?'urgent':'ko')}"><span class="ic"><span>${ok?'✓':(urgent?'✗':'—')}</span></span><b>${lbl}</b><em>${ok?em:(urgent?'à fournir par le prestataire':'absent')}</em></div>`;
+      }).join('');
+      // ── galerie des pièces classées (photos en vignettes + fichiers en lignes)
+      const photos=allDocs.filter(isImgDoc), files=allDocs.filter(d=>!isImgDoc(d));
+      const FICO={attestation:['🖋️','#16a34a'],bon_intervention:['📄','#2563eb'],devis:['🖊️','#7c3aed'],plans:['📐','#0891b2'],pv_classement:['⚖️','#b45309']};
+      const galHtml=allDocs.length?`<div class="rsv-gal"><small>Pièces classées dans la réserve — ${allDocs.length}</small>
+        ${photos.length?`<div class="ph-row">${photos.map(d=>`<span class="rsv-ph" data-resthumb="${esc(d.document_path)}" onclick="event.stopPropagation();previewDoc('${esc(d.document_path)}','${esc((d.document_nom||'photo').replace(/'/g,'&#39;'))}')"><span class="zm">🔍</span><span class="cap">${esc(d.document_nom||'photo')}</span></span>`).join('')}</div>`:''}
+        ${files.map(d=>{const f=FICO[d.type_piece]||['📎','#64748b'];
+          return `<div class="rsv-fdoc"><span class="ic" style="background:${f[1]}">${f[0]}</span>
+            <b>${esc(d.document_nom||'document')}<em>${esc(TYPE_PIECE[d.type_piece]||d.type_piece||'Pièce')}${d.created_at?' · '+fmtDate(d.created_at):''}</em></b>
+            <button class="act" onclick="event.stopPropagation();previewDoc('${esc(d.document_path)}','${esc((d.document_nom||'document').replace(/'/g,'&#39;'))}')">👁 Ouvrir</button>
+            <button class="act" onclick="event.stopPropagation();resPrintDoc('${esc(d.document_path)}','${esc((d.document_nom||'document').replace(/'/g,'&#39;'))}')">🖨</button>
+          </div>`;}).join('')}</div>`:'';
+      // ── qui est concerné : prestataires + BET / architecte / CSSI
       let ints=intsByReserve[r.id]||[];
-      if(!ints.length && (r.prestataire_id||r.rdv_date)) ints=[{prestataire_id:r.prestataire_id,rdv_date:r.rdv_date,note:null}];
-      const intGroups={};
-      ints.forEach(it=>{ const pp=prestById(it.prestataire_id); const role=(it.role&&it.role!=='prestataire')?it.role:(pp||it.role==='prestataire'?'prestataire':(it.role||'autre')); (intGroups[role]=intGroups[role]||[]).push(it); });
-      const intHtml = ints.length
-        ? Object.keys(intGroups).map(role=>`<div style="margin-bottom:7px">
-            <div style="font-weight:600;color:var(--ink);font-size:12px;margin-bottom:4px">${esc(ROLE_CONTACT[role]||role)} <span style="color:var(--muted)">(${intGroups[role].length})</span></div>
-            <div style="display:flex;flex-direction:column;gap:4px">
-              ${intGroups[role].map(it=>{ const pp=prestById(it.prestataire_id); const freeName=[it.prenom,it.intervenant_nom].filter(Boolean).join(' '); const nom=pp?esc(pp.nom):(freeName?esc(freeName):'Contact'); const ci=pp?prestContactInfo(pp):null; const email=pp?ci.email:it.email; const tel=pp?ci.tel:it.telephone;
-                return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:5px 10px">
-                  <b style="color:var(--ink)">${nom}</b>${it.rdv_date?`<span style="color:var(--muted)">· RDV ${fmtDate(it.rdv_date)}</span>`:''}${it.note?`<span style="color:var(--muted)">· ${esc(it.note)}</span>`:''}<span style="display:inline-flex;gap:6px;margin-left:2px">${mkContact(email,tel,nom)}</span></div>`;
-              }).join('')}
-            </div></div>`).join('')
-        : '<span style="color:var(--muted)">Aucun contact</span>';
-      const cc=critColor[r.criticite]||'#64748b';
+      if(!ints.length && r.prestataire_id) ints=[{prestataire_id:r.prestataire_id,role:'prestataire'}];
+      const nameOf=it=>{const pp=prestById(it.prestataire_id);return pp?pp.nom:([it.prenom,it.intervenant_nom].filter(Boolean).join(' ')||'Contact');};
+      const roleOf=it=>{const pp=prestById(it.prestataire_id);return (it.role&&it.role!=='prestataire')?it.role:'prestataire';};
+      const prests9=ints.filter(it=>roleOf(it)==='prestataire');
+      const roleChip=(role,ico,lbl)=>{const found=ints.filter(it=>roleOf(it)===role);
+        return found.length
+          ?found.map(it=>`<span class="rsv-wc"><i>${ico}</i><span class="lb"><small>${lbl}</small><b>${esc(nameOf(it))}</b></span></span>`).join('')
+          :`<span class="rsv-wc off"><i>${ico}</i><span class="lb"><small>${lbl}</small><b>aucun</b></span></span>`;};
+      const whoHtml=`<div class="rsv-who"><small>Qui est concerné</small><div class="wrow">
+        ${prests9.length?prests9.map(it=>`<span class="rsv-wc"><i>🔧</i><span class="lb"><small>Prestataire</small><b>${esc(nameOf(it))}</b></span></span>`).join(''):`<span class="rsv-wc off"><i>🔧</i><span class="lb"><small>Prestataire</small><b>aucun</b></span></span>`}
+        ${roleChip('bet','📐',"Bureau d'études")}${roleChip('architecte','✏️','Architecte')}${roleChip('cssi','🛡️','Coordinateur SSI')}
+      </div></div>`;
       const rOpen=(window._resvOpen||new Set()).has(r.id);
-      return `<div style="border:1px solid var(--line);border-left:5px solid ${cc};border-radius:12px;margin-bottom:10px;background:var(--surface);overflow:hidden">
-        <div onclick="toggleReserveItem('${r.id}')" title="Cliquer pour déplier / replier" style="display:flex;align-items:center;gap:10px;padding:13px 16px;cursor:pointer;user-select:none;flex-wrap:wrap">
+      return `<div style="border:1px solid var(--line);border-radius:12px;margin-bottom:10px;background:var(--surface);overflow:hidden">
+        <div onclick="toggleReserveItem('${r.id}')" title="Cliquer pour déplier / replier" style="display:flex;align-items:center;gap:9px;padding:13px 16px;cursor:pointer;user-select:none;flex-wrap:wrap">
           <span data-rchev="${r.id}" style="color:var(--muted);font-size:17px;line-height:1;display:inline-block;transition:transform .2s;transform:rotate(${rOpen?'90':'0'}deg)">›</span>
-          <span style="flex:0 0 auto;font-weight:800;color:#fff;background:${cc};border-radius:8px;padding:2px 9px;font-size:12px">N°${n}</span>
-          ${(()=>{const s=srcOf(r);const t=r.tableau_id?tabById[r.tableau_id]:null;
-            if(s==='commission') return `<span title="${esc(t&&t.organisme||'')}" style="flex:0 0 auto;background:rgba(146,64,14,.1);color:#92400e;border:1px solid rgba(146,64,14,.35);border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:800">🏛 COMMISSION DE SÉCURITÉ</span>`;
-            if(s==='bureau_de_controle') return `<span title="${esc(t&&t.organisme||'')}" style="flex:0 0 auto;background:rgba(26,68,173,.08);color:#1a44ad;border:1px solid rgba(26,68,173,.35);border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:800">🏢 ${esc((t&&t.organisme)||'BUREAU DE CONTRÔLE').toUpperCase()}</span>`;
-            if(s==='prestataire') return `<span style="flex:0 0 auto;background:rgba(22,101,52,.08);color:#166534;border:1px solid rgba(22,101,52,.35);border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:800">🔧 PRESTATAIRE</span>`;
+          <span style="flex:0 0 auto;font-weight:800;color:#fff;background:linear-gradient(150deg,#fb923c,#ea580c);border-radius:8px;padding:2px 10px;font-size:12px">N°${n}</span>
+          ${t&&t.numero_tableau?`<span style="flex:0 0 auto;background:#1a44ad;color:#fff;border-radius:8px;padding:2px 10px;font-size:11px;font-weight:800;letter-spacing:.3px">${esc(t.numero_tableau)}</span>`:''}
+          ${(()=>{const sc=srcOf(r);
+            if(sc==='commission') return `<span title="${esc(t&&t.organisme||'')}" style="flex:0 0 auto;background:rgba(146,64,14,.1);color:#92400e;border:1px solid rgba(146,64,14,.35);border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:800">🏛 COMMISSION DE SÉCURITÉ</span>`;
+            if(sc==='bureau_de_controle') return `<span title="${esc(t&&t.organisme||'')}" style="flex:0 0 auto;background:rgba(26,68,173,.08);color:#1a44ad;border:1px solid rgba(26,68,173,.35);border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:800">🔎 ${esc((t&&t.organisme||'BUREAU DE CONTRÔLE').toUpperCase())}</span>`;
+            if(sc==='prestataire') return `<span style="flex:0 0 auto;background:rgba(22,101,52,.08);color:#166534;border:1px solid rgba(22,101,52,.35);border-radius:999px;padding:2px 9px;font-size:10.5px;font-weight:800">🔧 PRESTATAIRE</span>`;
             return '';})()}
-          ${critPill(r.criticite)}
           <span style="flex:1;min-width:120px;font-size:14px;font-weight:600;color:var(--ink);line-height:1.45;white-space:pre-wrap;word-break:break-word">${esc(r.libelle)}</span>
           <span style="flex:0 0 auto">${statusPill(r.statut,REST)}</span>
         </div>
-        <div data-rbody="${r.id}" style="display:${rOpen?'block':'none'};padding:2px 16px 16px">
-          ${r.localisation?`<div style="font-size:13px;color:var(--muted);margin-bottom:10px">Localisation : ${esc(r.localisation)}</div>`:''}
-          <div style="padding-top:12px;border-top:1px solid var(--line-2);font-size:12.5px;display:flex;flex-direction:column;gap:14px">
-            <div>
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
-                <span style="color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.03em;font-size:11px">Pièces jointes</span>
-                <button class="btn sm" style="margin-left:auto;min-width:104px" onclick="event.stopPropagation();openReserve('${r.id}')">＋ Pièce</button>
-              </div>${docCell}
+        <div data-rbody="${r.id}" style="display:${rOpen?'block':'none'};padding:2px 16px 15px">
+          ${r.localisation?`<div style="font-size:13px;color:var(--muted);margin-bottom:8px">Localisation : ${esc(r.localisation)}</div>`:''}
+          <div style="padding-top:11px;border-top:1px solid var(--line-2)">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">
+              <span style="color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em;font-size:10.5px">Dossier de levée — ${nOk} pièce${nOk>1?'s':''} sur ${CHECK_TYPES.length}</span>
+              <button class="btn sm" style="margin-left:auto" onclick="event.stopPropagation();resAddPiece('${r.id}','${esc(r.erp_id)}')">＋ Pièce</button>
             </div>
+            <div class="rsv-prow">${tuiles}</div>
           </div>
+          ${galHtml}
+          ${whoHtml}
           <div style="margin-top:12px">
-            <label style="font-size:11.5px;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:8px">Observations / remarques (suivi) <span class="obs-saved" style="color:#16a34a;font-size:11px;opacity:0;transition:opacity .3s">enregistré</span></label>
-            <textarea onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" oninput="autoGrow(this,14)" onfocus="this.dataset.orig=this.value" onblur="saveReserveObs('${r.id}',this)" placeholder="Remarques de suivi… (enregistrement automatique)" style="width:100%;margin-top:4px;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-family:inherit;font-size:13px;line-height:1.5;resize:vertical;min-height:62px;background:var(--surface-2);color:var(--ink)">${esc(r.observations)}</textarea>
+            <label style="font-size:11.5px;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:8px">Observations / remarques (suivi) <span class="obs-saved" style="color:#16a34a;font-size:11px;opacity:0;transition:opacity .3s">enregistré ✓</span></label>
+            <textarea onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" oninput="autoGrow(this,14)" onfocus="this.dataset.orig=this.value" onblur="saveReserveObs('${r.id}',this)" placeholder="Remarques de suivi… (enregistrement automatique)" style="width:100%;box-sizing:border-box;margin-top:5px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:12.5px;font-family:inherit;color:var(--ink);resize:vertical;background:var(--surface-2)">${esc(r.observations||'')}</textarea>
           </div>
-          <div style="margin-top:12px;display:flex">
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn sm" onclick="event.stopPropagation();resPrintFiche('${r.id}')">🖨 Imprimer la réserve</button>
             <button class="btn sm primary" style="margin-left:auto" onclick="openReserve('${r.id}')">Plus de détails / modifier</button>
           </div>
         </div>
@@ -10893,6 +11066,7 @@ async function viewReserves(c){
       ${trvfTabs('alever',reserves.filter(r=>r.etat_levee!=='levee').length)}
       ${secHelp('reserves','Faire produire la preuve par celui qui a agi',"Attribuez une réserve à un prestataire : il reçoit un lien, décrit son intervention, joint ses photos et signe depuis son téléphone. Vous validez ou vous refusez — la décision reste la vôtre.")}
       ${clientIds.length?body:emptyBlock(I.reserve,'Aucune réserve enregistrée','Les réserves viennent de vos PV de commission et rapports de bureaux de contrôle : ouvrez le Classeur et cliquez « Extraire réserves » sur un rapport. Vous pouvez aussi en saisir une à la main.',`<button class="btn primary" onclick="navigate('/documents')">Ouvrir le Classeur</button> <button class="btn" onclick="formReserve()">${I.plus} Saisir à la main</button>`)}`;
+    setTimeout(resLoadThumbs,80);
   }catch(e){ c.innerHTML=errBlock(e); }
 }
 
