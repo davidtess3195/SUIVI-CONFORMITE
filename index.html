@@ -20198,6 +20198,11 @@ window.sinOpen=async function(docId,erpId){
           :`<div style="font-size:11.5px;color:var(--moyen);margin-top:6px">⚠ Fiche assurance de l'ERP non renseignée — complétez-la dans la fiche ERP pour un dossier complet.</div>`}
       </div>
       <div style="border-top:1px solid var(--line);padding-top:10px">
+        <label style="font-weight:600;font-size:12.5px">💬 Observations et remarques <span style="color:var(--muted);font-weight:400;font-size:11px">— facultatif</span></label>
+        <textarea id="sin_obs" rows="4" placeholder="Contexte, circonstances, mesures prises, précisions pour l'expert…" style="width:100%;margin-top:7px;resize:vertical;font:inherit;font-size:12.5px;line-height:1.6;border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:var(--surface);color:var(--ink)"></textarea>
+        <div style="font-size:11px;color:var(--muted);margin-top:5px">Repris mot pour mot dans le dossier — section « Observations et remarques de l'exploitant », avant l'attestation.</div>
+      </div>
+      <div style="border-top:1px solid var(--line);padding-top:10px">
         <label style="font-weight:600;font-size:12.5px">Photos à joindre en annexe <span style="color:var(--muted);font-weight:400;font-size:11px">(module Photos &amp; vidéos, horodatées)</span></label>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px;max-height:180px;overflow-y:auto">${phHtml}</div>
       </div>
@@ -20257,6 +20262,7 @@ window.sinGenerate=async function(){
       nature:g('sin_nature').value, zone:g('sin_zone').value.trim(),
       ref:g('sin_ref').value.trim(), decl:g('sin_decl').value,
       gest:g('sin_gest').value.trim(), exp:g('sin_exp').value.trim(),
+      obs:(g('sin_obs')?g('sin_obs').value:'').trim(),
       photoIds:[...document.querySelectorAll('.sin_ph:checked')].map(x=>x.value)
     };
     if(!form.dateSin){ toast('Renseignez la date du sinistre','err'); btn.disabled=false; btn.textContent='Générer le dossier'; return; }
@@ -20273,9 +20279,9 @@ window.sinGenerate=async function(){
     const html=sinHtml(ctx,form,D);
     const w=window.open('','_blank');
     if(!w){ toast('Autorisez les fenêtres pop-up pour générer le dossier','err'); btn.disabled=false; btn.textContent='Générer le dossier'; return; }
-    w.document.write(html.replace('</body>','<style>@media print{.noprint{display:none !important}}</style>'+'<button class="noprint" onclick="window.close();setTimeout(function(){if(!window.closed){history.back()}},300)" title="Fermer cette page" style="position:fixed;left:14px;top:14px;z-index:9999;background:#0f172a;color:#fff;border:none;border-radius:18px;padding:18px 32px;font-weight:800;font-size:28px;line-height:1;font-family:Arial,sans-serif;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.4)">✕ Fermer</button>'+'</body>')); w.document.close();
+    w.document.write(html.replace('</body>','<style>@media print{.noprint{display:none !important}}</style>'+'<button class="noprint" onclick="window.close();setTimeout(function(){if(!window.closed){history.back()}},300)" title="Fermer cette page" style="position:fixed;left:14px;top:14px;z-index:9999;background:#0f172a;color:#fff;border:none;border-radius:18px;padding:18px 32px;font-weight:800;font-size:28px;line-height:1;font-family:Arial,sans-serif;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.4)">✕ Fermer</button>'+'<script>window.addEventListener("load",function(){setTimeout(function(){try{window.print()}catch(e){}},500)})<\/script>'+'</body>')); w.document.close();
     closeModal();
-    toast('Dossier sinistre généré — imprimez ou enregistrez en PDF','ok');
+    toast('Dossier généré — l\'aperçu PDF s\'ouvre : enregistrez en PDF ou imprimez','ok');
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
   finally{ if(btn){ btn.disabled=false; btn.textContent='Générer le dossier'; } }
 };
@@ -20293,7 +20299,11 @@ window.sinHtml=function(ctx,form,D){
   const tl=D.ev.map(e2=>`<div class="ev ${e2.k}"><span class="dt">${F(e2.d)}</span><div class="t">${E(e2.t)}</div></div>`).join('');
   const bordereau=D.pieces.map((p,i)=>`<div class="pi"><span class="no">P${i+1}</span><span>${E(p.label)}</span><span class="d">${F(p.date)} · ${p.src}</span></div>`).join('');
   const nPh0=D.pieces.findIndex(p=>p.photo);
-  const annexe=D.phSel.length?`<div class="pgbrk"></div><div class="sec"><span class="n">05</span><b>Annexe photographique</b><span class="rule"></span></div>
+  const nAnnexe=form.obs?'06':'05';
+  const obsBloc=form.obs?`<div class="sec"><span class="n">05</span><b>Observations et remarques de l'exploitant</b><span class="rule"></span></div>
+    <div class="obsq">${E(form.obs).replace(/\n/g,'<br>')}
+    <div class="qui">Observations rédigées par l'exploitant à l'établissement du présent dossier — ${F(new Date().toISOString().slice(0,10))}.</div></div>`:'';
+  const annexe=D.phSel.length?`<div class="pgbrk"></div><div class="sec"><span class="n">${nAnnexe}</span><b>Annexe photographique</b><span class="rule"></span></div>
     <div class="phgrid">${D.phSel.map((p,i)=>`<div class="ph"><img src="${publicPhoto(p.photo_path)}"><div class="cap"><b>${E(p.commentaire||'Constat photographique')}</b>
       <div class="meta"><span class="chip p">P${nPh0+1+i}</span> prise le ${F(p.date_photo||p.created_at)} · déposée le ${F(p.created_at)} (horodatage serveur)${p.localisation?' · '+E(p.localisation):''}</div></div></div>`).join('')}</div>
     <div class="phnote">Chaque photographie est conservée en original avec son horodatage de dépôt ; les originaux haute définition sont communicables sur demande.</div>`:'';
@@ -20414,6 +20424,8 @@ body{font-family:'Inter',Arial,sans-serif;color:var(--ink);font-size:10.5px;line
 .ph .cap b{font-size:10px;display:block;line-height:1.4}
 .ph .meta{font-size:8.5px;color:var(--mut2);margin-top:3px}
 .phnote{font-size:8.5px;color:var(--mut2);margin-top:8px}
+.obsq{border-left:3px solid var(--navy);background:#f8fafc;padding:11px 15px;font-size:10.5px;line-height:1.8;page-break-inside:avoid}
+.obsq .qui{font-size:8.5px;color:var(--mut2);margin-top:8px}
 .att{border:1.5px solid var(--navy);padding:11px 14px;margin-top:16px;font-size:9.5px;page-break-inside:avoid;line-height:1.7}
 .att b.h{font-family:'Montserrat',Arial,sans-serif;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:4px}
 .sig{display:flex;gap:30px;margin-top:12px;font-size:9px;color:var(--mut)}
@@ -20455,7 +20467,8 @@ body{font-family:'Inter',Arial,sans-serif;color:var(--ink);font-size:10.5px;line
   <div class="li"><span class="n">02</span>Chronologie des diligences<span class="pts"></span><span class="pg">p. 2</span></div>
   <div class="li"><span class="n">03</span>Les parties<span class="pts"></span><span class="pg">p. 2</span></div>
   <div class="li"><span class="n">04</span>Bordereau des pièces<span class="pts"></span><span class="pg">p. 2</span></div>
-  ${D.phSel.length?'<div class="li"><span class="n">05</span>Annexe photographique<span class="pts"></span><span class="pg">p. 3</span></div>':''}
+  ${form.obs?'<div class="li"><span class="n">05</span>Observations et remarques de l\'exploitant<span class="pts"></span><span class="pg">p. 2</span></div>':''}
+  ${D.phSel.length?`<div class="li"><span class="n">${nAnnexe}</span>Annexe photographique<span class="pts"></span><span class="pg">p. 3</span></div>`:''}
 </div>
 
 <div class="pgbrk"></div>
@@ -20477,6 +20490,7 @@ body{font-family:'Inter',Arial,sans-serif;color:var(--ink);font-size:10.5px;line
 ${prestCard}${assCard}
 <div class="sec"><span class="n">04</span><b>Bordereau des pièces</b><span class="rule"></span></div>
 <div class="pieces">${bordereau||'<div style="color:var(--mut2)">Aucune pièce sélectionnée.</div>'}</div>
+${obsBloc}
 ${annexe}
 <div class="att"><b class="h">Attestation de l'exploitant</b>
   Je soussigné(e), représentant de ${E(client.raison_sociale||'l\'exploitant')}, exploitant de l'établissement ${E(erp.nom)}, certifie que les pièces ${D.pieces.length?('P1'+(D.pieces.length>1?' à P'+D.pieces.length:'')):''} annexées au présent dossier sont conformes aux originaux conservés, et que les dates mentionnées correspondent à l'horodatage de dépôt sur la plateforme.
