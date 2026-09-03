@@ -1961,6 +1961,7 @@ function renderRoute(){
   if(base==='/verifications') return viewVerifications(content);
   if(base==='/organisation') return viewOrganisation(content);
   if(base==='/budget') return viewBudget(content);
+  if(base==='/bilan') return viewBilan(content);
   if(base==='/admin') return viewAdmin(content);
   viewDashboard(content);
 }
@@ -3200,6 +3201,503 @@ window.orgDelPersonne=async function(id){
   try{ const {error}=await sb.from('organisation_personnes').delete().eq('id',id); if(error) throw error;
     closeModal(); toast('Personne supprimée','ok'); viewOrganisation(document.getElementById('content'));
   }catch(e){ toast(e.message,'err'); }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   BILAN — synthèse d'activité d'un ERP sur une période (présentation CODIR)
+   Panneau ERP + dates d'ouverture/fermeture → PDF (jsPDF) alimenté par les
+   données réelles : obligations, réserves, interventions, travaux/budget,
+   commission. Actions : visualiser, imprimer, e-mail (PJ), SMS (lien 30 j),
+   télécharger. Cloisonnement : toutes les requêtes sont filtrées sur l'ERP
+   choisi, lui-même issu de state.erps (RLS).
+   ═══════════════════════════════════════════════════════════════════ */
+window._bilan={erpId:null,from:null,to:null,D:null,blob:null,url:null,fileName:'',link:null};
+function bilStyle(){ if(document.getElementById('bil-style'))return; const st=document.createElement('style'); st.id='bil-style'; st.textContent=`
+.bil-panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:13px}
+.bil-presets{display:flex;flex-wrap:wrap;gap:7px}
+.bil-pz{font-size:11.5px;font-weight:600;border:1px solid var(--line);border-radius:20px;padding:5px 12px;color:#475569;background:var(--surface);cursor:pointer;font-family:inherit}
+.bil-pz.on{background:#eaf1ff;border-color:#bcd0f7;color:#1d4ed8}
+.bil-hint{font-size:11.5px;color:var(--muted);line-height:1.55;background:var(--surface-2,#f6f8fb);border:1px solid var(--line);border-radius:9px;padding:8px 11px}
+.bil-ready{margin-top:16px;border:1.5px solid #bbe8c9;background:#f0fbf4;border-radius:14px;padding:15px 18px}
+.bil-ready .hd{display:flex;align-items:center;gap:10px;margin-bottom:11px}
+.bil-ready .hd .ck{width:28px;height:28px;border-radius:50%;background:#16803c;color:#fff;display:grid;place-items:center;font-weight:800;flex:0 0 auto}
+.bil-ready .hd b{font-size:14px}
+.bil-ready .hd small{display:block;font-size:11.5px;color:#3f6e50}
+.bil-mini{display:grid;grid-template-columns:repeat(5,1fr);border:1px solid #bbe8c9;border-radius:10px;background:#fff;overflow:hidden;margin-bottom:13px}
+.bil-mini div{padding:9px 8px;border-right:1px solid #bbe8c9;text-align:center}
+.bil-mini div:last-child{border-right:none}
+.bil-mini b{display:block;font-size:18px;font-weight:800}
+.bil-mini span{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:700}
+.bil-acts{display:flex;flex-wrap:wrap;gap:8px}
+.bil-acts .btn{background:#fff}
+.bil-acts .btn.view{border:1.5px solid #2563eb;color:#1d4ed8;background:#f6f9ff}
+.bil-cb{display:flex;align-items:center;gap:9px;padding:7px 10px;border:1px solid var(--line);border-radius:9px;font-size:12.5px;margin-bottom:6px;background:var(--surface);cursor:pointer}
+.bil-cb input{margin:0}
+.bil-cb .role{font-size:10px;font-weight:700;color:#1d4ed8;background:#eaf1ff;border-radius:20px;padding:1px 8px}
+.bil-cb small{color:var(--muted);margin-left:auto;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45%}
+.bil-grp{font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin:6px 0}
+.bil-att{display:flex;align-items:center;gap:10px;background:var(--surface-2,#f6f8fb);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:12px}
+.bil-att .pdf{width:34px;height:40px;border-radius:5px;background:#dc2626;color:#fff;font-size:9px;font-weight:800;display:grid;place-items:center;flex:0 0 auto}
+.bil-att b{display:block}.bil-att small{color:var(--muted)}
+.bil-cnt{font-size:11px;color:var(--muted);text-align:right}
+@media(max-width:840px){.bil-mini{grid-template-columns:repeat(3,1fr)}.bil-mini div:nth-child(3){border-right:none}.bil-mini div:nth-child(n+4){border-top:1px solid #bbe8c9}.bil-acts .btn{flex:1 1 45%;justify-content:center;white-space:nowrap;font-size:12px;padding:9px 6px}.bil-acts .btn:last-child{flex-basis:100%}}
+`; document.head.appendChild(st); }
+function bilIso(d){ const x=new Date(d); return new Date(x.getTime()-x.getTimezoneOffset()*60000).toISOString().slice(0,10); }
+function bilAddDays(iso,n){ const d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return bilIso(d); }
+function bilFr(iso){ if(!iso) return '—'; const s=String(iso).slice(0,10); const [y,m,d]=s.split('-'); return (d&&m&&y)?(d+'/'+m+'/'+y):s; }
+function bilEur(v){ return Math.round(Number(v)||0).toLocaleString('fr-FR').replace(/[\u202F\u00A0]/g,' ')+' €'; }
+window.bilPreset=function(k){
+  const t=bilIso(new Date()); const y=new Date().getFullYear(); const m=new Date().getMonth();
+  let from=t,to=t;
+  if(k==='trim'){ const q=Math.floor(m/3)*3; from=y+'-'+String(q+1).padStart(2,'0')+'-01'; }
+  else if(k==='annee'){ from=y+'-01-01'; }
+  else if(k==='12m'){ from=bilAddDays(t,-365); }
+  else if(k==='n1'){ from=(y-1)+'-01-01'; to=(y-1)+'-12-31'; }
+  const f=document.getElementById('bil_from'), g=document.getElementById('bil_to');
+  if(f) f.value=from; if(g) g.value=to;
+  document.querySelectorAll('.bil-pz').forEach(b=>b.classList.toggle('on',b.dataset.k===k));
+};
+async function viewBilan(c){
+  bilStyle();
+  const B=window._bilan;
+  const clientId=state.currentClient!=='all'?state.currentClient:null;
+  let erps=(state.erps||[]).filter(e=>!clientId||e.client_id===clientId).slice().sort((a,b)=>String(a.nom||'').localeCompare(String(b.nom||''),'fr'));
+  const multi=!clientId&&(state.clients||[]).length>1;
+  const cname=id=>{ const x=(state.clients||[]).find(z=>z.id===id); return x?(x.raison_sociale||x.nom_commercial||''):''; };
+  const erpSel=(B.erpId&&erps.find(e=>e.id===B.erpId))?B.erpId:((state.currentErp!=='all'&&erps.find(e=>e.id===state.currentErp))?state.currentErp:(erps[0]?erps[0].id:''));
+  const y=new Date().getFullYear();
+  const from=B.from||(y+'-01-01'), to=B.to||bilIso(new Date());
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Bilan</h1><p>Synthèse d'activité de l'établissement sur une période — pour le CODIR, la direction, l'assureur.</p></div></div>
+  ${erps.length?`<div class="bil-panel">
+    <div class="fld" style="margin:0"><label>Établissement (ERP)</label><select id="bil_erp">${erps.map(e=>`<option value="${e.id}"${e.id===erpSel?' selected':''}>${esc(e.nom)}${multi?' — '+esc(cname(e.client_id)):''}${e.ville?' · '+esc(e.ville):''}</option>`).join('')}</select></div>
+    <div class="row2">
+      <div class="fld" style="margin:0"><label>📅 Date d'ouverture de la période</label><input type="date" id="bil_from" value="${from}"></div>
+      <div class="fld" style="margin:0"><label>📅 Date de fermeture de la période</label><input type="date" id="bil_to" value="${to}"></div></div>
+    <div><label style="display:block;font-size:11.5px;font-weight:700;color:#334155;margin-bottom:6px">Raccourcis</label>
+      <div class="bil-presets"><button type="button" class="bil-pz" data-k="trim" onclick="bilPreset('trim')">Trimestre en cours</button><button type="button" class="bil-pz${!B.from?' on':''}" data-k="annee" onclick="bilPreset('annee')">Année en cours</button><button type="button" class="bil-pz" data-k="12m" onclick="bilPreset('12m')">12 derniers mois</button><button type="button" class="bil-pz" data-k="n1" onclick="bilPreset('n1')">Année précédente</button></div></div>
+    <div class="bil-hint">Le bilan couvre toute l'activité horodatée entre les deux dates : vérifications réglementaires, réserves &amp; levées, interventions, travaux et investissements, commission de sécurité. Vous pourrez le visualiser à l'écran, l'imprimer, l'envoyer par e-mail ou par SMS.</div>
+    <div style="display:flex;justify-content:flex-end"><button class="btn primary" id="bil_go" onclick="bilPrepare()">📊 Préparer le bilan</button></div>
+  </div>
+  <div id="bil_ready">${(B.D&&B.url&&B.erpId===erpSel&&B.from===from&&B.to===to)?bilReadyHtml():''}</div>`
+  :`<div class="card card-pad" style="text-align:center;color:var(--muted)">Aucun établissement disponible${clientId?' pour ce client':''}.</div>`}`;
+}
+window.viewBilan=viewBilan;
+
+/* ── Calcul des données (toutes requêtes filtrées sur l'ERP) ── */
+window.bilCompute=async function(erpId,from,to){
+  const d10=v=>v?String(v).slice(0,10):'';
+  const inP=v=>{ const s=d10(v); return !!s&&s>=from&&s<=to; };
+  const today=bilIso(new Date()); const ref=to<today?to:today; const ref60=bilAddDays(ref,60);
+  const R=await Promise.all([
+    sb.from('erps').select('*').eq('id',erpId).maybeSingle(),
+    sb.from('obligations').select('id,domaine,libelle,periodicite,derniere_verif,prochaine_echeance,criticite,statut,acteur').eq('erp_id',erpId),
+    sb.from('reserves').select('id,libelle,localisation,criticite,statut,etat_levee,date_realisation,date_limite,created_at,updated_at,source,prestataire_id').eq('erp_id',erpId),
+    sb.from('interventions').select('id,objet,domaine,type,statut,date_prevue,date_realisation,date_demande,created_at').eq('erp_id',erpId),
+    sb.from('documents').select('id,categorie,nom_original,date_document,created_at,montant_ht,famille_budget,prestataire_id,deleted_at').eq('erp_id',erpId),
+    sb.from('commission_passages').select('id,date_passage,avis,prescriptions,commentaire').eq('erp_id',erpId).order('date_passage',{ascending:false}),
+    sb.from('tableaux_reserves').select('id,source,organisme,titre,date_intervention,avis,nb_obs,numero_tableau').eq('erp_id',erpId),
+    sb.from('photos_urgentes').select('id,niveau_urgence,statut,created_at,date_photo,commentaire').eq('erp_id',erpId),
+    sb.from('prestataires').select('id,nom')
+  ]);
+  const err=R.find(x=>x.error); if(err) throw err.error;
+  const erp=R[0].data; if(!erp) throw new Error('Établissement introuvable ou non autorisé');
+  const client=(state.clients||[]).find(x=>x.id===erp.client_id)||{};
+  const prests={}; (R[8].data||[]).forEach(p=>prests[p.id]=p.nom);
+  const obs=(R[1].data||[]).filter(o=>!/supprim|non_applicable|inactif/i.test(o.statut||''));
+  const rs=R[2].data||[], its=R[3].data||[], docs=(R[4].data||[]).filter(d=>!d.deleted_at), cps=R[5].data||[], tabs=R[6].data||[], phs=R[7].data||[];
+  // ── Vérifications / obligations
+  const realisees=obs.filter(o=>inP(o.derniere_verif));
+  const manquees=obs.filter(o=>o.prochaine_echeance&&d10(o.prochaine_echeance)>=from&&d10(o.prochaine_echeance)<=ref&&!inP(o.derniere_verif));
+  const withEch=obs.filter(o=>o.prochaine_echeance);
+  const retard=withEch.filter(o=>d10(o.prochaine_echeance)<ref);
+  const proche=withEch.filter(o=>d10(o.prochaine_echeance)>=ref&&d10(o.prochaine_echeance)<=ref60);
+  const aJour=withEch.filter(o=>d10(o.prochaine_echeance)>ref60);
+  const tauxConf=withEch.length?Math.round((withEch.length-retard.length)/withEch.length*100):(obs.length?100:null);
+  const domMap={};
+  withEch.forEach(o=>{ const k=(o.domaine||'Autre').replace(/^Rapport de vérification /i,'').trim(); const s=k.charAt(0).toUpperCase()+k.slice(1); domMap[s]=domMap[s]||{n:0,ok:0}; domMap[s].n++; if(d10(o.prochaine_echeance)>=ref) domMap[s].ok++; });
+  const domaines=Object.entries(domMap).map(([k,v])=>({k,n:v.n,pct:Math.round(v.ok/v.n*100)})).sort((a,b)=>b.n-a.n||a.pct-b.pct).slice(0,6);
+  // ── Réserves
+  const isLev=r=>r.etat_levee==='levee'||['levee','validee'].includes(r.statut||'');
+  const dLev=r=>d10(r.date_realisation)||d10(r.updated_at);
+  const levees=rs.filter(r=>isLev(r)&&inP(dLev(r)));
+  const ouvertes=rs.filter(r=>d10(r.created_at)<=to&&(!isLev(r)||dLev(r)>to));
+  const late30=ouvertes.filter(r=>d10(r.created_at)<bilAddDays(to,-30));
+  const majeures=ouvertes.filter(r=>/majeur|critique|grave|bloquant/i.test(r.criticite||''));
+  const dj=(a,b)=>Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000);
+  const delaisLev=levees.map(r=>dj(d10(r.created_at),dLev(r))).filter(n=>n>=0);
+  const delaiLev=delaisLev.length?Math.round(delaisLev.reduce((a,b)=>a+b,0)/delaisLev.length):null;
+  const months=[]; { let cur=from.slice(0,7); const end=to.slice(0,7); let guard=0; while(cur<=end&&guard<60){ months.push(cur); const [yy,mm]=cur.split('-').map(Number); const nx=new Date(yy,mm,1); cur=nx.getFullYear()+'-'+String(nx.getMonth()+1).padStart(2,'0'); guard++; } }
+  const mois=months.slice(-12).map(m=>({m,lab:new Date(m+'-01T00:00:00').toLocaleDateString('fr-FR',{month:'short'}).replace('.',''),lev:levees.filter(r=>dLev(r).slice(0,7)===m).length,enc:ouvertes.filter(r=>d10(r.created_at).slice(0,7)===m).length}));
+  // ── Interventions
+  const isDone=i=>['realisee','cloturee','rapport_attendu'].includes(i.statut||'');
+  const interv=its.filter(i=>isDone(i)&&(inP(i.date_realisation)||(!i.date_realisation&&inP(i.date_prevue))));
+  const dls=interv.map(i=>{ const a=d10(i.date_demande)||d10(i.created_at), b=d10(i.date_realisation)||d10(i.date_prevue); return (a&&b)?dj(a,b):-1; }).filter(n=>n>=0);
+  const delaiInt=dls.length?(Math.round(dls.reduce((a,b)=>a+b,0)/dls.length*10)/10):null;
+  // ── Travaux & investissements
+  const dd=d=>d10(d.date_document)||d10(d.created_at);
+  const devis=docs.filter(d=>d.categorie==='devis_signe'&&inP(dd(d)));
+  const factures=docs.filter(d=>d.categorie==='facture'&&inP(dd(d)));
+  const pvs=docs.filter(d=>d.categorie==='pv_reception'&&inP(dd(d)));
+  const rapports=docs.filter(d=>d.categorie==='rapport'&&inP(dd(d)));
+  const engage=devis.reduce((s,d)=>s+(Number(d.montant_ht)||0),0);
+  const realise=factures.reduce((s,d)=>s+(Number(d.montant_ht)||0),0);
+  const nomDoc=d=>String(d.nom_original||'Document').replace(/\.[a-z0-9]{2,5}$/i,'').replace(/[_]+/g,' ');
+  const lignes=devis.slice().sort((a,b)=>(Number(b.montant_ht)||0)-(Number(a.montant_ht)||0)).slice(0,6).map(d=>({label:nomDoc(d),prest:prests[d.prestataire_id]||'',montant:Number(d.montant_ht)||0,date:dd(d)}));
+  // ── Commission
+  const passages=cps.filter(p=>d10(p.date_passage)<=to);
+  const lastCs=passages[0]||(erp.cs_date_passage?{date_passage:erp.cs_date_passage,avis:erp.cs_avis,prescriptions:erp.cs_prescriptions}:null);
+  const csInP=passages.filter(p=>inP(p.date_passage));
+  // ── Échéances (tableau)
+  const stEch=o=>{ const e=d10(o.prochaine_echeance); return e<ref?'retard':(e<=ref60?'proche':'ok'); };
+  const echeances=withEch.slice().sort((a,b)=>d10(a.prochaine_echeance).localeCompare(d10(b.prochaine_echeance))).slice(0,8).map(o=>({lib:(o.libelle||o.domaine||'Vérification').replace(/^Rapport de vérification /i,'Vérification '),per:o.periodicite||'—',der:d10(o.derniere_verif),pro:d10(o.prochaine_echeance),st:stEch(o)}));
+  const nextEch=withEch.filter(o=>d10(o.prochaine_echeance)>=ref).sort((a,b)=>d10(a.prochaine_echeance).localeCompare(d10(b.prochaine_echeance)))[0]||null;
+  // ── Faits marquants
+  const ev=[];
+  csInP.forEach(p=>ev.push({d:d10(p.date_passage),k:'good',t:'Commission de sécurité — avis '+(p.avis||'rendu')+(p.prescriptions?' avec prescriptions':' sans prescription'),w:3}));
+  tabs.filter(t=>inP(t.date_intervention)).forEach(t=>ev.push({d:d10(t.date_intervention),k:'key',t:'Rapport '+(t.source==='commission'?'de commission':'du bureau de contrôle')+(t.organisme?' '+t.organisme:'')+(t.nb_obs?' — '+t.nb_obs+' observation'+(t.nb_obs>1?'s':''):'')+(t.numero_tableau?' ('+t.numero_tableau+')':''),w:2}));
+  pvs.forEach(d=>ev.push({d:dd(d),k:'key',t:'Réception de travaux — '+nomDoc(d),w:2}));
+  devis.forEach(d=>ev.push({d:dd(d),k:'',t:'Engagement de travaux — '+nomDoc(d)+(d.montant_ht?' ('+bilEur(d.montant_ht)+' HT)':''),w:1}));
+  const phP=phs.filter(p=>inP(p.date_photo||p.created_at)); if(phP.length) ev.push({d:d10(phP[phP.length-1].date_photo||phP[phP.length-1].created_at),k:'',t:phP.length+' signalement'+(phP.length>1?'s':'')+' photo (situation dégradée) sur la période',w:1});
+  if(levees.length){ const last=levees.slice().sort((a,b)=>dLev(b).localeCompare(dLev(a)))[0]; ev.push({d:dLev(last),k:'good',t:'Dernière réserve levée — '+(last.libelle||'').slice(0,70)+(levees.length>1?' ('+levees.length+' levées sur la période)':''),w:2}); }
+  const evs=ev.sort((a,b)=>b.w-a.w).slice(0,7).sort((a,b)=>a.d.localeCompare(b.d));
+  // ── Verdict
+  let verdict={cls:'ok',t:'Établissement conforme'};
+  if(retard.length||majeures.length||late30.length) verdict={cls:'warn',t:'Points de vigilance'};
+  if(retard.length>=3||majeures.length) verdict={cls:'bad',t:'Non-conformités à traiter'};
+  const vparts=[]; if(lastCs) vparts.push('Dernier avis de commission '+(lastCs.avis||'—')+' ('+bilFr(lastCs.date_passage)+')');
+  vparts.push(ouvertes.length?ouvertes.length+' réserve'+(ouvertes.length>1?'s':'')+' en cours'+(majeures.length?' dont '+majeures.length+' majeure'+(majeures.length>1?'s':''):''):'aucune réserve en cours');
+  vparts.push(retard.length?retard.length+' vérification'+(retard.length>1?'s':'')+' en retard':'vérifications à jour');
+  if(nextEch) vparts.push('prochaine échéance le '+bilFr(nextEch.prochaine_echeance));
+  // ── Points d'attention
+  const att=[];
+  if(late30.length) att.push({lv:'hi',lab:'PRIORITÉ ÉLEVÉE',t:late30.length+' réserve'+(late30.length>1?'s':'')+' en attente depuis plus de 30 jours',p:late30.slice(0,2).map(r=>(r.libelle||'').slice(0,60)).join(' · ')+' — relancer le prestataire ; à solder avant la prochaine visite.'});
+  if(retard.length) att.push({lv:'hi',lab:'PRIORITÉ ÉLEVÉE',t:retard.length+' vérification'+(retard.length>1?'s':'')+' réglementaire'+(retard.length>1?'s':'')+' en retard',p:retard.slice(0,2).map(o=>(o.libelle||o.domaine||'')+' (échéance '+bilFr(o.prochaine_echeance)+')').join(' · ')+' — programmer sans délai.'});
+  if(majeures.length) att.push({lv:'hi',lab:'PRIORITÉ ÉLEVÉE',t:majeures.length+' réserve'+(majeures.length>1?'s':'')+' majeure'+(majeures.length>1?'s':'')+' ouverte'+(majeures.length>1?'s':''),p:majeures.slice(0,2).map(r=>(r.libelle||'').slice(0,60)).join(' · ')});
+  if(proche.length) att.push({lv:'md',lab:'À PLANIFIER',t:proche.length+' vérification'+(proche.length>1?'s':'')+' à échéance sous 60 jours',p:proche.slice(0,3).map(o=>(o.libelle||o.domaine||'')+' — '+bilFr(o.prochaine_echeance)).join(' · ')});
+  const phNT=phP.filter(p=>!/trait|clos|resol/i.test(p.statut||'')); if(phNT.length) att.push({lv:'md',lab:'À TRAITER',t:phNT.length+' signalement'+(phNT.length>1?'s':'')+' photo sans traitement',p:'Situation dégradée signalée sur le terrain — vérifier la prise en charge.'});
+  const low=domaines.filter(d=>d.pct<100).sort((a,b)=>a.pct-b.pct)[0]; if(low) att.push({lv:'lo',lab:'SUIVI',t:low.k+' à '+low.pct+' %',p:'Domaine le plus bas de la période. Une remise à niveau permettrait d\'atteindre 100 % au prochain bilan.'});
+  if(!att.length) att.push({lv:'lo',lab:'SUIVI',t:'Aucun point bloquant identifié',p:'Maintenir le rythme des vérifications et le suivi des levées de réserves.'});
+  return {erp,client,from,to,ref,today,tauxConf,realisees:realisees.length,prevues:realisees.length+manquees.length,nObs:obs.length,withEch:withEch.length,aJour:aJour.length,proche:proche.length,retard:retard.length,domaines,
+    levees:levees.length,ouvertes:ouvertes.length,late30:late30.length,majeures:majeures.length,traitees:levees.length+ouvertes.length,delaiLev,mois,
+    interv:interv.length,delaiInt,engage,realise,lignes,pvs:pvs.length,rapports:rapports.length,devisN:devis.length,
+    lastCs,echeances,nextEch,evs,verdict,vtext:vparts.join(' · ')+'.',att:att.slice(0,5)};
+};
+
+/* ── Rendu PDF (jsPDF, A4) — mise en page validée : bandeau KPI + pavés de priorité ── */
+window.bilPdf=function(D){
+  const clean=s=>String(s==null?'':s).replace(/\u2192/g,'-').replace(/\u1D49/g,'e').replace(/[\uD800-\uDFFF\uFE0E\uFE0F\u200B-\u200D\u2190-\u21FF\u2300-\u27BF\u2B00-\u2BFF]/g,'').replace(/[\u00A0\u202F\u2007\u2009]/g,' ').replace(/ {2,}/g,' ').trim();
+  D=JSON.parse(JSON.stringify(D),(k,v)=>typeof v==='string'?clean(v):v);
+  const jsPDFCtor=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF; if(!jsPDFCtor) throw new Error('Bibliothèque PDF non chargée');
+  const doc=new jsPDFCtor({unit:'mm',format:'a4',compress:true});
+  const W=210,H=297,ML=14,CW=W-2*ML;
+  const NAVY=[15,42,107],BLUE=[37,99,235],INK=[16,24,40],MUT=[100,116,139],MUT2=[148,163,184],LINE=[226,232,240],
+        GREEN=[22,128,60],GREENBG=[240,251,244],GREENLN=[187,232,201],AMBER=[180,83,9],AMBERBG=[255,251,235],AMBERLN=[253,230,138],RED=[185,28,28],REDBG=[254,242,242],REDLN=[254,202,202],WHITE=[255,255,255],SOFT=[248,250,252],TRACK=[238,242,247];
+  const col=c=>({ok:GREEN,warn:AMBER,bad:RED})[c]||GREEN;
+  let y=0, page=1;
+  const F=(st,sz,c)=>{ doc.setFont('helvetica',st); doc.setFontSize(sz); doc.setTextColor(c[0],c[1],c[2]); };
+  const fill=c=>doc.setFillColor(c[0],c[1],c[2]); const stroke=c=>doc.setDrawColor(c[0],c[1],c[2]);
+  const wrap=(t,w,sz)=>{ doc.setFontSize(sz); return doc.splitTextToSize(String(t||''),w); };
+  const periode=bilFr(D.from)+' - '+bilFr(D.to);
+  const footer=()=>{ stroke(LINE); doc.setLineWidth(.3); doc.line(ML,H-13,W-ML,H-13); F('normal',6.8,MUT2); doc.text('Synthèse générée par la plateforme CONFORMITÉ SÉCURITÉ — données horodatées · période du '+periode,ML,H-9); doc.text('Document interne · CODIR · page '+page,W-ML,H-9,{align:'right'}); };
+  const newPage=()=>{ footer(); doc.addPage(); page++; y=16; };
+  const need=h=>{ if(y+h>H-18) newPage(); };
+  const sec=(n,title,tag)=>{ need(16); y+=4; F('bold',11,[194,203,221]); doc.text(n,ML,y+4.5); F('bold',9,INK); doc.text(String(title).toUpperCase(),ML+9,y+4.5,{charSpace:.25}); if(tag){ F('normal',7.5,MUT); doc.text(tag,W-ML,y+4.5,{align:'right'}); } stroke(NAVY); doc.setLineWidth(.6); doc.line(ML,y+7.5,W-ML,y+7.5); y+=13; };
+  // ── COUVERTURE
+  for(let i=0;i<80;i++){ const t=i/79, e=t*t; fill([Math.round(15+(29-15)*e),Math.round(42+(78-42)*e),Math.round(107+(216-107)*e)]); doc.rect(i*(W/80),0,W/80+.3,58,'F'); } fill([185,28,28]); doc.rect(W-12,0,12,58,'F');
+  F('bold',7.2,[190,205,240]); doc.text("SYNTHÈSE D'ACTIVITÉ · SÉCURITÉ INCENDIE",ML,14,{charSpace:.6});
+  F('bold',19,WHITE); const nomL=wrap(D.erp.nom||'',150,19); doc.text(nomL.slice(0,2),ML,24);
+  const yy=24+(nomL.length>1?8:0);
+  F('normal',9.2,[215,225,250]); doc.text(['ERP'+(D.erp.type_erp?' type '+D.erp.type_erp:''),(D.erp.categorie?D.erp.categorie+'e catégorie':''),(D.erp.ville||''),('Exploitant : '+(D.client.raison_sociale||'—'))].filter(Boolean).join(' · '),ML,yy+6.5);
+  const meta=[['PÉRIODE',periode],['ÉTABLI LE',bilFr(D.today)],['ÉDITEUR','CONFORMITÉ SÉCURITÉ'],['DESTINATAIRE','Comité de direction']];
+  meta.forEach((m,i)=>{ const x=ML+i*44; F('bold',6.2,[170,190,235]); doc.text(m[0],x,45,{charSpace:.5}); F('bold',8.6,WHITE); doc.text(m[1],x,50.5); });
+  // ── VERDICT
+  y=66; const vc=col(D.verdict.cls); const vbg={ok:GREENBG,warn:AMBERBG,bad:REDBG}[D.verdict.cls], vln={ok:GREENLN,warn:AMBERLN,bad:REDLN}[D.verdict.cls];
+  F('bold',9.5,vc); const vw=doc.getTextWidth(D.verdict.t)+16; fill(vbg); stroke(vln); doc.setLineWidth(.5); doc.roundedRect(ML,y-5.5,vw,9,4.5,4.5,'FD'); fill(vc); doc.circle(ML+5.5,y-1,1.5,'F'); doc.text(D.verdict.t,ML+10,y+.3);
+  F('normal',7.8,MUT); const vt=wrap(D.vtext,CW-vw-6,7.8); doc.text(vt.slice(0,2),ML+vw+5,y-1.5);
+  y+=10; stroke(LINE); doc.setLineWidth(.3); doc.line(ML,y,W-ML,y); y+=8;
+  // ── KPI BANDEAU
+  const K=[['CONFORMITÉ',D.tauxConf==null?'—':D.tauxConf+' %',D.withEch+' obligations suivies',D.tauxConf==null?INK:(D.tauxConf>=90?GREEN:(D.tauxConf>=70?AMBER:RED))],
+           ['VÉRIFICATIONS',D.realisees+'/'+D.prevues,(D.prevues?Math.round(D.realisees/D.prevues*100):100)+' % du plan réalisé',INK],
+           ['RÉSERVES LEVÉES',String(D.levees),'sur '+D.traitees+' traitée'+(D.traitees>1?'s':'')+(D.delaiLev!=null?' · délai moyen '+D.delaiLev+' j':''),GREEN],
+           ['EN COURS',String(D.ouvertes),D.late30?'dont '+D.late30+' > 30 jours':'aucune > 30 jours',D.ouvertes?AMBER:INK],
+           ['INTERVENTIONS',String(D.interv),D.delaiInt!=null?'délai moyen '+String(D.delaiInt).replace('.',',')+' j':'traitées sur la période',INK]];
+  const kh=28, kw=CW/5; fill(WHITE); stroke(LINE); doc.setLineWidth(.4); doc.roundedRect(ML,y,CW,kh,3,3,'FD');
+  K.forEach((k,i)=>{ const x=ML+i*kw+4; if(i) doc.line(ML+i*kw,y,ML+i*kw,y+kh); F('bold',6.2,MUT2); doc.text(k[0],x,y+6,{charSpace:.4}); F('bold',16,k[3]); doc.text(k[1],x,y+15.5); F('normal',6.6,MUT); wrap(k[2],kw-8,6.6).slice(0,2).forEach((l,j)=>doc.text(l,x,y+20.5+j*3)); });
+  y+=kh+4;
+  // ── 01 CONFORMITÉ
+  sec('01','Conformité réglementaire','par domaine technique');
+  need(48);
+  { const cx=ML+22, cy=y+20, r=15; const tot=D.withEch||1; const pOk=(D.aJour+D.proche)/tot;
+    doc.setLineCap(1); stroke(TRACK); doc.setLineWidth(5); doc.circle(cx,cy,r,'S');
+    const arc=(from,to,c)=>{ if(to-from<=0.001) return; stroke(c); doc.setLineWidth(5); let prev=null; const N=Math.max(2,Math.round((to-from)*80)); for(let i=0;i<=N;i++){ const a=-Math.PI/2+(from+(to-from)*i/N)*2*Math.PI; const p=[cx+r*Math.cos(a),cy+r*Math.sin(a)]; if(prev) doc.line(prev[0],prev[1],p[0],p[1]); prev=p; } };
+    const fA=D.aJour/tot, fP=D.proche/tot, fR=D.retard/tot;
+    arc(0,fA,GREEN); arc(fA,fA+fP,[245,158,11]); arc(fA+fP,fA+fP+fR,[220,38,38]);
+    F('bold',12,INK); doc.text(D.withEch?Math.round(pOk*100)+'%':'—',cx,cy+1.5,{align:'center'}); F('normal',5.5,MUT); doc.text('non en retard',cx,cy+6,{align:'center'});
+    const lx=cx+r+9; const leg=[[GREEN,'À jour — '+D.aJour+' vérification'+(D.aJour>1?'s':'')],[[245,158,11],'Échéance proche (< 60 j) — '+D.proche],[[220,38,38],'En retard — '+D.retard]];
+    leg.forEach((l,i)=>{ fill(l[0]); doc.roundedRect(lx,cy-9+i*8-2.8,3.2,3.2,.8,.8,'F'); F('normal',7.6,INK); doc.text(l[1],lx+5.5,cy-9+i*8); });
+    // barres domaines (colonne droite)
+    const bx=ML+CW*0.52, bw=CW*0.48; let by=y+2;
+    if(!D.domaines.length){ F('normal',7.5,MUT2); doc.text('Aucune obligation avec échéance renseignée.',bx,by+4); }
+    const fit=(t,w)=>{ let s=String(t); while(s.length>3&&doc.getTextWidth(s)>w) s=s.slice(0,-1); return s===String(t)?s:s.replace(/\s*$/,'')+'…'; };
+    D.domaines.forEach(d=>{ F('bold',7.2,INK); const nm=fit(d.k,34); doc.text(nm,bx,by+3.2); const tx=bx+36, tw=bw-36-12; fill(TRACK); doc.roundedRect(tx,by+.8,tw,3.2,1.6,1.6,'F'); const c=d.pct>=100?GREEN:(d.pct>=70?[245,158,11]:[220,38,38]); fill(c); if(d.pct>0) doc.roundedRect(tx,by+.8,Math.max(3.2,tw*d.pct/100),3.2,1.6,1.6,'F'); F('bold',7.2,c); doc.text(d.pct+'%',bx+bw,by+3.2,{align:'right'}); by+=7.2; });
+    y+=Math.max(44,D.domaines.length*7.2+6);
+  }
+  // ── 02 RÉSERVES
+  sec('02','Réserves & prescriptions','levées sur la période');
+  need(72);
+  { const ch=30, cw=CW; const maxV=Math.max(1,...D.mois.map(m=>m.lev+m.enc)); const n=D.mois.length||1; const slot=cw/n; const bw=Math.min(14,slot*0.55);
+    F('normal',6.8,MUT); fill(GREEN); doc.roundedRect(ML,y-1.5,3,3,.7,.7,'F'); doc.text('Levées',ML+4.5,y+1); fill([245,158,11]); doc.roundedRect(ML+19,y-1.5,3,3,.7,.7,'F'); doc.text('En cours (ouvertes sur le mois)',ML+23.5,y+1);
+    y+=5; const base=y+ch;
+    D.mois.forEach((m,i)=>{ const x=ML+i*slot+(slot-bw)/2; const hL=ch*m.lev/maxV, hE=ch*m.enc/maxV; if(hL>0){ fill(GREEN); doc.rect(x,base-hL,bw,hL,'F'); } if(hE>0){ fill([245,158,11]); doc.rect(x,base-hL-hE,bw,hE,'F'); } if(m.lev+m.enc){ F('bold',6.5,INK); doc.text(String(m.lev+m.enc),x+bw/2,base-hL-hE-1.2,{align:'center'}); } F('normal',6.8,MUT); doc.text(m.lab,x+bw/2,base+4,{align:'center'}); });
+    stroke(LINE); doc.setLineWidth(.3); doc.line(ML,base,W-ML,base);
+    y=base+9;
+    const cards=[[GREENBG,GREENLN,GREEN,String(D.levees),'Réserves levées',(D.delaiLev!=null?'délai moyen '+D.delaiLev+' j · ':'')+'preuves & attestations à l\'appui'],
+                 [AMBERBG,AMBERLN,AMBER,String(D.ouvertes),'En cours de levée',D.late30?D.late30+' en attente > 30 j':'réparties aux prestataires'],
+                 [D.majeures?REDBG:GREENBG,D.majeures?REDLN:GREENLN,D.majeures?RED:GREEN,String(D.majeures),'Réserve'+(D.majeures>1?'s':'')+' majeure'+(D.majeures>1?'s':'')+' ouverte'+(D.majeures>1?'s':''),D.majeures?'point bloquant à traiter en priorité':'aucun point bloquant pour l\'exploitation']];
+    const cw3=(CW-8)/3; cards.forEach((c,i)=>{ const x=ML+i*(cw3+4); fill(c[0]); stroke(c[1]); doc.setLineWidth(.4); doc.roundedRect(x,y,cw3,25,3,3,'FD'); F('bold',15,c[2]); doc.text(c[3],x+5,y+10); F('bold',7.6,INK); doc.text(c[4],x+5,y+15); F('normal',6.4,MUT); wrap(c[5],cw3-10,6.4).slice(0,2).forEach((l,j)=>doc.text(l,x+5,y+19.3+j*3)); });
+    y+=29;
+  }
+  // ── 03 TRAVAUX
+  need(56); sec('03','Travaux & investissements sécurité','engagés sur la période');
+  { const lw=CW*0.6; let ly=y;
+    if(!D.lignes.length){ F('normal',7.5,MUT2); doc.text('Aucun devis signé sur la période.',ML,ly+4); ly+=8; }
+    D.lignes.forEach(l=>{ F('normal',7.6,INK); const lab=wrap(l.label+(l.prest?' · '+l.prest:''),lw-28,7.6)[0]; doc.text(lab,ML,ly+3.5); F('bold',7.6,INK); doc.text(bilEur(l.montant),ML+lw-2,ly+3.5,{align:'right'}); stroke([241,245,249]); doc.setLineWidth(.25); doc.line(ML,ly+6,ML+lw-2,ly+6); ly+=7.2; });
+    const bx=ML+lw+4, bw=CW-lw-4, bh=Math.max(26,ly-y); fill(SOFT); stroke(LINE); doc.setLineWidth(.4); doc.roundedRect(bx,y,bw,bh,3,3,'FD');
+    F('bold',15,NAVY); doc.text(bilEur(D.engage),bx+bw/2,y+bh/2-1,{align:'center'}); F('normal',6.6,MUT); doc.text('engagé HT sur la période',bx+bw/2,y+bh/2+4,{align:'center'});
+    doc.text(wrap((D.devisN+' devis signé'+(D.devisN>1?'s':''))+' · '+D.pvs+' réception'+(D.pvs>1?'s':'')+' · '+bilEur(D.realise)+' facturé',bw-6,6.6)[0]||'',bx+bw/2,y+bh/2+8.5,{align:'center'});
+    y=Math.max(ly,y+bh)+4;
+  }
+  // ── 04 COMMISSION & ÉCHÉANCES
+  need(40); sec('04','Commission de sécurité & échéances');
+  { const cols=[ML,ML+78,ML+104,ML+128,ML+154]; const hd=['Vérification / échéance','Périodicité','Dernière','Prochaine','Statut'];
+    const rowH=7.4; const rows=[]; if(D.lastCs) rows.push({lib:'Visite de la commission de sécurité',per:'périodique',der:D.lastCs.date_passage,pro:'',st:'cs',avis:D.lastCs.avis||'—',presc:D.lastCs.prescriptions});
+    D.echeances.forEach(e=>rows.push(e));
+    need(10+rowH*(rows.length||1));
+    F('bold',6.2,MUT2); hd.forEach((h,i)=>doc.text(h.toUpperCase(),cols[i],y+3,{charSpace:.3})); stroke(LINE); doc.setLineWidth(.3); doc.line(ML,y+5,W-ML,y+5); y+=8;
+    const chip=(x,t,c,bg,ln)=>{ F('bold',6.2,c); const w=doc.getTextWidth(t)+6; fill(bg); stroke(ln); doc.setLineWidth(.3); doc.roundedRect(x,y-3.4,w,5,2.5,2.5,'FD'); doc.text(t,x+3,y+.2); };
+    if(!rows.length){ F('normal',7.5,MUT2); doc.text('Aucune échéance renseignée.',ML,y+1); y+=rowH; }
+    rows.forEach(r=>{ F('normal',7.4,INK); doc.text(wrap(r.lib,74,7.4)[0],cols[0],y+.5); F('normal',7,MUT); doc.text(String(r.per||'—'),cols[1],y+.5); doc.text(bilFr(r.der),cols[2],y+.5); doc.text(r.pro?bilFr(r.pro):'—',cols[3],y+.5);
+      if(r.st==='cs'){ const ok=/favorable/i.test(r.avis)&&!/défavorable|defavorable/i.test(r.avis); chip(cols[4],'Avis '+r.avis+(r.presc?' · prescriptions':''),ok?GREEN:RED,ok?GREENBG:REDBG,ok?GREENLN:REDLN); }
+      else if(r.st==='retard') chip(cols[4],'En retard',RED,REDBG,REDLN); else if(r.st==='proche') chip(cols[4],'Échéance proche',AMBER,AMBERBG,AMBERLN); else chip(cols[4],'À jour',GREEN,GREENBG,GREENLN);
+      stroke([241,245,249]); doc.setLineWidth(.25); doc.line(ML,y+3.6,W-ML,y+3.6); y+=rowH; });
+    y+=2;
+  }
+  // ── 05 FAITS MARQUANTS
+  need(16+Math.min(60,12+D.evs.length*9)); sec('05','Faits marquants de la période');
+  { need(12+D.evs.length*9); const lx=ML+26;
+    if(!D.evs.length){ F('normal',7.5,MUT2); doc.text('Aucun événement notable enregistré sur la période.',ML,y+2); y+=8; }
+    else { const y0=y; stroke([215,220,230]); doc.setLineWidth(.5); doc.line(lx,y0-1,lx,y0+D.evs.length*9-4);
+      D.evs.forEach(e=>{ const c=e.k==='good'?GREEN:(e.k==='key'?NAVY:MUT2); fill(WHITE); stroke(c); doc.setLineWidth(.7); doc.circle(lx,y+.2,1.4,'FD'); if(e.k){ fill(c); doc.circle(lx,y+.2,1.4,'F'); } F('bold',7.2,e.k==='good'?GREEN:(e.k==='key'?INK:MUT)); doc.text(bilFr(e.d),lx-4,y+1.2,{align:'right'}); F('normal',7.6,INK); doc.text(wrap(e.t,CW-32,7.6)[0],lx+5,y+1.2); y+=9; });
+      y+=1; }
+  }
+  // ── 06 POINTS D'ATTENTION
+  { const tot=D.att.reduce((s,a)=>s+Math.max(15,8+wrap(a.p,CW-34,7).length*3.6+3)+3,0); need(Math.min(16+tot,H-40)); }
+  sec('06','Points d\'attention & recommandations');
+  D.att.forEach(a=>{ const lines=wrap(a.p,CW-26-8,7); const h=Math.max(15,8+lines.length*3.6+3); need(h+3);
+    const c={hi:[[239,68,68],[185,28,28]],md:[[245,158,11],[180,83,9]],lo:[[100,116,139],[71,85,105]]}[a.lv];
+    fill(WHITE); stroke(LINE); doc.setLineWidth(.4); doc.roundedRect(ML,y,CW,h,3,3,'FD');
+    fill(c[0]); doc.roundedRect(ML,y,22,h,3,3,'F'); doc.rect(ML+11,y,11,h,'F'); fill(c[1]); doc.rect(ML+20,y,2,h,'F');
+    F('bold',5.9,WHITE); const lab=wrap(a.lab,18,5.9); lab.forEach((l,i)=>doc.text(l,ML+10,y+h/2-((lab.length-1)*2.4)/2+i*2.4+1,{align:'center'}));
+    F('bold',8,INK); doc.text(a.t,ML+26,y+6); F('normal',7,MUT); lines.forEach((l,i)=>doc.text(l,ML+26,y+10.5+i*3.6));
+    y+=h+3; });
+  footer();
+  return doc;
+};
+
+/* ── Préparation : calcul + PDF + bloc « prêt » ── */
+window.bilPrepare=async function(){
+  const g=id=>document.getElementById(id); const B=window._bilan;
+  const erpId=g('bil_erp')?g('bil_erp').value:''; const from=g('bil_from')?g('bil_from').value:''; const to=g('bil_to')?g('bil_to').value:'';
+  if(!erpId){ toast('Choisis un établissement','err'); return; }
+  if(!from||!to){ toast('Renseigne les deux dates de la période','err'); return; }
+  if(from>to){ toast('La date d\'ouverture doit précéder la date de fermeture','err'); return; }
+  const btn=g('bil_go'); if(btn){ btn.disabled=true; btn.textContent='Calcul en cours…'; }
+  const box=g('bil_ready'); if(box) box.innerHTML='<div style="min-height:120px;display:grid;place-items:center;padding-top:20px"><div class="spin"></div></div>';
+  try{
+    const D=await bilCompute(erpId,from,to);
+    if(btn) btn.textContent='Mise en page du PDF…';
+    const doc=bilPdf(D);
+    const blob=doc.output('blob');
+    if(B.url){ try{ URL.revokeObjectURL(B.url); }catch(_){ } }
+    const slug=String(D.erp.nom||'ERP').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40);
+    Object.assign(B,{erpId,from,to,D,blob,url:URL.createObjectURL(blob),fileName:'Bilan_'+slug+'_'+from+'_'+to+'.pdf',link:null,pages:doc.internal.getNumberOfPages(),at:new Date()});
+    if(box) box.innerHTML=bilReadyHtml();
+    toast('Bilan prêt — visualisez-le avant de l\'envoyer','ok');
+  }catch(e){ if(box) box.innerHTML=''; toast('Erreur : '+(e.message||e),'err'); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='📊 Préparer le bilan'; } }
+};
+window.bilReadyHtml=function(){
+  const B=window._bilan, D=B.D; if(!D) return '';
+  const ko=Math.round((B.blob?B.blob.size:0)/1024);
+  return `<div class="bil-ready">
+    <div class="hd"><span class="ck">✓</span><div><b>Bilan prêt — ${esc(D.erp.nom)} · ${bilFr(D.from)} → ${bilFr(D.to)}</b><small>PDF de ${B.pages||1} page${(B.pages||1)>1?'s':''} (${ko} Ko) généré à partir de vos données horodatées · ${B.at?B.at.toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</small></div></div>
+    <div class="bil-mini">
+      <div><b style="color:${D.tauxConf==null?'#0f172a':(D.tauxConf>=90?'#16803c':(D.tauxConf>=70?'#b45309':'#b91c1c'))}">${D.tauxConf==null?'—':D.tauxConf+' %'}</b><span>Conformité</span></div>
+      <div><b>${D.realisees}/${D.prevues}</b><span>Vérifs</span></div>
+      <div><b style="color:#16803c">${D.levees}</b><span>Levées</span></div>
+      <div><b style="color:${D.ouvertes?'#b45309':'#0f172a'}">${D.ouvertes}</b><span>En cours</span></div>
+      <div><b>${D.interv}</b><span>Interv.</span></div>
+    </div>
+    <div class="bil-acts">
+      <button class="btn view" onclick="bilView()">👁 Visualiser le PDF</button>
+      <button class="btn" onclick="bilPrint()">🖨 Imprimer</button>
+      <button class="btn" onclick="bilEmailModal()">✉️ Envoyer par e-mail</button>
+      <button class="btn" onclick="bilSmsModal()">📱 Envoyer par SMS</button>
+      <button class="btn" onclick="bilDownload()">⬇️ Télécharger</button>
+    </div></div>`;
+};
+window.bilView=function(){
+  const B=window._bilan; if(!B.url){ toast('Prépare d\'abord le bilan','err'); return; }
+  const isMobile=window.innerWidth<768;
+  const viewer=isMobile?`<div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:28px 16px;text-align:center"><div style="font-size:40px">📄</div><div style="font-weight:600;color:var(--ink)">${esc(B.fileName)}</div><div style="color:var(--muted);font-size:13px">L'aperçu intégré n'est pas disponible sur mobile.</div><a class="btn primary" href="${B.url}" target="_blank" rel="noopener">Ouvrir le PDF</a></div>`
+    :`<iframe src="${B.url}#toolbar=1&view=FitH" style="width:100%;height:74vh;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>`;
+  openModal(`<div class="modal-head"><h2 style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:78%">👁 ${esc(B.fileName)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body" style="padding-top:8px">${viewer}</div>
+    <div class="modal-foot" style="flex-wrap:wrap"><button class="btn ghost" onclick="closeModal()">Fermer</button>
+      <button class="btn" onclick="bilPrint()">🖨 Imprimer</button>
+      <button class="btn" onclick="bilDownload()">⬇️ Télécharger</button>
+      <button class="btn primary" onclick="closeModal();bilEmailModal()">✉️ Envoyer par e-mail</button></div>`,'modal-wide');
+};
+window.bilPrint=function(){
+  const B=window._bilan; if(!B.url){ toast('Prépare d\'abord le bilan','err'); return; }
+  try{
+    let fr=document.getElementById('bil_print_frame'); if(fr) fr.remove();
+    fr=document.createElement('iframe'); fr.id='bil_print_frame'; fr.style.cssText='position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0;border:0;pointer-events:none';
+    fr.onload=()=>{ setTimeout(()=>{ try{ fr.contentWindow.focus(); fr.contentWindow.print(); }catch(e){ window.open(B.url,'_blank'); } },400); };
+    fr.src=B.url; document.body.appendChild(fr);
+    toast('Impression du bilan…','ok');
+  }catch(e){ window.open(B.url,'_blank'); }
+};
+window.bilDownload=function(){
+  const B=window._bilan; if(!B.url){ toast('Prépare d\'abord le bilan','err'); return; }
+  const a=document.createElement('a'); a.href=B.url; a.download=B.fileName||'bilan.pdf'; document.body.appendChild(a); a.click(); a.remove();
+};
+/* ── Contacts liés à l'ERP (client + organisation + fiche ERP) ── */
+window.bilContacts=async function(D){
+  const cid=D.erp.client_id; const out=[];
+  const [cc,op]=await Promise.all([
+    sb.from('client_contacts').select('id,nom,prenom,fonction,email,mobile,telephone,role_suivi').eq('client_id',cid),
+    sb.from('organisation_personnes').select('id,nom,fonction,email,telephone,erp_ids').eq('client_id',cid)
+  ]);
+  const notif=Array.isArray(D.erp.notif_contact_ids)?D.erp.notif_contact_ids:(D.erp.notif_contact_id?[D.erp.notif_contact_id]:[]);
+  (cc.data||[]).forEach(c=>out.push({id:c.id,nom:[c.prenom,c.nom].filter(Boolean).join(' ')||'Contact',role:c.fonction||(c.role_suivi||'').replace(/_/g,' '),email:(c.email||'').trim(),mobile:(c.mobile||c.telephone||'').trim(),grp:'Contacts du client — '+(D.client.raison_sociale||''),def:notif.includes(c.id)}));
+  (op.data||[]).filter(p=>!p.erp_ids||!p.erp_ids.length||p.erp_ids.includes(D.erp.id)).forEach(p=>out.push({id:p.id,nom:p.nom||'Personne',role:p.fonction||'',email:(p.email||'').trim(),mobile:(p.telephone||'').trim(),grp:'Organisation de l\'établissement',def:false}));
+  if(D.erp.email||D.erp.telephone) out.push({id:'erp',nom:D.erp.nom,role:'Établissement',email:(D.erp.email||'').trim(),mobile:(D.erp.telephone||'').trim(),grp:'Fiche ERP',def:false});
+  return out;
+};
+const bilIsMobile=n=>/^(\+33|0033|0)[67]\d{8}$/.test(String(n||'').replace(/[\s.\-()]/g,''));
+const bilNormTel=n=>{ let t=String(n||'').replace(/[\s.\-()]/g,''); if(/^0033/.test(t)) t='+33'+t.slice(4); if(/^33[67]\d{8}$/.test(t)) t='+'+t; return t; };
+window.bilEmailModal=async function(){
+  const B=window._bilan, D=B.D; if(!D||!B.blob){ toast('Prépare d\'abord le bilan','err'); return; }
+  let contacts=[]; try{ contacts=(await bilContacts(D)).filter(c=>/^.+@.+\..+$/.test(c.email)); }catch(e){ toast('Contacts : '+(e.message||e),'err'); }
+  if(!contacts.some(c=>c.def)){ const d0=contacts.find(c=>/direct|dg|gérant|gerant|président|president/i.test(c.role)); if(d0) d0.def=true; }
+  const grps=[...new Set(contacts.map(c=>c.grp))];
+  const ko=Math.round(B.blob.size/1024);
+  const sujet='Bilan sécurité incendie — '+D.erp.nom+' — '+bilFr(D.from)+' au '+bilFr(D.to);
+  const sail=[D.tauxConf!=null?'conformité à '+D.tauxConf+' %':null, D.levees?D.levees+' réserve'+(D.levees>1?'s':'')+' levée'+(D.levees>1?'s':''):null, D.late30?D.late30+' réserve'+(D.late30>1?'s':'')+' en attente à solder avant la prochaine visite':null, D.retard?D.retard+' vérification'+(D.retard>1?'s':'')+' en retard':null].filter(Boolean).join(', ');
+  const msg='Bonjour,\n\nVeuillez trouver ci-joint le bilan d\'activité sécurité incendie de l\'établissement '+D.erp.nom+' pour la période du '+bilFr(D.from)+' au '+bilFr(D.to)+'.\n\n'+(sail?'Points saillants : '+sail+'.\n\n':'')+'Nous restons à votre disposition pour toute précision.\n\nCordialement,\n'+(state.profile?.nom||'');
+  openModal(`<div class="modal-head"><h2>✉️ Envoyer le bilan par e-mail</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <div class="bil-att"><span class="pdf">PDF</span><div><b>${esc(B.fileName)}</b><small>${B.pages||1} page${(B.pages||1)>1?'s':''} · ${ko} Ko · joint automatiquement</small></div></div>
+      <div>${grps.map(g=>`<div class="bil-grp">${esc(g)}</div>${contacts.filter(c=>c.grp===g).map(c=>`<label class="bil-cb"><input type="checkbox" class="bil-mail-cb" value="${esc(c.email)}"${c.def?' checked':''} onchange="bilMailCount()"> ${esc(c.nom)} ${c.role?`<span class="role">${esc(c.role)}</span>`:''}<small>${esc(c.email)}</small></label>`).join('')}`).join('')||'<div style="font-size:12px;color:var(--muted)">Aucun contact avec e-mail — saisissez des destinataires ci-dessous.</div>'}</div>
+      <div class="fld" style="margin:0"><label>Autres destinataires <span style="color:var(--muted);font-weight:400;font-size:11px">— séparés par des virgules</span></label><input id="bil_mail_extra" placeholder="prenom.nom@societe.fr, …" oninput="bilMailCount()"></div>
+      <div class="fld" style="margin:0"><label>Objet</label><input id="bil_mail_subj" value="${esc(sujet)}"></div>
+      <div class="fld" style="margin:0"><label>Message d'accompagnement</label><textarea id="bil_mail_msg" rows="7" style="width:100%;font:inherit;font-size:12.5px;line-height:1.55;border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:var(--surface);color:var(--ink);resize:vertical">${esc(msg)}</textarea></div>
+      <div class="bil-cnt" id="bil_mail_cnt"></div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="bil_mail_go" onclick="bilEmailSend()">✉️ Envoyer</button></div>`);
+  bilMailCount();
+};
+window.bilMailTos=function(){
+  const cbs=[...document.querySelectorAll('.bil-mail-cb:checked')].map(c=>c.value);
+  const extra=((document.getElementById('bil_mail_extra')||{}).value||'').split(/[,;\s]+/).map(s=>s.trim()).filter(s=>/^.+@.+\..+$/.test(s));
+  return [...new Set([...cbs,...extra].map(e=>e.trim().toLowerCase()).filter(Boolean))];
+};
+window.bilMailCount=function(){ const n=bilMailTos().length; const c=document.getElementById('bil_mail_cnt'); if(c) c.textContent=n+' destinataire'+(n>1?'s':'')+' · copie archivée dans l\'historique e-mails'; const b=document.getElementById('bil_mail_go'); if(b) b.textContent='✉️ Envoyer'+(n?' à '+n+' destinataire'+(n>1?'s':''):''); };
+window.bilEmailSend=async function(){
+  const B=window._bilan, D=B.D; if(!D||!B.blob) return;
+  const tos=bilMailTos(); if(!tos.length){ toast('Sélectionne ou saisis au moins un destinataire','err'); return; }
+  const subject=((document.getElementById('bil_mail_subj')||{}).value||'').trim()||('Bilan — '+D.erp.nom);
+  const msg=((document.getElementById('bil_mail_msg')||{}).value||'').trim();
+  const btn=document.getElementById('bil_mail_go'); if(btn){ btn.disabled=true; btn.textContent='Préparation du PDF…'; }
+  try{
+    const b64=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]||''); r.onerror=()=>rej(new Error('Lecture du PDF impossible')); r.readAsDataURL(B.blob); });
+    if(btn) btn.textContent='Envoi de l\'e-mail…';
+    const html=`<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:auto">
+      <div style="background:#0f2a6b;padding:22px 26px;border-radius:8px 8px 0 0"><h2 style="color:#fff;margin:0;font-size:19px">Bilan sécurité incendie</h2><p style="color:#c7d2fe;margin:4px 0 0;font-size:13px">${esc(D.erp.nom)} — période du ${bilFr(D.from)} au ${bilFr(D.to)}</p></div>
+      <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:26px">
+        <p style="margin:0 0 18px;color:#1e293b;line-height:1.6;white-space:pre-wrap">${esc(msg)}</p>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:18px;font-size:14px">
+          ${[['Établissement',D.erp.nom],['Période',bilFr(D.from)+' — '+bilFr(D.to)],['Conformité',D.tauxConf==null?'—':D.tauxConf+' %'],['Réserves',D.levees+' levée'+(D.levees>1?'s':'')+' · '+D.ouvertes+' en cours'],['Vérifications',D.realisees+' / '+D.prevues]].map(r=>`<tr><td style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:bold;width:38%;color:#475569">${esc(r[0])}</td><td style="padding:8px 12px;border:1px solid #e2e8f0;color:#1e293b">${esc(String(r[1]))}</td></tr>`).join('')}
+        </table>
+        <p style="margin:0 0 4px;color:#1e293b;font-size:14px">Le bilan complet figure dans le <b>document PDF joint</b> à ce message.</p>
+        <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0 14px">
+        <p style="margin:0;color:#64748b;font-size:12.5px;line-height:1.6">Document généré par la plateforme <b style="color:#0f2a6b">CONFORMITÉ SÉCURITÉ</b> — données horodatées.</p>
+      </div></div>`;
+    const tk=(typeof agToken==='function')?agToken():{token:null};
+    const ctl=new AbortController(); const tmr=setTimeout(()=>ctl.abort(),90000);
+    let out={};
+    try{
+      const resp=await fetch(SUPABASE_URL+'/functions/v1/send-client-email',{method:'POST',headers:{'Content-Type':'application/json',apikey:SUPABASE_ANON_KEY,Authorization:'Bearer '+(tk.token||SUPABASE_ANON_KEY)},body:JSON.stringify({to:tos,subject,html,replyTo:(state.user&&state.user.email)||undefined,attachments:[{filename:B.fileName,content:b64,contentType:'application/pdf'}]}),signal:ctl.signal});
+      clearTimeout(tmr); out=await resp.json().catch(()=>({})); if(!resp.ok||out.error) throw new Error(out.error||('HTTP '+resp.status));
+    }catch(e2){ clearTimeout(tmr); if(e2&&e2.name==='AbortError') throw new Error('Envoi de l\'e-mail : délai dépassé (90 s).'); throw e2; }
+    closeModal(); toast('✓ Bilan envoyé à : '+tos.join(', '),'ok');
+  }catch(e){ if(btn){ btn.disabled=false; bilMailCount(); } toast('Envoi impossible : '+(e.message||e),'err'); }
+};
+/* ── SMS : lien sécurisé 30 jours vers le PDF déposé dans le stockage de l'ERP ── */
+window.bilLink=async function(){
+  const B=window._bilan, D=B.D; if(B.link) return B.link;
+  const path=D.erp.id+'/bilans/'+Date.now()+'_'+B.fileName;
+  const {error:ue}=await sb.storage.from('documents').upload(path,B.blob,{contentType:'application/pdf',upsert:false}); if(ue) throw ue;
+  const {data,error}=await sb.storage.from('documents').createSignedUrl(path,30*24*3600); if(error) throw error;
+  B.link=data.signedUrl; B.linkPath=path; return B.link;
+};
+window.bilSmsModal=async function(){
+  const B=window._bilan, D=B.D; if(!D||!B.blob){ toast('Prépare d\'abord le bilan','err'); return; }
+  openModal(`<div class="modal-head"><h2>📱 Envoyer le bilan par SMS</h2><button class="x" onclick="closeModal()">${I.x}</button></div><div class="modal-body" style="min-height:160px;display:grid;place-items:center"><div class="spin"></div></div>`);
+  let link=''; let contacts=[];
+  try{ link=await bilLink(); }catch(e){ closeModal(); toast('Lien sécurisé impossible : '+(e.message||e),'err'); return; }
+  try{ contacts=(await bilContacts(D)).filter(c=>bilIsMobile(c.mobile)); }catch(e){ }
+  const grps=[...new Set(contacts.map(c=>c.grp))];
+  const msg='PREVA CONSEILS - Bilan sécurité incendie '+D.erp.nom+' ('+bilFr(D.from)+' au '+bilFr(D.to)+')'+(D.tauxConf!=null?' : conformité '+D.tauxConf+' %':'')+(D.levees?', '+D.levees+' réserve'+(D.levees>1?'s':'')+' levée'+(D.levees>1?'s':''):'')+'. PDF (valable 30 j) : '+link;
+  const cid=D.erp.client_id; let credits=null; try{ const inf=await smsPackInfo(cid); credits=(inf&&inf.pack)?(inf.solde||0):null; }catch(_){ }
+  openModal(`<div class="modal-head"><h2>📱 Envoyer le bilan par SMS</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <div class="bil-hint">Un SMS ne transporte pas de pièce jointe : le destinataire reçoit un <b>lien sécurisé</b> vers le PDF, valable <b>30 jours</b>.</div>
+      <div>${grps.map(g=>`<div class="bil-grp">${esc(g)}</div>${contacts.filter(c=>c.grp===g).map(c=>`<label class="bil-cb"><input type="checkbox" class="bil-sms-cb" value="${esc(bilNormTel(c.mobile))}"${c.def?' checked':''} onchange="bilSmsCount()"> ${esc(c.nom)} ${c.role?`<span class="role">${esc(c.role)}</span>`:''}<small>${esc(c.mobile)}</small></label>`).join('')}`).join('')||'<div style="font-size:12px;color:var(--muted)">Aucun contact avec un numéro mobile — saisissez un numéro ci-dessous.</div>'}</div>
+      <div class="fld" style="margin:0"><label>Autre numéro</label><input id="bil_sms_extra" placeholder="06 …" oninput="bilSmsCount()"></div>
+      <div class="fld" style="margin:0"><label>Message</label><textarea id="bil_sms_msg" rows="5" oninput="bilSmsCount()" style="width:100%;font:inherit;font-size:12.5px;line-height:1.55;border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:var(--surface);color:var(--ink);resize:vertical">${esc(msg)}</textarea></div>
+      <div class="bil-cnt" id="bil_sms_cnt" data-credits="${credits==null?'':credits}"></div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="bil_sms_go" onclick="bilSmsSend()">📱 Envoyer</button></div>`);
+  bilSmsCount();
+};
+window.bilSmsTos=function(){
+  const cbs=[...document.querySelectorAll('.bil-sms-cb:checked')].map(c=>c.value);
+  const extra=((document.getElementById('bil_sms_extra')||{}).value||'').split(/[,;]+/).map(s=>bilNormTel(s)).filter(s=>/^(\+33|0)[67]\d{8}$/.test(s));
+  return [...new Set([...cbs,...extra])];
+};
+window.bilSmsCount=function(){
+  const n=bilSmsTos().length; const m=((document.getElementById('bil_sms_msg')||{}).value||''); const seg=m.length<=160?1:Math.ceil(m.length/153);
+  const c=document.getElementById('bil_sms_cnt'); if(c){ const cr=c.dataset.credits; c.textContent=n+' SMS ('+seg+' segment'+(seg>1?'s':'')+' · '+m.length+' car.)'+(cr!==''?' · '+cr+' crédit'+(Number(cr)>1?'s':'')+' restant'+(Number(cr)>1?'s':''):''); }
+  const b=document.getElementById('bil_sms_go'); if(b) b.textContent='📱 Envoyer'+(n?' '+n+' SMS':'');
+};
+window.bilSmsSend=async function(){
+  const B=window._bilan, D=B.D; if(!D) return;
+  const to=bilSmsTos(); if(!to.length){ toast('Sélectionne ou saisis au moins un numéro mobile','err'); return; }
+  const msg=((document.getElementById('bil_sms_msg')||{}).value||'').trim(); if(!msg){ toast('Écris le message','err'); return; }
+  if(B.link&&!msg.includes(B.link)){ if(!confirm('Le message ne contient plus le lien vers le PDF. Envoyer quand même ?')) return; }
+  const btn=document.getElementById('bil_sms_go'); if(btn){ btn.disabled=true; btn.textContent='Envoi…'; }
+  try{
+    const cid=D.erp.client_id;
+    if(typeof smsGuard==='function' && !(await smsGuard(cid,to.length))){ if(btn){ btn.disabled=false; bilSmsCount(); } return; }
+    const {data,error}=await sb.functions.invoke('send-sms',{body:{to,message:msg}});
+    if(error||!data||!data.ok) throw new Error((error&&error.message)||(data&&data.error)||'Envoi SMS refusé');
+    const used=Math.max(to.length,Number(data.credits)||0)||to.length;
+    try{ if(typeof smsDebit==='function') await smsDebit(cid,used); }catch(_){ }
+    try{ const who=state.profile?.nom||state.user?.email||''; await sb.from('sms_scheduled').insert(to.map(m=>({destinataire:m,message:msg,send_at:new Date().toISOString(),statut:'sent',sent_at:new Date().toISOString(),contexte:{type:'bilan',erp:D.erp.nom,periode:D.from+'/'+D.to},created_by:who,client_id:cid,erp_id:D.erp.id}))); }catch(_){ }
+    closeModal(); toast(to.length+' SMS envoyé'+(to.length>1?'s':'')+' avec le lien du bilan ✓','ok');
+  }catch(e){ if(btn){ btn.disabled=false; bilSmsCount(); } toast('Envoi impossible : '+(e.message||e),'err'); }
 };
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -5679,6 +6177,7 @@ const NI={
  user:NICON('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
  trvx:NICON('<path d="M2 18h20"/><path d="M4 18v-3a8 8 0 0 1 5-7.4"/><path d="M20 18v-3a8 8 0 0 0-5-7.4"/><path d="M10 5a2 2 0 0 1 4 0v6h-4z"/>'),
  grad:NICON('<path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12.5V17c0 1.66 2.69 3 6 3s6-1.34 6-3v-4.5"/><path d="M22 10v6"/>'),
+ bilan:NICON('<path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6" rx=".8"/><rect x="12" y="8" width="3" height="10" rx=".8"/><rect x="17" y="5" width="3" height="13" rx=".8"/>'),
 };
 /* ── Packs SMS par client : solde, garde-fou, débit ── */
 function smsClientOfErp(erpId){ const e=(state.erps||[]).find(x=>x.id===erpId); return e?e.client_id:null; }
@@ -6525,7 +7024,7 @@ window.fxAdmDelVC=fxAdmDelVC;
 
 function getNAV(){ return [
   {link:['/','Tableau de bord',NI.dash]},
-  {sec:'etab',   titre:'Établissement',          ic:NI.etab,      items:[['/clients','Clients',NI.clients],['/erps','ERP',NI.erp],['/organisation','Organisation',NI.clients],['/plan-maintenance','Plan de maintenance',NI.plan],['/budget','Budget',NI.plan]]},
+  {sec:'etab',   titre:'Établissement',          ic:NI.etab,      items:[['/clients','Clients',NI.clients],['/erps','ERP',NI.erp],['/organisation','Organisation',NI.clients],['/plan-maintenance','Plan de maintenance',NI.plan],['/budget','Budget',NI.plan],['/bilan','Bilan',NI.bilan]]},
   {sec:'sitdeg', titre:'Situation dégradée',     ic:NI.alert,     items:[['/photos','Photos et vidéos',NI.cam],['/compte-rendu','Compte rendu',NI.cr]]},
   {sec:'prest',  titre:'Suivi des prestataires', ic:NI.briefcase, items:[['/prestataires','Prestataires',NI.wrench],['/conversations','Conversations',NI.chat],['/pointage','Pointage & journal',NI.clock]]},
   {sec:'suivi',  titre:'Suivi et conformité',    ic:NI.shield,    items:[['/interventions','Interventions',NI.tools],['/travaux','Travaux',NI.trvx],['/gpa','Garanties GPA',NI.checks],['/verifications','Vérifications & relances',NI.bell],['/reserves','Réserves',NI.tablo]]},
