@@ -20208,8 +20208,11 @@ window.sinOpen=async function(docId,erpId){
       </div>
     </div>
     <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button>
+      <span style="flex:1"></span>
+      <button class="btn ghost" id="sin_view" style="border-color:var(--primary);color:var(--primary)" title="Voir le dossier à l'écran sans lancer l'aperçu PDF — le formulaire reste ouvert">👁 Visualiser</button>
       <button class="btn primary" id="sin_go">Générer le dossier</button></div>`);
-    document.getElementById('sin_go').onclick=sinGenerate;
+    document.getElementById('sin_go').onclick=()=>sinGenerate(false);
+    document.getElementById('sin_view').onclick=()=>sinGenerate(true);
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
 };
 
@@ -20251,10 +20254,12 @@ window.sinBuild=function(ctx,form){
   return {doc,prest,origine,pv,pieces,ev,verd,periode,phSel};
 };
 
-window.sinGenerate=async function(){
+window.sinGenerate=async function(preview){
   const ctx=window._sinCtx; if(!ctx) return;
   const g=id=>document.getElementById(id);
-  const btn=g('sin_go'); btn.disabled=true; btn.textContent='Génération…';
+  const btn=g(preview?'sin_view':'sin_go'); const lbl=preview?'👁 Visualiser':'Générer le dossier';
+  btn.disabled=true; btn.textContent=preview?'Ouverture…':'Génération…';
+  const restore=()=>{ if(btn){ btn.disabled=false; btn.textContent=lbl; } };
   try{
     const form={
       docId:g('sin_doc').value||null,
@@ -20265,7 +20270,7 @@ window.sinGenerate=async function(){
       obs:(g('sin_obs')?g('sin_obs').value:'').trim(),
       photoIds:[...document.querySelectorAll('.sin_ph:checked')].map(x=>x.value)
     };
-    if(!form.dateSin){ toast('Renseignez la date du sinistre','err'); btn.disabled=false; btn.textContent='Générer le dossier'; return; }
+    if(!form.dateSin){ toast('Renseignez la date du sinistre','err'); restore(); return; }
     // compléments : origine, PV, prestataire du dossier choisi
     if(form.docId){
       const dsel=ctx.signes.find(s=>s.id===form.docId);
@@ -20278,12 +20283,15 @@ window.sinGenerate=async function(){
     const D=sinBuild(ctx,form);
     const html=sinHtml(ctx,form,D);
     const w=window.open('','_blank');
-    if(!w){ toast('Autorisez les fenêtres pop-up pour générer le dossier','err'); btn.disabled=false; btn.textContent='Générer le dossier'; return; }
-    w.document.write(html.replace('</body>','<style>@media print{.noprint{display:none !important}}</style>'+'<button class="noprint" onclick="window.close();setTimeout(function(){if(!window.closed){history.back()}},300)" title="Fermer cette page" style="position:fixed;left:14px;top:14px;z-index:9999;background:#0f172a;color:#fff;border:none;border-radius:18px;padding:18px 32px;font-weight:800;font-size:28px;line-height:1;font-family:Arial,sans-serif;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.4)">✕ Fermer</button>'+'<script>window.addEventListener("load",function(){setTimeout(function(){try{window.print()}catch(e){}},500)})<\/script>'+'</body>')); w.document.close();
+    if(!w){ toast('Autorisez les fenêtres pop-up pour '+(preview?'visualiser':'générer')+' le dossier','err'); restore(); return; }
+    const closeBtn='<style>@media print{.noprint{display:none !important}}</style>'+'<button class="noprint" onclick="window.close();setTimeout(function(){if(!window.closed){history.back()}},300)" title="Fermer cette page" style="position:fixed;left:14px;top:14px;z-index:9999;background:#0f172a;color:#fff;border:none;border-radius:18px;padding:18px 32px;font-weight:800;font-size:28px;line-height:1;font-family:Arial,sans-serif;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.4)">✕ Fermer</button>';
+    const autoPrint=preview?'':'<script>window.addEventListener("load",function(){setTimeout(function(){try{window.print()}catch(e){}},500)})<\/script>';
+    w.document.write(html.replace('</body>',closeBtn+autoPrint+'</body>')); w.document.close();
+    if(preview){ toast('Aperçu du dossier ouvert — le formulaire reste ouvert pour ajuster','ok'); restore(); return; }
     closeModal();
     toast('Dossier généré — l\'aperçu PDF s\'ouvre : enregistrez en PDF ou imprimez','ok');
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
-  finally{ if(btn){ btn.disabled=false; btn.textContent='Générer le dossier'; } }
+  finally{ restore(); }
 };
 
 /* Rendu HTML imprimable — fidèle au gabarit figé */
