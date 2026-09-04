@@ -865,6 +865,8 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
      plus aucun élément ne dépend du conteneur — fini le scroll qui se fige (bug iOS des
      conteneurs internes). L'overflow-x du document supprime tout jeu latéral. */
   html,body{height:auto;min-height:100%;overflow-x:hidden}
+  /* clip (et non hidden) sur body : même découpe latérale, mais body ne devient pas un conteneur de défilement — les en-têtes position:sticky (Classeur) restent collés en défilant. */
+  body{overflow-x:clip}
   .tb-brand{margin-right:auto}
   .topbar .scope{order:3;width:100%;display:flex;gap:8px;margin:0}
   .topbar .scope-sel{flex:1;min-width:0;max-width:none}
@@ -1073,6 +1075,7 @@ body.modal-open{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 }
 @media(max-width:640px){
   html,body{overflow-x:hidden}
+  body{overflow-x:clip}
   #backbar{padding:8px 14px 0 !important}
   .content{padding:14px}
   .topbar{flex-wrap:wrap;gap:8px;padding:9px 12px;min-height:0}
@@ -15143,6 +15146,29 @@ function gedxStyle(){ if(document.getElementById('gedx-style'))return; const st=
 .gedx-dr .dt{flex:0 0 auto;text-align:right;font-size:12px;color:#475569;font-weight:700;min-width:60px}
 .gedx-dr .dt small{display:block;color:var(--muted-2);font-weight:500;font-size:10.5px}
 .gedx-acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center;flex:0 0 auto;max-width:46%}
+/* Bandeaux clients : accordéon exclusif (un ouvert, les autres en lignes compactes) */
+.gedx-band{margin-bottom:12px;border-left:5px solid #2563eb;overflow:clip;transition:margin .15s,box-shadow .15s}
+.gedx-hd{display:flex;align-items:center;gap:10px;margin:-20px -20px -20px;padding:12px 16px;background:linear-gradient(135deg,#2563eb,#2563ebcc);cursor:pointer;user-select:none;flex-wrap:wrap;transition:padding .15s}
+.gedx-hd .chev{color:#fff;font-size:13px;display:inline-block;transition:transform .2s}
+.gedx-hd h2{font-size:16px;margin:0;color:#fff;font-family:var(--fd)}
+.gedx-hd .cnt{margin-left:auto;background:rgba(255,255,255,.22);color:#fff;font-size:12px;font-weight:600;padding:2px 10px;border-radius:999px;white-space:nowrap}
+.gedx-band.open{border-left-color:#1d4ed8;box-shadow:0 10px 28px rgba(37,99,235,.16)}
+.gedx-band.open .gedx-hd{margin-bottom:6px;position:sticky;top:var(--gedtop,var(--tbh,80px));z-index:5;box-shadow:0 4px 12px rgba(15,23,42,.12)}
+.gedx-band.open .gedx-hd .chev{transform:rotate(90deg)}
+.gedx-band.min{margin-bottom:6px;border-left-width:3px;box-shadow:none}
+.gedx-band.min .gedx-hd{padding:6px 14px;background:linear-gradient(135deg,#5b8def,#7aa3f0)}
+.gedx-band.min .gedx-hd h2{font-size:12.5px}
+.gedx-band.min .gedx-hd .cnt{font-size:10.5px;padding:1px 8px}
+.gedx-band.min .gedx-hd .chev{font-size:10px}
+.gedx-band.min:hover .gedx-hd{background:linear-gradient(135deg,#2563eb,#3b82f6)}
+.gedx-tools{display:flex;justify-content:flex-end;margin:0 0 8px}
+.gedx-tools a{font-size:12px;font-weight:700;color:#1d4ed8;cursor:pointer;text-decoration:none}
+.gedx-tools a:hover{text-decoration:underline}
+@media(max-width:840px){
+  .gedx-band.min .gedx-hd{padding:5px 12px}
+  .gedx-band.min .gedx-hd h2{font-size:12px}
+  .gedx-band.open .gedx-hd h2{font-size:15px}
+}
 @media(max-width:700px){
   .gedx-dr{flex-wrap:wrap}
   .gedx-dr .bx{flex:1 1 calc(100% - 110px)}
@@ -15179,7 +15205,7 @@ function gedRenderList(){
     if(t==='maintenance préventive'||t==='maintenance preventive') return 'Maintenance préventive';
     if(t==='maintenance corrective') return 'Maintenance corrective';
     if(t.indexOf('maintenance')>=0) return 'Maintenance';
-    if(t==='consignes de sécurité'||t==='consignes de securite'||t==='plan de prévention'||t==='plan de prevention'||t==='permis de feu') return 'Sécurité';
+    if(t==='consignes de sécurité'||t==='consignes de securite'||t==='plan de prévention'||t==='plan de prevention'||t==='permis de feu'||t==='feuille de présence'||t==='feuille de presence') return 'Sécurité';
     if(t==='compte rendu') return 'Compte rendu';
     if(t==='rapport') return 'Rapport';
     if(t==='pv de réception'||t==='pv de reception'||t==='pv réception'||t==='pv reception') return 'PV de réception';
@@ -15202,9 +15228,14 @@ function gedRenderList(){
   const searching=!!(q||rf||pf);
   const byClient={}; list.forEach(d=>{ const cid=clientOf(d); (byClient[cid]=byClient[cid]||[]).push(d); });
   const cids=Object.keys(byClient).sort((a,b)=>clientNm(a).localeCompare(clientNm(b)));
-  host.innerHTML=cids.map(cid=>{
+  // Accordéon exclusif : un seul client ouvert ; les autres se replient en lignes compactes (toujours cliquables)
+  const openCid = searching ? null : ([...window._gedOpen].find(x=>cids.includes(x))||null);
+  const tools = openCid ? `<div class="gedx-tools"><a onclick="gedFermerTout()">Tout replier</a></div>` : '';
+  try{ const tb=document.querySelector('.topbar'); const th=tb?Math.round(tb.getBoundingClientRect().height):0; if(th>0) host.style.setProperty('--gedtop',th+'px'); }catch(_){}
+  host.innerHTML=tools+cids.map(cid=>{
     const docs=byClient[cid];
-    const open = searching || window._gedOpen.has(cid);
+    const open = searching || cid===openCid;
+    const bandCls = searching ? '' : (open ? ' open' : (openCid ? ' min' : ''));
     const byType={}; docs.forEach(d=>{ const t=d.type||'Autre'; (byType[t]=byType[t]||[]).push(d); });
     const CAT_ORDER=['Commission de sécurité','Bureau de contrôle','Maintenance préventive','Maintenance corrective','Maintenance','Compte rendu','Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Courrier mairie','Mail','Plans','DOE','Attestation','Sécurité','Autres'];
     const CAT_ICON={'Attestation':'✅','Commission de sécurité':'⚖️','Bureau de contrôle':'🔎','Maintenance préventive':'🗓️','Maintenance corrective':'🔧','Maintenance':'🔧','Compte rendu':'📝','Rapport':'📋','Devis':'📝','Devis signé':'✍️','Facture':'🧾',"Bon d'intervention":'🛠️','PV de réception':'🤝','Courrier mairie':'🏛️','Mail':'📧','Plans':'🗺️','DOE':'📐','Sécurité':'🛟','Autres':'📄'};
@@ -15218,7 +15249,7 @@ function gedRenderList(){
       if(t==='maintenance préventive'||t==='maintenance preventive') return 'Maintenance préventive';
       if(t==='maintenance corrective') return 'Maintenance corrective';
       if(t.indexOf('maintenance')>=0) return 'Maintenance';
-      if(t==='consignes de sécurité'||t==='consignes de securite'||t==='plan de prévention'||t==='plan de prevention'||t==='permis de feu') return 'Sécurité';
+      if(t==='consignes de sécurité'||t==='consignes de securite'||t==='plan de prévention'||t==='plan de prevention'||t==='permis de feu'||t==='feuille de présence'||t==='feuille de presence') return 'Sécurité';
       if(t==='compte rendu') return 'Compte rendu';
       if(t==='rapport') return 'Rapport';
       if(t==='pv de réception'||t==='pv de reception'||t==='pv réception'||t==='pv reception') return 'PV de réception';
@@ -15313,11 +15344,11 @@ function gedRenderList(){
       }).join('');
       body=`<div class="gedx-tgrid">${parts}</div>`;
     }
-    return `<div class="card" style="margin-bottom:14px;border-left:5px solid #2563eb;overflow:hidden"><div class="card-pad">
-      <div onclick="gedToggle('${cid}')" title="Cliquer pour ${open?'replier':'déplier'}" style="display:flex;align-items:center;gap:10px;margin:-13px -13px ${open?'4px':'-13px'};padding:12px 16px;background:linear-gradient(135deg,#2563eb,#2563ebcc);cursor:pointer;user-select:none;flex-wrap:wrap">
-        <span data-gchev="${cid}" style="color:#fff;font-size:13px;display:inline-block;transition:transform .2s;transform:rotate(${open?'90':'0'}deg)">▶</span>
-        <h2 style="font-size:16px;margin:0;color:#fff">${esc(clientNm(cid))}</h2>
-        <span style="margin-left:auto;background:rgba(255,255,255,.22);color:#fff;font-size:12px;font-weight:600;padding:2px 10px;border-radius:999px">${docs.length} doc(s)</span>
+    return `<div class="card gedx-band${bandCls}" id="gedband-${cid}"><div class="card-pad">
+      <div class="gedx-hd" data-ghd="${cid}" onclick="gedToggle('${cid}')" title="Cliquer pour ${open?'replier':'déplier'}">
+        <span class="chev" data-gchev="${cid}">▶</span>
+        <h2>${esc(clientNm(cid))}</h2>
+        <span class="cnt">${docs.length}${bandCls===' min'?'':' doc(s)'}</span>
       </div>
       <div id="gedbody-${cid}" style="display:${open?'block':'none'}">${body}</div>
     </div></div>`;
@@ -15325,7 +15356,7 @@ function gedRenderList(){
 }
 window.gedRenderList=gedRenderList;
 
-const GED_TYPES=['Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Compte rendu','Bureau de contrôle RVRAT','Bureau de contrôle RVRE','PV commission','Courrier mairie','Bureau de contrôle','Maintenance préventive','Maintenance corrective','Consignes de sécurité','Plan de prévention','Permis de feu','Courrier','Attestation','DOE','Plan','Preuve','Photo','Autre'];
+const GED_TYPES=['Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Compte rendu','Bureau de contrôle RVRAT','Bureau de contrôle RVRE','PV commission','Courrier mairie','Bureau de contrôle','Maintenance préventive','Maintenance corrective','Consignes de sécurité','Plan de prévention','Permis de feu','Feuille de présence','Courrier','Attestation','DOE','Plan','Preuve','Photo','Autre'];
 const GED_CATEGORIES=[['rapport','Rapport'],['devis','Devis'],['devis_signe','Devis signé'],['facture','Facture'],['bon_intervention',"Bon d'intervention"],['pv_reception','PV de réception'],['mail','Mail'],['autre','Autre']];
 
 // Affiche directement le contenu d'un mail reçu (expéditeur, objet, date, corps) dans une modale
@@ -21055,26 +21086,22 @@ window.delDoc=async function(id){
 };
 window.gedToggle=function(cid){
   window._gedOpen=window._gedOpen||new Set();
-  const el=document.getElementById('gedbody-'+cid); if(!el)return;
-  const open=el.style.display!=='none';
-  if(!open){
-    // Accordéon exclusif : ouvrir un client replie tous les autres
-    [...window._gedOpen].forEach(o=>{
-      if(o===cid) return;
-      const b=document.getElementById('gedbody-'+o);
-      if(b){ b.style.display='none';
-        const ch=document.querySelector('[data-gchev="'+o+'"]'); if(ch) ch.style.transform='rotate(0deg)';
-        const hd=b.previousElementSibling; if(hd) hd.style.marginBottom='-13px'; }
-      window._gedOpen.delete(o);
-    });
-  }
-  el.style.display=open?'none':'block';
-  if(open) window._gedOpen.delete(cid); else window._gedOpen.add(cid);
-  const chev=document.querySelector('[data-gchev="'+cid+'"]'); if(chev) chev.style.transform=open?'rotate(0deg)':'rotate(90deg)';
-  const head=el.previousElementSibling; if(head) head.style.marginBottom=open?'-13px':'4px';
-  // La page se cale sur le bandeau ouvert (le repli des autres fait remonter le contenu)
-  if(!open){ const hd=el.previousElementSibling; if(hd) setTimeout(()=>{ try{ hd.scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){ } },80); }
+  const wasOpen=window._gedOpen.has(cid);
+  // Accordéon exclusif : ouvrir un client replie tous les autres (en lignes compactes) ; re-cliquer l'ouvert replie tout
+  window._gedOpen=new Set(wasOpen?[]:[cid]);
+  gedRenderList();
+  if(!wasOpen) gedScrollTo(cid);
 };
+window.gedFermerTout=function(){ window._gedOpen=new Set(); gedRenderList(); const h=document.getElementById('ged_list'); if(h) gedScrollEl(h); };
+// Cale la page juste sous le bandeau du haut (fixe sur téléphone, collé sur ordinateur)
+function gedScrollEl(el,extra){
+  try{
+    const tb=document.querySelector('.topbar'); const th=tb?tb.getBoundingClientRect().height:0;
+    const y=el.getBoundingClientRect().top+window.scrollY-th-(extra==null?10:extra);
+    window.scrollTo({top:Math.max(0,y),behavior:'smooth'});
+  }catch(_){ try{ el.scrollIntoView({behavior:'smooth',block:'start'}); }catch(__){} }
+}
+window.gedScrollTo=function(cid){ setTimeout(()=>{ const el=document.getElementById('gedband-'+cid); if(el) gedScrollEl(el); },60); };
 window.gedTypeToggle=function(tkey){
   window._gedTypeOpen=window._gedTypeOpen||new Set();
   const el=document.getElementById('gedtbody-'+tkey); if(!el) return;
@@ -21339,7 +21366,7 @@ window.cs2Load=async function(erpId){
     sb.from('contrats').select('id,nom,prestataire_id,date_debut,duree_mois').eq('erp_id',erpId),
     sb.from('prestataires').select('id,nom,type,categorie,email_rapports,contacts,affaires,client_id,client_ids,telephone'),
     S.id?sb.from('cs_autocontrole').select('*').eq('session_id',S.id).order('ordre'):Promise.resolve({data:[]}),
-    dateCs?sb.from('cs_confirmations').select('prestataire_id,created_at').eq('erp_id',erpId).eq('date_cs',dateCs):Promise.resolve({data:[]}),
+    dateCs?sb.from('cs_confirmations').select('prestataire_id,confirmed_at').eq('erp_id',erpId).eq('date_cs',dateCs):Promise.resolve({data:[]}),
     dateCs?sb.from('cs_confirm_links').select('prestataire_id,created_at').eq('erp_id',erpId).eq('date_cs',dateCs):Promise.resolve({data:[]}),
     sb.from('organisation_personnes').select('id,nom,fonction,email,telephone,erp_ids,signataire').eq('client_id',erp.client_id),
     sb.from('client_contacts').select('id,nom,prenom,fonction,email,mobile,telephone').eq('client_id',erp.client_id)
