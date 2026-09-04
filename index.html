@@ -21125,218 +21125,944 @@ function csxWho(label, smsPrefix){
   const role=smsPrefix ? ('SMS'+(p.role?' — '+csxCap(p.role):'')) : csxCap(p.role);
   return `<b>${esc(p.nom)}</b>${role?' · '+esc(role):''}`;
 }
+/* ═══════════════════════════════════════════════════════════════════
+   COMMISSION DE SÉCURITÉ v2 — préparer · jour J · clôturer
+   Dossier de commission (plan de maintenance + Classeur), prescriptions,
+   rétro-planning, assistance technique (existant), auto-contrôle terrain,
+   contacts officiels, projection des pièces, envoi e-mail, clôture.
+   Session = ligne cs_sessions par ERP (statut preparation → cloturee).
+   ═══════════════════════════════════════════════════════════════════ */
+window._cs2={erpId:null,S:null,D:null,dossierBlob:null,dossierUrl:null,acBlob:null,acUrl:null};
+function cs2Style(){ if(document.getElementById('cs2-style'))return; const st=document.createElement('style'); st.id='cs2-style'; st.textContent=`
+.cs2-band{background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);color:#fff;border-radius:16px;padding:18px 20px;display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;margin-bottom:14px}
+.cs2-band .k{font-size:10.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.75}
+.cs2-band .nm{font-size:18px;font-weight:800;margin:4px 0 6px}
+.cs2-band .meta{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;opacity:.92}
+.cs2-band .inputs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}
+.cs2-band .inp{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);border-radius:10px;padding:7px 10px;min-width:0}
+.cs2-band .inp small{display:block;font-size:9.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;opacity:.8;margin-bottom:3px}
+.cs2-band .inp input,.cs2-band .inp select{width:100%;background:transparent;border:none;color:#fff;font:inherit;font-size:14px;font-weight:700;outline:none;padding:0}
+.cs2-band .inp select option{color:#0f172a}
+.cs2-band .inp input::-webkit-calendar-picker-indicator{filter:invert(1)}
+.cs2-band .inp .file{font-size:13px;font-weight:700;cursor:pointer;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cs2-jj{text-align:center;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:16px;padding:14px 20px;min-width:150px}
+.cs2-jj .n{font-size:42px;font-weight:800;line-height:1;letter-spacing:-1px}
+.cs2-jj .l{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;opacity:.85;margin-top:4px}
+.cs2-jj .ok{margin-top:9px;font-size:11.5px;background:#fff;color:#1e3a5f;border-radius:20px;padding:3px 10px;font-weight:800;display:inline-block}
+.cs2-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.cs2-step{background:var(--surface);border:1.5px solid var(--line);border-radius:14px;padding:11px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;text-align:left;font-family:inherit}
+.cs2-step.on{border-color:#2563eb;background:#f6f9ff}
+.cs2-step.done{border-color:#bbf7d0}
+.cs2-step .no{width:30px;height:30px;border-radius:50%;background:#e2e8f0;color:#475569;display:grid;place-items:center;font-weight:800;flex:0 0 auto}
+.cs2-step.on .no{background:#2563eb;color:#fff}
+.cs2-step.done .no{background:#16a34a;color:#fff}
+.cs2-step b{display:block;font-size:13px;color:var(--ink)}
+.cs2-step small{font-size:11px;color:var(--muted)}
+.cs2-step .pc{margin-left:auto;font-weight:800;color:#1d4ed8;font-size:13px;white-space:nowrap}
+.cs2-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:14px;align-items:start}
+.cs2-col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.cs2-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;min-width:0}
+.cs2-ch{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap}
+.cs2-ch h2{font-size:16.5px;font-weight:800;letter-spacing:-.2px;margin:0;order:1}
+.cs2-ch .sub{color:var(--muted);font-size:12px;flex-basis:100%;order:3;margin-top:-2px}
+.cs2-ch .r{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap;order:2}
+.cs2-cb{padding:12px 16px}
+.cs2-gauge{display:flex;align-items:center;gap:14px;margin-bottom:10px}
+.cs2-gauge .bar{flex:1;height:10px;border-radius:6px;background:#eef2f7;overflow:hidden}
+.cs2-gauge .bar i{display:block;height:100%;background:linear-gradient(90deg,#16a34a,#22c55e);border-radius:6px}
+.cs2-gauge b{font-size:16px;color:#16a34a}
+.cs2-gauge small{font-size:11px;color:var(--muted)}
+.cs2-piece{display:grid;grid-template-columns:22px 1fr auto auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:12.5px}
+.cs2-piece:last-child{border-bottom:none}
+.cs2-piece .st{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800;color:#fff}
+.cs2-piece .st.ok{background:#16a34a}.cs2-piece .st.warn{background:#d97706}.cs2-piece .st.ko{background:#dc2626}
+.cs2-piece .nm{min-width:0}.cs2-piece .nm b{display:block;font-weight:600}
+.cs2-piece .nm small{color:var(--muted);font-size:11px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cs2-piece .dt{font-size:11px;color:var(--muted);white-space:nowrap}
+.cs2-sect{font-size:10.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:#8494ab;margin:10px 0 4px;display:flex;align-items:center;gap:8px}
+.cs2-sect::after{content:"";flex:1;height:1px;background:var(--line)}
+.cs2-presc{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid #f1f5f9;font-size:12.5px}
+.cs2-presc:last-child{border-bottom:none}
+.cs2-presc .no{font-weight:800;font-size:10.5px;color:#1a44ad;background:#eef3fb;border:1px solid #c9d7ef;border-radius:5px;padding:1px 7px;flex:0 0 auto;margin-top:1px}
+.cs2-presc .tx{min-width:0;flex:1}.cs2-presc .tx b{display:block;font-weight:600}.cs2-presc .tx small{color:var(--muted);font-size:11px}
+.cs2-chip{display:inline-block;font-size:10.5px;font-weight:700;border-radius:20px;padding:2px 9px;white-space:nowrap;flex:0 0 auto}
+.cs2-chip.g{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}
+.cs2-chip.a{background:#fffbeb;color:#b45309;border:1px solid #fde68a}
+.cs2-chip.r{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+.cs2-chip.b{background:#eaf1ff;color:#1d4ed8;border:1px solid #bcd0f7}
+.cs2-chip.n{background:#f1f5f9;color:#475569;border:1px solid var(--line)}
+.cs2-alert{display:flex;gap:10px;align-items:flex-start;border:1px solid #fecaca;background:#fef2f2;border-radius:10px;padding:10px 12px;font-size:12px;color:#991b1b;margin-bottom:10px;line-height:1.5}
+.cs2-tl{position:relative;margin-left:58px;border-left:2px solid #d7dce6;padding:4px 0}
+.cs2-ev{position:relative;padding:0 0 13px 18px}
+.cs2-ev::before{content:'';position:absolute;left:-7px;top:2px;width:11px;height:11px;border-radius:50%;background:#fff;border:2.5px solid #94a3b8}
+.cs2-ev.done::before{background:#16a34a;border-color:#16a34a}
+.cs2-ev.now::before{background:#2563eb;border-color:#2563eb;box-shadow:0 0 0 4px #dbeafe}
+.cs2-ev .j{position:absolute;left:-58px;top:0;width:42px;text-align:right;font-size:11.5px;font-weight:800;color:var(--muted)}
+.cs2-ev.now .j{color:#1d4ed8}.cs2-ev.done .j{color:#16a34a}
+.cs2-ev .t{font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cs2-ev .t label{font-weight:500;font-size:11px;color:var(--muted);display:inline-flex;align-items:center;gap:4px;cursor:pointer}
+.cs2-ev .s{font-size:11px;color:var(--muted)}
+.cs2-ev .act{margin-top:5px;display:flex;gap:6px;flex-wrap:wrap}
+.cs2-pr{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:12.5px}
+.cs2-pr:last-child{border-bottom:none}
+.cs2-pr .av{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-weight:800;font-size:10px;color:#fff;flex:0 0 auto}
+.cs2-pr .nm{min-width:0;flex:1}.cs2-pr .nm b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cs2-pr .nm small{color:var(--muted);font-size:11px}
+.cs2-ac{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
+.cs2-ac .it{border:1px solid var(--line);border-radius:9px;padding:7px 10px;font-size:12px;display:flex;align-items:center;gap:8px;min-width:0}
+.cs2-ac .it.custom{border-style:dashed;border-color:#bcd0f7;background:#f6f9ff}
+.cs2-ac .bx{width:18px;height:18px;border-radius:4px;border:1.5px solid #94a3b8;display:grid;place-items:center;font-size:11px;color:#fff;flex:0 0 auto;cursor:pointer;background:#fff;font-family:inherit;padding:0}
+.cs2-ac .bx.on{background:#16a34a;border-color:#16a34a}
+.cs2-ac .bx.ko{background:#dc2626;border-color:#dc2626}
+.cs2-ac .lb{flex:1;min-width:0;cursor:pointer}
+.cs2-ac .ph{flex:0 0 auto;width:26px;height:26px;border-radius:7px;border:1px solid var(--line);background:#fff;display:grid;place-items:center;cursor:pointer;color:#64748b;font-size:13px}
+.cs2-ac .ph.has{border-color:#16a34a;color:#16a34a;background:#f0fdf4}
+.cs2-ac .del{flex:0 0 auto;border:none;background:none;color:#94a3b8;cursor:pointer;font-size:14px;padding:0 2px}
+.cs2-addrow{margin-top:10px;border:1px dashed #bcd0f7;border-radius:10px;padding:9px 11px;background:#f6f9ff;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cs2-addrow input{flex:1;min-width:180px;border:1px solid #cbd5e1;border-radius:8px;padding:7px 10px;font:inherit;font-size:12.5px}
+.cs2-kit{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.cs2-kit>div{border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:12px}
+.cs2-kit b{display:block;font-size:12.5px;margin-bottom:4px}
+.cs2-kit small{color:var(--muted);line-height:1.5}
+.cs2-hist{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
+.cs2-hist>div{flex:0 0 160px;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:11.5px}
+.cs2-hist b{display:block;font-size:12.5px}.cs2-hist small{color:var(--muted)}
+.cs2-foot{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px;border-top:1px solid var(--line);background:var(--surface-2,#f6f8fb);border-radius:0 0 14px 14px}
+.cs2-note{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid #f1f5f9;font-size:12.5px}
+.cs2-note .t{color:var(--muted);font-size:11px;white-space:nowrap}
+/* projection */
+.cs2-proj{position:fixed;inset:0;z-index:9000;background:#f3f5f9;color:#0f172a;display:grid;grid-template-columns:270px 1fr;grid-template-rows:auto 1fr auto;font-family:inherit}
+.cs2-proj .bar{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:10px 18px;background:#fff;border-bottom:1px solid #e2e8f0}
+.cs2-proj .bar .ttl b{display:block;font-size:15px;font-weight:800}.cs2-proj .bar .ttl small{font-size:12px;color:#64748b}
+.cs2-proj .bar .crumb{margin-left:14px;padding-left:14px;border-left:1px solid #e2e8f0;font-size:12.5px;color:#64748b}
+.cs2-proj .bar .crumb b{color:#0f172a}
+.cs2-proj .bar .r{margin-left:auto;display:flex;gap:7px}
+.cs2-proj .bt{border:1px solid #cbd5e1;border-radius:9px;padding:7px 13px;font-size:12.5px;font-weight:700;color:#334155;background:#fff;cursor:pointer;font-family:inherit;white-space:nowrap}
+.cs2-proj .bt.mail{background:#1a44ad;border-color:#1a44ad;color:#fff}
+.cs2-proj .bt.x{background:#0f172a;border-color:#0f172a;color:#fff}
+.cs2-proj .som{background:#fff;border-right:1px solid #e2e8f0;overflow-y:auto;display:flex;flex-direction:column;min-height:0}
+.cs2-proj .som .list{flex:1;padding:8px 0}
+.cs2-proj .som .h{display:flex;justify-content:space-between;padding:9px 16px 4px;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#8494ab}
+.cs2-proj .som .it{display:grid;grid-template-columns:30px 1fr auto;gap:6px;align-items:center;padding:6px 16px 6px 12px;color:#334155;border-left:3px solid transparent;font-size:12.5px;line-height:1.25;cursor:pointer;background:none;border-top:none;border-right:none;border-bottom:none;width:100%;text-align:left;font-family:inherit}
+.cs2-proj .som .it .no{font-weight:800;color:#a3adbd;font-size:11px}
+.cs2-proj .som .it .st{width:8px;height:8px;border-radius:50%}
+.cs2-proj .som .it .st.ok{background:#16a34a}.cs2-proj .som .it .st.warn{background:#d97706}.cs2-proj .som .it .st.ko{background:#dc2626}
+.cs2-proj .som .it.on{background:#eef3ff;border-left-color:#1a44ad;color:#0f172a;font-weight:700}
+.cs2-proj .som .it.on .no{color:#1a44ad}
+.cs2-proj .som .sum{border-top:1px solid #e2e8f0;padding:10px 16px;font-size:11px;color:#64748b;display:flex;gap:10px;flex-wrap:wrap}
+.cs2-proj .stage{position:relative;display:grid;grid-template-rows:1fr auto;min-height:0;background:#f3f5f9;background-image:radial-gradient(#dfe4ec 1px,transparent 1px);background-size:20px 20px}
+.cs2-proj .view{position:relative;display:flex;align-items:center;justify-content:center;padding:16px 60px 8px;min-height:0;overflow:hidden}
+.cs2-proj .view canvas,.cs2-proj .view img.doc{max-height:100%;max-width:100%;box-shadow:0 12px 34px rgba(15,23,42,.18),0 0 0 1px #d7dce6;background:#fff}
+.cs2-proj .nav{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;padding:0;line-height:1;border-radius:50%;background:#fff;border:1px solid #cbd5e1;display:grid;place-items:center;color:#334155;box-shadow:0 4px 12px rgba(15,23,42,.12);cursor:pointer;font-size:20px;z-index:2;font-family:inherit}
+.cs2-proj .nav.l{left:12px}.cs2-proj .nav.r{right:12px}
+.cs2-proj .thumbs{display:flex;align-items:center;justify-content:center;gap:8px;padding:6px 12px 14px;font-size:11px;color:#94a3b8}
+.cs2-proj .thumbs .th{width:26px;height:36px;background:#fff;border:1px solid #cbd5e1;border-radius:2px;cursor:pointer;position:relative}
+.cs2-proj .thumbs .th.on{border:2px solid #1a44ad;box-shadow:0 0 0 3px rgba(26,68,173,.15)}
+.cs2-proj .thumbs .kbd b{display:inline-block;border:1px solid #cbd5e1;border-radius:4px;padding:0 5px;font-weight:700;color:#475569;background:#fff;font-size:10px}
+.cs2-proj .foot{grid-column:1/-1;display:flex;align-items:center;gap:16px;padding:8px 18px;background:#fff;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b}
+.cs2-proj .foot .prog{flex:1;height:5px;background:#e9edf3;border-radius:6px;overflow:hidden}
+.cs2-proj .foot .prog i{display:block;height:100%;background:#1a44ad}
+.cs2-proj .inter{width:min(720px,80%);background:#fff;border-radius:14px;box-shadow:0 12px 34px rgba(15,23,42,.14),0 0 0 1px #d7dce6;overflow:hidden;text-align:center}
+.cs2-proj .inter .top{height:6px;background:linear-gradient(90deg,#0f2a6b,#2563eb)}
+.cs2-proj .inter .in{padding:30px 36px 28px}
+.cs2-proj .inter .kk{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#a3adbd;font-weight:800}
+.cs2-proj .inter .pn{font-size:56px;font-weight:800;color:#1a44ad;line-height:1;margin:8px 0 10px;letter-spacing:-.03em}
+.cs2-proj .inter h2{font-size:24px;font-weight:800;line-height:1.15}
+.cs2-proj .inter .meta{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0 16px;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;padding:12px 0}
+.cs2-proj .inter .meta small{display:block;font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#a3adbd;margin-bottom:3px}
+.cs2-proj .inter .meta b{font-size:13.5px}
+.cs2-proj .lev{display:grid;grid-template-columns:1.05fr 1fr;gap:18px;padding:18px 26px;min-height:0;height:100%;width:100%}
+.cs2-proj .lev .ph{border-radius:12px;position:relative;overflow:hidden;background:#cbd5e1;box-shadow:0 10px 26px rgba(15,23,42,.16),0 0 0 1px #d7dce6;display:flex;align-items:flex-end;min-height:0}
+.cs2-proj .lev .ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#e2e8f0}
+.cs2-proj .lev .ph .cap{position:relative;background:rgba(255,255,255,.96);padding:10px 14px;font-size:12px;color:#64748b;width:100%;border-top:1px solid #e2e8f0}
+.cs2-proj .lev .ph .cap b{color:#0f172a;display:block;font-size:13px}
+.cs2-proj .lev .right{display:grid;grid-template-rows:1fr auto;gap:12px;min-height:0}
+.cs2-proj .lev .att{background:#fff;border-radius:12px;padding:16px 18px;position:relative;box-shadow:0 10px 26px rgba(15,23,42,.14),0 0 0 1px #d7dce6;overflow:auto}
+.cs2-proj .lev .att .kk{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#a3adbd;font-weight:800}
+.cs2-proj .lev .att h3{font-size:16px;font-weight:800;color:#0f2a6b;margin:4px 0 10px}
+.cs2-proj .lev .att .row{display:grid;grid-template-columns:90px 1fr;gap:8px;font-size:12px;padding:6px 0;border-top:1px solid #f1f5f9}
+.cs2-proj .lev .att .row small{color:#64748b;font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.08em;padding-top:2px}
+.cs2-proj .stamp{position:absolute;right:7%;bottom:8%;border:2px solid #16a34a;color:#16a34a;font-weight:800;font-size:13px;padding:4px 11px;transform:rotate(-7deg);letter-spacing:.08em;border-radius:5px;background:rgba(255,255,255,.9)}
+.cs2-proj .stamp.ko{border-color:#dc2626;color:#dc2626}
+.cs2-proj .sigbox{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:16px}
+.cs2-proj .sigbox img{height:56px;background:#fff;border-radius:6px;border:1px solid #dcfce7;padding:4px}
+.cs2-proj .sigbox .t{font-size:12px;color:#166534;line-height:1.4}.cs2-proj .sigbox .t b{display:block;font-size:13.5px;color:#14532d}
+@media(max-width:840px){
+  .cs2-grid,.cs2-steps,.cs2-kit,.cs2-ac{grid-template-columns:1fr}
+  .cs2-band{grid-template-columns:1fr}.cs2-jj{min-width:0}.cs2-band .inputs{grid-template-columns:1fr 1fr}
+  .cs2-piece{grid-template-columns:22px 1fr auto}.cs2-piece .dt{display:none}
+  .cs2-ch h2{font-size:15.5px}
+  .cs2-proj{grid-template-columns:1fr;grid-template-rows:auto 1fr auto}
+  .cs2-proj .som{display:none}
+  .cs2-proj .bar .crumb{display:none}
+  .cs2-proj .view{padding:10px 46px 6px}
+  .cs2-proj .lev{grid-template-columns:1fr;grid-template-rows:auto auto;overflow:auto;height:auto}
+  .cs2-proj .lev .ph{min-height:220px}
+}
+`; document.head.appendChild(st); }
+
+const CS2_AC_STD=['Extincteurs en place et vérifiés','BAES allumés, test réalisé','Issues de secours dégagées','Plans d\'évacuation affichés','Test alarme incendie','Portes coupe-feu ferment seules','Commande désenfumage accessible','Test coupure électrique','Test ouverture porte d\'entrée'];
+const CS2_STEPS=[{k:'j60',j:60,t:'Demander les rapports manquants',act:'dossier'},{k:'j45',j:45,t:'Convoquer les prestataires',act:'assist'},{k:'j30',j:30,t:'Lever les prescriptions ouvertes',act:'presc'},{k:'j15',j:15,t:'Relancer les non-confirmés',act:'assist'},{k:'j7',j:7,t:'Auto-contrôle terrain',act:'ac'},{k:'j2',j:2,t:'Rappel SMS aux présents',act:'rappel'},{k:'j1',j:1,t:'Préparer le kit du jour',act:'jourj'},{k:'j0',j:0,t:'Passage de la commission',act:null}];
+function cs2Iso(d){ const x=new Date(d); return new Date(x.getTime()-x.getTimezoneOffset()*60000).toISOString().slice(0,10); }
+function cs2AddDays(iso,n){ const d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return cs2Iso(d); }
+function cs2Fr(iso){ if(!iso) return '—'; const s=String(iso).slice(0,10); const [y,m,d]=s.split('-'); return (d&&m&&y)?(d+'/'+m+'/'+y):s; }
+function cs2Dj(a,b){ return Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000); }
+function cs2PeriMois(p){ p=String(p||'').toLowerCase(); if(!p) return null;
+  if(/journ|hebdo|quotid/.test(p)) return 0;
+  const m=p.match(/(\d+)\s*(an|mois|semaine)/); if(m){ const n=parseInt(m[1],10); return m[2].startsWith('an')?n*12:(m[2].startsWith('mois')?n:0); }
+  const map={mensuel:1,bimestriel:2,trimestriel:3,semestriel:6,annuel:12,biannuel:24,biennal:24,triennal:36,quadriennal:48,quinquennal:60,décennal:120,decennal:120};
+  for(const k in map){ if(p.includes(k)) return map[k]; } return null; }
+function cs2Norm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim(); }
+function cs2CleanNom(erp){ return erp?(erp.nom||'').replace(/^ERP-\d+[-\s]*/,'').trim():''; }
+function cs2StepDate(S,j){ return S&&S.date_cs?cs2AddDays(S.date_cs,-j):null; }
+
+/* ── Chargement ── */
+window.cs2Load=async function(erpId){
+  const today=cs2Iso(new Date());
+  const [erpR,sessR]=await Promise.all([
+    sb.from('erps').select('*').eq('id',erpId).maybeSingle(),
+    sb.from('cs_sessions').select('*').eq('erp_id',erpId).neq('statut','cloturee').order('created_at',{ascending:false}).limit(1)
+  ]);
+  if(erpR.error) throw erpR.error; const erp=erpR.data; if(!erp) throw new Error('ERP introuvable ou non autorisé');
+  let S=(sessR.data||[])[0]||null;
+  if(!S){
+    const ld=localStorage.getItem('cs_commission_date_'+erpId)||null, lt=localStorage.getItem('cs_commission_time_'+erpId)||null;
+    let planning={}; try{ const prev=await sb.from('cs_sessions').select('planning').eq('erp_id',erpId).order('created_at',{ascending:false}).limit(1); const pp=(prev.data||[])[0]; if(pp&&pp.planning&&Array.isArray(pp.planning.exclus)) planning={exclus:pp.planning.exclus}; }catch(_){}
+    const ins=await sb.from('cs_sessions').insert({erp_id:erpId,client_id:erp.client_id,date_cs:ld,heure:lt,planning,created_by:state.user?.id||null}).select('*').single();
+    if(ins.error){ S={id:null,erp_id:erpId,date_cs:ld,heure:lt,statut:'preparation',type_visite:'periodique',planning,notes:[],readonly:true}; } else S=ins.data;
+  }
+  const dateCs=S.date_cs||null;
+  const R=await Promise.all([
+    sb.from('obligations').select('id,domaine,libelle,periodicite,derniere_verif,prochaine_echeance,acteur,preuve_attendue,prestataire_id,statut').eq('erp_id',erpId),
+    sb.from('documents').select('id,type,lot,categorie,nom_original,date_document,created_at,fichier_path,prestataire_id,emetteur,deleted_at').eq('erp_id',erpId).is('deleted_at',null).order('date_document',{ascending:false}),
+    sb.from('tableaux_reserves').select('id,source,organisme,titre,date_intervention,annee,avis,nb_obs,numero_tableau,rapport_document_id').eq('erp_id',erpId).eq('source','commission').order('date_intervention',{ascending:false}),
+    sb.from('commission_passages').select('id,date_passage,avis,prescriptions,commentaire,document_id').eq('erp_id',erpId).order('date_passage',{ascending:false}),
+    sb.from('contrats').select('id,nom,prestataire_id,date_debut,duree_mois').eq('erp_id',erpId),
+    sb.from('prestataires').select('id,nom,type,categorie,email_rapports,contacts,affaires,client_id,client_ids,telephone'),
+    S.id?sb.from('cs_autocontrole').select('*').eq('session_id',S.id).order('ordre'):Promise.resolve({data:[]}),
+    dateCs?sb.from('cs_confirmations').select('prestataire_id,created_at').eq('erp_id',erpId).eq('date_cs',dateCs):Promise.resolve({data:[]}),
+    dateCs?sb.from('cs_confirm_links').select('prestataire_id,created_at').eq('erp_id',erpId).eq('date_cs',dateCs):Promise.resolve({data:[]}),
+    sb.from('organisation_personnes').select('id,nom,fonction,email,telephone,erp_ids,signataire').eq('client_id',erp.client_id),
+    sb.from('client_contacts').select('id,nom,prenom,fonction,email,mobile,telephone').eq('client_id',erp.client_id)
+  ]);
+  const err=R.find(x=>x&&x.error); if(err) throw err.error;
+  const obs=(R[0].data||[]).filter(o=>!/supprim|non_applicable|inactif/i.test(o.statut||''));
+  const docs=R[1].data||[], tabs=R[2].data||[], passages=R[3].data||[], contrats=R[4].data||[];
+  const prestAll=R[5].data||[]; const prests={}; prestAll.forEach(p=>prests[p.id]=p);
+  let ac=R[6].data||[];
+  const confirmed=new Set((R[7].data||[]).map(r=>r.prestataire_id)); const invited=new Set((R[8].data||[]).map(r=>r.prestataire_id));
+  const orga=R[9].data||[], ccs=R[10].data||[];
+  // prescriptions de la dernière commission
+  let tab=tabs[0]||null, presc=[], prescDocs=[];
+  if(tab){
+    const rr=await sb.from('reserves').select('id,numero,libelle,localisation,statut,etat_levee,date_realisation,prestataire_id,signature_nom,signature_data,signature_at,observations,date_limite,created_at').eq('tableau_id',tab.id).order('numero');
+    presc=rr.data||[];
+    if(presc.length){ const rd=await sb.from('reserve_documents').select('id,reserve_id,type_piece,document_path,document_nom,created_at').in('reserve_id',presc.map(r=>r.id)).order('created_at'); prescDocs=rd.data||[]; }
+  }
+  // auto-contrôle : initialisation des points (standards + personnalisés repris de la session précédente)
+  if(!ac.length&&S.id){
+    let customs=[];
+    try{ const prev=await sb.from('cs_autocontrole').select('libelle').eq('erp_id',erpId).eq('custom',true).neq('session_id',S.id); customs=[...new Set((prev.data||[]).map(x=>x.libelle))]; }catch(_){}
+    const rows=CS2_AC_STD.map((l,i)=>({erp_id:erpId,session_id:S.id,libelle:l,ordre:i,custom:false})).concat(customs.map((l,i)=>({erp_id:erpId,session_id:S.id,libelle:l,ordre:100+i,custom:true})));
+    const ins=await sb.from('cs_autocontrole').insert(rows).select('*').order('ordre'); if(!ins.error) ac=ins.data||[];
+  }
+  // prestataires liés à l'ERP (même logique que l'assistance technique)
+  const cid=erp.client_id;
+  const byCl=prestAll.filter(p=>p.client_id===cid||(Array.isArray(p.client_ids)&&p.client_ids.includes(cid)));
+  const byAff=prestAll.filter(p=>Array.isArray(p.affaires)&&p.affaires.some(a=>a&&a.erp_id===erpId));
+  const seen=new Set(byCl.map(p=>p.id)); const allPrests=[...byCl,...byAff.filter(p=>!seen.has(p.id))];
+  const D={erp,client:(state.clients||[]).find(c=>c.id===erp.client_id)||{},today,obs,docs,tabs,tab,presc,prescDocs,passages,contrats,prests,allPrests,ac,confirmed,invited,orga,ccs};
+  D.dossier=cs2Dossier(D,S);
+  window._cs2.erpId=erpId; window._cs2.S=S; window._cs2.D=D; window._cs2.dossierBlob=null; window._cs2.dossierUrl=null;
+  return {S,D};
+};
+
+/* ── Dossier de commission : pièces attendues ↔ Classeur ── */
+window.cs2Dossier=function(D,S){
+  const today=D.today; const P=[];
+  const docDate=d=>String(d.date_document||d.created_at||'').slice(0,10);
+  const prestNom=id=>(D.prests[id]&&D.prests[id].nom)||'';
+  // 1. Registre de sécurité (extrait généré)
+  P.push({key:'registre',grp:'Registre et PV',lib:'Registre de sécurité — extrait',org:'Généré depuis les vérifications',date:today,val:'',st:'ok',gen:'registre',sub:'vérifications réalisées, échéances, prestataires'});
+  // 2. PV de la dernière commission
+  const lastCs=D.passages[0]||(D.erp.cs_date_passage?{date_passage:D.erp.cs_date_passage,avis:D.erp.cs_avis,prescriptions:D.erp.cs_prescriptions}:null);
+  const pvDocs=D.docs.filter(d=>/pv.*commission|commission.*pv|proc[eè]s.?verbal.*commission/i.test((d.type||'')+' '+(d.nom_original||''))||(lastCs&&lastCs.document_id&&d.id===lastCs.document_id));
+  const pvDoc=pvDocs[0]||null;
+  P.push({key:'pv',grp:'Registre et PV',lib:'PV de la dernière commission',org:'Mairie / commission',date:pvDoc?docDate(pvDoc):(lastCs?String(lastCs.date_passage).slice(0,10):''),val:'',st:pvDoc?'ok':'ko',doc:pvDoc,sub:lastCs?('avis '+(lastCs.avis||'—')+' du '+cs2Fr(lastCs.date_passage)):'aucune commission enregistrée',need:'deposer'});
+  // 3. Réponse aux prescriptions
+  if(D.tab){
+    const n=D.presc.length, lev=D.presc.filter(r=>r.etat_levee==='levee'||['levee','validee'].includes(r.statut||'')).length;
+    P.push({key:'presc',grp:'Registre et PV',lib:'Réponse aux prescriptions',org:'Exploitant',date:'',val:'',st:n===0?'ok':(lev===n?'ok':(lev?'warn':'ko')),gen:'presc',sub:n?(lev+' levée'+(lev>1?'s':'')+' sur '+n+(D.tab.numero_tableau?' · '+D.tab.numero_tableau:'')):'aucune prescription',need:'presc'});
+  }
+  // 4. Obligations → pièces (plan de maintenance)
+  const exclus=new Set((S&&S.planning&&Array.isArray(S.planning.exclus))?S.planning.exclus:[]);
+  const isPiece=o=>{ if(exclus.has(o.id)) return false; const txt=(o.domaine||'')+' '+(o.libelle||''); if(/^commission de s[ée]curit[ée]/i.test(o.domaine||'')) return false; const m=cs2PeriMois(o.periodicite); if(m===0||(m!==null&&m<6&&!o.preuve_attendue)) return false; return !!o.preuve_attendue||m>=6||/rapport|v[ée]rif|attestation|contr[ôo]le|thermograph|formation|exercice|[ée]vacuation/i.test(txt)||['Bureau de contrôle','Commission'].includes(o.acteur||''); };
+  const tok=s=>cs2Norm(s).split(' ').filter(w=>w.length>=3&&!['rapport','verification','verifications','controle','attestation','maintenance','annuelle','periodique','installation','installations','securite','incendie','systeme','centrale','naturel','mecanique','bureau','mainteneur','prestataire','exploitant','commission','mise'].includes(w));
+  D.obs.filter(isPiece).forEach(o=>{
+    const dom=o.domaine||o.libelle||'Vérification'; const nd=cs2Norm(dom), nl=cs2Norm(o.libelle||'');
+    let cands=D.docs.filter(d=>d.lot&&(cs2Norm(d.lot)===nd||cs2Norm(d.lot)===nl));
+    const isBC=/bureau de contr/i.test(o.acteur||''); const docBC=d=>/bureau de contr|rvrat|rvre|organisme agr/i.test((d.type||'')+' '+(d.emetteur||''));
+    const pool=D.docs.filter(d=>isBC?docBC(d):!docBC(d));
+    const hay=d=>cs2Norm((d.nom_original||'')+' '+(d.lot||'')); const lib0=String(o.libelle||'').split(' — ')[0];
+    if(!cands.length){ const ts=tok(dom); if(ts.length) cands=pool.filter(d=>ts.every(t=>hay(d).includes(t))); }
+    if(!cands.length&&lib0&&cs2Norm(lib0)!==nd){ const ts=tok(lib0); if(ts.length) cands=pool.filter(d=>ts.every(t=>hay(d).includes(t))); }
+    if(!cands.length){ const ts=[...new Set([...tok(dom),...tok(lib0)])]; if(ts.length) cands=pool.filter(d=>ts.some(t=>t.length>=6&&hay(d).includes(t))); }
+    cands=cands.filter(d=>!/devis|facture|mail/i.test(d.categorie||'')).sort((a,b)=>docDate(b).localeCompare(docDate(a)));
+    const doc=cands[0]||null; const mois=cs2PeriMois(o.periodicite);
+    let st='ko', why='aucun document dans le Classeur';
+    if(doc){ st='ok'; why='';
+      if(mois&&docDate(doc)){ const lim=new Date(docDate(doc)+'T00:00:00'); lim.setMonth(lim.getMonth()+mois); if(cs2Iso(lim)<today){ st='warn'; why='périmé — validité '+o.periodicite+' dépassée le '+cs2Fr(cs2Iso(lim)); } }
+      else if(o.prochaine_echeance&&String(o.prochaine_echeance).slice(0,10)<today){ st='warn'; why='échéance dépassée le '+cs2Fr(o.prochaine_echeance); }
+    }
+    const grp=/formation|exercice|[ée]vacuation|personnel/i.test(dom+' '+(o.libelle||''))?'Personnel et organisation':'Vérifications périodiques — plan de maintenance';
+    const libCustom=o.libelle&&!/ — /.test(o.libelle)&&cs2Norm(o.libelle)!==cs2Norm(dom)&&!cs2Norm(o.libelle).startsWith(cs2Norm(dom));
+    P.push({key:'ob_'+o.id,grp,lib:(libCustom?o.libelle:dom).replace(/^Rapport de vérification /i,'Vérification '),org:prestNom(o.prestataire_id)||(doc&&(prestNom(doc.prestataire_id)||doc.emetteur))||(o.acteur||''),date:doc?docDate(doc):'',val:o.periodicite||'',st,doc,ob:o,sub:why||(doc?(doc.nom_original||''):''),need:'demander'});
+  });
+  // 5. Contrats de maintenance
+  P.push({key:'contrats',grp:'Personnel et organisation',lib:'Contrats de maintenance',org:D.contrats.length?(D.contrats.length+' contrat'+(D.contrats.length>1?'s':'')+' déposé'+(D.contrats.length>1?'s':'')):'',date:'',val:'',st:D.contrats.length?'ok':'ko',sub:D.contrats.length?D.contrats.slice(0,3).map(c=>c.nom||prestNom(c.prestataire_id)).filter(Boolean).join(' · '):'aucun contrat dans le module Contrats',need:'contrats',nav:'/contrats'});
+  const n=P.length, ok=P.filter(p=>p.st==='ok').length, warn=P.filter(p=>p.st==='warn').length, ko=P.filter(p=>p.st==='ko').length;
+  return {pieces:P,n,ok,warn,ko,pct:n?Math.round(ok/n*100):0,lastCs,exclus:[...exclus]};
+};
+
+/* ── Vue principale ── */
 async function viewPreparationCS(c){
-  csxStyle();
-  // Récupérer l'ERP courant
-  const erpId = state.currentErp;
-  const erp   = (state.erps||[]).find(e=>e.id===erpId);
-  const client= erp ? (state.clients||[]).find(cl=>cl.id===erp.client_id) : null;
-  const cleanErpNom = erp ? (erp.nom||'').replace(/^ERP-\d+[-\s]*/,'').trim() : '';
-
-  c.innerHTML = '<div class="page-head"><div class="t"><h1>Commission de sécurité</h1><p>Planifier et envoyer les demandes d’assistance technique aux prestataires.</p></div></div>' + loadingBlock();
-
-  /* ── Chargement des prestataires liés à l’ERP ── */
-  if(!erpId || erpId==='all'){
-    // Construire un sélecteur ERP directement dans la page
+  cs2Style(); csxStyle();
+  const erpId=state.currentErp;
+  const head=`<div class="page-head"><div class="t"><h1>Commission de sécurité</h1><p>Préparer, vivre et clôturer le passage de la commission.</p></div></div>`;
+  if(!erpId||erpId==='all'){
     const erpOpts=erpsPerimetre(false).slice().sort((a,b)=>(a.nom||'').localeCompare(b.nom||'')).map(e=>`<option value="${e.id}">${esc(e.nom||e.id)}</option>`).join('');
-    c.innerHTML=`<div class="page-head"><div class="t"><h1>Commission de sécurité</h1><p>Planifier et envoyer les demandes d'assistance technique aux prestataires.</p></div></div>
-      <div class="card card-pad" style="text-align:center;padding:32px 24px">
-        <div style="font-size:40px;margin-bottom:12px">🏢</div>
+    c.innerHTML=head+`<div class="card card-pad" style="text-align:center;padding:32px 24px">
         <div style="font-size:15px;font-weight:700;color:var(--ink);margin-bottom:6px">Sélectionnez un ERP</div>
-        <div style="font-size:13px;color:var(--muted);margin-bottom:20px">La Commission de Sécurité est liée à un ERP spécifique.</div>
-        <select id="cs_erp_picker" style="padding:10px 16px;border-radius:10px;border:1px solid var(--line);font-size:14px;font-weight:600;max-width:360px;width:100%">
-          <option value="">— Choisir un ERP —</option>
-          ${erpOpts}
-        </select>
-        <div style="margin-top:14px">
-          <button class="btn primary" onclick="(()=>{const v=document.getElementById('cs_erp_picker').value;if(!v){toast('Sélectionnez un ERP','err');return;}state.currentErp=v;const se=document.getElementById('selErp');if(se)se.value=v;viewPreparationCS(document.getElementById('content'));})()">Continuer →</button>
-        </div>
-      </div>`;
+        <div style="font-size:13px;color:var(--muted);margin-bottom:20px">La commission de sécurité est liée à un établissement.</div>
+        <select id="cs_erp_picker" style="padding:10px 16px;border-radius:10px;border:1px solid var(--line);font-size:14px;font-weight:600;max-width:360px;width:100%"><option value="">— Choisir un ERP —</option>${erpOpts}</select>
+        <div style="margin-top:14px"><button class="btn primary" onclick="(()=>{const v=document.getElementById('cs_erp_picker').value;if(!v){toast('Sélectionnez un ERP','err');return;}state.currentErp=v;const se=document.getElementById('selErp');if(se)se.value=v;viewPreparationCS(document.getElementById('content'));})()">Continuer →</button></div></div>`;
     return;
   }
-
-  // Chercher par client_id de l'ERP (prestataires rattachés au client)
-  const clientId = erp ? erp.client_id : null;
-  let allPrests=[];
-  if(clientId){
-    // 1. Via client_id direct ou client_ids array
-    const {data:byCl} = await sb.from('prestataires')
-      .select('id,nom,type,categorie,email_rapports,contacts,affaires,client_id,client_ids')
-      .or('client_id.eq.'+clientId+',client_ids.cs.{'+clientId+'}');
-    // 2. Via affaires liées à l'ERP
-    const {data:allP} = await sb.from('prestataires')
-      .select('id,nom,type,categorie,email_rapports,contacts,affaires,client_id,client_ids')
-      .not('affaires','is',null);
-    const byAff = (allP||[]).filter(p=>Array.isArray(p.affaires)&&p.affaires.some(a=>a.erp_id===erpId));
-    // Fusionner sans doublon
-    const seen=new Set((byCl||[]).map(p=>p.id));
-    allPrests=[...(byCl||[]),...byAff.filter(p=>!seen.has(p.id))];
-  }
-
-  /* ── Définition des catégories CS ── */
-  const CS_CATS=[
-    {key:'ssi',   label:'SSI',                  emoji:'', color:'#dc2626', bg:'#fff1f2',
-     keywords:['ssi','incendie','baes','extincteur','ria','porte coupe','désenfumage','sprinkler']},
-    {key:'elec',  label:'Électricien',           emoji:'',     color:'#d97706', bg:'#fffbeb',
-     keywords:['électri','thermographie']},
-    {key:'chauf', label:'Chauffagiste',          emoji:'', color:'#ea580c', bg:'#fff7ed',
-     keywords:['chaudière','chaudiere','gaz','climatisation','ventilation','evaporateur','sous-station']},
-    {key:'maint', label:'Agent de maintenance',  emoji:'', color:'#2563eb', bg:'#eff6ff',
-     keywords:['maintenance','ascenseur','portail','coulissante','garage','barrière']},
-    {key:'autre', label:'Autre',                 emoji:'', color:'#64748b', bg:'#f8fafc',
-     keywords:[]}
-  ];
-
-  function matchCat(p){
-    const types=((p.type||'')+'').toLowerCase();
-    const nom=(p.nom||'').toLowerCase();
-    for(const cat of CS_CATS.slice(0,-1)){
-      if(cat.keywords.some(k=>types.includes(k)||nom.includes(k))) return cat.key;
-    }
-    return 'autre';
-  }
-
-  function getEmails(p){
-    const list=[];
-    if(p.email_rapports) list.push({email:p.email_rapports,label:'Email rapports'});
-    const c2=p.contacts||{};
-    for(const [role,val] of Object.entries(c2)){
-      if(role==='autres') continue;
-      if(val&&val.email) list.push({email:val.email,label:role.replace(/_/g,' ')+(val.nom?' — '+val.nom:'')});
-    }
-    if(Array.isArray(c2.autres)){
-      for(const a of c2.autres){ if(a&&a.email) list.push({email:a.email,label:(a.intitule||'autre')+(a.nom?' — '+a.nom:'')}); }
-    }
-    return list;
-  }
-
-  // getPhones/_cleanMobile désormais globaux (voir HELPERS en tête de fichier)
-
-  // Regrouper par catégorie
-  const bycat={};
-  CS_CATS.forEach(cat=>bycat[cat.key]=[]);
-  for(const p of allPrests) bycat[matchCat(p)].push(p);
-
-  /* ── Lecture des valeurs persistées ── */
-  const savedDate = localStorage.getItem('cs_commission_date_'+erpId)||'';
-  const savedTime = localStorage.getItem('cs_commission_time_'+erpId)||'';
-
-  /* ── Chargement des confirmations ── */
-  let confirmedIds=new Set();
-  if(savedDate){
-    const {data:confData}=await sb.from('cs_confirmations').select('prestataire_id').eq('erp_id',erpId).eq('date_cs',savedDate);
-    (confData||[]).forEach(r=>confirmedIds.add(r.prestataire_id));
-  }
-
-  /* ── Rendu ── */
-  let html='';
-
-  // Bandeau principal
-  html+=`<div class="card card-pad" style="background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);color:#fff;border:none;margin-bottom:20px">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-      
-      <div>
-        <div style="font-size:16px;font-weight:800;letter-spacing:.02em">PASSAGE DE LA COMMISSION DE SÉCURITÉ</div>
-        <div style="font-size:13px;opacity:.8;margin-top:2px">${esc(cleanErpNom||'ERP non sélectionné')}</div>
-      </div>
-    </div>
-    <div class="csx-band-cols">
-      <div>
-        <label style="font-size:11px;font-weight:700;opacity:.8;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Date de la commission</label>
-        <input type="date" id="cs_date" value="${esc(savedDate)}" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:#fff;font-size:14px;font-weight:600" oninput="localStorage.setItem('cs_commission_date_${erpId}',this.value)">
-      </div>
-      <div>
-        <label style="font-size:11px;font-weight:700;opacity:.8;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Heure de la commission</label>
-        <input type="time" id="cs_time" value="${esc(savedTime)}" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:#fff;font-size:14px;font-weight:600" oninput="localStorage.setItem('cs_commission_time_${erpId}',this.value)">
-      </div>
-    </div>
-    <div style="font-size:11px;color:rgba(255,255,255,.85);line-height:1.5;margin-top:10px;border-left:3px solid rgba(255,255,255,.45);padding:6px 10px;border-radius:0 8px 8px 0;background:rgba(255,255,255,.08)">Cette date pilote les convocations et les relances de vos prestataires. <b style="color:#fff">Vérifiez-la sur la convocation officielle</b> avant d'envoyer les demandes d'assistance.</div>
-  </div>`;
-
-  html+=`<div style="display:flex;justify-content:flex-end;margin:-10px 0 20px">
-    <button class="btn ghost sm csx-desel" onclick="csDeselectAll()">Désélectionner toutes les cases</button>
-  </div>`;
-
-  // Accordéon "Assistance technique"
-  html+=`<div class="card" style="overflow:hidden;margin-bottom:20px">
-    <button onclick="toggleAcc('acc_assist')" style="width:100%;display:flex;align-items:center;gap:10px;padding:16px 20px;background:none;border:none;cursor:pointer;text-align:left;border-bottom:1px solid var(--line)" id="acc_assist_btn">
-      
-      <span style="font-size:15px;font-weight:700;flex:1">Assistance technique</span>
-      <span style="font-size:12px;color:var(--muted)">${allPrests.length} prestataire${allPrests.length!==1?'s':''} liés</span>
-      <span id="acc_assist_chev" style="font-size:18px;transition:.2s">▼</span>
-    </button>
-    <div id="acc_assist" style="display:block">`;
-
-  // Sous-sections par catégorie
-  for(const cat of CS_CATS){
-    const prests=bycat[cat.key]||[];
-    html+=`<div style="border-bottom:1px solid var(--line)">
-      <button onclick="toggleAcc('acc_cat_${cat.key}')" style="width:100%;display:flex;align-items:center;gap:10px;padding:14px 20px 14px 32px;background:none;border:none;cursor:pointer;text-align:left">
-        
-        <span style="font-size:14px;font-weight:600;color:${cat.color};flex:1">${esc(cat.label)}</span>
-        <span style="font-size:11px;background:${cat.bg};color:${cat.color};border:1px solid ${cat.color}30;border-radius:20px;padding:2px 10px;font-weight:700">${prests.length}</span>
-        <span id="acc_cat_${cat.key}_chev" style="font-size:14px;color:var(--muted);margin-left:6px">▼</span>
-      </button>
-      <div id="acc_cat_${cat.key}" style="padding:0 20px 16px 32px">`;
-
-    if(!prests.length){
-      html+=`<div style="font-size:13px;color:var(--muted);padding:12px 0">Aucun prestataire de cette spécialité lié à cet ERP.</div>`;
-    } else {
-      html+=`<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">`;
-      for(const p of prests){
-        const emails=getEmails(p);
-        const pid=p.id;
-        const isConfirmed=confirmedIds.has(pid);
-        html+=`<div class="card" style="padding:12px 14px;border-color:${isConfirmed ? '#16a34a' : cat.color+'30'};${isConfirmed ? 'background:#f0fdf4;' : ''}">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-            <div style="font-size:13.5px;font-weight:700;color:var(--ink)">${esc(p.nom)}</div>
-            <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;${isConfirmed ? 'background:#dcfce7;color:#16a34a' : 'background:#fef9c3;color:#92400e'}">${isConfirmed ? '✅ Confirmé' : '⏳ En attente'}</span>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:4px">`;
-        if(!emails.length){
-          html+=`<div style="font-size:12px;color:var(--muted)">Aucun email configuré</div>`;
-        }
-        for(const em of emails){
-          const cbid='cs_em_'+cat.key+'_'+pid+'_'+btoa(em.email).replace(/=/g,'');
-          html+=`<label class="csx-ct">
-            <input type="checkbox" id="${cbid}" value="${esc(em.email)}" data-prest="${pid}" data-pnom="${esc(p.nom)}" data-cat="${cat.key}" checked style="accent-color:${cat.color}">
-            <span class="csx-k mail">✉</span>
-            <span class="csx-bx"><span class="csx-who">${csxWho(em.label,false)}</span>
-            <span class="csx-val">${esc(em.email)}</span></span>
-          </label>`;
-        }
-        const phones=getPhones(p);
-        for(const ph of phones){
-          const cbid='cs_sms_'+cat.key+'_'+pid+'_'+btoa(ph.phone).replace(/=/g,'');
-          html+=`<label class="csx-ct">
-            <input type="checkbox" id="${cbid}" value="${esc(ph.phone)}" data-prest-sms="${pid}" data-pnom="${esc(p.nom)}" data-cat="${cat.key}" style="accent-color:${cat.color}">
-            <span class="csx-k sms">💬</span>
-            <span class="csx-bx"><span class="csx-who">${csxWho(ph.label,true)}</span>
-            <span class="csx-val tel">${esc(ph.phone)}</span></span>
-          </label>`;
-        }
-        html+=`</div></div>`;
-      }
-      html+=`</div>
-      <button class="btn primary sm csx-send" style="background:${cat.color};border-color:${cat.color}" onclick="csEnvoyerAssistance('${cat.key}','${esc(cat.label)}','${erpId}')">
-        Envoyer demande d’assistance — ${esc(cat.label)}
-      </button>`;
-    }
-    html+=`</div></div>`;
-  }
-
-  // Bouton global
-  html+=`<div style="padding:16px 20px;background:var(--surface-2);display:flex;justify-content:flex-end">
-    <button class="btn primary csx-sendall" onclick="csEnvoyerAssistance('all','Toutes spécialités','${erpId}')">
-      Envoyer à tous les prestataires liés
-    </button>
-  </div>`;
-
-  html+=`</div></div>`;
-
-  c.innerHTML=`<div class="page-head"><div class="t"><h1>Commission de sécurité</h1><p>Planifier et envoyer les demandes d’assistance technique aux prestataires.</p></div></div>`+html;
+  c.innerHTML=head+'<div style="min-height:50vh;display:grid;place-items:start center;padding-top:60px"><div class="spin"></div></div>';
+  try{ await cs2Load(erpId); }catch(e){ c.innerHTML=head+'<div class="card card-pad" style="color:#b91c1c">Erreur : '+esc(e.message||e)+'</div>'; return; }
+  c.innerHTML=head+'<div id="cs2_root"></div>';
+  cs2Render();
 }
 window.viewPreparationCS=viewPreparationCS;
+
+window.cs2Render=function(){
+  const root=document.getElementById('cs2_root'); if(!root) return;
+  const {S,D}=window._cs2; const phase=window._cs2.phase||(S.statut==='jour_j'?'jourj':'prep');
+  root.innerHTML=cs2BandHtml()+cs2StepsHtml(phase)+(phase==='prep'?cs2PrepHtml():(phase==='jourj'?cs2JourJHtml():cs2ClotureHtml()));
+};
+
+/* ── Bandeau ── */
+function cs2BandHtml(){
+  const {S,D}=window._cs2; const erp=D.erp, dossier=D.dossier, last=dossier.lastCs;
+  const jj=S.date_cs?cs2Dj(D.today,S.date_cs):null;
+  const jjTxt=jj==null?'—':(jj>0?'J-'+jj:(jj===0?'J':'J+'+(-jj)));
+  const nPresc=D.presc.length, nPrescOpen=D.presc.filter(r=>!(r.etat_levee==='levee'||['levee','validee'].includes(r.statut||''))).length;
+  return `<div class="cs2-band">
+    <div style="min-width:0">
+      <div class="k">Passage de la commission de sécurité</div>
+      <div class="nm">${esc(cs2CleanNom(erp)||erp.nom)}${erp.type_erp?' — type '+esc(erp.type_erp):''}${erp.categorie?', '+esc(String(erp.categorie))+'ᵉ catégorie':''}</div>
+      <div class="meta">
+        ${last?`<span>Dernier passage <b>${cs2Fr(last.date_passage)}</b>${last.avis?' — avis '+esc(last.avis):''}${nPresc?', '+nPresc+' prescription'+(nPresc>1?'s':''):''}</span>`:'<span>Aucun passage enregistré</span>'}
+        ${S.convocation_recue_le?`<span>Convocation reçue le <b>${cs2Fr(S.convocation_recue_le)}</b></span>`:''}
+        ${erp.mairie_nom?`<span>Mairie : <b>${esc(erp.mairie_nom)}</b></span>`:''}
+      </div>
+      <div class="inputs">
+        <div class="inp"><small>Date de la commission</small><input type="date" id="cs_date" value="${esc(S.date_cs||'')}" onchange="cs2SaveSession({date_cs:this.value||null})"></div>
+        <div class="inp"><small>Heure</small><input type="time" id="cs_time" value="${esc(S.heure||'')}" onchange="cs2SaveSession({heure:this.value||null})"></div>
+        <div class="inp"><small>Type de visite</small><select onchange="cs2SaveSession({type_visite:this.value})">${[['periodique','Périodique'],['ouverture','Ouverture'],['reception','Réception de travaux'],['inopinee','Inopinée'],['autre','Autre']].map(o=>`<option value="${o[0]}"${(S.type_visite||'periodique')===o[0]?' selected':''}>${o[1]}</option>`).join('')}</select></div>
+        <div class="inp"><small>Convocation officielle</small>${S.convocation_path?`<span class="file" onclick="previewDoc('${esc(S.convocation_path)}','${esc(S.convocation_nom||'convocation')}')" title="${esc(S.convocation_nom||'')}">📎 ${esc(S.convocation_nom||'convocation')}</span>`:`<span class="file" onclick="cs2UploadConvocation()">📎 Déposer la convocation…</span>`}</div>
+      </div>
+    </div>
+    <div class="cs2-jj"><div class="n">${jjTxt}</div><div class="l">${jj==null?'date à saisir':(jj>=0?'avant la visite':'après la visite')}</div><div class="ok">Dossier prêt à ${dossier.pct} %</div></div>
+  </div>`;
+}
+function cs2StepsHtml(phase){
+  const {S,D}=window._cs2;
+  const st=S.statut;
+  return `<div class="cs2-steps">
+    <button class="cs2-step${phase==='prep'?' on':''}${st!=='preparation'?' done':''}" onclick="window._cs2.phase='prep';cs2Render()"><span class="no">1</span><div><b>Préparer</b><small>dossier · prescriptions · prestataires · auto-contrôle</small></div><span class="pc">${D.dossier.pct} %</span></button>
+    <button class="cs2-step${phase==='jourj'?' on':''}${st==='cloturee'?' done':''}" onclick="window._cs2.phase='jourj';cs2Render()"><span class="no">2</span><div><b>Jour J</b><small>kit du jour · notes en direct</small></div></button>
+    <button class="cs2-step${phase==='clot'?' on':''}${st==='cloturee'?' done':''}" onclick="window._cs2.phase='clot';cs2Render()"><span class="no">3</span><div><b>Clôturer</b><small>avis · PV · prescriptions · prochaine visite</small></div></button>
+  </div>`;
+}
+window.cs2SaveSession=async function(patch){
+  const {S}=window._cs2; if(!S) return; if(!S.id){ toast('Lecture seule : votre compte ne peut pas enregistrer la préparation de la commission','err'); return; }
+  try{ const {data,error}=await sb.from('cs_sessions').update({...patch,updated_at:new Date().toISOString()}).eq('id',S.id).select('*').single(); if(error) throw error; Object.assign(S,data);
+    if('date_cs' in patch){ try{ localStorage.setItem('cs_commission_date_'+S.erp_id,S.date_cs||''); }catch(_){} await cs2Load(S.erp_id); cs2Render(); }
+    else if('heure' in patch){ try{ localStorage.setItem('cs_commission_time_'+S.erp_id,S.heure||''); }catch(_){} }
+  }catch(e){ toast('Enregistrement impossible : '+(e.message||e),'err'); }
+};
+window.cs2UploadConvocation=function(){
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='.pdf,image/*';
+  inp.onchange=async()=>{ const f=inp.files[0]; if(!f) return; const {S}=window._cs2;
+    try{ let up=f; if(/pdf/.test(f.type)&&typeof compressPdf==='function') up=await compressPdf(f); else if(/^image\//.test(f.type)&&typeof compressImage==='function') up=await compressImage(f,2400,.8);
+      const path=S.erp_id+'/commission/'+S.id+'/'+Date.now()+'_'+String(f.name).replace(/[^\w.\-]/g,'_');
+      const {error}=await sb.storage.from('documents').upload(path,up,{contentType:up.type||f.type}); if(error) throw error;
+      await cs2SaveSession({convocation_path:path,convocation_nom:f.name,convocation_recue_le:cs2Iso(new Date())}); toast('Convocation déposée ✓','ok'); cs2Render();
+    }catch(e){ toast('Dépôt impossible : '+(e.message||e),'err'); } };
+  inp.click();
+};
+
+/* ── Phase 1 : préparer ── */
+function cs2PrepHtml(){
+  return `<div class="cs2-grid"><div class="cs2-col">${cs2DossierHtml()}${cs2PrescHtml()}${cs2AcHtml()}</div><div class="cs2-col">${cs2PlanHtml()}${cs2AssistHtml()}${cs2ContactsHtml()}</div></div>`;
+}
+function cs2DossierHtml(){
+  const {D}=window._cs2; const Do=D.dossier; const grps=[...new Set(Do.pieces.map(p=>p.grp))];
+  const jsq=v=>esc(String(v==null?'':v).replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
+  const row=p=>{ const dt=p.date?cs2Fr(p.date):(p.st==='ko'?'manquant':'—');
+    let act='';
+    if(p.doc) act=`<button class="btn sm ghost" onclick="previewDoc('${jsq(p.doc.fichier_path)}','${jsq(p.doc.nom_original||p.lib)}')">Voir</button>`;
+    else if(p.gen==='registre') act=`<button class="btn sm ghost" onclick="cs2RegistrePdf(true)">Voir</button>`;
+    else if(p.gen==='presc') act=`<button class="btn sm${p.st==='ok'?' ghost':''}" onclick="${p.st==='ok'?'cs2PrescPdf(true)':'cs2Scroll(\'cs2_presc\')'}">${p.st==='ok'?'Voir':'Traiter'}</button>`;
+    else if(p.need==='demander') act=`<button class="btn sm" style="${p.st==='ko'?'border-color:#fecaca;color:#b91c1c':''}" onclick="cs2DemanderPiece('${p.ob.id}')">Demander</button>`;
+    else if(p.need==='deposer') act=`<button class="btn sm" onclick="navigate('/documents')">Déposer</button>`;
+    else if(p.nav) act=`<button class="btn sm ghost" onclick="navigate('${p.nav}')">Voir</button>`;
+    if(p.ob) act+=`<button class="btn sm ghost" title="Ne pas présenter cette pièce à la commission" onclick="cs2Exclure('${p.ob.id}',true)" style="padding:5px 7px;color:#94a3b8">✕</button>`;
+    return `<div class="cs2-piece"${p.ob?' style="grid-template-columns:22px 1fr auto auto auto"':''}><span class="st ${p.st}">${p.st==='ok'?'✓':(p.st==='warn'?'!':'✗')}</span><span class="nm"><b>${esc(p.lib)}</b><small>${esc([p.org,p.sub].filter(Boolean).join(' · '))}</small></span><span class="dt">${esc(dt)}${p.val?' · '+esc(p.val):''}</span>${act}</div>`; };
+  const manq=Do.pieces.filter(p=>p.need==='demander'&&p.st!=='ok');
+  return `<div class="cs2-card" id="cs2_dossier">
+    <div class="cs2-ch"><h2>Dossier de commission</h2><span class="sub">pièces que la commission demandera — construites depuis le plan de maintenance et le Classeur</span>
+      <span class="r"><button class="btn sm" style="border-color:#2563eb;color:#1d4ed8;background:#f6f9ff" onclick="cs2DossierAction('view')">👁 Visualiser</button><button class="btn sm" onclick="cs2DossierAction('print')">🖨 Imprimer</button><button class="btn sm" onclick="cs2DossierAction('download')">⬇️ PDF</button><button class="btn sm" style="border-color:#1a44ad;color:#1a44ad;background:#f6f9ff" onclick="cs2MailModal({what:'dossier'})">✉️ Envoyer par e-mail</button><button class="btn sm" style="background:#1a44ad;border-color:#1a44ad;color:#fff" onclick="cs2Projeter()">▶ Projeter</button></span></div>
+    <div class="cs2-cb">
+      <div class="cs2-gauge"><b>${Do.pct} %</b><span class="bar"><i style="width:${Do.pct}%"></i></span><small>${Do.ok} pièce${Do.ok>1?'s':''} sur ${Do.n}${Do.warn?' · '+Do.warn+' périmée'+(Do.warn>1?'s':''):''}${Do.ko?' · '+Do.ko+' manquante'+(Do.ko>1?'s':''):''}</small></div>
+      ${grps.map(g=>`<div class="cs2-sect">${esc(g)}</div>${Do.pieces.filter(p=>p.grp===g).map(row).join('')}`).join('')}
+      ${D.obs.length?'':'<div style="font-size:12px;color:var(--muted);margin-top:8px">Aucune vérification dans le plan de maintenance de cet ERP — appliquez un plan pour construire le dossier automatiquement.</div>'}
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">${manq.length?`<button class="btn sm" onclick="cs2DemanderToutes()">Demander toutes les pièces manquantes (${manq.length})</button>`:''}<button class="btn sm ghost" onclick="navigate('/plan-maintenance')">Plan de maintenance</button>${Do.exclus.length?`<button class="btn sm ghost" onclick="cs2Exclure(null,false)" style="color:var(--muted)">${Do.exclus.length} pièce${Do.exclus.length>1?'s':''} masquée${Do.exclus.length>1?'s':''} — réafficher</button>`:''}</div>
+    </div></div>`;
+}
+window.cs2Exclure=async function(obId,hide){ const {S,D}=window._cs2; const pl=Object.assign({},S.planning||{}); let ex=Array.isArray(pl.exclus)?pl.exclus.slice():[]; if(hide){ if(!ex.includes(obId)) ex.push(obId); } else ex=[]; pl.exclus=ex; await cs2SaveSession({planning:pl}); D.dossier=cs2Dossier(D,S); window._cs2.dossierBlob=null; cs2Render(); };
+window.cs2Scroll=function(id){ const el=document.getElementById(id); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); };
+
+function cs2PrescHtml(){
+  const {D}=window._cs2; const jsq=v=>esc(String(v==null?'':v).replace(/'/g,"\\'"));
+  if(!D.tab) return `<div class="cs2-card" id="cs2_presc"><div class="cs2-ch"><h2>Prescriptions de la dernière commission</h2><span class="sub">aucun PV de commission traité dans les tableaux de réserves</span></div><div class="cs2-cb" style="font-size:12.5px;color:var(--muted)">Déposez le PV de la dernière commission dans le Classeur (type « PV commission ») puis « Extraire les prescriptions » : elles apparaîtront ici avec leur état de levée.<div style="margin-top:8px"><button class="btn sm" onclick="navigate('/documents')">Ouvrir le Classeur</button></div></div></div>`;
+  const isLev=r=>r.etat_levee==='levee'||['levee','validee'].includes(r.statut||'');
+  const open=D.presc.filter(r=>!isLev(r)), lev=D.presc.filter(isLev);
+  const jj=window._cs2.S.date_cs?cs2Dj(D.today,window._cs2.S.date_cs):null;
+  const chip=r=>isLev(r)?`<span class="cs2-chip g">Levée${r.date_realisation?' '+cs2Fr(r.date_realisation).slice(3):''}</span>`:(['en_cours','affectee'].includes(r.statut||'')||r.prestataire_id?'<span class="cs2-chip a">En cours</span>':'<span class="cs2-chip r">Non levée</span>');
+  const row=r=>{ const pn=r.prestataire_id&&D.prests[r.prestataire_id]?D.prests[r.prestataire_id].nom:''; const pj=D.prescDocs.filter(d=>d.reserve_id===r.id); const sub=[pn||(isLev(r)?'':'aucun prestataire affecté'),pj.length?pj.length+' pièce'+(pj.length>1?'s':'')+' jointe'+(pj.length>1?'s':''):'',r.signature_data||r.signature_nom?'attestation signée':''].filter(Boolean).join(' · ');
+    return `<div class="cs2-presc"><span class="no">P${r.numero||''}</span><span class="tx"><b>${esc(r.libelle||'')}</b><small>${esc(sub)}</small></span>${chip(r)}</div>`; };
+  return `<div class="cs2-card" id="cs2_presc">
+    <div class="cs2-ch"><h2>Prescriptions de la dernière commission</h2><span class="sub">${esc(D.tab.organisme||'commission')} · ${cs2Fr(D.tab.date_intervention)}${D.tab.numero_tableau?' · '+esc(D.tab.numero_tableau):''} · ${D.presc.length} prescription${D.presc.length>1?'s':''}</span><span class="r">${lev.length?`<span class="cs2-chip g">${lev.length} levée${lev.length>1?'s':''}</span>`:''}${open.length?`<span class="cs2-chip r">${open.length} non levée${open.length>1?'s':''}</span>`:''}</span></div>
+    <div class="cs2-cb">
+      ${open.length?`<div class="cs2-alert">⚠️ <span><b>${open.length} prescription${open.length>1?'s':''} encore ouverte${open.length>1?'s':''}${jj!=null&&jj>=0?' à J-'+jj:''}.</b> C'est la première chose que la commission contrôlera — objectif : tout lever avant J-15, preuves à l'appui.</span></div>`:`<div style="font-size:12.5px;color:#15803d;font-weight:600;margin-bottom:8px">✓ Toutes les prescriptions sont levées.</div>`}
+      ${[...open,...lev].map(row).join('')}
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn sm primary" onclick="trvAffect('${jsq(D.tab.id)}')">Répartir aux prestataires</button><button class="btn sm" onclick="cs2PrescPdf(true)">📄 Réponse aux prescriptions</button><button class="btn sm ghost" onclick="navigate('/reserves')">Suivi des levées</button></div>
+    </div></div>`;
+}
+
+/* ── Rétro-planning ── */
+function cs2PlanState(){
+  const {S,D}=window._cs2; const pl=S.planning||{}; const today=D.today;
+  const acDone=D.ac.length&&D.ac.every(a=>a.statut);
+  const auto={j60:D.dossier.ko===0&&D.dossier.warn===0, j45:D.invited.size>0, j30:D.presc.length>0&&D.presc.every(r=>r.etat_levee==='levee'||['levee','validee'].includes(r.statut||'')), j15:D.allPrests.length>0&&D.allPrests.every(p=>D.confirmed.has(p.id)), j7:!!acDone, j2:!!(pl.j2&&pl.j2.done), j1:!!(pl.j1&&pl.j1.done), j0:S.statut==='cloturee'};
+  const steps=CS2_STEPS.map(s=>{ const d=cs2StepDate(S,s.j); const done=!!(pl[s.k]&&pl[s.k].done)||auto[s.k]; return {...s,date:d,done,late:d&&!done&&d<today}; });
+  let now=steps.find(s=>!s.done&&(!s.date||s.date>=today)); if(!now) now=steps.find(s=>!s.done)||null;
+  return {steps,now};
+}
+function cs2PlanHtml(){
+  const {S,D}=window._cs2; const {steps,now}=cs2PlanState();
+  const sub=k=>{ switch(k){
+    case 'j60': return D.dossier.ko+D.dossier.warn?((D.dossier.ko?D.dossier.ko+' manquante'+(D.dossier.ko>1?'s':''):'')+(D.dossier.ko&&D.dossier.warn?' · ':'')+(D.dossier.warn?D.dossier.warn+' périmée'+(D.dossier.warn>1?'s':''):'')):'dossier complet';
+    case 'j45': return D.allPrests.length+' prestataire'+(D.allPrests.length>1?'s':'')+' lié'+(D.allPrests.length>1?'s':'')+(D.invited.size?' · '+D.invited.size+' convoqué'+(D.invited.size>1?'s':''):'');
+    case 'j30': { const o=D.presc.filter(r=>!(r.etat_levee==='levee'||['levee','validee'].includes(r.statut||''))).length; return D.tab?(o?o+' restante'+(o>1?'s':''):'toutes levées'):'aucune prescription connue'; }
+    case 'j15': { const w=D.allPrests.filter(p=>!D.confirmed.has(p.id)).length; return w?w+' en attente de confirmation':'tous confirmés'; }
+    case 'j7': { const n=D.ac.filter(a=>a.statut).length; return n+' / '+D.ac.length+' points vérifiés'; }
+    case 'j2': return 'heure, adresse, point de rendez-vous';
+    case 'j1': return 'registre, dossier, accès';
+    case 'j0': return S.date_cs?cs2Fr(S.date_cs)+(S.heure?' à '+S.heure:''):'date à saisir'; } return ''; };
+  const act=s=>{ if(!now||s.k!==now.k||s.done) return ''; switch(s.act){
+    case 'dossier': return `<button class="btn sm primary" onclick="cs2DemanderToutes()">Demander les pièces</button>`;
+    case 'assist': return `<button class="btn sm primary" onclick="cs2Scroll('cs2_assist')">Envoyer les demandes</button>`;
+    case 'presc': return `<button class="btn sm primary" onclick="cs2Scroll('cs2_presc')">Voir les prescriptions</button>`;
+    case 'ac': return `<button class="btn sm primary" onclick="cs2Scroll('cs2_ac')">Lancer l'auto-contrôle</button>`;
+    case 'rappel': return `<button class="btn sm primary" onclick="cs2RappelSms()">Envoyer le rappel SMS</button>`;
+    case 'jourj': return `<button class="btn sm primary" onclick="window._cs2.phase='jourj';cs2Render()">Ouvrir le kit du jour</button>`; } return ''; };
+  return `<div class="cs2-card" id="cs2_plan"><div class="cs2-ch"><h2>Rétro-planning</h2><span class="sub">${S.date_cs?'piloté par la date du '+cs2Fr(S.date_cs):'saisissez la date de la commission pour activer le calendrier'}</span></div>
+    <div class="cs2-cb"><div class="cs2-tl">${steps.map(s=>`<div class="cs2-ev${s.done?' done':''}${now&&s.k===now.k&&!s.done?' now':''}"><span class="j">${s.j?'J-'+s.j:'J'}</span><div class="t">${esc(s.t)}${s.date?`<span style="font-weight:500;color:var(--muted);font-size:11px">${cs2Fr(s.date)}</span>`:''}${s.late?'<span class="cs2-chip r">en retard</span>':''}${s.k!=='j0'?`<label><input type="checkbox" ${s.done?'checked':''} onchange="cs2PlanToggle('${s.k}',this.checked)"> fait</label>`:''}</div><div class="s">${esc(sub(s.k))}</div>${act(s)?`<div class="act">${act(s)}</div>`:''}</div>`).join('')}</div></div></div>`;
+}
+window.cs2PlanToggle=async function(k,done){ const {S}=window._cs2; const pl=Object.assign({},S.planning||{}); pl[k]={done:!!done,at:new Date().toISOString(),by:state.profile?.nom||''}; await cs2SaveSession({planning:pl}); cs2Render(); };
+
+/* ── Assistance technique (existant, en vue présence) ── */
+const CS2_CATS=[
+  {key:'ssi',label:'SSI',color:'#dc2626',bg:'#fff1f2',keywords:['ssi','incendie','baes','extincteur','ria','porte coupe','désenfumage','sprinkler']},
+  {key:'elec',label:'Électricien',color:'#d97706',bg:'#fffbeb',keywords:['électri','thermographie']},
+  {key:'chauf',label:'Chauffagiste',color:'#ea580c',bg:'#fff7ed',keywords:['chaudière','chaudiere','gaz','climatisation','ventilation','evaporateur','sous-station']},
+  {key:'maint',label:'Agent de maintenance',color:'#2563eb',bg:'#eff6ff',keywords:['maintenance','ascenseur','portail','coulissante','garage','barrière']},
+  {key:'autre',label:'Autre',color:'#64748b',bg:'#f8fafc',keywords:[]}];
+function cs2MatchCat(p){ const types=((p.type||'')+'').toLowerCase(), nom=(p.nom||'').toLowerCase(); for(const cat of CS2_CATS.slice(0,-1)){ if(cat.keywords.some(k=>types.includes(k)||nom.includes(k))) return cat; } return CS2_CATS[CS2_CATS.length-1]; }
+function cs2Emails(p){ const list=[]; if(p.email_rapports) list.push({email:p.email_rapports,label:'Email rapports'}); const c2=p.contacts||{}; for(const [role,val] of Object.entries(c2)){ if(role==='autres') continue; if(val&&val.email) list.push({email:val.email,label:role.replace(/_/g,' ')+(val.nom?' — '+val.nom:'')}); } if(Array.isArray(c2.autres)){ for(const a of c2.autres){ if(a&&a.email) list.push({email:a.email,label:(a.intitule||'autre')+(a.nom?' — '+a.nom:'')}); } } return list; }
+function cs2AssistHtml(){
+  const {S,D}=window._cs2; const erpId=D.erp.id;
+  const nConf=D.allPrests.filter(p=>D.confirmed.has(p.id)).length, nWait=D.allPrests.filter(p=>!D.confirmed.has(p.id)&&D.invited.has(p.id)).length, nTodo=D.allPrests.length-nConf-nWait;
+  const pres=D.allPrests.map(p=>{ const cat=cs2MatchCat(p); const st=D.confirmed.has(p.id)?'<span class="cs2-chip g">✓ Confirmé</span>':(D.invited.has(p.id)?'<span class="cs2-chip a">⏳ En attente</span>':'<span class="cs2-chip n">À convoquer</span>');
+    const ct=cs2Emails(p)[0]; const ph=getPhones(p)[0];
+    return `<div class="cs2-pr"><span class="av" style="background:${cat.color}">${esc(cat.label.slice(0,4).toUpperCase())}</span><span class="nm"><b>${esc(p.nom)}</b><small>${esc([ct?ct.email:'',ph?ph.phone:''].filter(Boolean).join(' · ')||'aucun contact renseigné')}</small></span>${st}</div>`; }).join('');
+  // accordéon existant (sélection des destinataires) — même DOM que csEnvoyerAssistance attend
+  const bycat={}; CS2_CATS.forEach(c=>bycat[c.key]=[]); D.allPrests.forEach(p=>bycat[cs2MatchCat(p).key].push(p));
+  let acc='';
+  for(const cat of CS2_CATS){ const prests=bycat[cat.key]||[]; if(!prests.length) continue;
+    acc+=`<div style="border-top:1px solid var(--line)"><button onclick="cs2Toggle('acc_cat_${cat.key}')" style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 0;background:none;border:none;cursor:pointer;text-align:left;font-family:inherit"><span style="font-size:13.5px;font-weight:700;color:${cat.color};flex:1">${esc(cat.label)}</span><span style="font-size:11px;background:${cat.bg};color:${cat.color};border:1px solid ${cat.color}30;border-radius:20px;padding:2px 10px;font-weight:700">${prests.length}</span><span id="acc_cat_${cat.key}_chev" style="font-size:13px;color:var(--muted);margin-left:6px">▼</span></button><div id="acc_cat_${cat.key}" style="padding:0 0 12px;display:none">`;
+    for(const p of prests){ const emails=cs2Emails(p), phones=getPhones(p), isC=D.confirmed.has(p.id);
+      acc+=`<div class="card" style="padding:10px 12px;margin-bottom:8px;border-color:${isC?'#16a34a':cat.color+'30'};${isC?'background:#f0fdf4;':''}"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><div style="font-size:13px;font-weight:700">${esc(p.nom)}</div><span class="cs2-chip ${isC?'g':'a'}">${isC?'✅ Confirmé':'⏳ En attente'}</span></div><div style="display:flex;flex-direction:column;gap:2px">`;
+      if(!emails.length&&!phones.length) acc+='<div style="font-size:12px;color:var(--muted)">Aucun contact configuré</div>';
+      for(const em of emails){ acc+=`<label class="csx-ct"><input type="checkbox" value="${esc(em.email)}" data-prest="${p.id}" data-pnom="${esc(p.nom)}" data-cat="${cat.key}" checked style="accent-color:${cat.color}"><span class="csx-k mail">✉</span><span class="csx-bx"><span class="csx-who">${csxWho(em.label,false)}</span><span class="csx-val">${esc(em.email)}</span></span></label>`; }
+      for(const ph of phones){ acc+=`<label class="csx-ct"><input type="checkbox" value="${esc(ph.phone)}" data-prest-sms="${p.id}" data-pnom="${esc(p.nom)}" data-cat="${cat.key}" style="accent-color:${cat.color}"><span class="csx-k sms">💬</span><span class="csx-bx"><span class="csx-who">${csxWho(ph.label,true)}</span><span class="csx-val tel">${esc(ph.phone)}</span></span></label>`; }
+      acc+='</div></div>'; }
+    acc+=`<button class="btn primary sm csx-send" style="background:${cat.color};border-color:${cat.color}" onclick="csEnvoyerAssistance('${cat.key}','${esc(cat.label)}','${erpId}')">Envoyer demande d'assistance — ${esc(cat.label)}</button></div></div>`; }
+  return `<div class="cs2-card" id="cs2_assist"><div class="cs2-ch"><h2>Assistance technique</h2><span class="sub">présence des prestataires le jour J</span><span class="r">${nConf?`<span class="cs2-chip g">${nConf} confirmé${nConf>1?'s':''}</span>`:''}${nWait?`<span class="cs2-chip a">${nWait} en attente</span>`:''}${nTodo?`<span class="cs2-chip n">${nTodo} à convoquer</span>`:''}</span></div>
+    <div class="cs2-cb">${pres||'<div style="font-size:12.5px;color:var(--muted)">Aucun prestataire lié à cet ERP (fiche prestataire → client ou affaire rattachée à l\'ERP).</div>'}
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn sm primary" onclick="cs2Toggle('cs2_assist_acc')">Choisir les prestataires et envoyer</button><button class="btn sm" onclick="csEnvoyerAssistance('all','Toutes spécialités','${erpId}')">Envoyer à tous</button><button class="btn sm" onclick="cs2RappelSms()">📱 Rappel J-2</button></div>
+      <div id="cs2_assist_acc" style="display:none;margin-top:10px"><div style="display:flex;justify-content:flex-end;margin-bottom:4px"><button class="btn ghost sm" onclick="csDeselectAll()">Désélectionner toutes les cases</button></div>${acc}</div>
+    </div></div>`;
+}
+window.cs2RappelSms=async function(){
+  const {S,D}=window._cs2; if(!S.date_cs){ toast('Saisis d\'abord la date de la commission','err'); return; }
+  const conf=D.allPrests.filter(p=>D.confirmed.has(p.id)); const tos=[]; conf.forEach(p=>{ const ph=getPhones(p)[0]; if(ph) tos.push({p,phone:ph.phone}); });
+  if(!tos.length){ toast('Aucun prestataire confirmé avec un numéro mobile','err'); return; }
+  const msg='PREVA Conseils - Rappel : commission de sécurité '+cs2CleanNom(D.erp)+' le '+cs2Fr(S.date_cs)+(S.heure?' à '+S.heure:'')+(D.erp.adresse?' - '+D.erp.adresse:'')+'. Merci de votre présence.';
+  openModal(`<div class="modal-head"><h2>📱 Rappel SMS aux prestataires confirmés</h2><button class="x" onclick="closeModal()">${I.x}</button></div><div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+    <div>${tos.map(t=>`<label class="bil-cb" style="display:flex;align-items:center;gap:9px;padding:7px 10px;border:1px solid var(--line);border-radius:9px;font-size:12.5px;margin-bottom:6px"><input type="checkbox" class="cs2-rp" value="${esc(t.phone)}" checked> ${esc(t.p.nom)}<small style="margin-left:auto;color:var(--muted)">${esc(t.phone)}</small></label>`).join('')}</div>
+    <div class="fld" style="margin:0"><label>Message</label><textarea id="cs2_rp_msg" rows="4" style="width:100%;font:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:8px;padding:9px 11px">${esc(msg)}</textarea></div></div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="cs2_rp_go" onclick="cs2RappelSend()">Envoyer</button></div>`);
+};
+window.cs2RappelSend=async function(){
+  const {S,D}=window._cs2; const to=[...document.querySelectorAll('.cs2-rp:checked')].map(x=>x.value); const msg=(document.getElementById('cs2_rp_msg')||{}).value||'';
+  if(!to.length){ toast('Aucun destinataire','err'); return; } const btn=document.getElementById('cs2_rp_go'); if(btn){ btn.disabled=true; btn.textContent='Envoi…'; }
+  try{ const cid=D.erp.client_id; if(!(await smsGuard(cid,to.length))){ if(btn){btn.disabled=false;btn.textContent='Envoyer';} return; }
+    const {data,error}=await sb.functions.invoke('send-sms',{body:{to,message:msg}}); if(error||!data||!data.ok) throw new Error((error&&error.message)||(data&&data.error)||'Envoi refusé');
+    try{ await smsDebit(cid,Math.max(to.length,Number(data.credits)||0)||to.length); }catch(_){}
+    try{ await sb.from('sms_scheduled').insert(to.map(m=>({destinataire:m,message:msg,send_at:new Date().toISOString(),statut:'sent',sent_at:new Date().toISOString(),contexte:{type:'cs_rappel',erp:cs2CleanNom(D.erp)},created_by:state.profile?.nom||state.user?.email||'',client_id:cid,erp_id:D.erp.id}))); }catch(_){}
+    await cs2PlanToggle('j2',true); closeModal(); toast(to.length+' SMS de rappel envoyé'+(to.length>1?'s':'')+' ✓','ok');
+  }catch(e){ if(btn){btn.disabled=false;btn.textContent='Envoyer';} toast('Envoi impossible : '+(e.message||e),'err'); }
+};
+
+/* ── Contacts officiels ── */
+function cs2ContactsHtml(){
+  const {D}=window._cs2; const e=D.erp; const extra=Array.isArray(e.mairie_contacts)?e.mairie_contacts:[];
+  const has=e.mairie_nom||e.mairie_email||e.mairie_telephone||extra.length;
+  return `<div class="cs2-card"><div class="cs2-ch"><h2>Contacts officiels</h2><span class="sub">depuis la fiche ERP</span></div><div class="cs2-cb" style="font-size:12.5px;line-height:1.7">
+    ${has?`<b>${esc(e.mairie_nom||'Mairie')}</b>${e.mairie_ville?' — '+esc(e.mairie_ville):''}<br><span style="color:var(--muted)">${esc([e.mairie_contact,e.mairie_email,e.mairie_telephone].filter(Boolean).join(' · '))}</span>${extra.map(x=>`<br><span style="color:var(--muted)">${esc([x.nom||x.name,x.fonction||x.role,x.email,x.telephone||x.tel].filter(Boolean).join(' · '))}</span>`).join('')}`:'<span style="color:var(--muted)">Aucun contact mairie renseigné — complétez la fiche ERP (onglet mairie).</span>'}
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn sm" onclick="cs2MailModal({what:'courrier'})">✉️ Courrier type mairie</button><button class="btn sm" onclick="cs2MailModal({what:'report'})">Demande de report</button><button class="btn sm ghost" onclick="navigate('/erps/${e.id}')">Fiche ERP</button></div></div></div>`;
+}
+
+window.cs2Toggle=function(id){ const el=document.getElementById(id); if(!el) return; const chev=document.getElementById(id+'_chev'); const open=el.style.display!=='none'; el.style.display=open?'none':'block'; if(chev) chev.style.transform=open?'rotate(-90deg)':'rotate(0)'; };
+
+/* ── Auto-contrôle terrain ── */
+function cs2AcHtml(){
+  const {S,D}=window._cs2; const n=D.ac.length, done=D.ac.filter(a=>a.statut).length, ko=D.ac.filter(a=>a.statut==='ko').length;
+  const it=a=>`<div class="it${a.custom?' custom':''}" id="cs2_ac_${a.id}"><button class="bx${a.statut==='ok'?' on':(a.statut==='ko'?' ko':'')}" title="Cliquer : conforme → non conforme → vide" onclick="cs2AcCycle('${a.id}')">${a.statut==='ok'?'✓':(a.statut==='ko'?'✗':'')}</button><span class="lb" onclick="cs2AcCycle('${a.id}')" title="${esc(a.observation||'')}">${esc(a.libelle)}${a.observation?` <small style="color:var(--muted)">— ${esc(a.observation)}</small>`:''}</span><button class="ph${a.photo_path?' has':''}" title="${a.photo_path?'Voir la photo':'Ajouter une photo horodatée'}" onclick="${a.photo_path?`previewDoc('${esc(a.photo_path)}','photo.jpg')`:`cs2AcPhoto('${a.id}')`}">📷</button>${a.custom?`<button class="del" title="Retirer ce point" onclick="cs2AcDel('${a.id}')">✕</button>`:''}</div>`;
+  return `<div class="cs2-card" id="cs2_ac"><div class="cs2-ch"><h2>Auto-contrôle terrain</h2><span class="sub">à J-7 · sur mobile avec photos, ou sur papier validé à la main${S.autocontrole_controleur?' · validé par '+esc(S.autocontrole_controleur)+(S.autocontrole_date?' le '+cs2Fr(S.autocontrole_date):''):''}</span><span class="r"><span class="cs2-chip ${ko?'r':'n'}">${done} / ${n}${ko?' · '+ko+' anomalie'+(ko>1?'s':''):''}</span><button class="btn sm" style="border-color:#2563eb;color:#1d4ed8;background:#f6f9ff" onclick="cs2AcPdf('view')">👁 Visualiser</button><button class="btn sm" onclick="cs2AcPdf('print')">🖨 Imprimer</button></span></div>
+    <div class="cs2-cb"><div class="cs2-ac">${D.ac.map(it).join('')}</div>
+      <div class="cs2-addrow"><span style="font-size:11.5px;font-weight:700;color:#1d4ed8;white-space:nowrap">+ Ajouter un point</span><input id="cs2_ac_new" placeholder="ex. Local poubelles fermé à clé…" onkeydown="if(event.key==='Enter')cs2AcAdd()"><button class="btn sm primary" onclick="cs2AcAdd()">Ajouter</button></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">Un clic sur la case : conforme → non conforme → vide. Les points ajoutés sont conservés pour cet ERP et repris à chaque commission.</div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn sm primary" onclick="cs2AcMobile()">📱 Lancer l'auto-contrôle sur mobile</button><button class="btn sm" onclick="cs2AcValider()">✍️ Valider à la main</button><button class="btn sm" onclick="cs2AcPdf('download')">Rapport d'auto-contrôle (PDF)</button></div>
+    </div></div>`;
+}
+window.cs2AcCycle=async function(id){
+  const {S,D}=window._cs2; const a=D.ac.find(x=>x.id===id); if(!a) return;
+  const next=a.statut==='ok'?'ko':(a.statut==='ko'?null:'ok');
+  let obs=a.observation||null; if(next==='ko'){ const o=prompt('Non conforme — observation (facultatif) :',obs||''); if(o!==null) obs=o.trim()||null; }
+  try{ const {error}=await sb.from('cs_autocontrole').update({statut:next,observation:next?obs:null,controleur:state.profile?.nom||state.user?.email||null,checked_at:next?new Date().toISOString():null}).eq('id',id); if(error) throw error;
+    a.statut=next; a.observation=next?obs:null; a.checked_at=next?new Date().toISOString():null; cs2Render(); }catch(e){ toast(e.message||e,'err'); }
+};
+window.cs2AcAdd=async function(){
+  const inp=document.getElementById('cs2_ac_new'); const lib=(inp&&inp.value||'').trim(); if(!lib){ toast('Saisis le libellé du point','err'); return; }
+  const {S,D}=window._cs2;
+  try{ const {data,error}=await sb.from('cs_autocontrole').insert({erp_id:D.erp.id,session_id:S.id,libelle:lib,ordre:100+D.ac.length,custom:true}).select('*').single(); if(error) throw error; D.ac.push(data); cs2Render(); toast('Point ajouté','ok'); }catch(e){ toast(e.message||e,'err'); }
+};
+window.cs2AcDel=async function(id){ const {D}=window._cs2; if(!confirm('Retirer ce point de contrôle ?')) return; try{ const {error}=await sb.from('cs_autocontrole').delete().eq('id',id); if(error) throw error; D.ac=D.ac.filter(a=>a.id!==id); cs2Render(); }catch(e){ toast(e.message||e,'err'); } };
+window.cs2AcPhoto=function(id){
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.capture='environment';
+  inp.onchange=async()=>{ const f=inp.files[0]; if(!f) return; const {S,D}=window._cs2;
+    try{ let up=f; if(typeof compressImage==='function') up=await compressImage(f,2000,.8);
+      const path=D.erp.id+'/commission/'+S.id+'/ac_'+id+'_'+Date.now()+'.jpg';
+      const {error}=await sb.storage.from('documents').upload(path,up,{contentType:up.type||'image/jpeg'}); if(error) throw error;
+      const a=D.ac.find(x=>x.id===id); const patch={photo_path:path}; if(a&&!a.statut){ patch.statut='ok'; patch.checked_at=new Date().toISOString(); patch.controleur=state.profile?.nom||null; }
+      const {error:e2}=await sb.from('cs_autocontrole').update(patch).eq('id',id); if(e2) throw e2; Object.assign(a,patch); cs2Render(); toast('Photo horodatée enregistrée ✓','ok');
+    }catch(e){ toast('Photo impossible : '+(e.message||e),'err'); } };
+  inp.click();
+};
+window.cs2AcMobile=function(){
+  const {D}=window._cs2; const url=location.origin+location.pathname+'#/preparation-cs';
+  if(window.innerWidth<840){ cs2Scroll('cs2_ac'); toast('Cochez chaque point et ajoutez une photo avec 📷','ok'); return; }
+  openModal(`<div class="modal-head"><h2>📱 Auto-contrôle sur mobile</h2><button class="x" onclick="closeModal()">${I.x}</button></div><div class="modal-body" style="display:flex;flex-direction:column;gap:12px;font-size:13px">
+    <div>Ouvrez cette page sur votre téléphone (même compte), sélectionnez l'ERP <b>${esc(cs2CleanNom(D.erp))}</b> et cochez chaque point sur place. Le bouton 📷 prend une photo horodatée qui reste attachée au point.</div>
+    <div id="cs2_qr" style="display:grid;place-items:center;padding:8px"></div>
+    <div style="font-size:12px;color:var(--muted);word-break:break-all">${esc(url)}</div></div>
+    <div class="modal-foot"><button class="btn primary" onclick="closeModal()">Fermer</button></div>`);
+  try{ const box=document.getElementById('cs2_qr'); if(window.QRCode&&box){ new QRCode(box,{text:url,width:160,height:160}); } }catch(_){}
+};
+window.cs2AcValider=function(){
+  const {S,D}=window._cs2;
+  openModal(`<div class="modal-head"><h2>✍️ Valider l'auto-contrôle à la main</h2><button class="x" onclick="closeModal()">${I.x}</button></div><div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+    <div style="font-size:12.5px;color:var(--muted)">Sans mobile ni photo : indiquez qui a contrôlé et quand, puis l'état de chaque point.</div>
+    <div class="row2"><div class="fld" style="margin:0"><label>Contrôle réalisé par</label><input id="cs2_v_nom" value="${esc(S.autocontrole_controleur||state.profile?.nom||'')}"></div><div class="fld" style="margin:0"><label>Le</label><input id="cs2_v_date" type="date" value="${esc(S.autocontrole_date||D.today)}"></div></div>
+    <div>${D.ac.map(a=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:12.5px"><span style="flex:1;min-width:0">${esc(a.libelle)}</span><select data-ac="${a.id}" style="font:inherit;font-size:12px;border:1px solid var(--line);border-radius:7px;padding:4px 6px"><option value="">—</option><option value="ok"${a.statut==='ok'?' selected':''}>Conforme</option><option value="ko"${a.statut==='ko'?' selected':''}>Non conforme</option></select></div>`).join('')}</div>
+    <label style="font-size:12px;display:flex;gap:6px;align-items:center"><input type="checkbox" id="cs2_v_all"> Marquer conformes tous les points laissés vides</label></div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" onclick="cs2AcValiderSave()">Enregistrer la validation</button></div>`);
+};
+window.cs2AcValiderSave=async function(){
+  const {S,D}=window._cs2; const nom=(document.getElementById('cs2_v_nom')||{}).value||''; const date=(document.getElementById('cs2_v_date')||{}).value||D.today; const all=(document.getElementById('cs2_v_all')||{}).checked;
+  if(!nom.trim()){ toast('Indique le nom du contrôleur','err'); return; }
+  try{ const sels=[...document.querySelectorAll('select[data-ac]')]; const when=new Date(date+'T12:00:00').toISOString();
+    for(const s of sels){ let v=s.value||null; if(!v&&all) v='ok'; const a=D.ac.find(x=>x.id===s.dataset.ac); if(!a) continue; if((a.statut||null)===(v||null)&&a.controleur===nom) continue;
+      const {error}=await sb.from('cs_autocontrole').update({statut:v,controleur:nom,checked_at:v?when:null}).eq('id',a.id); if(error) throw error; a.statut=v; a.controleur=nom; a.checked_at=v?when:null; }
+    await cs2SaveSession({autocontrole_controleur:nom,autocontrole_date:date}); closeModal(); cs2Render(); toast('Auto-contrôle validé ✓','ok');
+  }catch(e){ toast(e.message||e,'err'); }
+};
+
+/* ── PDF helpers (jsPDF) ── */
+function cs2Pdf(){ const J=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF; if(!J) throw new Error('Bibliothèque PDF non chargée'); return new J({unit:'mm',format:'a4',compress:true}); }
+function cs2Clean(s){ return String(s==null?'':s).replace(/\u2192/g,'-').replace(/\u1D49/g,'e').replace(/[\uD800-\uDFFF\uFE0E\uFE0F\u200B-\u200D\u2190-\u21FF\u2300-\u27BF\u2B00-\u2BFF]/g,'').replace(/[\u00A0\u202F\u2007\u2009]/g,' ').replace(/ {2,}/g,' ').trim(); }
+function cs2PdfKit(doc){
+  const W=210,H=297,ML=14,CW=W-2*ML; const NAVY=[15,42,107],INK=[16,24,40],MUT=[100,116,139],MUT2=[148,163,184],LINE=[226,232,240],GREEN=[22,128,60],AMBER=[180,83,9],RED=[185,28,28],WHITE=[255,255,255];
+  const K={W,H,ML,CW,NAVY,INK,MUT,MUT2,LINE,GREEN,AMBER,RED,WHITE,y:16,page:1,ft:['','']};
+  K.F=(st,sz,c)=>{ doc.setFont('helvetica',st); doc.setFontSize(sz); doc.setTextColor(c[0],c[1],c[2]); };
+  K.fill=c=>doc.setFillColor(c[0],c[1],c[2]); K.stroke=c=>doc.setDrawColor(c[0],c[1],c[2]);
+  K.wrap=(t,w,sz)=>{ doc.setFontSize(sz); return doc.splitTextToSize(cs2Clean(t),w); };
+  K.footer=(left,right)=>{ left=left||K.ft[0]; right=right||K.ft[1]; K.stroke(LINE); doc.setLineWidth(.3); doc.line(ML,H-13,W-ML,H-13); K.F('normal',6.8,MUT2); doc.text(cs2Clean(left),ML,H-9); doc.text(cs2Clean(right+' · page '+K.page),W-ML,H-9,{align:'right'}); };
+  K.newPage=(left,right)=>{ K.footer(left||K.ft[0],right||K.ft[1]); doc.addPage(); K.page++; K.y=16; };
+  K.need=(h,left,right)=>{ if(K.y+h>H-18) K.newPage(left,right); };
+  K.head=(client,erp,sur,titre,chapo)=>{ K.fill(NAVY); doc.rect(ML,K.y,CW,1.2,'F'); K.fill(RED); doc.rect(W-ML-16,K.y,16,1.2,'F'); K.y+=8;
+    K.F('bold',12.5,INK); doc.text(cs2Clean(client),ML,K.y); K.F('normal',7.5,MUT); doc.text(cs2Clean(erp),ML,K.y+4.3); K.y+=16;
+    K.F('bold',8,MUT2); doc.text(cs2Clean(sur).toUpperCase(),W/2,K.y,{align:'center',charSpace:.8}); K.y+=7; K.F('bold',17,INK); const tl=K.wrap(titre,150,17); doc.text(tl,W/2,K.y,{align:'center'}); K.y+=tl.length*7.5; K.fill(RED); doc.rect(W/2-25,K.y,50,.8,'F'); K.y+=6;
+    if(chapo){ K.F('normal',9,[51,65,85]); const cl=K.wrap(chapo,150,9); doc.text(cl,W/2,K.y,{align:'center'}); K.y+=cl.length*4.4+4; } };
+  K.sec=(n,t)=>{ K.y+=3; K.F('bold',11,[194,203,221]); doc.text(n,ML,K.y+4.5); K.F('bold',9,INK); doc.text(cs2Clean(t).toUpperCase(),ML+9,K.y+4.5,{charSpace:.25}); K.stroke(NAVY); doc.setLineWidth(.6); doc.line(ML,K.y+7.5,W-ML,K.y+7.5); K.y+=13; };
+  K.chip=(x,y,t,c,bg,ln)=>{ K.F('bold',6.2,c); const w=doc.getTextWidth(t)+6; K.fill(bg); K.stroke(ln); doc.setLineWidth(.3); doc.roundedRect(x,y-3.4,w,5,2.5,2.5,'FD'); doc.text(t,x+3,y+.2); return w; };
+  K.attest=(txt)=>{ K.need(34); K.stroke(NAVY); doc.setLineWidth(.5); doc.rect(ML,K.y,CW,30,'S'); K.F('bold',8,INK); doc.text('ATTESTATION DE L\'EXPLOITANT',ML+4,K.y+6,{charSpace:.4}); K.F('normal',8,INK); const l=K.wrap(txt,CW-8,8); doc.text(l,ML+4,K.y+11); K.F('normal',7,MUT); ['Fait à','Le','Signature et cachet de l\'exploitant'].forEach((s,i)=>{ const x=ML+4+i*(CW-8)/3; K.stroke(LINE); doc.setLineDashPattern([1,1],0); doc.line(x,K.y+23,x+(CW-8)/3-6,K.y+23); doc.setLineDashPattern([],0); doc.text(s,x,K.y+27); }); K.y+=34; };
+  return K;
+}
+function cs2Ctx(){ const {S,D}=window._cs2; return {client:(D.client.raison_sociale||'EXPLOITANT').toUpperCase(),erp:cs2CleanNom(D.erp)+(D.erp.type_erp?' — type '+D.erp.type_erp:'')+(D.erp.categorie?', '+D.erp.categorie+'e catégorie':'')+(D.erp.ville?' · '+D.erp.ville:''),date:S.date_cs?cs2Fr(S.date_cs)+(S.heure?' à '+S.heure:''):'date à confirmer'}; }
+function cs2Open(doc,mode,name){
+  const blob=doc.output('blob'); const url=URL.createObjectURL(blob);
+  if(mode==='download'){ const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); return {blob,url}; }
+  if(mode==='print'){ let fr=document.getElementById('cs2_print_frame'); if(fr) fr.remove(); fr=document.createElement('iframe'); fr.id='cs2_print_frame'; fr.style.cssText='position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0;border:0;pointer-events:none'; fr.onload=()=>{ setTimeout(()=>{ try{ fr.contentWindow.focus(); fr.contentWindow.print(); }catch(e){ window.open(url,'_blank'); } },400); }; fr.src=url; document.body.appendChild(fr); toast('Impression…','ok'); return {blob,url}; }
+  const isMobile=window.innerWidth<768;
+  const viewer=isMobile?`<div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:28px 16px;text-align:center"><div style="font-size:40px">📄</div><div style="font-weight:600">${esc(name)}</div><a class="btn primary" href="${url}" target="_blank" rel="noopener">Ouvrir le PDF</a></div>`:`<iframe src="${url}#toolbar=1&view=FitH" style="width:100%;height:74vh;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>`;
+  const jn=esc(name.replace(/'/g,''));
+  openModal(`<div class="modal-head"><h2 style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:78%">👁 ${esc(name)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div><div class="modal-body" style="padding-top:8px">${viewer}</div>
+    <div class="modal-foot" style="flex-wrap:wrap"><button class="btn ghost" onclick="closeModal()">Fermer</button><button class="btn" onclick="(function(){var f=document.createElement('iframe');f.style.cssText='position:fixed;width:1px;height:1px;opacity:0';f.onload=function(){setTimeout(function(){try{f.contentWindow.print()}catch(e){window.open('${url}')}},300)};f.src='${url}';document.body.appendChild(f)})()">🖨 Imprimer</button><a class="btn" href="${url}" download="${jn}">⬇️ Télécharger</a></div>`,'modal-wide');
+  return {blob,url};
+}
+
+/* Registre de sécurité — extrait */
+window.cs2RegistrePdf=function(view){
+  const {S,D}=window._cs2; const doc=cs2Pdf(); const K=cs2PdfKit(doc); const C=cs2Ctx(); const ft=['Registre de sécurité — extrait généré par CONFORMITÉ SÉCURITÉ','Commission du '+C.date]; K.ft=ft;
+  K.head(C.client,C.erp,'Registre de sécurité','Extrait du registre de sécurité','Vérifications réglementaires, échéances et prestataires de l\'établissement, au '+cs2Fr(D.today)+'. Édité pour la commission de sécurité du '+C.date+'.');
+  K.sec('01','Vérifications périodiques');
+  const cols=[K.ML,K.ML+72,K.ML+100,K.ML+124,K.ML+148]; K.F('bold',6.2,K.MUT2); ['VÉRIFICATION','PÉRIODICITÉ','DERNIÈRE','PROCHAINE','ACTEUR / PRESTATAIRE'].forEach((h,i)=>doc.text(h,cols[i],K.y+3,{charSpace:.3})); K.stroke(K.LINE); doc.line(K.ML,K.y+5,K.W-K.ML,K.y+5); K.y+=8;
+  const obs=D.obs.slice().sort((a,b)=>String(a.prochaine_echeance||'9').localeCompare(String(b.prochaine_echeance||'9')));
+  if(!obs.length){ K.F('normal',7.5,K.MUT2); doc.text('Aucune vérification dans le plan de maintenance.',K.ML,K.y); K.y+=8; }
+  obs.forEach(o=>{ K.need(8,ft[0],ft[1]); const late=o.prochaine_echeance&&String(o.prochaine_echeance).slice(0,10)<D.today; K.F('normal',7.4,K.INK); doc.text(K.wrap((o.libelle||o.domaine||'').replace(/^Rapport de vérification /i,'Vérification '),68,7.4)[0],cols[0],K.y+.5); K.F('normal',7,K.MUT); doc.text(cs2Clean(o.periodicite||'—'),cols[1],K.y+.5); doc.text(cs2Fr(o.derniere_verif),cols[2],K.y+.5); K.F('normal',7,late?K.RED:K.MUT); doc.text(cs2Fr(o.prochaine_echeance),cols[3],K.y+.5); K.F('normal',7,K.MUT); const pn=o.prestataire_id&&D.prests[o.prestataire_id]?D.prests[o.prestataire_id].nom:(o.acteur||'—'); doc.text(K.wrap(pn,44,7)[0],cols[4],K.y+.5); K.stroke([241,245,249]); doc.setLineWidth(.25); doc.line(K.ML,K.y+3.4,K.W-K.ML,K.y+3.4); K.y+=7; });
+  K.sec('02','Rapports et attestations reçus (24 derniers mois)');
+  const lim=cs2AddDays(D.today,-730); const rec=D.docs.filter(d=>!/devis|facture|mail/i.test(d.categorie||'')&&String(d.date_document||d.created_at).slice(0,10)>=lim).slice(0,40);
+  if(!rec.length){ K.F('normal',7.5,K.MUT2); doc.text('Aucun rapport reçu sur la période.',K.ML,K.y); K.y+=8; }
+  rec.forEach(d=>{ K.need(7,ft[0],ft[1]); K.F('normal',7.4,K.INK); doc.text(K.wrap((d.lot?d.lot+' — ':'')+(d.nom_original||''),120,7.4)[0],K.ML,K.y+.5); K.F('normal',7,K.MUT); doc.text(cs2Clean((d.type||'')+(d.prestataire_id&&D.prests[d.prestataire_id]?' · '+D.prests[d.prestataire_id].nom:'')).slice(0,40),K.ML+124,K.y+.5); doc.text(cs2Fr(d.date_document||d.created_at),K.W-K.ML,K.y+.5,{align:'right'}); K.stroke([241,245,249]); doc.line(K.ML,K.y+3.4,K.W-K.ML,K.y+3.4); K.y+=6.5; });
+  K.sec('03','Contrats de maintenance');
+  if(!D.contrats.length){ K.F('normal',7.5,K.MUT2); doc.text('Aucun contrat déposé.',K.ML,K.y); K.y+=8; }
+  D.contrats.forEach(c=>{ K.need(7,ft[0],ft[1]); K.F('normal',7.4,K.INK); doc.text(K.wrap((c.nom||'Contrat')+(c.prestataire_id&&D.prests[c.prestataire_id]?' — '+D.prests[c.prestataire_id].nom:''),150,7.4)[0],K.ML,K.y+.5); K.F('normal',7,K.MUT); doc.text(c.date_debut?('depuis le '+cs2Fr(c.date_debut)+(c.duree_mois?' · '+c.duree_mois+' mois':'')):'',K.W-K.ML,K.y+.5,{align:'right'}); K.y+=6.5; });
+  K.y+=4; K.attest('Je soussigné(e), représentant de '+C.client+', certifie que le présent extrait reflète le registre de sécurité de l\'établissement tenu sur la plateforme CONFORMITÉ SÉCURITÉ, dont les dates sont issues de l\'horodatage de dépôt des pièces.');
+  K.footer(ft[0],ft[1]);
+  if(view===true) return cs2Open(doc,'view','Registre_de_securite_'+cs2Iso(new Date())+'.pdf');
+  return doc;
+};
+/* Réponse aux prescriptions */
+window.cs2PrescPdf=function(view){
+  const {S,D}=window._cs2; if(!D.tab){ toast('Aucune prescription connue','err'); return; }
+  const doc=cs2Pdf(); const K=cs2PdfKit(doc); const C=cs2Ctx(); const ft=['Réponse aux prescriptions — CONFORMITÉ SÉCURITÉ','Commission du '+C.date]; K.ft=ft;
+  const isLev=r=>r.etat_levee==='levee'||['levee','validee'].includes(r.statut||''); const lev=D.presc.filter(isLev).length;
+  K.head(C.client,C.erp,'Levée des prescriptions','Réponse aux prescriptions de la commission de sécurité','Commission du '+cs2Fr(D.tab.date_intervention)+(D.tab.numero_tableau?' · tableau '+D.tab.numero_tableau:'')+' — '+D.presc.length+' prescription'+(D.presc.length>1?'s':'')+', '+lev+' levée'+(lev>1?'s':'')+' à ce jour.');
+  K.sec('01','État des prescriptions');
+  D.presc.forEach((r,i)=>{ const pj=D.prescDocs.filter(d=>d.reserve_id===r.id); const pn=r.prestataire_id&&D.prests[r.prestataire_id]?D.prests[r.prestataire_id].nom:''; const lines=K.wrap(r.libelle||'',K.CW-40,8);
+    const h=Math.max(14,6+lines.length*3.8+8); K.need(h+3,ft[0],ft[1]);
+    K.stroke(K.LINE); doc.setLineWidth(.4); doc.roundedRect(K.ML,K.y,K.CW,h,2,2,'S'); K.F('bold',8,[26,68,173]); doc.text('P'+(r.numero||i+1),K.ML+4,K.y+6); K.F('normal',8,K.INK); doc.text(lines,K.ML+16,K.y+6);
+    const yb=K.y+6+lines.length*3.8+1; K.F('normal',7,K.MUT); doc.text(cs2Clean([pn?'Prestataire : '+pn:'',r.date_realisation?'levée le '+cs2Fr(r.date_realisation):'',pj.length?pj.length+' pièce(s) jointe(s)':'',(r.signature_nom||r.signature_data)?'attestation signée'+(r.signature_nom?' par '+r.signature_nom:''):''].filter(Boolean).join(' · ')),K.ML+16,yb);
+    const st=isLev(r)?'Levée':(r.prestataire_id||['en_cours','affectee'].includes(r.statut||'')?'En cours':'Non levée'); const col=st==='Levée'?[K.GREEN,[240,251,244],[187,232,201]]:(st==='En cours'?[K.AMBER,[255,251,235],[253,230,138]]:[K.RED,[254,242,242],[254,202,202]]);
+    K.F('bold',6.2,col[0]); const w=doc.getTextWidth(st)+6; K.chip(K.W-K.ML-w-4,K.y+6,st,col[0],col[1],col[2]); K.y+=h+3; });
+  K.y+=4; K.attest('Je soussigné(e), représentant de '+C.client+', atteste de l\'exactitude des levées ci-dessus, dont les preuves (attestations, photos, signatures des prestataires) sont conservées dans le dossier de commission et communicables sur demande.');
+  K.footer(ft[0],ft[1]);
+  if(view===true) return cs2Open(doc,'view','Reponse_prescriptions_'+cs2Iso(new Date())+'.pdf');
+  return doc;
+};
+/* Fiche d'auto-contrôle */
+window.cs2AcPdf=function(mode){
+  const {S,D}=window._cs2; const doc=cs2Pdf(); const K=cs2PdfKit(doc); const C=cs2Ctx(); const ft=['Fiche générée par CONFORMITÉ SÉCURITÉ · points issus du plan de maintenance + points ajoutés','Commission du '+C.date]; K.ft=ft;
+  K.head(C.client,C.erp,'Auto-contrôle terrain','Fiche de contrôle avant commission de sécurité','Commission du '+C.date+(S.date_cs?' · contrôle à réaliser avant le '+cs2Fr(cs2AddDays(S.date_cs,-7))+' (J-7)':'')+'.');
+  const cols=[K.ML,K.ML+10,K.ML+112,K.ML+134,K.ML+156]; K.F('bold',6.2,K.MUT2); ['N°','POINT DE CONTRÔLE','CONFORME','NON CONF.','OBSERVATION'].forEach((h,i)=>doc.text(h,cols[i],K.y+3,{charSpace:.3})); K.stroke(K.LINE); doc.line(K.ML,K.y+5,K.W-K.ML,K.y+5); K.y+=9;
+  const box=(x,y,on,c)=>{ K.stroke([100,116,139]); doc.setLineWidth(.35); doc.rect(x,y-3,3.6,3.6,'S'); if(on){ K.F('bold',8,c); doc.text('X',x+.65,y+.2); } };
+  D.ac.forEach((a,i)=>{ K.need(9,ft[0],ft[1]); K.F('bold',7.4,[26,68,173]); doc.text(String(i+1),cols[0],K.y+.5); K.F('normal',7.6,K.INK); doc.text(K.wrap(a.libelle+(a.custom?' (ajouté)':''),98,7.6)[0],cols[1],K.y+.5); box(cols[2]+6,K.y,a.statut==='ok',K.GREEN); box(cols[3]+6,K.y,a.statut==='ko',K.RED); K.F('normal',6.8,K.MUT); if(a.observation) doc.text(K.wrap(a.observation,K.W-K.ML-cols[4],6.8)[0],cols[4],K.y+.5); else { K.stroke(K.LINE); doc.setLineDashPattern([.6,.8],0); doc.line(cols[4],K.y+1.2,K.W-K.ML,K.y+1.2); doc.setLineDashPattern([],0); } K.stroke([241,245,249]); doc.setLineWidth(.25); doc.line(K.ML,K.y+3.6,K.W-K.ML,K.y+3.6); K.y+=8; });
+  K.y+=6; K.need(36,ft[0],ft[1]); K.stroke(K.NAVY); doc.setLineWidth(.5); doc.rect(K.ML,K.y,K.CW,30,'S'); K.F('bold',8,K.INK); doc.text('VALIDATION',K.ML+4,K.y+6,{charSpace:.4}); K.F('normal',7.5,K.INK);
+  const ctrl=S.autocontrole_controleur||[...new Set(D.ac.map(a=>a.controleur).filter(Boolean))][0]||''; const dt=S.autocontrole_date||(D.ac.find(a=>a.checked_at)||{}).checked_at||'';
+  doc.text(cs2Clean('Contrôle réalisé par : '+(ctrl||'______________________')+'    Fonction : ______________    Le : '+(dt?cs2Fr(dt):'____ / ____ / ________')+' à ____ h ____'),K.ML+4,K.y+12);
+  K.F('normal',7,K.MUT); ['Signature du contrôleur','Visa de l\'exploitant'].forEach((s,i)=>{ const x=K.ML+4+i*(K.CW-8)/2; K.stroke(K.LINE); doc.setLineDashPattern([1,1],0); doc.line(x,K.y+23,x+(K.CW-8)/2-8,K.y+23); doc.setLineDashPattern([],0); doc.text(s,x,K.y+27); }); K.y+=34;
+  K.footer(ft[0],ft[1]);
+  const name='Auto-controle_'+cs2Iso(new Date())+'.pdf';
+  if(mode==='doc') return doc;
+  return cs2Open(doc,mode||'view',name);
+};
+
+/* ── Demande de pièce à un prestataire ── */
+window.cs2DemanderPiece=function(obId,list){
+  const {S,D}=window._cs2; const items=list||[obId].map(id=>D.obs.find(o=>o.id===id)).filter(Boolean); if(!items.length) return;
+  const emailsOf=o=>{ const p=o.prestataire_id&&D.prests[o.prestataire_id]; return p?cs2Emails(p).map(e=>e.email):[]; };
+  const groups={}; items.forEach(o=>{ const p=o.prestataire_id&&D.prests[o.prestataire_id]; const key=p?p.id:'__none'; (groups[key]=groups[key]||{p,obs:[]}).obs.push(o); });
+  const C=cs2Ctx();
+  const body='Bonjour,\n\nDans le cadre de la préparation de la commission de sécurité de l\'établissement '+cs2CleanNom(D.erp)+(S.date_cs?' prévue le '+C.date:'')+', merci de nous transmettre dans les meilleurs délais :\n\n'+items.map(o=>'• '+(o.libelle||o.domaine)+(o.periodicite?' ('+o.periodicite+')':'')+(o.preuve_attendue?' — '+o.preuve_attendue:'')).join('\n')+'\n\nLe document peut être déposé directement en réponse à ce message ; il sera classé automatiquement.\n\nCordialement,\n'+(state.profile?.nom||'');
+  const tos=[...new Set(Object.values(groups).flatMap(g=>g.p?cs2Emails(g.p).map(e=>e.email):[]))];
+  cs2MailModal({what:'demande',tos,subject:'Pièces à fournir — commission de sécurité '+cs2CleanNom(D.erp)+(S.date_cs?' du '+cs2Fr(S.date_cs):''),body,note:Object.values(groups).map(g=>(g.p?g.p.nom:'Sans prestataire affecté')+' : '+g.obs.map(o=>o.libelle||o.domaine).join(', ')).join(' · '),after:()=>cs2PlanToggle('j60',true)});
+};
+window.cs2DemanderToutes=function(){ const {D}=window._cs2; const list=D.dossier.pieces.filter(p=>p.need==='demander'&&p.st!=='ok').map(p=>p.ob); if(!list.length){ toast('Aucune pièce manquante à demander','ok'); return; } cs2DemanderPiece(null,list); };
+
+/* ── Dossier de commission : bordereau + pièces assemblées ── */
+async function cs2FetchBlob(path,bucket){ const {data,error}=await sb.storage.from(bucket||'documents').createSignedUrl(path,600); if(error) throw error; const r=await fetch(data.signedUrl); if(!r.ok) throw new Error('téléchargement'); return await r.blob(); }
+async function cs2AddPdfPages(doc,blob,K,maxPages){
+  const pdfjsLib=window['pdfjs-dist/build/pdf']; if(!pdfjsLib) throw new Error('PDF.js non chargé'); pdfjsLib.GlobalWorkerOptions.workerSrc='lib-pdf-3.11.174.worker.min.js';
+  const pdf=await pdfjsLib.getDocument({data:await blob.arrayBuffer()}).promise; const n=Math.min(pdf.numPages,maxPages||25);
+  for(let i=1;i<=n;i++){ const page=await pdf.getPage(i); const vp1=page.getViewport({scale:1}); const scale=Math.min(1.6,1400/Math.max(vp1.width,vp1.height)); const vp=page.getViewport({scale}); const cv=document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height; await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+    const land=vp.width>vp.height; doc.addPage('a4',land?'l':'p'); K.page++; const PW=land?297:210, PH=land?210:297; const r=Math.min((PW-16)/vp.width,(PH-20)/vp.height); const w=vp.width*r, h=vp.height*r; doc.addImage(cv.toDataURL('image/jpeg',.82),'JPEG',(PW-w)/2,(PH-h)/2-2,w,h,'','FAST'); K.F('normal',6.5,K.MUT2); doc.text('page '+i+' / '+pdf.numPages,PW/2,PH-6,{align:'center'}); }
+  return n;
+}
+async function cs2AddImagePage(doc,blob,K,caption){
+  const url=URL.createObjectURL(blob); const img=await new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=url; });
+  const land=img.width>img.height; doc.addPage('a4',land?'l':'p'); K.page++; const PW=land?297:210, PH=land?210:297; const r=Math.min((PW-20)/img.width,(PH-30)/img.height); const w=img.width*r,h=img.height*r;
+  const cv=document.createElement('canvas'); const sc=Math.min(1,1600/Math.max(img.width,img.height)); cv.width=img.width*sc; cv.height=img.height*sc; cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+  doc.addImage(cv.toDataURL('image/jpeg',.85),'JPEG',(PW-w)/2,10,w,h,'','FAST'); if(caption){ K.F('normal',7.5,K.MUT); doc.text(cs2Clean(caption),PW/2,PH-8,{align:'center'}); } URL.revokeObjectURL(url);
+}
+window.cs2BuildDossier=async function(onProgress){
+  const {S,D}=window._cs2; const doc=cs2Pdf(); const K=cs2PdfKit(doc); const C=cs2Ctx(); const Do=D.dossier; const ft=['Dossier de commission de sécurité — CONFORMITÉ SÉCURITÉ · données horodatées','Commission du '+C.date]; K.ft=ft;
+  const prog=t=>{ if(onProgress) onProgress(t); };
+  K.head(C.client,C.erp,'Dossier de commission de sécurité','Pièces justificatives présentées à la commission de sécurité','Visite '+({periodique:'périodique',ouverture:'d\'ouverture',reception:'de réception de travaux',inopinee:'inopinée'}[S.type_visite]||'')+' du '+C.date+' · '+Do.n+' pièces attendues · '+Do.ok+' présente'+(Do.ok>1?'s':'')+(Do.warn?' · '+Do.warn+' périmée'+(Do.warn>1?'s':''):'')+(Do.ko?' · '+Do.ko+' manquante'+(Do.ko>1?'s':''):'')+'.');
+  K.sec('01','Bordereau des pièces');
+  const cols=[K.ML,K.ML+10,K.ML+92,K.ML+130,K.ML+150,K.ML+166]; K.F('bold',6.2,K.MUT2); ['N°','PIÈCE','ORGANISME','DATE','VALIDITÉ','ÉTAT'].forEach((h,i)=>doc.text(h,cols[i],K.y+3,{charSpace:.3})); K.stroke(K.LINE); doc.line(K.ML,K.y+5,K.W-K.ML,K.y+5); K.y+=8;
+  Do.pieces.forEach((p,i)=>{ K.need(8,ft[0],ft[1]); K.F('bold',7.4,[26,68,173]); doc.text('P'+(i+1),cols[0],K.y+.5); K.F('normal',7.4,K.INK); doc.text(K.wrap(p.lib,78,7.4)[0],cols[1],K.y+.5); K.F('normal',7,K.MUT); doc.text(K.wrap(p.org||'—',36,7)[0],cols[2],K.y+.5); doc.text(p.date?cs2Fr(p.date):'—',cols[3],K.y+.5); doc.text(cs2Clean(p.val||'—'),cols[4],K.y+.5);
+    const lab=p.st==='ok'?'Présente':(p.st==='warn'?'Périmée':'Manquante'); const col=p.st==='ok'?[K.GREEN,[240,251,244],[187,232,201]]:(p.st==='warn'?[K.AMBER,[255,251,235],[253,230,138]]:[K.RED,[254,242,242],[254,202,202]]); K.chip(cols[5],K.y+.5,lab,col[0],col[1],col[2]); K.stroke([241,245,249]); doc.setLineWidth(.25); doc.line(K.ML,K.y+3.6,K.W-K.ML,K.y+3.6); K.y+=7.2; });
+  K.y+=4; K.attest('Je soussigné(e), représentant de '+C.client+', certifie que les pièces P1 à P'+Do.n+' assemblées dans le présent dossier sont conformes aux originaux conservés dans le registre de sécurité de l\'établissement, et que les dates mentionnées correspondent à l\'horodatage de dépôt sur la plateforme.');
+  K.footer(ft[0],ft[1]);
+  // pièces assemblées
+  for(let i=0;i<Do.pieces.length;i++){ const p=Do.pieces[i]; prog('Pièce '+(i+1)+' / '+Do.n+' — '+p.lib);
+    doc.addPage(); K.page++; K.y=16; K.fill(K.NAVY); doc.rect(K.ML,K.y,K.CW,1.2,'F'); K.y=110; K.F('bold',9,K.MUT2); doc.text('PIÈCE',K.W/2,K.y,{align:'center',charSpace:2}); K.y+=16; K.F('bold',34,[26,68,173]); doc.text('P'+(i+1),K.W/2,K.y,{align:'center'}); K.y+=14; K.F('bold',15,K.INK); const tl=K.wrap(p.lib,150,15); doc.text(tl,K.W/2,K.y,{align:'center'}); K.y+=tl.length*7+6; K.F('normal',9,K.MUT); doc.text(cs2Clean([p.org,p.date?cs2Fr(p.date):'',p.val?'validité '+p.val:''].filter(Boolean).join(' · ')),K.W/2,K.y,{align:'center'}); K.y+=10;
+    const lab=p.st==='ok'?'Présente et valide':(p.st==='warn'?'Présente — '+(p.sub||'périmée'):'Pièce non fournie'+(p.sub?' — '+p.sub:'')); const col=p.st==='ok'?K.GREEN:(p.st==='warn'?K.AMBER:K.RED); K.F('bold',9.5,col); doc.text(K.wrap(lab,150,9.5),K.W/2,K.y,{align:'center'}); K.footer(ft[0],ft[1]);
+    try{
+      if(p.gen==='registre'){ const sub=cs2RegistrePdf(); await cs2AddPdfPages(doc,sub.output('blob'),K,10); }
+      else if(p.gen==='presc'){ const sub=cs2PrescPdf(); if(sub){ await cs2AddPdfPages(doc,sub.output('blob'),K,10); }
+        // preuves de levée : photos + signatures
+        for(const r of D.presc.filter(r=>r.etat_levee==='levee'||['levee','validee'].includes(r.statut||''))){ const pj=D.prescDocs.filter(d=>d.reserve_id===r.id); for(const d of pj.slice(0,3)){ try{ const b=await cs2FetchBlob(d.document_path); if(/\.(jpe?g|png|webp)$/i.test(d.document_nom||d.document_path)) await cs2AddImagePage(doc,b,K,'P'+(r.numero||'')+' · '+(r.libelle||'').slice(0,80)+' · '+(d.type_piece||'')+' · '+cs2Fr(d.created_at)); else if(/\.pdf$/i.test(d.document_nom||d.document_path)) await cs2AddPdfPages(doc,b,K,4); }catch(_){} }
+          if(r.signature_data&&/^data:image\//.test(r.signature_data)){ doc.addPage(); K.page++; K.F('bold',11,K.INK); doc.text('Attestation de levée signée — P'+(r.numero||''),K.ML,30); K.F('normal',9,K.INK); doc.text(K.wrap(r.libelle||'',K.CW,9),K.ML,40); K.F('normal',8,K.MUT); doc.text(cs2Clean('Signé par '+(r.signature_nom||'le prestataire')+(r.signature_at?' le '+cs2Fr(r.signature_at):'')+(r.date_realisation?' · travaux réalisés le '+cs2Fr(r.date_realisation):'')),K.ML,60); try{ doc.addImage(r.signature_data,'PNG',K.ML,66,80,40); }catch(_){} K.footer(ft[0],ft[1]); } } }
+      else if(p.doc&&p.doc.fichier_path){ const b=await cs2FetchBlob(p.doc.fichier_path); const nm=p.doc.nom_original||p.doc.fichier_path; if(/\.pdf$/i.test(nm)||b.type==='application/pdf') await cs2AddPdfPages(doc,b,K,25); else if(/\.(jpe?g|png|webp|gif|bmp)$/i.test(nm)||/^image\//.test(b.type)) await cs2AddImagePage(doc,b,K,nm); }
+    }catch(e){ doc.addPage(); K.page++; K.F('normal',9,K.RED); doc.text(K.wrap('Pièce non intégrable au PDF : '+(e.message||e),K.CW,9),K.ML,40); K.footer(ft[0],ft[1]); }
+  }
+  return doc;
+};
+window.cs2DossierAction=async function(mode){
+  const C=window._cs2; const name='Dossier_commission_'+cs2CleanNom(C.D.erp).replace(/[^A-Za-z0-9]+/g,'-').slice(0,40)+'_'+(C.S.date_cs||cs2Iso(new Date()))+'.pdf';
+  try{
+    if(!C.dossierBlob){ toast('Assemblage du dossier… (bordereau + pièces du Classeur)','ok'); const doc=await cs2BuildDossier(t=>{ const m=/^Pièce (\d+)/.exec(t); if(m&&(+m[1])%4===0) toast(t,'ok'); }); C.dossierBlob=doc.output('blob'); if(C.dossierUrl) URL.revokeObjectURL(C.dossierUrl); C.dossierUrl=URL.createObjectURL(C.dossierBlob); C.dossierName=name; }
+    const url=C.dossierUrl;
+    if(mode==='download'){ const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); return; }
+    if(mode==='print'){ const fr=document.createElement('iframe'); fr.style.cssText='position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0;border:0'; fr.onload=()=>setTimeout(()=>{ try{ fr.contentWindow.focus(); fr.contentWindow.print(); }catch(e){ window.open(url,'_blank'); } },400); fr.src=url; document.body.appendChild(fr); toast('Impression du dossier…','ok'); return; }
+    const isMobile=window.innerWidth<768; const ko=Math.round(C.dossierBlob.size/1024);
+    const viewer=isMobile?`<div style="display:flex;flex-direction:column;align-items:center;gap:14px;padding:28px 16px;text-align:center"><div style="font-size:40px">📄</div><div style="font-weight:600">${esc(name)}</div><div style="color:var(--muted);font-size:12.5px">${ko} Ko</div><a class="btn primary" href="${url}" target="_blank" rel="noopener">Ouvrir le PDF</a></div>`:`<iframe src="${url}#toolbar=1&view=FitH" style="width:100%;height:74vh;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>`;
+    openModal(`<div class="modal-head"><h2 style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:78%">👁 Dossier de commission (${ko} Ko)</h2><button class="x" onclick="closeModal()">${I.x}</button></div><div class="modal-body" style="padding-top:8px">${viewer}</div>
+      <div class="modal-foot" style="flex-wrap:wrap"><button class="btn ghost" onclick="closeModal()">Fermer</button><button class="btn" onclick="cs2DossierAction('print')">🖨 Imprimer</button><button class="btn" onclick="cs2DossierAction('download')">⬇️ Télécharger</button><button class="btn primary" onclick="closeModal();cs2MailModal({what:'dossier'})">✉️ Envoyer par e-mail</button></div>`,'modal-wide');
+  }catch(e){ toast('Dossier : '+(e.message||e),'err'); }
+};
+
+/* ── E-mail (dossier, pièce, courrier mairie, report, demande de pièces) ── */
+window.cs2MailModal=async function(o){
+  const {S,D}=window._cs2; const C=cs2Ctx(); const erpNom=cs2CleanNom(D.erp);
+  const mairie=[D.erp.mairie_email].filter(Boolean); const cc=D.ccs.filter(c=>/^.+@.+\..+$/.test(c.email||''));
+  let title='Envoyer par e-mail', subject='', body='', tos=o.tos||[], attach=null, seg='';
+  if(o.what==='dossier'||o.what==='piece'){
+    title='Envoyer le dossier de commission par e-mail'; subject='Dossier de commission de sécurité — '+erpNom+(S.date_cs?' — visite du '+cs2Fr(S.date_cs):'');
+    body='Bonjour,\n\nVeuillez trouver ci-joint le dossier de commission de sécurité de l\'établissement '+erpNom+(S.date_cs?' en vue de la visite du '+C.date:'')+' : registre de sécurité, rapports de vérifications périodiques, attestations et levées des prescriptions de la dernière commission.\n\nCordialement,\n'+(state.profile?.nom||'');
+    tos=mairie.slice(); attach={kind:o.what==='piece'?'piece':'dossier',piece:o.piece||null};
+    seg=`<div style="display:flex;border:1px solid #cbd5e1;border-radius:10px;overflow:hidden;font-size:12px"><button type="button" class="cs2-seg${attach.kind==='dossier'?' on':''}" onclick="cs2MailSeg('dossier',this)" style="flex:1;padding:8px;border:none;font:inherit;font-weight:700;cursor:pointer;background:${attach.kind==='dossier'?'#1a44ad':'#fff'};color:${attach.kind==='dossier'?'#fff':'#475569'}">Dossier complet (${D.dossier.n} pièces · 1 PDF)</button>${o.piece?`<button type="button" class="cs2-seg${attach.kind==='piece'?' on':''}" onclick="cs2MailSeg('piece',this)" style="flex:1;padding:8px;border:none;font:inherit;font-weight:700;cursor:pointer;background:${attach.kind==='piece'?'#1a44ad':'#fff'};color:${attach.kind==='piece'?'#fff':'#475569'}">Uniquement la pièce affichée</button>`:''}</div>`;
+  } else if(o.what==='courrier'){ title='Courrier à la mairie'; subject='Commission de sécurité — '+erpNom+(S.date_cs?' — visite du '+cs2Fr(S.date_cs):''); tos=mairie.slice();
+    body='Madame, Monsieur,\n\nDans le cadre de la visite de la commission de sécurité de l\'établissement '+erpNom+(D.erp.adresse?' ('+D.erp.adresse+')':'')+(S.date_cs?' prévue le '+C.date:'')+', nous vous confirmons que le dossier de commission (registre de sécurité, rapports de vérifications périodiques, attestations de maintenance et réponse aux prescriptions de la précédente visite) sera tenu à la disposition de la commission.\n\nNous restons à votre disposition pour toute pièce complémentaire.\n\nVeuillez agréer, Madame, Monsieur, l\'expression de nos salutations distinguées.\n\n'+(D.client.raison_sociale||'')+'\n'+(state.profile?.nom||''); }
+  else if(o.what==='report'){ title='Demande de report'; subject='Demande de report — commission de sécurité '+erpNom+(S.date_cs?' du '+cs2Fr(S.date_cs):''); tos=mairie.slice();
+    body='Madame, Monsieur,\n\nLa visite de la commission de sécurité de l\'établissement '+erpNom+(S.date_cs?' est prévue le '+C.date:'')+'. Pour les raisons suivantes : [à préciser], nous sollicitons le report de cette visite à une date ultérieure, si possible à partir du [date souhaitée].\n\nNous vous remercions de bien vouloir nous indiquer les créneaux envisageables et restons à votre disposition.\n\nVeuillez agréer, Madame, Monsieur, l\'expression de nos salutations distinguées.\n\n'+(D.client.raison_sociale||'')+'\n'+(state.profile?.nom||''); }
+  else if(o.what==='demande'){ title='Demander les pièces au prestataire'; subject=o.subject; body=o.body; }
+  const contacts=[]; if(D.erp.mairie_email) contacts.push({nom:D.erp.mairie_nom||'Mairie',role:D.erp.mairie_contact||'service ERP',email:D.erp.mairie_email,def:tos.includes(D.erp.mairie_email)}); cc.forEach(c=>contacts.push({nom:[c.prenom,c.nom].filter(Boolean).join(' '),role:c.fonction||'',email:c.email,def:tos.includes(c.email)}));
+  (o.tos||[]).forEach(e=>{ if(!contacts.some(c=>c.email===e)) contacts.push({nom:e,role:'prestataire',email:e,def:true}); });
+  openModal(`<div class="modal-head"><h2>✉️ ${esc(title)}</h2><button class="x" onclick="closeModal()">${I.x}</button></div><div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+    ${seg}${o.note?`<div style="font-size:12px;color:var(--muted)">${esc(o.note)}</div>`:''}
+    <div>${contacts.length?`<div class="bil-grp" style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Destinataires</div>`+contacts.map(c=>`<label style="display:flex;align-items:center;gap:9px;padding:7px 10px;border:1px solid var(--line);border-radius:9px;font-size:12.5px;margin-bottom:6px;cursor:pointer"><input type="checkbox" class="cs2-mail-cb" value="${esc(c.email)}"${c.def?' checked':''} onchange="cs2MailCount()"> ${esc(c.nom)} ${c.role?`<span class="cs2-chip b">${esc(c.role)}</span>`:''}<small style="margin-left:auto;color:var(--muted);overflow:hidden;text-overflow:ellipsis">${esc(c.email)}</small></label>`).join(''):''}</div>
+    <div class="fld" style="margin:0"><label>Autres destinataires <span style="color:var(--muted);font-weight:400;font-size:11px">— séparés par des virgules</span></label><input id="cs2_mail_extra" placeholder="prenom.nom@societe.fr, …" oninput="cs2MailCount()"></div>
+    <div class="fld" style="margin:0"><label>Objet</label><input id="cs2_mail_subj" value="${esc(subject)}"></div>
+    <div class="fld" style="margin:0"><label>Message</label><textarea id="cs2_mail_body" rows="8" style="width:100%;font:inherit;font-size:12.5px;line-height:1.55;border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:var(--surface);color:var(--ink);resize:vertical">${esc(body)}</textarea></div>
+    ${attach?`<div style="font-size:12px;color:var(--muted)" id="cs2_mail_att">Pièce jointe : ${attach.kind==='dossier'?'le dossier complet (assemblé à l\'envoi)':'la pièce affichée'} · copie archivée dans l'historique e-mails</div>`:''}
+    <div style="text-align:right;font-size:11px;color:var(--muted)" id="cs2_mail_cnt"></div></div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="cs2_mail_go" onclick="cs2MailSend()">✉️ Envoyer</button></div>`);
+  window._cs2.mail={attach,after:o.after||null}; cs2MailCount();
+};
+window.cs2MailSeg=function(kind,btn){ const m=window._cs2.mail; if(m&&m.attach) m.attach.kind=kind; document.querySelectorAll('.cs2-seg').forEach(b=>{ const on=b===btn; b.style.background=on?'#1a44ad':'#fff'; b.style.color=on?'#fff':'#475569'; }); const a=document.getElementById('cs2_mail_att'); if(a) a.textContent='Pièce jointe : '+(kind==='dossier'?'le dossier complet (assemblé à l\'envoi)':'la pièce affichée')+' · copie archivée dans l\'historique e-mails'; };
+window.cs2MailTos=function(){ const cbs=[...document.querySelectorAll('.cs2-mail-cb:checked')].map(c=>c.value); const extra=((document.getElementById('cs2_mail_extra')||{}).value||'').split(/[,;\s]+/).map(s=>s.trim()).filter(s=>/^.+@.+\..+$/.test(s)); return [...new Set([...cbs,...extra].map(e=>e.trim().toLowerCase()).filter(Boolean))]; };
+window.cs2MailCount=function(){ const n=cs2MailTos().length; const c=document.getElementById('cs2_mail_cnt'); if(c) c.textContent=n+' destinataire'+(n>1?'s':''); const b=document.getElementById('cs2_mail_go'); if(b) b.textContent='✉️ Envoyer'+(n?' à '+n+' destinataire'+(n>1?'s':''):''); };
+window.cs2MailSend=async function(){
+  const {S,D}=window._cs2; const m=window._cs2.mail||{}; const tos=cs2MailTos(); if(!tos.length){ toast('Sélectionne ou saisis au moins un destinataire','err'); return; }
+  const subject=((document.getElementById('cs2_mail_subj')||{}).value||'').trim()||'Commission de sécurité'; const msg=((document.getElementById('cs2_mail_body')||{}).value||'').trim();
+  const btn=document.getElementById('cs2_mail_go'); if(btn){ btn.disabled=true; btn.textContent='Préparation…'; }
+  try{
+    let attachments=[];
+    const toB64=blob=>new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]||''); r.onerror=()=>rej(new Error('Lecture impossible')); r.readAsDataURL(blob); });
+    if(m.attach&&m.attach.kind==='dossier'){ if(!window._cs2.dossierBlob){ if(btn) btn.textContent='Assemblage du dossier…'; const doc=await cs2BuildDossier(); window._cs2.dossierBlob=doc.output('blob'); } const b=window._cs2.dossierBlob; if(b.size>7.5*1024*1024) throw new Error('Dossier trop volumineux pour l\'e-mail ('+Math.round(b.size/1048576)+' Mo, max 7,5 Mo) — envoyez-le pièce par pièce ou téléchargez-le.'); attachments=[{filename:'Dossier_commission_'+(S.date_cs||cs2Iso(new Date()))+'.pdf',content:await toB64(b),contentType:'application/pdf'}]; }
+    else if(m.attach&&m.attach.kind==='piece'&&m.attach.piece){ const p=m.attach.piece; let b=null,fn='piece.pdf'; if(p.doc&&p.doc.fichier_path){ b=await cs2FetchBlob(p.doc.fichier_path); fn=p.doc.nom_original||fn; } else if(p.gen==='registre'){ b=cs2RegistrePdf().output('blob'); fn='Registre_de_securite.pdf'; } else if(p.gen==='presc'){ const d=cs2PrescPdf(); if(d){ b=d.output('blob'); fn='Reponse_prescriptions.pdf'; } } if(b){ if(b.size>7.5*1024*1024) throw new Error('Pièce trop volumineuse pour l\'e-mail'); attachments=[{filename:fn,content:await toB64(b),contentType:b.type||'application/pdf'}]; } }
+    if(btn) btn.textContent='Envoi…';
+    const html=`<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:auto"><div style="background:#0f2a6b;padding:20px 24px;border-radius:8px 8px 0 0"><h2 style="color:#fff;margin:0;font-size:18px">Commission de sécurité</h2><p style="color:#c7d2fe;margin:4px 0 0;font-size:13px">${esc(cs2CleanNom(D.erp))}${S.date_cs?' — visite du '+cs2Fr(S.date_cs):''}</p></div><div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;padding:24px"><p style="margin:0;color:#1e293b;line-height:1.6;white-space:pre-wrap">${esc(msg)}</p>${attachments.length?'<hr style="border:none;border-top:1px solid #e2e8f0;margin:18px 0"><p style="margin:0;color:#64748b;font-size:12.5px">Pièce jointe : '+esc(attachments[0].filename)+'</p>':''}</div></div>`;
+    const tk=(typeof agToken==='function')?agToken():{token:null}; const ctl=new AbortController(); const tmr=setTimeout(()=>ctl.abort(),120000);
+    let out={}; try{ const resp=await fetch(SUPABASE_URL+'/functions/v1/send-client-email',{method:'POST',headers:{'Content-Type':'application/json',apikey:SUPABASE_ANON_KEY,Authorization:'Bearer '+(tk.token||SUPABASE_ANON_KEY)},body:JSON.stringify({to:tos,subject,html,replyTo:(state.user&&state.user.email)||undefined,attachments}),signal:ctl.signal}); clearTimeout(tmr); out=await resp.json().catch(()=>({})); if(!resp.ok||out.error) throw new Error(out.error||('HTTP '+resp.status)); }catch(e2){ clearTimeout(tmr); if(e2&&e2.name==='AbortError') throw new Error('Délai dépassé (120 s).'); throw e2; }
+    closeModal(); toast('✓ E-mail envoyé à : '+tos.join(', '),'ok'); if(typeof m.after==='function'){ try{ await m.after(); }catch(_){} }
+  }catch(e){ if(btn){ btn.disabled=false; cs2MailCount(); } toast('Envoi impossible : '+(e.message||e),'err'); }
+};
+
+/* ── Projection des pièces (plein écran, fond clair) ── */
+window.cs2ProjItems=function(){
+  const {D}=window._cs2; const items=[]; const isLev=r=>r.etat_levee==='levee'||['levee','validee'].includes(r.statut||'');
+  D.dossier.pieces.forEach((p,i)=>{ if(p.gen==='presc') return; items.push({kind:p.gen?'gen':'doc',no:'P'+(i+1),grp:p.grp,p,lib:p.lib,st:p.st}); });
+  if(D.tab) D.presc.forEach((r,i)=>items.push({kind:'lev',no:'L'+(r.numero||i+1),grp:'Levées des prescriptions '+(D.tab.annee||String(D.tab.date_intervention||'').slice(0,4)),r,lib:(r.libelle||'').slice(0,90),st:isLev(r)?'ok':(r.prestataire_id?'warn':'ko')}));
+  return items;
+};
+window.cs2Projeter=function(startIdx){
+  const {D}=window._cs2; const items=cs2ProjItems(); if(!items.length){ toast('Aucune pièce à projeter','err'); return; }
+  let el=document.getElementById('cs2_proj'); if(el) el.remove();
+  el=document.createElement('div'); el.id='cs2_proj'; el.className='cs2-proj'; document.body.appendChild(el);
+  const P={items,i:Math.max(0,Math.min(items.length-1,startIdx||0)),page:1,pages:1,pdf:null,stage:'inter'}; window._cs2.proj=P;
+  const grps=[...new Set(items.map(x=>x.grp))];
+  el.innerHTML=`<div class="bar"><div class="ttl"><b>Dossier de commission</b><small>${esc(cs2CleanNom(D.erp))}${window._cs2.S.date_cs?' · visite du '+cs2Fr(window._cs2.S.date_cs):''}</small></div><div class="crumb" id="cs2_pj_crumb"></div><div class="r"><button class="bt" onclick="cs2ProjPrint()">Imprimer</button><button class="bt mail" onclick="cs2ProjMail()">Envoyer par e-mail</button><button class="bt x" onclick="cs2ProjClose()">Quitter <span style="opacity:.6;font-weight:500">Échap</span></button></div></div>
+    <div class="som"><div class="list">${grps.map(g=>`<div class="h">${esc(g)} <em style="font-style:normal;color:#b6c0cf">${items.filter(x=>x.grp===g).length}</em></div>${items.map((x,k)=>x.grp===g?`<button class="it" id="cs2_pj_it_${k}" onclick="cs2ProjGo(${k})"><span class="no">${x.no}</span><span>${esc(x.lib)}</span><span class="st ${x.st}"></span></button>`:'').join('')}`).join('')}</div><div class="sum"><span><b>${D.dossier.n}</b> pièces</span><span style="color:#15803d">${D.dossier.ok} présentes</span>${D.dossier.warn?`<span style="color:#b45309">${D.dossier.warn} périmées</span>`:''}${D.dossier.ko?`<span style="color:#b91c1c">${D.dossier.ko} manquantes</span>`:''}</div></div>
+    <div class="stage"><div class="view" id="cs2_pj_view"></div><div class="thumbs" id="cs2_pj_thumbs"></div><button class="nav l" onclick="cs2ProjStep(-1)">‹</button><button class="nav r" onclick="cs2ProjStep(1)">›</button></div>
+    <div class="foot"><span id="cs2_pj_foot"></span><span class="prog"><i id="cs2_pj_prog" style="width:0"></i></span><span id="cs2_pj_pos"></span></div>`;
+  P.key=e=>{ if(e.key==='Escape'){ cs2ProjClose(); } else if(e.key==='ArrowRight'||e.key===' '){ e.preventDefault(); cs2ProjStep(1); } else if(e.key==='ArrowLeft'){ e.preventDefault(); cs2ProjStep(-1); } else if(e.key==='ArrowDown'){ e.preventDefault(); cs2ProjGo(P.i+1); } else if(e.key==='ArrowUp'){ e.preventDefault(); cs2ProjGo(P.i-1); } };
+  document.addEventListener('keydown',P.key); document.body.style.overflow='hidden';
+  try{ if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{}); }catch(_){}
+  cs2ProjGo(P.i,true);
+};
+window.cs2ProjClose=function(){ const P=window._cs2.proj; if(P&&P.key) document.removeEventListener('keydown',P.key); const el=document.getElementById('cs2_proj'); if(el) el.remove(); document.body.style.overflow=''; try{ if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); }catch(_){} window._cs2.proj=null; };
+window.cs2ProjStep=function(d){ const P=window._cs2.proj; if(!P) return; if(P.stage==='inter'){ if(d>0){ P.stage='doc'; P.page=1; cs2ProjShow(); } else cs2ProjGo(P.i-1); return; } if(d>0){ if(P.page<P.pages){ P.page++; cs2ProjShow(); } else cs2ProjGo(P.i+1); } else { if(P.page>1){ P.page--; cs2ProjShow(); } else { P.stage='inter'; cs2ProjShow(); } } };
+window.cs2ProjGo=function(k,first){ const P=window._cs2.proj; if(!P) return; if(k<0||k>=P.items.length) return; P.i=k; P.stage='inter'; P.page=1; P.pages=1; P.pdf=null; P.blobUrl=null; document.querySelectorAll('#cs2_proj .som .it').forEach((b,j)=>b.classList.toggle('on',j===k)); const b=document.getElementById('cs2_pj_it_'+k); if(b&&b.scrollIntoView&&!first) b.scrollIntoView({block:'nearest'}); cs2ProjShow(); };
+window.cs2ProjShow=async function(){
+  const P=window._cs2.proj; if(!P) return; const {D}=window._cs2; const it=P.items[P.i]; const view=document.getElementById('cs2_pj_view'), th=document.getElementById('cs2_pj_thumbs'); if(!view) return;
+  document.getElementById('cs2_pj_crumb').innerHTML=esc(it.grp)+' <i style="color:#cbd5e1;font-style:normal">›</i> <b>'+esc(it.no+' · '+it.lib)+'</b>'+(P.stage==='doc'&&P.pages>1?' <i style="color:#cbd5e1;font-style:normal">›</i> page '+P.page+' / '+P.pages:'');
+  document.getElementById('cs2_pj_pos').innerHTML='pièce <b>'+(P.i+1)+'</b> / '+P.items.length; document.getElementById('cs2_pj_prog').style.width=Math.round((P.i+1)/P.items.length*100)+'%';
+  const lab=it.kind==='lev'?(it.st==='ok'?'levée'+(it.r.date_realisation?' le '+cs2Fr(it.r.date_realisation):''):(it.st==='warn'?'en cours':'non levée')):(it.st==='ok'?'présente':(it.st==='warn'?'périmée':'manquante'));
+  document.getElementById('cs2_pj_foot').innerHTML='<b>'+esc(it.no)+'</b> · '+esc(it.lib)+(it.p&&it.p.org?' · '+esc(it.p.org):'')+(it.p&&it.p.date?' · '+cs2Fr(it.p.date):'')+' · '+esc(lab);
+  th.innerHTML='';
+  if(P.stage==='inter'){
+    const st=it.st==='ok'?['#f0fdf4','#15803d','#bbf7d0',it.kind==='lev'?'Levée — preuves disponibles':'Présente et valide']:(it.st==='warn'?['#fffbeb','#b45309','#fde68a',it.kind==='lev'?'En cours de levée':'Présente — '+(it.p.sub||'périmée')]:['#fef2f2','#b91c1c','#fecaca',it.kind==='lev'?'Non levée':'Pièce non fournie'+(it.p&&it.p.sub?' — '+it.p.sub:'')]);
+    const meta=it.kind==='lev'?[['Prestataire',it.r.prestataire_id&&D.prests[it.r.prestataire_id]?D.prests[it.r.prestataire_id].nom:'—'],['Levée le',it.r.date_realisation?cs2Fr(it.r.date_realisation):'—'],['Pièces',String(D.prescDocs.filter(d=>d.reserve_id===it.r.id).length)],['Signature',(it.r.signature_data||it.r.signature_nom)?'signée':'—']]:[['Organisme',it.p.org||'—'],['Date',it.p.date?cs2Fr(it.p.date):'—'],['Validité',it.p.val||'—'],['Source',it.p.doc?'Classeur':(it.p.gen?'Généré':'—')]];
+    view.innerHTML=`<div class="inter"><div class="top"></div><div class="in"><div class="kk">${it.kind==='lev'?'Levée de prescription':'Pièce'}</div><div class="pn">${esc(it.no)}</div><h2>${esc(it.lib)}</h2><div class="meta">${meta.map(m=>`<div><small>${esc(m[0])}</small><b>${esc(m[1])}</b></div>`).join('')}</div><span style="display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:800;padding:6px 16px;border-radius:24px;background:${st[0]};color:${st[1]};border:1px solid ${st[2]}"><span style="width:9px;height:9px;border-radius:50%;background:${st[1]}"></span>${esc(st[3])}</span></div></div>`;
+    th.innerHTML='<span class="kbd"><b>→</b> ouvrir la pièce &nbsp; <b>↓</b> pièce suivante &nbsp; <b>Échap</b> quitter</span>'; return;
+  }
+  // document
+  try{
+    if(it.kind==='lev'){ const r=it.r; const pj=D.prescDocs.filter(d=>d.reserve_id===r.id); const photo=pj.find(d=>/\.(jpe?g|png|webp|gif)$/i.test(d.document_nom||d.document_path)); const att=pj.find(d=>/attestation/i.test(d.type_piece||'')); const pn=r.prestataire_id&&D.prests[r.prestataire_id]?D.prests[r.prestataire_id]:null;
+      let photoUrl=''; if(photo){ try{ const {data}=await sb.storage.from('documents').createSignedUrl(photo.document_path,600); photoUrl=data&&data.signedUrl||''; }catch(_){} }
+      view.innerHTML=`<div class="lev"><div class="ph">${photoUrl?`<img src="${photoUrl}" alt="">`:`<div style="position:absolute;inset:0;display:grid;place-items:center;color:#64748b;font-size:14px;background:#e2e8f0">Aucune photo déposée</div>`}<span style="position:absolute;top:12px;left:12px;background:#fff;border-radius:20px;padding:4px 11px;font-size:11px;font-weight:800;color:#1a44ad;box-shadow:0 2px 8px rgba(15,23,42,.15)">${photoUrl?'PHOTO HORODATÉE':'PHOTO'}</span><div class="cap"><b>${photo?cs2Fr(photo.created_at):'—'}</b>${photo?esc((photo.type_piece||'photo')+' · '+(photo.document_nom||'')):'aucune photo déposée par le prestataire'}</div></div>
+        <div class="right"><div class="att"><div class="kk">Attestation de levée</div><h3>Prescription ${esc(it.no.replace('L','P'))}${D.tab?' — commission du '+cs2Fr(D.tab.date_intervention):''}</h3>
+          <div class="row"><small>Prescription</small><b>${esc(r.libelle||'')}</b></div>${r.localisation?`<div class="row"><small>Localisation</small><b>${esc(r.localisation)}</b></div>`:''}
+          <div class="row"><small>Travaux</small><b>${r.date_realisation?'Réalisés le '+cs2Fr(r.date_realisation):(it.st==='ok'?'Levée':'—')}${r.observations?' · '+esc(r.observations):''}</b></div>
+          <div class="row"><small>Entreprise</small><b>${pn?esc(pn.nom)+(pn.siret?' · SIRET '+esc(pn.siret):''):'—'}</b></div>
+          <div class="row"><small>Références</small><b>${D.tab&&D.tab.numero_tableau?'Tableau '+esc(D.tab.numero_tableau)+' · ':''}réserve n° ${esc(String(r.numero||''))}${att?' · '+esc(att.document_nom||'attestation'):''}${pj.length?' · '+pj.length+' pièce'+(pj.length>1?'s':'')+' jointe'+(pj.length>1?'s':''):''}</b></div>
+          <div class="stamp${it.st==='ok'?'':' ko'}">${it.st==='ok'?'LEVÉE':(it.st==='warn'?'EN COURS':'NON LEVÉE')}</div></div>
+          ${(r.signature_data&&/^data:image\//.test(r.signature_data))||r.signature_nom?`<div class="sigbox">${r.signature_data&&/^data:image\//.test(r.signature_data)?`<img src="${r.signature_data}" alt="signature">`:''}<span class="t"><b>Signée par le prestataire</b>${esc([r.signature_nom,pn?pn.nom:'',r.signature_at?'le '+new Date(r.signature_at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):''].filter(Boolean).join(' · '))} · signature sur mobile via le lien sécurisé</span></div>`:`<div class="sigbox" style="background:#fff7ed;border-color:#fed7aa"><span class="t" style="color:#9a3412"><b style="color:#7c2d12">Non signée par le prestataire</b>l'attestation de levée n'a pas encore été signée</span></div>`}</div></div>`;
+      P.pages=1; th.innerHTML='<span class="kbd"><b>↑</b> <b>↓</b> pièces &nbsp; <b>Échap</b> quitter</span>'; return; }
+    let blob=null, name='';
+    if(it.kind==='gen'){ const d=it.p.gen==='registre'?cs2RegistrePdf():null; if(!d) throw new Error('Pièce non générable'); blob=d.output('blob'); name='registre.pdf'; }
+    else if(it.p.doc&&it.p.doc.fichier_path){ if(!P.blob||P.blobFor!==it.p.doc.id){ P.blob=await cs2FetchBlob(it.p.doc.fichier_path); P.blobFor=it.p.doc.id; } blob=P.blob; name=it.p.doc.nom_original||it.p.doc.fichier_path; }
+    else { view.innerHTML=`<div class="inter"><div class="top" style="background:#dc2626"></div><div class="in"><div class="kk">Pièce</div><div class="pn" style="color:#b91c1c">${esc(it.no)}</div><h2>Pièce non fournie</h2><div style="color:#64748b;margin-top:10px">${esc(it.p.sub||'aucun document dans le Classeur')}${it.p.ob&&it.p.ob.prestataire_id&&D.prests[it.p.ob.prestataire_id]?' · à demander à '+esc(D.prests[it.p.ob.prestataire_id].nom):''}</div></div></div>`; P.pages=1; return; }
+    const isPdf=/\.pdf$/i.test(name)||blob.type==='application/pdf';
+    if(isPdf){ const pdfjsLib=window['pdfjs-dist/build/pdf']; if(!pdfjsLib) throw new Error('PDF.js non chargé'); pdfjsLib.GlobalWorkerOptions.workerSrc='lib-pdf-3.11.174.worker.min.js';
+      if(!P.pdf||P.pdfFor!==name){ P.pdf=await pdfjsLib.getDocument({data:await blob.arrayBuffer()}).promise; P.pdfFor=name; } P.pages=P.pdf.numPages;
+      const page=await P.pdf.getPage(P.page); const box=view.getBoundingClientRect(); const vp1=page.getViewport({scale:1}); const scale=Math.min((box.width-120)/vp1.width,(box.height-24)/vp1.height)*(window.devicePixelRatio||1); const vp=page.getViewport({scale}); const cv=document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height; cv.style.width=(vp.width/(window.devicePixelRatio||1))+'px'; cv.style.height=(vp.height/(window.devicePixelRatio||1))+'px'; await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise; view.innerHTML=''; view.appendChild(cv);
+      th.innerHTML=Array.from({length:Math.min(P.pages,14)},(_,i)=>`<span class="th${i+1===P.page?' on':''}" title="page ${i+1}" onclick="window._cs2.proj.page=${i+1};cs2ProjShow()"></span>`).join('')+(P.pages>14?'<span>…</span>':'')+'<span class="kbd" style="margin-left:14px">page '+P.page+' / '+P.pages+' &nbsp; <b>←</b> <b>→</b> pages &nbsp; <b>↑</b> <b>↓</b> pièces</span>';
+      document.getElementById('cs2_pj_crumb').innerHTML=esc(it.grp)+' <i style="color:#cbd5e1;font-style:normal">›</i> <b>'+esc(it.no+' · '+it.lib)+'</b> <i style="color:#cbd5e1;font-style:normal">›</i> page '+P.page+' / '+P.pages;
+    } else { const url=URL.createObjectURL(blob); view.innerHTML=`<img class="doc" src="${url}" alt="">`; P.pages=1; th.innerHTML='<span class="kbd"><b>↑</b> <b>↓</b> pièces</span>'; }
+  }catch(e){ view.innerHTML=`<div class="inter"><div class="in"><h2 style="color:#b91c1c">Affichage impossible</h2><div style="color:#64748b;margin-top:8px">${esc(e.message||e)}</div></div></div>`; P.pages=1; }
+};
+window.cs2ProjPrint=async function(){ const P=window._cs2.proj; if(!P) return; const it=P.items[P.i]; try{ if(it.kind==='gen'&&it.p.gen==='registre'){ cs2RegistrePdf().output('dataurlnewwindow'); return; } if(it.kind==='lev'){ cs2PrescPdf(false).output('dataurlnewwindow'); return; } if(it.p.doc&&it.p.doc.fichier_path){ const {data}=await sb.storage.from('documents').createSignedUrl(it.p.doc.fichier_path,300); window.open(data.signedUrl,'_blank'); return; } toast('Rien à imprimer pour cette pièce','err'); }catch(e){ toast(e.message||e,'err'); } };
+window.cs2ProjMail=function(){ const P=window._cs2.proj; if(!P) return; const it=P.items[P.i]; cs2MailModal({what:'piece',piece:it.p||null}); };
+
+/* ── Phase 2 : jour J ── */
+function cs2JourJHtml(){
+  const {S,D}=window._cs2; const Do=D.dossier; const notes=Array.isArray(S.notes)?S.notes:[];
+  const conf=D.allPrests.filter(p=>D.confirmed.has(p.id)); const sig=D.orga.filter(p=>p.signataire||/direct|gérant|gerant|président|president/i.test(p.fonction||''));
+  const isLev=r=>r.etat_levee==='levee'||['levee','validee'].includes(r.statut||''); const open=D.presc.filter(r=>!isLev(r)); const koAc=D.ac.filter(a=>a.statut==='ko');
+  const ordre=Do.pieces.map((p,i)=>(i+1)+'. '+p.lib);
+  return `<div class="cs2-card"><div class="cs2-ch"><h2>Jour J — kit du jour</h2><span class="sub">${S.date_cs?cs2Fr(S.date_cs)+(S.heure?' à '+S.heure:''):'date à saisir'} · imprimable ou sur mobile</span><span class="r"><button class="btn sm" onclick="cs2KitPdf('view')">👁 Visualiser</button><button class="btn sm" onclick="cs2KitPdf('print')">🖨 Imprimer</button><button class="btn sm" style="background:#1a44ad;border-color:#1a44ad;color:#fff" onclick="cs2Projeter()">▶ Projeter le dossier</button></span></div>
+    <div class="cs2-cb"><div class="cs2-kit">
+      <div><b>Présents</b><small>${[...sig.map(p=>p.nom+(p.fonction?' ('+p.fonction+')':'')),...conf.map(p=>p.nom)].map(esc).join('<br>')||'<i>aucune présence confirmée</i>'}${D.erp.mairie_nom?'<br>Mairie : '+esc(D.erp.mairie_contact||D.erp.mairie_nom):''}</small></div>
+      <div><b>Pièces à présenter, dans l'ordre</b><small>${ordre.map(esc).join('<br>')}</small></div>
+      <div><b>Points sensibles</b><small>${[...open.map(r=>'Prescription P'+(r.numero||'')+' non levée — '+(r.libelle||'').slice(0,60)),...koAc.map(a=>'Auto-contrôle : '+a.libelle+(a.observation?' — '+a.observation:'')),...Do.pieces.filter(p=>p.st!=='ok').map(p=>p.lib+' : '+(p.st==='warn'?'périmée':'manquante'))].map(esc).join('<br>')||'aucun point sensible identifié'}</small></div></div>
+      <div style="margin-top:12px;border:1px dashed #bcd0f7;border-radius:10px;padding:10px 12px;background:#f6f9ff"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><b style="font-size:12.5px">Notes en direct</b><span style="font-size:11.5px;color:var(--muted)">chaque observation de la commission devient une prescription provisoire</span><span style="flex:1"></span><button class="btn sm primary" onclick="cs2NoteAdd()">+ Observation</button></div>
+        <div style="margin-top:8px">${notes.length?notes.map((n,i)=>`<div class="cs2-note"><span class="t">${esc(n.at?new Date(n.at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}):'')}</span><span style="flex:1">${esc(n.txt)}${n.photo?` · <a href="#" onclick="previewDoc('${esc(n.photo)}','photo.jpg');return false">photo</a>`:''}</span><button class="btn sm ghost" onclick="cs2NoteDel(${i})">✕</button></div>`).join(''):'<div style="font-size:12px;color:var(--muted)">Aucune observation saisie.</div>'}</div></div>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">${S.statut==='preparation'?`<button class="btn sm" onclick="cs2SaveSession({statut:'jour_j'}).then(cs2Render)">Passer en mode jour J</button>`:''}<button class="btn sm primary" onclick="window._cs2.phase='clot';cs2Render()">Clôturer la commission →</button></div>
+    </div></div>`;
+}
+window.cs2NoteAdd=function(){ openModal(`<div class="modal-head"><h2>Observation de la commission</h2><button class="x" onclick="closeModal()">${I.x}</button></div><div class="modal-body" style="display:flex;flex-direction:column;gap:10px"><div class="fld" style="margin:0"><label>Observation</label><textarea id="cs2_note_txt" rows="4" style="width:100%;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:9px 11px" placeholder="ex. Issue de secours nord encombrée — à dégager sous 15 jours"></textarea></div><div class="fld" style="margin:0"><label>Photo (facultatif)</label><input type="file" id="cs2_note_ph" accept="image/*" capture="environment"></div></div><div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" onclick="cs2NoteSave()">Enregistrer</button></div>`); };
+window.cs2NoteSave=async function(){ const {S,D}=window._cs2; const txt=((document.getElementById('cs2_note_txt')||{}).value||'').trim(); if(!txt){ toast('Saisis l\'observation','err'); return; } let photo=null; const f=(document.getElementById('cs2_note_ph')||{}).files?.[0];
+  try{ if(f){ let up=f; if(typeof compressImage==='function') up=await compressImage(f,2000,.8); photo=D.erp.id+'/commission/'+S.id+'/note_'+Date.now()+'.jpg'; const {error}=await sb.storage.from('documents').upload(photo,up,{contentType:up.type||'image/jpeg'}); if(error) throw error; }
+    const notes=[...(Array.isArray(S.notes)?S.notes:[]),{txt,photo,at:new Date().toISOString(),by:state.profile?.nom||''}]; await cs2SaveSession({notes,statut:S.statut==='preparation'?'jour_j':S.statut}); closeModal(); cs2Render(); }catch(e){ toast(e.message||e,'err'); } };
+window.cs2NoteDel=async function(i){ const {S}=window._cs2; const notes=(Array.isArray(S.notes)?S.notes:[]).filter((_,k)=>k!==i); await cs2SaveSession({notes}); cs2Render(); };
+window.cs2KitPdf=function(mode){
+  const {S,D}=window._cs2; const doc=cs2Pdf(); const K=cs2PdfKit(doc); const C=cs2Ctx(); const ft=['Kit du jour — CONFORMITÉ SÉCURITÉ','Commission du '+C.date]; K.ft=ft;
+  K.head(C.client,C.erp,'Jour J','Kit du jour — commission de sécurité','Visite du '+C.date+(D.erp.adresse?' · '+D.erp.adresse:'')+'.');
+  const isLev=r=>r.etat_levee==='levee'||['levee','validee'].includes(r.statut||'');
+  const block=(n,t,lines)=>{ K.sec(n,t); if(!lines.length){ K.F('normal',8,K.MUT2); doc.text('—',K.ML,K.y); K.y+=7; } lines.forEach(l=>{ K.need(7,ft[0],ft[1]); K.F('normal',8.2,K.INK); const w=K.wrap(l,K.CW-4,8.2); doc.text(w,K.ML+2,K.y+.5); K.y+=w.length*4+2.5; }); };
+  block('01','Présents',[...D.orga.filter(p=>p.signataire).map(p=>p.nom+(p.fonction?' — '+p.fonction:'')),...D.allPrests.filter(p=>D.confirmed.has(p.id)).map(p=>p.nom+' — prestataire confirmé'),...(D.erp.mairie_nom?[D.erp.mairie_nom+(D.erp.mairie_contact?' — '+D.erp.mairie_contact:'')]:[])]);
+  block('02','Pièces à présenter, dans l\'ordre',D.dossier.pieces.map((p,i)=>(i+1)+'. '+p.lib+(p.st==='ok'?'':' ('+(p.st==='warn'?'périmée':'manquante')+')')));
+  block('03','Points sensibles',[...D.presc.filter(r=>!isLev(r)).map(r=>'Prescription P'+(r.numero||'')+' non levée — '+(r.libelle||'')),...D.ac.filter(a=>a.statut==='ko').map(a=>'Auto-contrôle : '+a.libelle+(a.observation?' — '+a.observation:'')),...D.dossier.pieces.filter(p=>p.st!=='ok').map(p=>p.lib+' : '+(p.st==='warn'?'périmée':'manquante'))]);
+  block('04','Observations de la commission (notes en direct)',(Array.isArray(S.notes)?S.notes:[]).map(n=>(n.at?new Date(n.at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' — ':'')+n.txt));
+  K.footer(ft[0],ft[1]); if(mode==='doc') return doc; return cs2Open(doc,mode||'view','Kit_du_jour_'+(S.date_cs||cs2Iso(new Date()))+'.pdf');
+};
+
+/* ── Phase 3 : clôturer ── */
+function cs2ProchaineVisite(erp,dateCs){
+  if(!dateCs) return null; const cat=parseInt(String(erp.categorie||'').replace(/\D/g,''),10)||5; const t=String(erp.type_erp||'').toUpperCase(); const dodo=!!erp.locaux_sommeil||/^(J|U|O|R)$/.test(t);
+  let ans=5; if(cat<=2) ans=dodo?2:3; else if(cat<=4) ans=dodo?3:5; else ans=5;
+  const d=new Date(dateCs+'T00:00:00'); d.setFullYear(d.getFullYear()+ans); return {date:cs2Iso(d),ans};
+}
+function cs2ClotureHtml(){
+  const {S,D}=window._cs2; const pv=cs2ProchaineVisite(D.erp,S.date_cs); const closed=S.statut==='cloturee';
+  const hist=D.passages.map(p=>{ const tb=D.tabs.find(t=>String(t.date_intervention||'').slice(0,10)===String(p.date_passage||'').slice(0,10)); return `<div><b>${cs2Fr(p.date_passage)}</b><small>${esc(p.avis||'—')}${p.prescriptions?' · prescriptions':' · sans prescription'}${tb&&tb.nb_obs?'<br>'+tb.nb_obs+' observation'+(tb.nb_obs>1?'s':''):''}</small></div>`; }).join('');
+  return `<div class="cs2-card"><div class="cs2-ch"><h2>Clôturer</h2><span class="sub">après la visite — avis, PV, prescriptions, prochaine visite</span>${closed?'<span class="r"><span class="cs2-chip g">Clôturée le '+cs2Fr(S.cloturee_le)+'</span></span>':''}</div>
+    <div class="cs2-cb">
+      <div class="cs2-kit">
+        <div><b>1. Avis de la commission</b><div class="row2" style="margin-top:6px"><div class="fld" style="margin:0"><label>Avis</label><select id="cs2_avis"><option value="">—</option>${['favorable','favorable avec prescriptions','défavorable'].map(a=>`<option value="${a}"${(S.avis||'')===a?' selected':''}>${a.charAt(0).toUpperCase()+a.slice(1)}</option>`).join('')}</select></div><div class="fld" style="margin:0"><label>Date du PV</label><input type="date" id="cs2_pvdate" value="${esc(S.pv_date||S.date_cs||'')}"></div></div></div>
+        <div><b>2. Déposer le PV</b><small>Le PV est classé dans le Classeur (type PV commission) ; « Extraire les prescriptions » crée ensuite le tableau numéroté et permet la répartition aux prestataires.</small><div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${S.pv_document_id?`<span class="cs2-chip g">PV déposé</span><button class="btn sm" onclick="gedExtractRes('${S.pv_document_id}')">Extraire les prescriptions</button>`:`<button class="btn sm" onclick="cs2UploadPv()">📎 Déposer le PV</button>`}</div></div>
+        <div><b>3. Prochaine visite</b><small>${pv?'calcul indicatif selon type et catégorie ('+pv.ans+' ans)':'saisir la date de la commission'}</small><div class="fld" style="margin:6px 0 0"><label>Date estimée</label><input type="date" id="cs2_next" value="${esc(S.prochaine_visite||(pv?pv.date:''))}"></div></div>
+      </div>
+      <div class="cs2-sect" style="margin-top:14px">Historique des passages</div>
+      <div class="cs2-hist">${hist||'<div style="font-size:12px;color:var(--muted);border:none;flex:1">Aucun passage enregistré.</div>'}</div>
+    </div>
+    <div class="cs2-foot"><button class="btn" onclick="cs2MailModal({what:'courrier'})">✉️ Informer la mairie</button><button class="btn" onclick="navigate('/bilan')">📊 Voir le Bilan</button><span style="flex:1"></span>${closed?'':'<button class="btn primary" onclick="cs2Cloturer()">Clôturer la commission</button>'}</div></div>`;
+}
+window.cs2UploadPv=function(){
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='.pdf,image/*';
+  inp.onchange=async()=>{ const f=inp.files[0]; if(!f) return; const {S,D}=window._cs2;
+    try{ let up=f; if(/pdf/.test(f.type)&&typeof compressPdf==='function') up=await compressPdf(f);
+      const path=D.erp.id+'/'+Date.now()+'_'+String(f.name).replace(/[^\w.\-]/g,'_');
+      const {error}=await sb.storage.from('documents').upload(path,up,{contentType:up.type||f.type}); if(error) throw error;
+      const pvd=(document.getElementById('cs2_pvdate')||{}).value||S.date_cs||cs2Iso(new Date());
+      const {data:doc,error:e2}=await sb.from('documents').insert({erp_id:D.erp.id,client_id:D.erp.client_id,type:'PV commission',categorie:'rapport',nom_original:f.name,fichier_path:path,date_document:pvd,statut:'classe',created_by:state.user?.id||null}).select('id').single(); if(e2) throw e2;
+      await cs2SaveSession({pv_document_id:doc.id,pv_date:pvd}); toast('PV déposé et classé ✓ — vous pouvez extraire les prescriptions','ok'); await cs2Load(D.erp.id); cs2Render();
+    }catch(e){ toast('Dépôt impossible : '+(e.message||e),'err'); } };
+  inp.click();
+};
+window.cs2Cloturer=async function(){
+  const {S,D}=window._cs2; const avis=(document.getElementById('cs2_avis')||{}).value||''; const pvd=(document.getElementById('cs2_pvdate')||{}).value||S.date_cs; const next=(document.getElementById('cs2_next')||{}).value||null;
+  if(!S.date_cs){ toast('Saisis la date de la commission','err'); return; } if(!avis){ toast('Indique l\'avis de la commission','err'); return; }
+  if(!confirm('Clôturer la commission du '+cs2Fr(S.date_cs)+' avec un avis « '+avis+' » ? Une nouvelle préparation démarrera pour la prochaine visite.')) return;
+  try{
+    const presc=/prescription|défavorable|defavorable/i.test(avis);
+    const {error}=await sb.from('commission_passages').insert({erp_id:D.erp.id,date_passage:S.date_cs,avis,prescriptions:presc,document_id:S.pv_document_id||null,commentaire:(Array.isArray(S.notes)&&S.notes.length)?S.notes.map(n=>n.txt).join(' | ').slice(0,2000):null,created_by:state.profile?.nom||state.user?.email||null}); if(error) throw error;
+    try{ await sb.from('erps').update({cs_date_passage:S.date_cs,cs_avis:avis,cs_prescriptions:presc}).eq('id',D.erp.id); }catch(_){}
+    await cs2SaveSession({statut:'cloturee',avis,pv_date:pvd,prescriptions:presc,prochaine_visite:next,cloturee_le:new Date().toISOString()});
+    try{ localStorage.removeItem('cs_commission_date_'+D.erp.id); localStorage.removeItem('cs_commission_time_'+D.erp.id); }catch(_){}
+    toast('Commission clôturée ✓ — prochaine visite estimée '+(next?cs2Fr(next):'à définir'),'ok'); window._cs2.phase='prep'; await cs2Load(D.erp.id); cs2Render();
+  }catch(e){ toast('Clôture impossible : '+(e.message||e),'err'); }
+};
+
 
 /* ================= COMPOSEUR SMS GLOBAL =================
    smsComposerOpen({
