@@ -18101,7 +18101,7 @@ window.qrTablSign=function(rid){
           <input id="qs_nom" value="${esc(lastNom)}" placeholder="Prénom NOM" style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:8px;padding:8px;font-size:13px;margin-top:3px"></label></div>
       <div>
         <div style="font-size:11px;color:#64748b;font-weight:700;margin-bottom:3px">Signature <span style="font-weight:500">(au doigt, dans le cadre)</span></div>
-        <canvas id="qs_canvas" style="width:100%;height:160px;border:2px dashed #cbd5e1;border-radius:10px;background:#fff;touch-action:none;display:block"></canvas>
+        <canvas id="qs_canvas" style="color-scheme:light;width:100%;height:160px;border:2px dashed #cbd5e1;border-radius:10px;background:#fff;touch-action:none;display:block"></canvas>
         <button onclick="qrSignClear()" style="margin-top:5px;background:none;border:1px solid #e2e8f0;border-radius:7px;color:#64748b;font-size:11.5px;padding:4px 10px;cursor:pointer">Effacer</button></div>
       <div style="display:flex;gap:8px">
         <button onclick="document.getElementById('qr-sign').remove()" style="flex:1;border:1px solid #e2e8f0;background:#fff;color:#334155;border-radius:10px;padding:12px;font-weight:700;font-size:13.5px;cursor:pointer">Annuler</button>
@@ -18124,9 +18124,12 @@ window.qrSignInit=function(){
   const w=c.clientWidth||300, hgt=160;
   c.width=w*dpr; c.height=hgt*dpr;
   const ctx=c.getContext&&c.getContext('2d');
-  window._qrSig={ctx,dpr,strokes:0,drawing:false};
+  window._qrSig={ctx,dpr,strokes:0,drawing:false,w,hgt};
   if(!ctx) return;
-  ctx.scale(dpr,dpr); ctx.lineWidth=2.4; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#0f172a';
+  ctx.scale(dpr,dpr);
+  // Fond blanc peint DANS le bitmap : le mode sombre forcé d'Android (Chrome / Samsung Internet) assombrit le fond CSS mais pas le dessin — sans ce fond, le trait sombre devenait invisible sur écran noir.
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,hgt);
+  ctx.lineWidth=2.6; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#0f172a';
   const pos=e=>{ const rct=c.getBoundingClientRect(); return {x:e.clientX-rct.left,y:e.clientY-rct.top}; };
   c.addEventListener('pointerdown',e=>{ e.preventDefault(); c.setPointerCapture&&c.setPointerCapture(e.pointerId); const p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); window._qrSig.drawing=true; });
   c.addEventListener('pointermove',e=>{ if(!window._qrSig.drawing) return; e.preventDefault(); const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); window._qrSig.strokes++; });
@@ -18135,7 +18138,7 @@ window.qrSignInit=function(){
 };
 window.qrSignClear=function(){
   const c=document.getElementById('qs_canvas'); const s=window._qrSig;
-  if(c&&s&&s.ctx){ s.ctx.clearRect(0,0,c.width,c.height); s.strokes=0; }
+  if(c&&s&&s.ctx){ s.ctx.clearRect(0,0,c.width,c.height); s.ctx.fillStyle='#fff'; s.ctx.fillRect(0,0,s.w||c.width,s.hgt||c.height); s.strokes=0; }
 };
 window.qrSignPayload=function(rid){
   const nom=(document.getElementById('qs_nom').value||'').trim();
@@ -18476,7 +18479,7 @@ window.levSign=function(rid){
       +'<label style="flex:1;min-width:130px;font-size:11px;color:#64748b;font-weight:700">Date de réalisation<br><input id="lv_date" type="date" value="'+today+'" style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:8px;padding:8px;font-size:13px;margin-top:3px"></label>'
       +'<label style="flex:1.4;min-width:150px;font-size:11px;color:#64748b;font-weight:700">Nom et prénom du signataire<br><input id="lv_nom" value="'+esc(lastNom)+'" placeholder="Prénom NOM" style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:8px;padding:8px;font-size:13px;margin-top:3px"></label></div>'
     +'<div style="font-size:11px;color:#64748b;font-weight:700;margin-bottom:3px">Signature <span style="font-weight:500">(au doigt, dans le cadre)</span></div>'
-    +'<canvas id="lv_canvas" style="width:100%;height:150px;border:2px dashed #cbd5e1;border-radius:10px;background:#fff;touch-action:none;display:block"></canvas>'
+    +'<canvas id="lv_canvas" style="color-scheme:light;width:100%;height:150px;border:2px dashed #cbd5e1;border-radius:10px;background:#fff;touch-action:none;display:block"></canvas>'
     +'<button onclick="levSignClear()" style="margin-top:5px;background:none;border:1px solid #e2e8f0;border-radius:7px;color:#64748b;font-size:11.5px;padding:4px 10px;cursor:pointer">Effacer</button>'
     +'<div style="display:flex;gap:8px;margin-top:12px">'
       +'<button onclick="document.getElementById(\'lev-sign\').remove()" style="flex:1;border:1px solid #e2e8f0;background:#fff;color:#334155;border-radius:10px;padding:12px;font-weight:700;font-size:13.5px;cursor:pointer">Annuler</button>'
@@ -18498,9 +18501,12 @@ window.levSignInit=function(){
   const w=c.clientWidth||300, hgt=150;
   c.width=w*dpr; c.height=hgt*dpr;
   const ctx=c.getContext&&c.getContext('2d');
-  window._levSig={ctx,dpr,strokes:0,drawing:false};
+  window._levSig={ctx,dpr,strokes:0,drawing:false,w,hgt};
   if(!ctx) return;
-  ctx.scale(dpr,dpr); ctx.lineWidth=2.4; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#0f172a';
+  ctx.scale(dpr,dpr);
+  // Fond blanc peint DANS le bitmap : le mode sombre forcé d'Android (Chrome / Samsung Internet) assombrit le fond CSS mais pas le dessin — sans ce fond, le trait sombre devenait invisible sur écran noir.
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,hgt);
+  ctx.lineWidth=2.6; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#0f172a';
   const pos=e=>{ const rct=c.getBoundingClientRect(); return {x:e.clientX-rct.left,y:e.clientY-rct.top}; };
   c.addEventListener('pointerdown',e=>{ e.preventDefault(); c.setPointerCapture&&c.setPointerCapture(e.pointerId); const p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); window._levSig.drawing=true; });
   c.addEventListener('pointermove',e=>{ if(!window._levSig.drawing) return; e.preventDefault(); const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); window._levSig.strokes++; });
@@ -18509,7 +18515,7 @@ window.levSignInit=function(){
 };
 window.levSignClear=function(){
   const c=document.getElementById('lv_canvas'); const s=window._levSig;
-  if(c&&s&&s.ctx){ s.ctx.clearRect(0,0,c.width,c.height); s.strokes=0; }
+  if(c&&s&&s.ctx){ s.ctx.clearRect(0,0,c.width,c.height); s.ctx.fillStyle='#fff'; s.ctx.fillRect(0,0,s.w||c.width,s.hgt||c.height); s.strokes=0; }
 };
 window.levSignSubmit=async function(rid){
   const nom=(document.getElementById('lv_nom').value||'').trim();
