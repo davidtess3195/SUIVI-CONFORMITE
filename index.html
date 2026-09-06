@@ -1434,7 +1434,7 @@ window.secHelpOff=function(key){ try{localStorage.setItem('sechelp_'+key,'off');
 const TOUR_STEPS=[
   {sel:'.kpis', t:'Vos priorités, déjà triées', p:'Ce tableau de bord classe ce qui presse. La checklist « Premiers pas » vous accompagne jusqu\'à ce que tout soit en place.'},
   {sel:'a[href="#/verifications"]', t:'Votre échéancier vit ici', p:'Chaque ligne est une obligation datée. La pastille rouge compte ce qui est en retard — c\'est le seul chiffre à regarder le lundi matin.'},
-  {sel:'a[href="#/documents"]', t:'Vos documents se classent tout seuls', p:'Quand un prestataire envoie son rapport sur votre adresse dédiée, il arrive dans « Rapports reçus » puis rejoint le Classeur, au bon endroit.'},
+  {sel:'a[href="#/documents"]', t:'Vos documents se classent tout seuls', p:'Quand un prestataire envoie son rapport sur votre adresse dédiée, il arrive en tête du Classeur avec une proposition de classement : un clic et il rejoint le bon endroit.'},
   {sel:'#btn-quick-inter', t:'Vos prestataires répondent enfin', p:'Une demande d\'intervention part par email ou SMS, et le prestataire confirme la date en un clic — sans compte, sans mot de passe.'},
   {sel:'#selClient', t:'Tout se filtre ici', p:'Le sélecteur client / établissement décide de ce que vous voyez sur toutes les pages. Bonne visite — l\'aide reste présente sur chaque écran.'}
 ];
@@ -1955,7 +1955,7 @@ function renderRoute(){
   if(base==='/interventions') return viewInterventions(content);
   if(base==='/reserves') return viewReserves(content);
   if(base==='/documents') return viewDocuments(content);
-  if(base==='/rapports') return viewRapports(content);
+  if(base==='/rapports') return viewDocuments(content); // ancienne rubrique « Rapports reçus » : fusionnée dans le Classeur
   if(base==='/contrats') return viewContrats(content);
   if(base==='/pointage') return viewPointage(content);
   if(base==='/photos') return viewPhotos(content);
@@ -6479,15 +6479,15 @@ const FORM_MODULES=[
   err:'Tout faire par téléphone. Sans trace écrite ni date confirmée, impossible de prouver la demande le jour où le prestataire conteste.',
   avis:'Une demande écrite qui part de l’application laisse une trace datée. Le jour où un prestataire affirme « on ne m’a rien demandé », cette trace vaut tous les coups de téléphone du monde.',
   q:{t:'Que doit faire le prestataire pour confirmer la date ?',a:['Créer un compte sur l’application','Cliquer sur le lien reçu par email ou SMS','Envoyer un courrier'],g:1}},
- {no:5,ch:2,t:'Les rapports arrivent tout seuls',dur:'2 min',act:['/rapports','Voir les rapports reçus'],
+ {no:5,ch:2,t:'Les rapports arrivent tout seuls',dur:'2 min',act:['/documents','Ouvrir le Classeur'],
   obj:'recevoir les rapports de vérification sans les chercher, et les classer en un geste.',
   et:[['Chaque compte dispose d’une adresse email dédiée',': transmettez-la à vos prestataires une bonne fois.'],
-      ['Le rapport envoyé à cette adresse','apparaît dans « Rapports reçus ».'],
+      ['Le rapport envoyé à cette adresse','apparaît en tête du Classeur, à classer.'],
       ['Vous le rattachez à la bonne vérification','en deux clics — l’échéance se met à jour.'],
       ['Il rejoint le Classeur','au bon endroit, daté et retrouvable.']],
   err:'Laisser les rapports dormir dans une boîte mail personnelle. Un rapport introuvable le jour de la commission est un rapport qui n’existe pas.',
   avis:'Transmettez l’adresse dédiée à vos prestataires une bonne fois pour toutes : un rapport qui arrive tout seul est un rapport qui ne se perd pas. Votre boîte mail personnelle n’est pas un système d’archivage.',
-  q:{t:'Où arrive le rapport envoyé par un prestataire ?',a:['Dans « Rapports reçus », puis au Classeur','Dans votre boîte mail personnelle','Il faut le scanner soi-même'],g:0}},
+  q:{t:'Où arrive le rapport envoyé par un prestataire ?',a:['En tête du Classeur, prêt à classer','Dans votre boîte mail personnelle','Il faut le scanner soi-même'],g:0}},
  {no:6,ch:2,t:'Le Classeur',dur:'2 min',act:['/documents','Ouvrir le Classeur'],
   obj:'retrouver n’importe quel document en dix secondes, même face à l’inspecteur.',
   et:[['Le Classeur range par catégories',': rapports, PV, contrats, devis, attestations…'],
@@ -7116,14 +7116,14 @@ function getNAV(){ return [
   {sec:'sitdeg', titre:'Situation dégradée',     ic:NI.alert,     items:[['/photos','Photos et vidéos',NI.cam],['/compte-rendu','Compte rendu',NI.cr]]},
   {sec:'prest',  titre:'Suivi des prestataires', ic:NI.briefcase, items:[['/prestataires','Prestataires',NI.wrench],['/conversations','Conversations',NI.chat],['/pointage','Pointage & journal',NI.clock]]},
   {sec:'suivi',  titre:'Suivi et conformité',    ic:NI.shield,    items:[['/interventions','Interventions',NI.tools],['/travaux','Travaux',NI.trvx],['/gpa','Garanties GPA',NI.checks],['/verifications','Vérifications & relances',NI.bell],['/reserves','Réserves',NI.tablo]]},
-  {sec:'ged',    titre:'Documents',   ic:NI.folderO,   items:[['/documents','Classeur',NI.folder],['/rapports','Rapports reçus',NI.inbox],['/contrats','Contrats de maintenance',NI.contrat]]},
+  {sec:'ged',    titre:'Documents',   ic:NI.folderO,   items:[['/documents','Classeur',NI.folder],['/contrats','Contrats de maintenance',NI.contrat]]},
   {link:['/preparation-cs','Commission de sécurité',NI.landmark]},
   {link:['/formation','Formation',NI.grad]},
   ...(state.profile?.role==='admin'
     ? [{sec:'admin', titre:'Administration', ic:NI.gear, items:[['/admin','Tableau de bord admin',NI.gauge],['/formation-contenus','Formation — contenus',NI.grad],['/parametres','Paramètres & email',NI.gear]]}]
     : [{link:['/parametres','Mon compte',NI.user]}]),
 ];}
-const NAV_BADGES={'/photos':'badge-photos','/rapports':'badge-rapports','/verifications':'badge-verif','/pointage':'badge-pointage','/admin':'badge-admin'};
+const NAV_BADGES={'/photos':'badge-photos','/documents':'badge-rapports','/verifications':'badge-verif','/pointage':'badge-pointage','/admin':'badge-admin'};
 function navLink(it){ const p=it[0],l=it[1],ic=it[2];
   const b=NAV_BADGES[p]?`<span class="badge" id="${NAV_BADGES[p]}" style="display:none">0</span>`:'';
   return `<a href="#${p}" data-base="${p}">${ic}<span>${l}</span>${b}</a>`; }
@@ -14235,7 +14235,7 @@ window.ptgSetFin=function(pid, heure_arrivee){
 async function updateRapportsBadge(){
   try{
     const {data}=await sb.from('rapports').select('statut');
-    const n=(data||[]).filter(r=>(r.statut||'')!=='traite').length;
+    const n=(data||[]).filter(r=>(r.statut||'recu')==='recu').length;
     const b=document.getElementById('badge-rapports');
     if(b){ if(n>0){ b.style.display='grid'; b.textContent=n; } else { b.style.display='none'; } }
   }catch(_){}
@@ -14348,7 +14348,7 @@ window.toggleRapportTraite=async function(id,toTraite){
     toast(toTraite?'Rapport marqué comme traité ✓':'Rapport remis en « reçu »','ok');
     const cont=document.getElementById('content'); if(!cont) return;
     const h=location.hash.replace(/^#/,'');
-    if(h.indexOf('/rapports')===0) viewRapports(cont);
+    if(h.indexOf('/rapports')===0||h.indexOf('/documents')===0) viewDocuments(cont);
     else if(h.indexOf('/erps/')===0){ const erpId=(h.split('/')[2]||'').split('?')[0]; if(erpId) viewErp(cont,erpId); }
     updateRapportsBadge();
   }catch(e){ toast(e.message||'Erreur','err'); }
@@ -14361,29 +14361,328 @@ window.delRapport=async function(id,path){
     toast('Rapport supprimé','ok');
     const cont=document.getElementById('content'); if(!cont) return;
     const h=location.hash.replace(/^#/,'');
-    if(h.indexOf('/rapports')===0) viewRapports(cont);
+    if(h.indexOf('/rapports')===0||h.indexOf('/documents')===0) viewDocuments(cont);
     else if(h.indexOf('/erps/')===0){ const erpId=(h.split('/')[2]||'').split('?')[0]; if(erpId) viewErp(cont,erpId); }
     updateRapportsBadge();
   }catch(e){ toast(e.message||'Erreur','err'); }
 };
 
 
+
+/* ══════════════ CLASSEUR — POSTE DE TRI DES RAPPORTS REÇUS PAR E-MAIL ══════════════
+   Remplace la rubrique « Rapports reçus » : la table `rapports` est la file de tri, un rapport est
+   « classé » (statut traite) quand son document est rangé dans le Classeur (ERP, type, lot, prestataire).
+   Deux volets : liste (à classer / classés récemment / ignorés) + document sélectionné (aperçu PDF + fiche pré-remplie). */
+window._tri={tab:'recu',sel:null,raps:[],docs:[],prests:[],page:1,pdf:null};
+function triStyle(){ if(document.getElementById('tri-style')) return; const st=document.createElement('style'); st.id='tri-style'; st.textContent=`
+.tri-seg{display:inline-flex;background:var(--surface-2);border-radius:10px;padding:3px;gap:2px;margin:0 0 12px}
+.tri-seg button{padding:6px 12px;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--muted);background:none;border:none;cursor:pointer;font-family:inherit}
+.tri-seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(15,23,42,.1)}
+.tri-seg button em{font-style:normal;background:var(--primary);color:#fff;border-radius:99px;padding:0 6px;font-size:10.5px;margin-left:5px}
+.tri-work{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px;margin-bottom:16px;align-items:stretch}
+.tri-pane{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.tri-ph{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);flex-wrap:wrap}
+.tri-ph b{color:var(--ink);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+.tri-ph .r{margin-left:auto;display:flex;gap:6px}
+.tri-tbl{width:100%;border-collapse:collapse}
+.tri-tbl th{font-size:10.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--muted-2);text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--surface-2)}
+.tri-tbl td{padding:10px 12px;border-bottom:1px solid var(--line-2);vertical-align:middle;font-size:12.5px;cursor:pointer}
+.tri-tbl tr:hover td{background:var(--surface-2)}
+.tri-tbl tr.sel td{background:rgba(37,99,235,.07)}
+.tri-tbl tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--primary)}
+.tri-tbl td.d{white-space:nowrap;color:var(--muted);font-size:12px}
+.tri-tbl td.d small{display:block;font-size:10.5px}
+.tri-tbl th.c,.tri-tbl td.c{text-align:right;white-space:nowrap}
+.tri-doc{display:flex;gap:10px;align-items:center;min-width:0}
+.tri-doc .ic{width:30px;height:30px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;color:#475569;flex:0 0 auto}
+.tri-doc .ic svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tri-doc b{display:block;font-size:12.5px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px}
+.tri-doc small{display:block;color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px}
+.tri-doc .prop{margin-top:4px;font-size:11.5px;color:var(--ink);line-height:1.4}
+.tri-doc .prop small{display:inline;color:var(--muted)}
+.tri-doc .prop .m{color:#b45309;font-weight:700}
+.tri-st{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;border-radius:99px;padding:2px 8px;white-space:nowrap}
+.tri-st.hi{background:#dcfce7;color:#15803d}.tri-st.mid{background:#fef3c7;color:#b45309}.tri-st.ok{background:#e0e7ff;color:#3730a3}.tri-st.ig{background:var(--surface-2);color:var(--muted)}
+.tri-st i{width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block}
+.tri-pf{padding:9px 14px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted);display:flex;gap:8px;align-items:center;background:var(--surface-2);flex-wrap:wrap}
+.tri-pf .r{margin-left:auto}
+.tri-prev{background:#e9edf3;border-bottom:1px solid var(--line);min-height:230px;max-height:300px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.tri-prev canvas{max-height:280px;max-width:92%;box-shadow:0 8px 20px rgba(15,23,42,.18);background:#fff}
+.tri-prev .pg{position:absolute;bottom:10px;right:12px;font-size:11px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:2px 8px}
+.tri-prev .ctl{position:absolute;top:10px;right:12px;display:flex;gap:6px}
+.tri-prev .msg{font-size:12.5px;color:var(--muted)}
+.tri-form{padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;flex:1}
+.tri-form .full{grid-column:1/-1}
+.tri-form label{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.tri-form select,.tri-form input{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface);color:var(--ink);font-size:12.5px;font-family:inherit}
+.tri-form select.pre,.tri-form input.pre{border-color:#bfdbfe;background:rgba(37,99,235,.05)}
+.tri-auto{font-size:9px;font-weight:800;border-radius:4px;padding:1px 5px;background:#dbeafe;color:#1d4ed8;letter-spacing:.3px}
+.tri-why{grid-column:1/-1;border-left:3px solid #bfdbfe;background:var(--surface-2);border-radius:0 8px 8px 0;padding:8px 11px;font-size:11.5px;color:var(--muted);line-height:1.5}
+.tri-opts{grid-column:1/-1;display:flex;gap:16px;flex-wrap:wrap;font-size:12px}
+.tri-opts label{display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:12px;font-weight:500;color:var(--ink);margin:0}
+.tri-opts input{width:15px;height:15px;accent-color:var(--primary)}
+.tri-ff{display:flex;gap:8px;align-items:center;padding:10px 14px;border-top:1px solid var(--line);flex-wrap:wrap}
+.tri-ff .l{margin-right:auto;font-size:11.5px;color:var(--muted)}
+.tri-quiet{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
+.tri-quiet .ok{width:22px;height:22px;border-radius:50%;background:#dcfce7;color:#15803d;display:grid;place-items:center;font-weight:800;font-size:12px}
+.tri-quiet .r{margin-left:auto;display:flex;gap:8px;align-items:center}
+.tri-empty{padding:26px 14px;text-align:center;color:var(--muted);font-size:12.5px}
+.gedx-nw{background:#fff;color:#1d4ed8;border-radius:20px;padding:2px 9px;font-size:10.5px;font-weight:800;margin-left:4px}
+.gedx-tile .nwd{position:absolute;top:6px;right:6px;font-size:9px;font-weight:800;background:#0e1b2e;color:#fff;border-radius:4px;padding:1px 5px}
+.gedx-tile{position:relative}
+@media(max-width:840px){.tri-work{grid-template-columns:1fr}.tri-doc b,.tri-doc small{max-width:200px}.tri-form{grid-template-columns:1fr}.tri-tbl td.d{display:none}.tri-tbl th:first-child{display:none}.tri-ph>span{display:none}}
+`; document.head.appendChild(st); }
+const TRI_ICO={doc:'<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>',report:'<svg viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>',search:'<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>',clip:'<svg viewBox="0 0 24 24"><path d="m21.4 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>',check:'<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>'};
+function triNorm(x){ return String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim(); }
+function triFileName(r){ const p=(r.fichier_path||'').split('/').pop()||''; return p.replace(/^\d{10,}-\d+-/,'').replace(/^\d{10,}-/,''); }
+function triDocOf(r){ return (window._tri.docs||[]).find(d=>d.fichier_path&&d.fichier_path===r.fichier_path)||null; }
+/* Proposition de classement : ERP (adresse dédiée), prestataire (expéditeur), type et lot (mots du nom de fichier / objet), confiance */
+function triProposer(r){
+  const doc=triDocOf(r); const erp=(state.erps||[]).find(e=>e.id===r.erp_id)||null;
+  const txt=triNorm([triFileName(r),r.email_sujet,r.type].filter(Boolean).join(' '));
+  const why=[];
+  if(erp) why.push('reçu sur l\'adresse dédiée de '+String(erp.nom||'').replace(/^ERP-\d+[-\s]*/,''));
+  // prestataire : document déjà rattaché, sinon expéditeur ↔ e-mails des prestataires
+  let prest=doc&&doc.prestataire_id?(window._tri.prests||[]).find(p=>p.id===doc.prestataire_id):null;
+  const exp=String(r.email_expediteur||r.emetteur||'').toLowerCase(); const dom=exp.split('@')[1]||'';
+  if(!prest&&exp){
+    const cands=(window._tri.prests||[]).filter(p=>{ const em=[p.email_rapports]; try{ const cs=p.contacts; if(cs&&typeof cs==='object') Object.values(cs).forEach(c=>{ if(c&&c.email) em.push(c.email); if(Array.isArray(c)) c.forEach(x=>x&&x.email&&em.push(x.email)); }); }catch(_){}
+      return em.filter(Boolean).some(e=>String(e).toLowerCase()===exp); });
+    prest=cands[0]||null;
+    if(!prest&&dom&&!/gmail|outlook|hotmail|yahoo|orange|free|sfr|wanadoo|laposte|icloud/.test(dom)){
+      prest=(window._tri.prests||[]).find(p=>{ const em=[p.email_rapports]; try{ const cs=p.contacts; if(cs&&typeof cs==='object') Object.values(cs).forEach(c=>{ if(c&&c.email) em.push(c.email); }); }catch(_){} return em.filter(Boolean).some(e=>String(e).toLowerCase().split('@')[1]===dom); })||null;
+    }
+  }
+  if(prest) why.push('expéditeur reconnu comme '+prest.nom);
+  // type
+  let type=null, key=null;
+  const K=[[/rvre/,'Bureau de contrôle RVRE','« RVRE »'],[/rvrat|rvat/,'Bureau de contrôle RVRAT','« RVRAT »'],[/proces verbal|pv commission|commission/,'PV commission','« commission »'],[/devis/,'Devis','« devis »'],[/facture/,'Facture','« facture »'],[/bon d ?intervention|bon intervention|\bbi\b/,"Bon d'intervention",'« bon d\'intervention »'],[/compte rendu|\bcr\b/,'Compte rendu','« compte rendu »'],[/attestation/,'Attestation','« attestation »'],[/pv de reception|pv reception/,'PV de réception','« PV de réception »'],[/fiche d ?intervention|maintenance|entretien|verification periodique|visite periodique/,'Maintenance préventive','« maintenance / intervention »'],[/bureau de controle|apave|veritas|socotec|dekra|qualiconsult/,'Bureau de contrôle','nom d\'un bureau de contrôle'],[/rapport|verification/,'Rapport','« rapport »']];
+  for(const [re,t,k] of K){ if(re.test(txt)){ type=t; key=k; break; } }
+  if(!type&&doc&&doc.type&&doc.type!=='Rapport') type=doc.type;
+  if(type&&key) why.push(key+' dans le nom du fichier');
+  if(!type) type='Rapport';
+  // lot : obligations de l'ERP (domaines) ↔ mots du fichier / prestataire affecté
+  let lot=doc&&doc.lot?doc.lot:null;
+  if(!lot&&r.erp_id){
+    const obs=(window._tri.obs||{})[r.erp_id]||[];
+    const byPrest=prest?obs.filter(o=>o.prestataire_id===prest.id):[];
+    const words=txt.split(' ').filter(Boolean);
+    const hit=obs.find(o=>{ const dw=triNorm(o.domaine||o.libelle).split(' ').filter(w=>w.length>=3&&!/^(de|des|du|la|le|les|et|annuelle|triennale|verification|controle)$/.test(w)); return dw.length&&dw.some(w=>words.includes(w)||(w.length>=5&&words.some(x=>x.length>=5&&(x.includes(w)||w.includes(x))))); });
+    if(hit){ lot=hit.domaine||hit.libelle; why.push('lot « '+lot+' » reconnu dans le nom du fichier'); }
+    else if(byPrest.length===1){ lot=byPrest[0].domaine||byPrest[0].libelle; why.push('seul lot suivi par ce prestataire sur l\'établissement'); }
+  }
+  const needLot=['Rapport','Maintenance préventive','Maintenance corrective','Bureau de contrôle','Bureau de contrôle RVRAT','Bureau de contrôle RVRE','Compte rendu','Attestation'].includes(type);
+  const sure=!!(erp&&(prest||!needLot)&&key&&(lot||!needLot));
+  return {erp,prest,type,lot,why,sure,needLot,doc,date:(r.date_reception||(r.email_date||'').slice(0,10)||'')};
+}
+window.triRender=function(){
+  const host=document.getElementById('ged_tri'); if(!host) return;
+  triStyle();
+  const T=window._tri; const raps=T.raps||[];
+  const recu=raps.filter(r=>(r.statut||'recu')==='recu'), traite=raps.filter(r=>r.statut==='traite'), ignore=raps.filter(r=>r.statut==='ignore');
+  const last=T.lastReleve?('dernière relève '+T.lastReleve):'';
+  if(!raps.length){ host.innerHTML=`<div class="tri-quiet"><span class="ok">${TRI_ICO.check.replace('<svg','<svg style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round"')}</span>Aucun rapport reçu par e-mail en attente de classement.<span class="r"><button class="btn sm" onclick="triRelever(this)">Relever maintenant</button></span></div>`; return; }
+  if(!recu.length&&T.tab==='recu'&&!T.forceTab){ /* rien à classer : ligne discrète, onglets accessibles */
+    host.innerHTML=`<div class="tri-quiet"><span class="ok">${TRI_ICO.check.replace('<svg','<svg style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round"')}</span>Aucun rapport en attente de classement.<span class="r"><span>${traite.length} classé${traite.length>1?'s':''}${ignore.length?' · '+ignore.length+' ignoré'+(ignore.length>1?'s':''):''}</span><button class="btn sm ghost" onclick="triTab('traite',true)">Voir l'historique</button><button class="btn sm" onclick="triRelever(this)">Relever maintenant</button></span></div>`; return; }
+  const list=T.tab==='recu'?recu:T.tab==='traite'?traite:ignore;
+  if(!T.sel||!list.some(r=>r.id===T.sel)) T.sel=list[0]?list[0].id:null;
+  const sure=recu.filter(r=>triProposer(r).sure);
+  const icoOf=t=>/contr[oô]le|rvr/i.test(t||'')?TRI_ICO.search:/devis|facture|bon/i.test(t||'')?TRI_ICO.clip:/rapport|compte|attest|mainten/i.test(t||'')?TRI_ICO.report:TRI_ICO.doc;
+  const erpNm=id=>String(((state.erps||[]).find(e=>e.id===id)||{}).nom||'—').replace(/^ERP-\d+[-\s]*/,'');
+  const rows=list.map(r=>{
+    const P=triProposer(r); const d=new Date(r.email_date||r.date_reception||r.created_at);
+    const st=T.tab==='recu'?(P.sure?'<span class="tri-st hi"><i></i>Sûre</span>':'<span class="tri-st mid"><i></i>À vérifier</span>'):T.tab==='traite'?'<span class="tri-st ok"><i></i>Classé</span>':'<span class="tri-st ig"><i></i>Ignoré</span>';
+    const prop=T.tab==='recu'?`<div class="prop">${esc(erpNm(r.erp_id))} · ${esc(P.type)} · ${P.lot?'<small>Lot '+esc(P.lot)+'</small>':(P.needLot?'<span class="m">Lot à préciser</span>':'<small>sans lot</small>')}${P.prest?' · <small>'+esc(P.prest.nom)+'</small>':''}</div>`
+      :(P.doc?`<div class="prop">${esc(erpNm(P.doc.erp_id||r.erp_id))} · ${esc(P.doc.type||'')}${P.doc.lot?' · <small>Lot '+esc(P.doc.lot)+'</small>':''}</div>`:'');
+    return `<tr class="${r.id===T.sel?'sel':''}" onclick="triSelect('${r.id}')"><td class="d">${isNaN(d)?'—':d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})}<small>${isNaN(d)?'':d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</small></td>
+      <td><div class="tri-doc"><span class="ic">${icoOf(P.type)}</span><div style="min-width:0"><b>${esc(triFileName(r)||r.type||'Document')}</b><small>${esc(r.email_expediteur||r.emetteur||'—')} → ${esc(erpNm(r.erp_id))}</small>${prop}</div></div></td>
+      <td class="c">${st}</td></tr>`;
+  }).join('');
+  host.innerHTML=`<div class="tri-seg"><button class="${T.tab==='recu'?'on':''}" onclick="triTab('recu')">À classer${recu.length?'<em>'+recu.length+'</em>':''}</button><button class="${T.tab==='traite'?'on':''}" onclick="triTab('traite')">Classés récemment</button><button class="${T.tab==='ignore'?'on':''}" onclick="triTab('ignore')">Ignorés${ignore.length?' ('+ignore.length+')':''}</button></div>
+    <div class="tri-work">
+      <div class="tri-pane">
+        <div class="tri-ph"><b>Rapports reçus par e-mail</b><span>${last||'trié du plus récent'}</span><div class="r">${T.tab==='recu'&&sure.length?`<button class="btn sm" onclick="triClasserSurs()">Classer les ${sure.length} sûr${sure.length>1?'s':''}</button>`:''}<button class="btn sm ghost" onclick="triRelever(this)">Relever</button></div></div>
+        ${list.length?`<table class="tri-tbl"><thead><tr><th>Reçu</th><th>Document · proposition de classement</th><th class="c">${T.tab==='recu'?'Confiance':'Statut'}</th></tr></thead><tbody>${rows}</tbody></table>`:`<div class="tri-empty">${T.tab==='traite'?'Aucun rapport classé sur les 30 derniers jours.':'Aucun rapport ignoré.'}</div>`}
+        <div class="tri-pf">${T.tab==='recu'?'Sélectionnez une ligne pour vérifier et classer. Un rapport classé rejoint son bandeau client.':T.tab==='traite'?'Un classement peut être repris à tout moment (« Reclasser »).':'Ignoré = spam ou hors sujet. Le fichier reste 30 jours dans la corbeille.'}<span class="r">${list.length?'1–'+list.length+' sur '+list.length:''}</span></div>
+      </div>
+      <div class="tri-pane" id="tri_right"></div>
+    </div>`;
+  triRenderRight();
+};
+window.triTab=function(t,force){ window._tri.tab=t; window._tri.forceTab=!!force; window._tri.sel=null; triRender(); };
+window.triSelect=function(id){ window._tri.sel=id; window._tri.page=1; triRender(); if(window.innerWidth<=840){ const el=document.getElementById('tri_right'); if(el) setTimeout(()=>{ try{ el.scrollIntoView({behavior:'smooth',block:'start'}); }catch(_){} },50); } };
+function triRenderRight(){
+  const T=window._tri; const box=document.getElementById('tri_right'); if(!box) return;
+  const r=(T.raps||[]).find(x=>x.id===T.sel);
+  if(!r){ box.innerHTML='<div class="tri-empty">Sélectionnez un rapport dans la liste.</div>'; return; }
+  const P=triProposer(r); const fname=triFileName(r)||r.type||'Document';
+  const erpNm=id=>String(((state.erps||[]).find(e=>e.id===id)||{}).nom||'').replace(/^ERP-\d+[-\s]*/,'');
+  const clientId=(state.erps.find(e=>e.id===r.erp_id)||{}).client_id||null;
+  const erpsClient=clientId?state.erps.filter(e=>e.client_id===clientId):state.erps;
+  const erpOpts='<option value="">— choisir —</option>'+erpsClient.map(e=>`<option value="${e.id}"${(P.doc&&P.doc.erp_id||r.erp_id)===e.id?' selected':''}>${esc(e.nom)}</option>`).join('');
+  const prestOpts='<option value="">— aucun —</option>'+(T.prests||[]).map(p=>`<option value="${p.id}"${P.prest&&P.prest.id===p.id?' selected':''}>${esc(p.nom)}</option>`).join('');
+  const typeOpts=GED_TYPES.map(t=>`<option value="${esc(t)}"${P.type===t?' selected':''}>${esc(t)}</option>`).join('');
+  const dcat=catFromType(P.type);
+  const canExtract=/\.pdf$/i.test(fname)&&['Rapport','Bureau de contrôle','Bureau de contrôle RVRAT','Bureau de contrôle RVRE','PV commission'].includes(P.type);
+  const readOnly=T.tab!=='recu';
+  const nomBase=(P.doc&&P.doc.nom_original)?P.doc.nom_original.replace(/\.[a-zA-Z0-9]{2,5}$/,''):fname.replace(/\.[a-zA-Z0-9]{2,5}$/,'');
+  const ext=(fname.match(/\.[a-zA-Z0-9]{2,5}$/)||[''])[0];
+  box.innerHTML=`<div class="tri-ph"><b title="${esc(fname)}">${esc(fname)}</b><div class="r"><button class="btn sm ghost" onclick="triApercu('${r.id}')">Plein écran</button><button class="btn sm ghost" onclick="dlDoc('${esc((r.fichier_path||'').replace(/'/g,''))}','${esc(fname.replace(/'/g,''))}','rapports')">Télécharger</button></div></div>
+    <div class="tri-prev" id="tri_prev"><span class="msg">Chargement de l'aperçu…</span></div>
+    <div class="tri-form">
+      <div><label>Établissement ${P.erp?'<span class="tri-auto">AUTO</span>':''}</label><select id="tri_erp" class="${P.erp?'pre':''}" onchange="triLotOpts()" ${readOnly?'disabled':''}>${erpOpts}</select></div>
+      <div><label>Prestataire émetteur ${P.prest?'<span class="tri-auto">AUTO</span>':''}</label><select id="tri_prest" class="${P.prest?'pre':''}" ${readOnly?'disabled':''}>${prestOpts}</select></div>
+      <div><label>Type ${P.type?'<span class="tri-auto">AUTO</span>':''}</label><select id="tri_type" class="pre" onchange="triTypeChange()" ${readOnly?'disabled':''}>${typeOpts}</select></div>
+      <div><label>Lot / équipement ${P.lot?'<span class="tri-auto">AUTO</span>':''}</label><select id="tri_lot" class="${P.lot?'pre':''}" ${readOnly?'disabled':''}><option value="">— aucun —</option></select></div>
+      <div><label>Date du document</label><input id="tri_date" type="date" value="${esc(P.date)}" ${readOnly?'disabled':''}></div>
+      <div><label>Nom dans le Classeur</label><input id="tri_nom" value="${esc(nomBase)}" ${readOnly?'disabled':''}></div>
+      ${(dcat==='devis_signe'||dcat==='facture')?`<div><label>Montant HT</label><input id="tri_montant" type="number" min="0" step="0.01" placeholder="0,00" ${readOnly?'disabled':''}></div><div><label>Famille budgétaire</label><select id="tri_fam" ${readOnly?'disabled':''}><option value="">— à classer —</option><option value="preventive">Maintenance préventive</option><option value="corrective">Maintenance corrective</option><option value="conformite">Mise en conformité</option><option value="autre">Autre</option></select></div>`:''}
+      ${P.why.length?`<div class="tri-why"><b>Pourquoi cette proposition :</b> ${esc(P.why.join(' · '))}.</div>`:''}
+      ${r.email_sujet||r.email_corps?`<div class="tri-why" style="border-left-color:var(--line)"><b>E-mail :</b> ${esc(r.email_sujet||'')}${r.email_corps?' — <span style="white-space:pre-wrap">'+esc(String(r.email_corps).slice(0,300))+(String(r.email_corps).length>300?'…':'')+'</span>':''}</div>`:''}
+      ${readOnly?'':`<div class="tri-opts">${canExtract?'<label><input type="checkbox" id="tri_extract"> Extraire les réserves après classement</label>':''}<label><input type="checkbox" id="tri_notif"> Prévenir le responsable de l'établissement</label></div>`}
+    </div>
+    <div class="tri-ff">${readOnly?`<span class="l">${T.tab==='traite'?'Classé':'Ignoré'} — ${P.doc?'document présent dans le Classeur':'aucun document lié'}</span>${T.tab==='ignore'?`<button class="btn sm" onclick="triRestaurer('${r.id}')">Restaurer</button>`:`<button class="btn sm" onclick="triReclasser('${r.id}')">Reclasser</button>`}${P.doc?`<button class="btn sm primary" onclick="triVoirDansClasseur('${P.doc.id}')">Voir dans le Classeur</button>`:''}`
+      :`<span class="l">Après classement : rapport suivant</span><button class="btn sm" onclick="triIgnorer('${r.id}')">Ignorer</button><button class="btn sm primary" id="tri_go" onclick="triClasser('${r.id}')">Classer</button>`}</div>`;
+  triLotOpts(P.lot||'');
+  triPreview(r);
+}
+window.triTypeChange=function(){ const t=(document.getElementById('tri_type')||{}).value; const e=document.getElementById('tri_extract'); if(e) e.parentElement.style.display=['Rapport','Bureau de contrôle','Bureau de contrôle RVRAT','Bureau de contrôle RVRE','PV commission'].includes(t)?'':'none'; };
+window.triLotOpts=async function(cur){
+  const sel=document.getElementById('tri_lot'); if(!sel) return;
+  if(cur===undefined) cur=sel.value||'';
+  const erpId=(document.getElementById('tri_erp')||{}).value||'';
+  let dom=[]; if(erpId){ const obs=await triObs(erpId); dom=[...new Set(obs.map(o=>o.domaine||o.libelle).filter(Boolean))]; }
+  if(cur&&!dom.includes(cur)) dom.unshift(cur);
+  sel.innerHTML='<option value="">— aucun —</option>'+dom.map(d=>`<option value="${esc(d)}"${d===cur?' selected':''}>${esc(d)}</option>`).join('');
+  sel.className=cur?'pre':'';
+};
+async function triObs(erpId){
+  window._tri.obs=window._tri.obs||{};
+  if(!window._tri.obs[erpId]){ try{ const {data}=await sb.from('obligations').select('domaine,libelle,prestataire_id').eq('erp_id',erpId).eq('statut','applicable').order('domaine'); window._tri.obs[erpId]=data||[]; }catch(_){ window._tri.obs[erpId]=[]; } }
+  return window._tri.obs[erpId];
+}
+async function triPreview(r){
+  const box=document.getElementById('tri_prev'); if(!box) return;
+  const T=window._tri; const fname=triFileName(r);
+  try{
+    const {data,error}=await sb.storage.from('rapports').createSignedUrl(r.fichier_path,600);
+    if(error||!data) throw error||new Error('URL');
+    if(!/\.pdf$/i.test(fname)){ box.innerHTML=`<img src="${data.signedUrl}" style="max-height:280px;max-width:92%;box-shadow:0 8px 20px rgba(15,23,42,.18)">`; return; }
+    const lib=window['pdfjs-dist/build/pdf']; if(!lib){ box.innerHTML='<span class="msg">Aperçu indisponible — utilisez « Plein écran »</span>'; return; }
+    lib.GlobalWorkerOptions.workerSrc='lib-pdf-3.11.174.worker.min.js';
+    const pdf=await lib.getDocument({url:data.signedUrl}).promise;
+    T.pdf=pdf; T.page=Math.min(T.page||1,pdf.numPages);
+    const draw=async()=>{ const page=await pdf.getPage(T.page); const v1=page.getViewport({scale:1}); const scale=Math.min(1.4,(box.clientWidth*0.9)/v1.width,280/v1.height); const vp=page.getViewport({scale:scale*(window.devicePixelRatio||1)}); const c=document.createElement('canvas'); c.width=vp.width; c.height=vp.height; c.style.width=(vp.width/(window.devicePixelRatio||1))+'px'; c.style.height=(vp.height/(window.devicePixelRatio||1))+'px'; await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+      box.innerHTML=''; box.appendChild(c); box.insertAdjacentHTML('beforeend',`<span class="pg">${T.page} / ${pdf.numPages}</span>${pdf.numPages>1?`<div class="ctl"><button class="btn sm" onclick="triPage(-1)">‹</button><button class="btn sm" onclick="triPage(1)">›</button></div>`:''}`); };
+    window._triDraw=draw; await draw();
+  }catch(e){ box.innerHTML='<span class="msg">Aperçu indisponible — utilisez « Plein écran »</span>'; }
+}
+window.triPage=function(d){ const T=window._tri; if(!T.pdf) return; T.page=Math.max(1,Math.min(T.pdf.numPages,(T.page||1)+d)); if(window._triDraw) window._triDraw(); };
+window.triApercu=function(id){ const r=(window._tri.raps||[]).find(x=>x.id===id); if(!r) return; previewDoc(r.fichier_path,triFileName(r)||'document.pdf','rapports'); };
+window.triRelever=async function(btn){
+  if(btn){ btn.disabled=true; btn.textContent='Relève…'; }
+  try{
+    const {data,error}=await sb.functions.invoke('traiter-rapports-imap');
+    if(error){ let m=error.message||'Erreur'; try{ const j=await error.context.json(); if(j&&j.error) m=j.error; }catch(_){} throw new Error(m); }
+    const n=data?((typeof data.traites!=='undefined')?data.traites:0):0;
+    toast(n>0?`${n} nouveau(x) document(s) reçu(s) ✓`:'Aucun nouveau courrier pour l\'instant','ok');
+  }catch(e){ toast('Relève impossible : '+(e.message||e),'err'); }
+  const cont=document.getElementById('content'); if(cont) viewDocuments(cont);
+  updateRapportsBadge();
+};
+/* Classement : le document du Classeur est créé ou mis à jour, le rapport passe en « traité » */
+window.triClasser=async function(id,opts){
+  opts=opts||{}; const T=window._tri; const r=(T.raps||[]).find(x=>x.id===id); if(!r) return;
+  const g=k=>document.getElementById(k);
+  let v;
+  if(opts.auto){ const P=triProposer(r); v={erp:P.erp?P.erp.id:r.erp_id,prest:P.prest?P.prest.id:null,type:P.type,lot:P.lot,date:P.date||null,nom:(P.doc&&P.doc.nom_original?P.doc.nom_original.replace(/\.[a-zA-Z0-9]{2,5}$/,''):triFileName(r).replace(/\.[a-zA-Z0-9]{2,5}$/,'')),extract:false,notif:false,montant:null,fam:null}; }
+  else v={erp:g('tri_erp').value||null,prest:g('tri_prest').value||null,type:g('tri_type').value||'Rapport',lot:g('tri_lot').value||null,date:g('tri_date').value||null,nom:(g('tri_nom').value||'').trim(),extract:!!(g('tri_extract')&&g('tri_extract').checked),notif:!!(g('tri_notif')&&g('tri_notif').checked),montant:g('tri_montant')?(parseFloat(g('tri_montant').value)||null):null,fam:g('tri_fam')?(g('tri_fam').value||null):null};
+  if(!v.erp){ toast('Choisissez l\'établissement','err'); return; }
+  if(!v.nom){ toast('Le nom du document est requis','err'); return; }
+  const btn=g('tri_go'); if(btn&&!opts.auto){ btn.disabled=true; btn.textContent='Classement…'; }
+  try{
+    const fname=triFileName(r); const ext=(fname.match(/\.[a-zA-Z0-9]{2,5}$/)||[''])[0];
+    const erp=state.erps.find(e=>e.id===v.erp)||{};
+    const patch={erp_id:v.erp,client_id:erp.client_id||null,type:v.type,categorie:catFromType(v.type),lot:v.lot,prestataire_id:v.prest,date_document:v.date,nom_original:v.nom+ext,statut:'classe',deleted_at:null};
+    if(v.montant!=null) patch.montant_ht=v.montant; if(v.fam) patch.famille_budget=v.fam;
+    let doc=triDocOf(r); let docId=doc?doc.id:null;
+    if(doc){ const {error}=await sb.from('documents').update(patch).eq('id',doc.id); if(error) throw error; }
+    else { const {data,error}=await sb.from('documents').insert(Object.assign({fichier_path:r.fichier_path,tags:'source:email;cat:'+catFromType(v.type),email_expediteur:r.email_expediteur||null,email_sujet:r.email_sujet||null,email_corps:r.email_corps||null,email_date:r.email_date||null,emetteur:r.emetteur||null},patch)).select('id').single(); if(error) throw error; docId=data.id; }
+    const {error:e2}=await sb.from('rapports').update({statut:'traite',erp_id:v.erp,type:v.type}).eq('id',r.id); if(e2) throw e2;
+    if(v.notif){ try{ await triPrevenir(erp,v,fname); }catch(_){} }
+    if(!opts.auto){ toast('Document classé ✓','ok'); }
+    if(v.extract&&docId){ const cont=document.getElementById('content'); if(cont) await viewDocuments(cont); gedExtractRes(docId); return; }
+    if(!opts.auto){ const cont=document.getElementById('content'); if(cont) viewDocuments(cont); updateRapportsBadge(); }
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); if(btn){ btn.disabled=false; btn.textContent='Classer'; } if(opts.auto) throw e; }
+};
+async function triPrevenir(erp,v,fname){
+  const ids=Array.isArray(erp.notif_contact_ids)?erp.notif_contact_ids:[]; if(!ids.length) return;
+  const {data:cts}=await sb.from('client_contacts').select('email').in('id',ids); const tos=(cts||[]).map(c=>c.email).filter(Boolean); if(!tos.length) return;
+  const erpNom=String(erp.nom||'').replace(/^ERP-\d+[-\s]*/,'');
+  const html=`<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#1e293b"><p>Bonjour,</p><p>Un nouveau document a été classé pour <b>${esc(erpNom)}</b> :</p><ul><li>${esc(v.nom)} — ${esc(v.type)}${v.lot?' · lot '+esc(v.lot):''}</li></ul><p>Il est consultable dans Conformité Sécurité → Classeur.</p><p style="font-size:12px;color:#64748b">Message automatique — PREVA CONSEILS.</p></div>`;
+  await sb.functions.invoke('send-client-email',{body:{to:tos,subject:`Nouveau document classé — ${erpNom} : ${v.type}`,html}});
+}
+window.triClasserSurs=async function(){
+  const T=window._tri; const raps=(T.raps||[]).filter(r=>(r.statut||'recu')==='recu'&&triProposer(r).sure);
+  if(!raps.length) return;
+  if(!confirm('Classer automatiquement '+raps.length+' rapport(s) selon les propositions sûres ?')) return;
+  let n=0; for(const r of raps){ try{ await triClasser(r.id,{auto:true}); n++; }catch(_){} }
+  toast(n+' rapport(s) classé(s) ✓','ok');
+  const cont=document.getElementById('content'); if(cont) viewDocuments(cont); updateRapportsBadge();
+};
+window.triIgnorer=async function(id){
+  const r=(window._tri.raps||[]).find(x=>x.id===id); if(!r) return;
+  if(!confirm('Ignorer ce rapport (spam ou hors sujet) ? Le fichier reste 30 jours dans la corbeille.')) return;
+  try{ const {error}=await sb.from('rapports').update({statut:'ignore'}).eq('id',id); if(error) throw error; const doc=triDocOf(r); if(doc) await sb.from('documents').update({deleted_at:new Date().toISOString()}).eq('id',doc.id); toast('Rapport ignoré','ok'); const cont=document.getElementById('content'); if(cont) viewDocuments(cont); updateRapportsBadge(); }
+  catch(e){ toast(e.message||'Erreur','err'); }
+};
+window.triRestaurer=async function(id){
+  const r=(window._tri.raps||[]).find(x=>x.id===id); if(!r) return;
+  try{ const {error}=await sb.from('rapports').update({statut:'recu'}).eq('id',id); if(error) throw error; const {data:doc}=await sb.from('documents').select('id').eq('fichier_path',r.fichier_path).maybeSingle(); if(doc) await sb.from('documents').update({deleted_at:null}).eq('id',doc.id); toast('Rapport remis à classer','ok'); window._tri.tab='recu'; window._tri.forceTab=false; const cont=document.getElementById('content'); if(cont) viewDocuments(cont); updateRapportsBadge(); }
+  catch(e){ toast(e.message||'Erreur','err'); }
+};
+window.triReclasser=async function(id){
+  try{ const {error}=await sb.from('rapports').update({statut:'recu'}).eq('id',id); if(error) throw error; window._tri.tab='recu'; window._tri.forceTab=false; window._tri.sel=id; const cont=document.getElementById('content'); if(cont) viewDocuments(cont); updateRapportsBadge(); }
+  catch(e){ toast(e.message||'Erreur','err'); }
+};
+window.triVoirDansClasseur=function(docId){
+  const d=(window._gedAllDocs||[]).find(x=>x.id===docId); if(!d){ toast('Document introuvable dans le périmètre affiché','err'); return; }
+  const cid=d.client_id||(state.erps.find(e=>e.id===d.erp_id)||{}).client_id; if(cid){ window._gedOpen=new Set([cid]); gedRenderList(); gedScrollTo(cid); }
+};
+
 async function viewDocuments(c){
   c.innerHTML=`<div class="page-head"><div class="t"><h1>Classeur</h1><p>Rapports, PV, plans, DOE, attestations.</p></div>
     <div class="actions"><button class="btn sm" onclick="pvForm({})">Générer un PV de réception</button><button class="btn primary" onclick="formDoc()">${I.plus} Déposer un document</button></div></div>${loadingBlock()}`;
   try{
     let q=sb.from('documents').select('*').order('created_at',{ascending:false}); q=gedScopeFilter(q);
-    const [{data:docData},{data:prestData}]=await Promise.all([
+    let qr=sb.from('rapports').select('*').order('created_at',{ascending:false}); if(state.currentErp!=='all') qr=qr.eq('erp_id',state.currentErp);
+    const [{data:docData},{data:prestData},{data:rapData}]=await Promise.all([
       q,
-      sb.from('prestataires').select('*').order('nom')
+      sb.from('prestataires').select('*').order('nom'),
+      qr
     ]);
     const rows=docData||[];
     window._gedAllDocs=rows;
     window._gedPrest=prestData||[];
+    // Poste de tri : rapports reçus par e-mail (à classer / classés 30 j / ignorés 30 j) + nouveautés 7 j
+    {
+      const okErp=new Set(erpsPerimetre(false).map(e=>e.id));
+      const d30=Date.now()-30*864e5, d7=Date.now()-7*864e5;
+      const all=(rapData||[]).filter(r=>!r.erp_id||okErp.has(r.erp_id));
+      const T=window._tri; T.raps=all.filter(r=>{ const st=r.statut||'recu'; if(st==='recu') return true; const t=new Date(r.email_date||r.date_reception||r.created_at).getTime(); return t>=d30; });
+      T.docs=rows; T.prests=prestData||[]; T.lastReleve=null;
+      // obligations des ERP concernés (propositions de lot), chargées d'un coup
+      const erpIds=[...new Set(T.raps.filter(r=>(r.statut||'recu')==='recu'&&r.erp_id).map(r=>r.erp_id))];
+      T.obs=T.obs||{};
+      if(erpIds.length){ try{ const {data:od}=await sb.from('obligations').select('erp_id,domaine,libelle,prestataire_id').in('erp_id',erpIds).eq('statut','applicable'); erpIds.forEach(id=>T.obs[id]=(od||[]).filter(o=>o.erp_id===id)); }catch(_){} }
+      window._gedNew=new Set(all.filter(r=>r.statut==='traite'&&new Date(r.email_date||r.date_reception||r.created_at).getTime()>=d7).map(r=>r.fichier_path).filter(Boolean));
+    }
     const types=[...new Set(rows.map(d=>d.type).filter(Boolean))];
     const typeOpts=types.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('');
-    c.innerHTML=`<div class="page-head"><div class="t"><h1>Classeur</h1><p>${rows.length} document(s) · classés par client et par type.</p></div>
-      <div class="actions"><button class="btn sm" onclick="pvForm({})">Générer un PV de réception</button><button class="btn primary" onclick="formDoc()">${I.plus} Déposer un document</button></div></div>
+    const nbRecu=(window._tri.raps||[]).filter(r=>(r.statut||'recu')==='recu').length;
+    c.innerHTML=`<div class="page-head"><div class="t"><h1>Classeur</h1><p>${rows.length} document(s) classé(s) par client et par type${nbRecu?` · <b style="color:#b45309">${nbRecu} rapport${nbRecu>1?'s':''} reçu${nbRecu>1?'s':''} par e-mail à classer</b>`:''}.</p></div>
+      <div class="actions"><button class="btn sm" onclick="triRelever(this)" title="Relever maintenant les adresses e-mail dédiées">Relever</button><button class="btn sm" onclick="pvForm({})">Générer un PV de réception</button><button class="btn primary" onclick="formDoc()">${I.plus} Déposer un document</button></div></div>
+      <div id="ged_tri"></div>
       <div id="ged_drop" ondragover="event.preventDefault();this.style.borderColor='var(--primary)';this.style.background='rgba(37,99,235,.05)'" ondragleave="this.style.borderColor='var(--line)';this.style.background='transparent'" ondrop="gedHandleDrop(event)" style="border:2px dashed var(--line);border-radius:12px;padding:14px;text-align:center;color:var(--muted);font-size:13px;margin-bottom:14px;transition:.12s">
         Glissez-déposez ici vos documents (rapports, PV, plans, attestations…)</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
@@ -14392,6 +14691,7 @@ async function viewDocuments(c){
         <select id="ged_prest" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Tous les prestataires</option>${(prestData||[]).map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select>
       </div>
       <div id="ged_list"></div>`;
+    triRender();
     gedRenderList();
   }catch(e){ c.innerHTML=errBlock(e); }
 }
@@ -15456,8 +15756,9 @@ function gedRenderList(){
       const ds=byCat[cat];
       let last=null; ds.forEach(d=>{ const t=docDate(d); if(t&&(!last||new Date(t)>new Date(last))) last=t; });
       const on = searching || selCat===cat;
+      const nwCat=(window._gedNew&&ds.some(d=>d.fichier_path&&window._gedNew.has(d.fichier_path)));
       return `<div class="gedx-tile${on?' on':''}" onclick="gedTileSel('${cid}',${GEDX_ORDER.indexOf(cat)})">
-        <span class="ic">${GEDX_ICO[cat]||GEDX_ICO.Autres}</span>
+        ${nwCat?'<span class="nwd">NOUVEAU</span>':''}<span class="ic">${GEDX_ICO[cat]||GEDX_ICO.Autres}</span>
         <span class="tx"><b>${cat}</b><small>${last?'dernier : '+fmtDate(last):'&nbsp;'}</small></span>
         <span class="ct">${ds.length}</span>
       </div>`;
@@ -15489,6 +15790,7 @@ function gedRenderList(){
       <div class="gedx-hd" data-ghd="${cid}" onclick="gedToggle('${cid}')" title="Cliquer pour ${open?'replier':'déplier'}">
         <span class="chev" data-gchev="${cid}">▶</span>
         <h2>${esc(clientNm(cid))}</h2>
+        ${(()=>{const n=window._gedNew?docs.filter(d=>d.fichier_path&&window._gedNew.has(d.fichier_path)).length:0;return n?`<span class="gedx-nw">${n} nouveau${n>1?'x':''}</span>`:'';})()}
         <span class="cnt">${docs.length}${bandCls===' min'?'':' doc(s)'}</span>
       </div>
       <div id="gedbody-${cid}" style="display:${open?'block':'none'}">${body}</div>
