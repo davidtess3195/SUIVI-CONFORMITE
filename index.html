@@ -1815,6 +1815,12 @@ async function boot(){
     renderCloturePublic(decodeURIComponent(hashNow.split('/')[2]||''));
     return;
   }
+  if(hashNow.startsWith('/designer/')){
+    loadCfg(); initSb();
+    renderDesignerPublic(decodeURIComponent(hashNow.split('/')[2]||''));
+    window.addEventListener('hashchange',()=>{ const h=location.hash.replace(/^#/,'')||'/'; if(h.startsWith('/levees/')) renderLeveesPublic(h.split('/')[2]); else if(h.startsWith('/designer/')) renderDesignerPublic(h.split('/')[2]); });
+    return;
+  }
   if(hashNow.startsWith('/levees/')){
     loadCfg(); initSb();
     renderLeveesPublic(decodeURIComponent(hashNow.split('/')[2]||''));
@@ -1923,6 +1929,7 @@ function renderRoute(){
   if(hash.startsWith('/qr/')){ renderQrPublic(hash.split('/')[2]); return; }
   if(hash.startsWith('/levees/')){ renderLeveesPublic(hash.split('/')[2]); return; }
   if(hash.startsWith('/cloture/')){ renderCloturePublic(hash.split('/')[2]); return; }
+  if(hash.startsWith('/designer/')){ renderDesignerPublic(hash.split('/')[2]); return; }
   if(hash.startsWith('/confirm/')){ renderConfirmInter((hash.split('?')[0].split('/')[2])||''); return; }
   // Route publique confirmation CS
   if(hash.startsWith('/cs-confirm')){ renderCsConfirm(); return; }
@@ -4232,7 +4239,26 @@ async function viewParametres(c){
     </div>
   </div>
 
-  ${isAdmin?`<!-- Alertes levées de réserves → PREVA -->
+  ${isAdmin?`<!-- Envoi automatique des levées de réserves -->
+  <div class="card card-pad" style="max-width:560px;margin-bottom:16px" id="pm_lva_card">
+    <h2 style="font-size:14.5px;margin-bottom:6px;display:flex;align-items:center;gap:9px">${cardIc('<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 19-7z"/>')} Levées de réserves — envoi automatique aux prestataires</h2>
+    <div style="font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:12px">À l'affectation, la société prestataire reçoit un e-mail pour désigner son technicien ; celui-ci reçoit son lien de signature par SMS. Relances tant que rien n'est signé.</div>
+    <label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer"><input type="checkbox" id="lva_actif" style="width:18px;height:18px;accent-color:#16a34a"><b style="font-size:13px">Robot actif</b></label>
+    <div class="row2">
+      <div class="fld"><label>Temporisation après affectation (min)</label><input id="lva_tempo" type="number" min="1" max="240"></div>
+      <div class="fld"><label>Relance société sans réponse (jours)</label><input id="lva_rel_soc" type="number" min="1" max="60"></div>
+      <div class="fld"><label>Alerte PREVA société silencieuse (jours)</label><input id="lva_al_soc" type="number" min="1" max="90"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;margin-bottom:12px">
+      <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="lva_j1" style="width:16px;height:16px">Rappel SMS au technicien la veille de l'intervention (J-1)</label>
+      <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="lva_r1" style="width:16px;height:16px">Relance à J+1 après la date cible (SMS technicien + e-mail société)</label>
+      <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="lva_r8" style="width:16px;height:16px">Relance à J+8</label>
+      <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="lva_a15" style="width:16px;height:16px">Alerte PREVA à J+15</label>
+      <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="lva_cli" style="width:16px;height:16px">Contacts « levées » du client en copie des retards (J+15)</label>
+    </div>
+    <div style="display:flex;justify-content:flex-end"><button class="btn primary" id="lva_save">Enregistrer</button></div>
+  </div>
+  <!-- Alertes levées de réserves → PREVA -->
   <div class="card card-pad" style="max-width:560px;margin-bottom:16px" id="pm_levee_card">
     <h2 style="font-size:14.5px;margin-bottom:6px;display:flex;align-items:center;gap:9px">${cardIc('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>')} Alertes « levées de réserves » vers PREVA</h2>
     <div style="font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:12px">Quand un technicien coche « levées de réserves » au pointage, PREVA est prévenu en plus des contacts de l'établissement (désactivable ERP par ERP dans « Modifier l'ERP »). Si aucun contact n'est coché sur l'ERP, l'alerte part de toute façon ici.</div>
@@ -4247,6 +4273,25 @@ async function viewParametres(c){
   <button class="btn" onclick="logout()" style="border:1px solid #fecaca;color:#b91c1c;background:var(--surface)">${I.out} Se déconnecter</button>
 `;
 
+  // Réglages du robot d'envoi automatique des levées (app_settings.levees_auto, admin)
+  if(isAdmin){
+    (async()=>{
+      try{
+        const {data}=await sb.from('app_settings').select('value').eq('key','levees_auto').maybeSingle();
+        const v=Object.assign({actif:true,tempo_min:10,relance_societe_j:5,alerte_societe_j:10,rappel_j1:true,relance_j1:true,relance_j8:true,alerte_j15:true,client_copie_retards:true},(data&&data.value)||{});
+        const g=id=>document.getElementById(id);
+        if(g('lva_actif')) g('lva_actif').checked=v.actif!==false; if(g('lva_tempo')) g('lva_tempo').value=v.tempo_min; if(g('lva_rel_soc')) g('lva_rel_soc').value=v.relance_societe_j; if(g('lva_al_soc')) g('lva_al_soc').value=v.alerte_societe_j;
+        if(g('lva_j1')) g('lva_j1').checked=v.rappel_j1!==false; if(g('lva_r1')) g('lva_r1').checked=v.relance_j1!==false; if(g('lva_r8')) g('lva_r8').checked=v.relance_j8!==false; if(g('lva_a15')) g('lva_a15').checked=v.alerte_j15!==false; if(g('lva_cli')) g('lva_cli').checked=v.client_copie_retards!==false;
+      }catch(_){}
+    })();
+    const lv=document.getElementById('lva_save');
+    if(lv) lv.onclick=async()=>{
+      const g=id=>document.getElementById(id);
+      const value={actif:g('lva_actif').checked,tempo_min:Math.max(1,parseInt(g('lva_tempo').value,10)||10),relance_societe_j:Math.max(1,parseInt(g('lva_rel_soc').value,10)||5),alerte_societe_j:Math.max(1,parseInt(g('lva_al_soc').value,10)||10),rappel_j1:g('lva_j1').checked,relance_j1:g('lva_r1').checked,relance_j8:g('lva_r8').checked,alerte_j15:g('lva_a15').checked,client_copie_retards:g('lva_cli').checked};
+      try{ const {error}=await sb.from('app_settings').upsert({key:'levees_auto',value,updated_at:new Date().toISOString(),updated_by:state.user?.email||null}); if(error) throw error; toast('Réglages enregistrés','ok'); }
+      catch(e){ toast(e.message||'Erreur','err'); }
+    };
+  }
   // Réglage global : alertes levées de réserves → PREVA (table app_settings, admin)
   if(isAdmin){
     (async()=>{
@@ -16940,6 +16985,271 @@ window.trvJumpToClient=function(cid){
 };
 
 // ── Détail d'un tableau
+
+/* ══════════════ LEVÉES DE RÉSERVES — ENVOI AUTOMATIQUE AUX PRESTATAIRES ══════════════
+   • Page publique #/designer/<token> : la SOCIÉTÉ prestataire désigne le technicien (enregistré dans sa fiche) et la date.
+   • Tableau de réserves : suivi automatique par prestataire (chronologie des envois, renvoi SMS, modification du technicien, suspension).
+   • Fiche prestataire : techniciens terrain connus (QR / désignation / manuel) + pointages non rattachés.
+   • Paramètres : réglages du robot (temporisation, relances).  Robot serveur : fonction levees-auto (cron 10 min). */
+const LVA_TYPES={affectation:'E-mail d\'affectation envoyé à la société',complement:'Mise à jour envoyée (réserves ajoutées)',designation:'Technicien désigné par la société',modification:'Désignation modifiée par la société',arrivee_qr:'Arrivée sur site (QR) — lien envoyé au technicien',rappel_j1:'Rappel J-1 au technicien',relance_j1:'Relance J+1 (date cible dépassée)',relance_j8:'Relance J+8 (date cible dépassée)',relance_societe:'Relance de la société (aucun technicien désigné)',alerte:'Alerte',renvoi:'SMS renvoyé au technicien',manuel:'Désignation par vos soins'};
+const LVA_STATUT={a_envoyer:['À envoyer','#d97706','#fffbeb'],envoye:['E-mail envoyé — technicien à désigner','#2563eb','#eff6ff'],sans_contact:['Sans contact — envoi impossible','#dc2626','#fef2f2'],designe:['Technicien désigné','#7c3aed','#f5f3ff'],signe:['Toutes les levées signées','#16a34a','#f0fdf4'],clos:['Clos','#64748b','#f1f5f9']};
+function lvaNormMob(s){ if(!s) return null; let v=String(s).replace(/[\s.\-()]/g,''); if(/^\+33[67]\d{8}$/.test(v)) v='0'+v.slice(3); if(/^0033[67]\d{8}$/.test(v)) v='0'+v.slice(4); return /^0[67]\d{8}$/.test(v)?v:null; }
+function lvaFmtMob(m){ return m?String(m).replace(/(\d{2})(?=\d)/g,'$1 '):''; }
+function lvaToken(){ const a=new Uint8Array(24); crypto.getRandomValues(a); return Array.from(a,b=>b.toString(16).padStart(2,'0')).join(''); }
+function lvaFmtDT(x){ if(!x) return '—'; const d=new Date(x); return isNaN(d)?'—':d.toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+function lvaFmtD(x){ if(!x) return '—'; const d=new Date(String(x).slice(0,10)+'T00:00:00'); return isNaN(d)?'—':d.toLocaleDateString('fr-FR'); }
+function lvaStyle(){ if(document.getElementById('lva-style')) return; const st=document.createElement('style'); st.id='lva-style'; st.textContent=`
+.lva-box{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:4px;background:var(--surface)}
+.lva-hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.lva-hd b{font-size:13.5px}
+.lva-st{font-size:11px;font-weight:800;border-radius:99px;padding:3px 10px;white-space:nowrap}
+.lva-auto{margin-left:auto;font-size:10.5px;font-weight:800;border-radius:6px;padding:2px 8px;background:#dcfce7;color:#15803d}
+.lva-auto.off{background:#fee2e2;color:#b91c1c}
+.lva-tl{border-left:2px solid var(--line);margin:6px 0 4px 6px;padding-left:14px}
+.lva-ev{position:relative;padding:2px 0 9px;font-size:12px;color:var(--ink)}
+.lva-ev:before{content:"";position:absolute;left:-19px;top:8px;width:8px;height:8px;border-radius:50%;background:#2563eb}
+.lva-ev.ok:before{background:#16a34a}.lva-ev.err:before{background:#dc2626}.lva-ev.wait:before{background:#d97706}
+.lva-ev small{display:block;color:var(--muted);font-size:10.5px}
+.lva-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.lva-tech{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line-2);font-size:12.5px}
+.lva-tech .av{width:30px;height:30px;border-radius:8px;background:#2563eb;color:#fff;display:grid;place-items:center;font-size:10.5px;font-weight:800;flex:0 0 auto}
+.lva-tech small{color:var(--muted);font-size:11px;display:block}
+.lva-src{margin-left:auto;font-size:9.5px;font-weight:800;border-radius:6px;padding:1px 6px;background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.lva-warn{border-left:3px solid #d97706;background:#fffbeb;border-radius:0 10px 10px 0;padding:8px 12px;font-size:12px;color:#92400e;margin-top:10px}
+.lva-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid #cbd5e1;border-radius:99px;padding:6px 12px;font-size:12.5px;background:#fff;cursor:pointer;color:#0f172a}
+.lva-chip.on{background:#1a44ad;color:#fff;border-color:#1a44ad}
+.lva-chip.new{border-style:dashed;color:#1d4ed8}
+`; document.head.appendChild(st); }
+
+/* ── Page publique : désignation du technicien par la société ── */
+async function renderDesignerPublic(token){
+  document.title='Désignation du technicien — PREVA';
+  const root=document.getElementById('root')||document.body;
+  const shell=inner=>'<div style="min-height:100vh;background:#eef1f6;font-family:Inter,system-ui,sans-serif;padding-bottom:40px"><div style="background:#0e1b2e;color:#fff;padding:16px 18px"><div style="font-weight:800;letter-spacing:1.5px;font-size:14px">CONFORMITÉ SÉCURITÉ</div><div style="font-size:12px;color:#b4c4e6;margin-top:2px" id="dsg_sub">Levées de réserves — désignation du technicien</div></div><div style="max-width:600px;margin:0 auto;padding:14px 14px 0">'+inner+'</div><div style="text-align:center;font-size:11px;color:#94a3b8;margin-top:18px">PREVA CONSEILS — conformite-securite.fr — contact@conformite-securite.fr</div></div>';
+  const card=inner=>'<div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(15,23,42,.05)">'+inner+'</div>';
+  root.innerHTML=shell(card('<div style="color:#64748b;font-size:13.5px">Chargement…</div>'));
+  let d=null;
+  try{ if(!sb){ loadCfg(); initSb(); } const {data,error}=await sb.functions.invoke('levees-prestataire',{body:{token,get:true}}); if(error) throw error; d=data; }
+  catch(e){ root.innerHTML=shell(card('<div style="color:#dc2626;font-weight:700">Erreur de chargement — réessayez.</div>')); return; }
+  if(!d||!d.ok){ const code=(d&&d.error)||'lien_invalide'; root.innerHTML=shell(card('<div style="font-size:17px;font-weight:800;color:#0f172a;margin-bottom:8px">'+(code==='lien_expire'?'Lien expiré':'Lien invalide')+'</div><div style="font-size:13px;color:#64748b;line-height:1.55">'+(code==='lien_expire'?'La validité de cet accès est dépassée. Contactez PREVA CONSEILS pour obtenir un nouveau lien.':'Ce lien n\'est pas ou plus valide.')+'</div>')); return; }
+  if(d.role!=='societe'){ location.hash='#/levees/'+token; return; }
+  window.__dsg={token,d};
+  dsgRender();
+}
+window.renderDesignerPublic=renderDesignerPublic;
+function dsgRender(){
+  lvaStyle();
+  const {token,d}=window.__dsg; const rows=d.reserves||[]; const open=rows.filter(r=>r.etat_levee!=='levee');
+  const des=d.designation||{}; const techs=d.techniciens||[];
+  const erpNom=String((d.erp&&d.erp.nom)||'').replace(/^ERP-\d+[-\s]*/,'').trim();
+  const dls=open.map(r=>r.date_limite).filter(Boolean).sort(); const cible=dls[0]?lvaFmtD(dls[0]):null;
+  const root=document.getElementById('root')||document.body;
+  const inp='width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:15px;background:#fff;color:#0f172a';
+  const lab='display:block;font-size:11.5px;font-weight:700;color:#475569;margin-bottom:4px';
+  const sel=window.__dsgSel===undefined?(des.technicien_id||(techs[0]?techs[0].id:'new')):window.__dsgSel; window.__dsgSel=sel;
+  const chips=techs.map(t=>'<span class="lva-chip'+(sel===t.id?' on':'')+'" onclick="window.__dsgSel=\''+t.id+'\';dsgRender()">'+esc([t.prenom,t.nom].filter(Boolean).join(' ')||'Technicien')+' · '+esc(lvaFmtMob(t.mobile))+'</span>').join('')
+    +'<span class="lva-chip new'+(sel==='new'?' on':'')+'" onclick="window.__dsgSel=\'new\';dsgRender()">+ Nouveau technicien</span>';
+  const isNew=sel==='new';
+  root.innerHTML='<div style="min-height:100vh;background:#eef1f6;font-family:Inter,system-ui,sans-serif;padding-bottom:40px">'
+    +'<div style="background:#0e1b2e;color:#fff;padding:16px 18px"><div style="font-weight:800;letter-spacing:1.5px;font-size:14px">CONFORMITÉ SÉCURITÉ</div><div style="font-size:12px;color:#b4c4e6;margin-top:2px">Levées de réserves — '+esc(d.prestataire||'')+'</div></div>'
+    +'<div style="max-width:600px;margin:0 auto;padding:14px 14px 0">'
+    +'<div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-bottom:12px">'
+      +'<div style="font-size:16px;font-weight:800;color:#0f172a">'+esc(erpNom||'Établissement')+'</div>'
+      +'<div style="font-size:12.5px;color:#475569;margin-top:3px">'+open.length+' réserve'+(open.length>1?'s':'')+' affectée'+(open.length>1?'s':'')+' à <b>'+esc(d.prestataire||'')+'</b>'+((d.tableau&&d.tableau.organisme)?' · '+esc(d.tableau.organisme)+((d.tableau.date_intervention)?' du '+lvaFmtD(d.tableau.date_intervention):''):'')+(cible?' · date cible <b>'+cible+'</b>':'')+'</div>'
+      +(rows.length?'<div style="margin-top:10px">'+rows.map(r=>'<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid #f1f5f9'+(r.etat_levee==='levee'?';opacity:.55':'')+'"><span style="flex:0 0 auto;background:#1a44ad;color:#fff;border-radius:7px;padding:2px 8px;font-size:11px;font-weight:800">N°'+esc(r.numero||'—')+'</span><div style="min-width:0"><div style="font-size:12.5px;font-weight:600;line-height:1.35">'+esc(r.libelle||'')+'</div><div style="font-size:11px;color:#64748b">'+esc(r.localisation||'')+(r.date_limite?' · cible '+lvaFmtD(r.date_limite):'')+(r.etat_levee==='levee'?' · <b style="color:#16a34a">signée</b>':'')+'</div></div></div>').join('')+'</div>':'')
+      +'<div style="margin-top:10px;text-align:right"><a href="#/levees/'+esc(token)+'" style="font-size:12px;color:#1d4ed8;font-weight:700">Consulter / signer les levées →</a></div>'
+    +'</div>'
+    +(open.length?'<div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-bottom:12px">'
+      +'<div style="font-size:15px;font-weight:800;color:#0f172a">Qui interviendra ?</div>'
+      +'<div style="font-size:12.5px;color:#475569;margin:3px 0 10px">Le technicien recevra par SMS un lien pour signer les levées sur place, depuis son téléphone.'+(des.designe_at?' <b style="color:#7c3aed">Désignation actuelle : '+esc(des.technicien_nom||'')+', le '+lvaFmtD(des.date_prevue)+'.</b> Vous pouvez la modifier.':'')+'</div>'
+      +'<div style="'+lab+'">Technicien</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'+chips+'</div>'
+      +(techs.length?'<div style="font-size:11px;color:#64748b;margin-bottom:8px">Techniciens déjà connus pour '+esc(d.prestataire||'votre société')+'. Un nouveau technicien est enregistré pour les prochaines fois.</div>':'')
+      +(isNew?'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px"><div><label style="'+lab+'">Prénom</label><input id="dsg_prenom" style="'+inp+'" placeholder="Joël" value="'+esc(window.__dsgNew?.prenom||'')+'"></div><div><label style="'+lab+'">Nom *</label><input id="dsg_nom" style="'+inp+'" placeholder="Belloge" value="'+esc(window.__dsgNew?.nom||'')+'"></div></div><div style="margin-bottom:10px"><label style="'+lab+'">Mobile du technicien *</label><input id="dsg_mob" type="tel" style="'+inp+'" placeholder="06 00 00 00 00" value="'+esc(window.__dsgNew?.mobile||'')+'"></div>':'')
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px"><div><label style="'+lab+'">Date prévue d\'intervention *</label><input id="dsg_date" type="date" style="'+inp+'" value="'+esc(des.date_prevue||'')+'"></div><div><label style="'+lab+'">Créneau</label><select id="dsg_cren" style="'+inp+'"><option value="journee"'+(des.creneau==='journee'||!des.creneau?' selected':'')+'>Journée</option><option value="matin"'+(des.creneau==='matin'?' selected':'')+'>Matin</option><option value="apres-midi"'+(des.creneau==='apres-midi'?' selected':'')+'>Après-midi</option></select></div></div>'
+      +'<div style="margin-bottom:12px"><label style="'+lab+'">Commentaire (optionnel)</label><textarea id="dsg_com" style="'+inp+';min-height:70px;resize:vertical" placeholder="ex. pièces commandées, délai fournisseur…">'+esc(des.commentaire||'')+'</textarea></div>'
+      +'<button id="dsg_go" style="width:100%;border:none;background:#1a44ad;color:#fff;border-radius:11px;padding:14px;font-weight:800;font-size:15px;cursor:pointer">'+(des.designe_at?'Enregistrer la modification et prévenir le technicien':'Valider et envoyer le lien au technicien')+'</button>'
+      +'<div id="dsg_err" style="display:none;margin-top:10px;font-size:12.5px;color:#dc2626;font-weight:600"></div>'
+      +'<div style="font-size:11.5px;color:#64748b;margin-top:8px">À la validation : le responsable de l\'établissement et PREVA sont informés, le technicien reçoit son SMS dans les minutes qui suivent.</div>'
+    +'</div>':'<div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;text-align:center;color:#16a34a;font-weight:700">✅ Toutes les réserves sont signées. Merci.</div>')
+    +'</div><div style="text-align:center;font-size:11px;color:#94a3b8;margin-top:18px">PREVA CONSEILS — conformite-securite.fr — contact@conformite-securite.fr</div></div>';
+  ['dsg_prenom','dsg_nom','dsg_mob'].forEach(id=>{ const el=document.getElementById(id); if(el) el.oninput=()=>{ window.__dsgNew=window.__dsgNew||{}; window.__dsgNew[id.replace('dsg_','').replace('mob','mobile')]=el.value; }; });
+  const go=document.getElementById('dsg_go'); if(!go) return;
+  go.onclick=async()=>{
+    const err=m=>{ const e=document.getElementById('dsg_err'); if(e){ e.textContent=m; e.style.display=m?'block':'none'; } };
+    err('');
+    const body={token,designer:{date_prevue:document.getElementById('dsg_date').value,creneau:document.getElementById('dsg_cren').value,commentaire:(document.getElementById('dsg_com').value||'').trim()}};
+    if(!body.designer.date_prevue){ err('Indiquez la date prévue d\'intervention.'); return; }
+    if(isNew){
+      const nom=(document.getElementById('dsg_nom').value||'').trim(), prenom=(document.getElementById('dsg_prenom').value||'').trim(), mob=lvaNormMob(document.getElementById('dsg_mob').value);
+      if(!nom){ err('Le nom du technicien est requis.'); return; }
+      if(!mob){ err('Indiquez un numéro de mobile valide (06 ou 07).'); return; }
+      body.designer.nom=nom; body.designer.prenom=prenom; body.designer.mobile=mob;
+    } else body.designer.technicien_id=sel;
+    go.disabled=true; go.textContent='Enregistrement…';
+    try{
+      const {data,error}=await sb.functions.invoke('levees-prestataire',{body});
+      if(error) throw error;
+      if(!data||!data.ok){ const m={date_requise:'Date prévue requise.',technicien_requis:'Nom et mobile du technicien requis.',mobile_requis:'Mobile requis.',technicien_introuvable:'Technicien introuvable.',acces_refuse:'Accès refusé.'}; err(m[(data&&data.error)||'']||'Enregistrement impossible.'); go.disabled=false; go.textContent='Réessayer'; return; }
+      const t=data.technicien||{};
+      root.innerHTML='<div style="min-height:100vh;background:#eef1f6;font-family:Inter,system-ui,sans-serif;padding:14px"><div style="max-width:560px;margin:30px auto;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px;text-align:center"><div style="font-size:34px">✅</div><div style="font-size:17px;font-weight:800;color:#0f172a;margin:8px 0">'+(data.modification?'Désignation modifiée':'Technicien désigné')+'</div><div style="font-size:13.5px;color:#334155;line-height:1.6"><b>'+esc([t.prenom,t.nom].filter(Boolean).join(' '))+'</b> ('+esc(lvaFmtMob(t.mobile))+') interviendra le <b>'+lvaFmtD(data.date_prevue)+'</b>'+(data.creneau==='matin'?' (matin)':data.creneau==='apres-midi'?' (après-midi)':'')+' sur <b>'+esc(erpNom)+'</b>.<br>Il reçoit par SMS son lien personnel pour signer les levées sur place. Le responsable de l\'établissement est informé.</div><div style="margin-top:16px"><a href="#/designer/'+esc(token)+'" onclick="window.__dsgSel=undefined;setTimeout(()=>renderDesignerPublic(\''+esc(token)+'\'),50)" style="font-size:12.5px;color:#1d4ed8;font-weight:700">Modifier la désignation</a></div></div></div>';
+    }catch(e){ err(e.message||'Erreur'); go.disabled=false; go.textContent='Réessayer'; }
+  };
+}
+window.dsgRender=dsgRender;
+
+/* ── Tableau de réserves : suivi automatique par prestataire ── */
+window.lvaSuiviHtml=async function(tabId){
+  lvaStyle();
+  try{
+    const [{data:suivis},{data:envois},{data:prests}]=await Promise.all([
+      sb.from('levees_suivi').select('*').eq('tableau_id',tabId).order('created_at'),
+      sb.from('levees_envois').select('*').eq('tableau_id',tabId).order('created_at',{ascending:false}).limit(200),
+      sb.from('prestataires').select('id,nom,email_rapports,telephone,contacts')
+    ]);
+    if(!suivis||!suivis.length) return '';
+    window._lvaSuivis=suivis; window._lvaPrests=prests||[];
+    const pNm=id=>((prests||[]).find(p=>p.id===id)||{}).nom||'Prestataire';
+    return '<div style="font-size:12.5px;font-weight:800;color:var(--primary);margin-top:6px">Envoi automatique aux prestataires</div>'
+      +suivis.map(s=>{
+        const st=LVA_STATUT[s.statut]||[s.statut,'#64748b','#f1f5f9'];
+        const evs=(envois||[]).filter(e=>e.suivi_id===s.id).slice(0,8);
+        const enAttente=s.a_notifier&&!s.suspendu&&!['signe','clos'].includes(s.statut);
+        const jamais=!s.email_envoye_at&&!s.designe_at&&!s.a_notifier&&!['signe','clos'].includes(s.statut);
+        return '<div class="lva-box"><div class="lva-hd"><b>'+esc(pNm(s.prestataire_id))+'</b><span class="lva-st" style="color:'+st[1]+';background:'+st[2]+'">'+st[0]+'</span>'
+          +(s.suspendu?'<span class="lva-auto off">Envois suspendus</span>':'<span class="lva-auto">Automatique</span>')+'</div>'
+          +(s.technicien_nom?'<div style="font-size:12.5px;margin-bottom:4px">👷 <b>'+esc(s.technicien_nom)+'</b>'+(s.technicien_mobile?' · '+esc(lvaFmtMob(s.technicien_mobile)):'')+(s.date_prevue?' · intervention prévue le <b>'+lvaFmtD(s.date_prevue)+'</b>'+(s.creneau==='matin'?' (matin)':s.creneau==='apres-midi'?' (après-midi)':''):'')+(s.commentaire?'<div style="font-size:11.5px;color:var(--muted)">« '+esc(s.commentaire)+' »</div>':'')+'</div>':'')
+          +(enAttente?'<div class="lva-ev wait" style="padding-left:0"><span style="color:#b45309;font-weight:700">⏳ Envoi programmé</span><small>L\'e-mail à la société partira dans les minutes qui suivent (temporisation après affectation).</small></div>':'')
+          +(jamais?'<div class="lva-warn">Affectation antérieure à la mise en place de l\'envoi automatique : rien n\'a été envoyé. <b>Lancer l\'envoi automatique</b> pour démarrer.</div>':'')
+          +(s.statut==='sans_contact'?'<div class="lva-warn">La fiche prestataire n\'a ni e-mail ni mobile : complétez-la puis relancez l\'envoi.</div>':'')
+          +(evs.length?'<div class="lva-tl">'+evs.map(e=>'<div class="lva-ev '+(e.statut==='erreur'?'err':(e.statut==='envoye'||e.statut==='programme')?'ok':'')+'"><b>'+esc(LVA_TYPES[e.type]||e.type)+'</b> — '+(e.canal==='sms'?'SMS':e.canal==='email'?'e-mail':'')+(e.destinataire?' → '+esc(e.destinataire):'')+(e.statut==='erreur'?' <span style="color:#dc2626;font-weight:700">échec</span>':'')+'<small>'+lvaFmtDT(e.created_at)+(e.detail?' · '+esc(e.detail):'')+'</small></div>').join('')+'</div>':'')
+          +'<div class="lva-acts">'
+            +(jamais||s.statut==='sans_contact'?'<button class="btn sm primary" onclick="lvaLancer(\''+s.id+'\',\''+esc(tabId)+'\')">Lancer l\'envoi automatique</button>':'')
+            +(s.technicien_mobile&&!['signe','clos'].includes(s.statut)?'<button class="btn sm" onclick="lvaRenvoyerSms(\''+s.id+'\',\''+esc(tabId)+'\')">Renvoyer le SMS</button>':'')
+            +(!['signe','clos'].includes(s.statut)?'<button class="btn sm" onclick="lvaTechModal(\''+s.id+'\',\''+esc(tabId)+'\')">'+(s.technicien_nom?'Modifier le technicien':'Désigner le technicien')+'</button>':'')
+            +(!['signe','clos'].includes(s.statut)?'<button class="btn sm" onclick="lvaSuspendre(\''+s.id+'\',\''+esc(tabId)+'\','+(s.suspendu?'false':'true')+')">'+(s.suspendu?'Reprendre les envois':'Suspendre les envois')+'</button>':'')
+          +'</div></div>';
+      }).join('');
+  }catch(e){ return '<div style="font-size:12px;color:var(--muted)">Suivi automatique indisponible : '+esc(e.message||e)+'</div>'; }
+};
+window.lvaLancer=async function(sid,tabId){
+  try{ const {error}=await sb.from('levees_suivi').update({a_notifier:true,statut:'a_envoyer',suspendu:false,derniere_affectation_at:new Date(Date.now()-3600*1000).toISOString(),updated_at:new Date().toISOString()}).eq('id',sid); if(error) throw error; toast('Envoi automatique lancé — e-mail à la société dans les 10 minutes','ok'); trvDetail(tabId); }
+  catch(e){ toast(e.message||'Erreur','err'); }
+};
+window.lvaSuspendre=async function(sid,tabId,v){
+  try{ const {error}=await sb.from('levees_suivi').update({suspendu:v,updated_at:new Date().toISOString()}).eq('id',sid); if(error) throw error; toast(v?'Envois automatiques suspendus pour ce prestataire':'Envois automatiques repris','ok'); trvDetail(tabId); }
+  catch(e){ toast(e.message||'Erreur','err'); }
+};
+async function lvaEnsureTechToken(s){
+  if(s.token_tech){ const {data:old}=await sb.from('acces_levees').select('id,actif,expires_at').eq('token',s.token_tech).maybeSingle(); if(old&&old.actif&&(!old.expires_at||new Date(old.expires_at).getTime()>Date.now()+3*86400000)) return s.token_tech; if(old) await sb.from('acces_levees').update({actif:false}).eq('id',old.id); }
+  const t=lvaToken(); const who=state.profile?.nom||state.user?.email||'';
+  const {error}=await sb.from('acces_levees').insert({token:t,tableau_id:s.tableau_id,erp_id:s.erp_id,client_id:s.client_id,prestataire_id:s.prestataire_id,role:'technicien',technicien_id:s.technicien_id||null,destinataire:s.technicien_mobile,expires_at:new Date(Date.now()+60*86400000).toISOString(),actif:true,created_by:who,notified_at:new Date().toISOString()});
+  if(error) throw error;
+  await sb.from('levees_suivi').update({token_tech:t}).eq('id',s.id); s.token_tech=t; return t;
+}
+window.lvaRenvoyerSms=async function(sid,tabId){
+  const s=(window._lvaSuivis||[]).find(x=>x.id===sid); if(!s||!s.technicien_mobile){ toast('Aucun mobile de technicien','err'); return; }
+  if(!confirm('Renvoyer le SMS avec le lien de signature à '+(s.technicien_nom||'')+' ('+lvaFmtMob(s.technicien_mobile)+') ?')) return;
+  try{
+    const tok=await lvaEnsureTechToken(s);
+    const erp=(state.erps||[]).find(e=>e.id===s.erp_id)||{}; const erpNom=String(erp.nom||'').replace(/^ERP-\d+[-\s]*/,'').trim();
+    const {count}=await sb.from('reserves').select('id',{count:'exact',head:true}).eq('tableau_id',s.tableau_id).eq('prestataire_id',s.prestataire_id).neq('etat_levee','levee');
+    const msg='PREVA Conseils : bonjour '+((s.technicien_nom||'').split(' ')[0]||'')+', '+(count||0)+' réserve(s) à lever et signer sur '+erpNom+' : https://app.conformite-securite.fr/#/levees/'+tok;
+    const who=state.profile?.nom||state.user?.email||'';
+    if(typeof smsGuard==='function'&&!(await smsGuard(s.client_id,1))) return;
+    const {error}=await sb.from('sms_scheduled').insert({destinataire:s.technicien_mobile,message:msg,send_at:new Date().toISOString(),statut:'pending',contexte:{type:'levees_auto',sous_type:'renvoi',suivi_id:s.id,tableau_id:s.tableau_id},created_by:who,client_id:s.client_id,erp_id:s.erp_id});
+    if(error) throw error;
+    await sb.from('levees_envois').insert({suivi_id:s.id,tableau_id:s.tableau_id,prestataire_id:s.prestataire_id,erp_id:s.erp_id,type:'renvoi',canal:'sms',destinataire:s.technicien_mobile,statut:'programme',detail:'Par '+who});
+    toast('SMS programmé — envoi dans les 5 minutes','ok'); trvDetail(tabId);
+  }catch(e){ toast(e.message||'Erreur','err'); }
+};
+window.lvaTechModal=async function(sid,tabId){
+  const s=(window._lvaSuivis||[]).find(x=>x.id===sid); if(!s) return;
+  lvaStyle();
+  const {data:techs}=await sb.from('prestataire_techniciens').select('*').eq('prestataire_id',s.prestataire_id).eq('actif',true).order('dernier_passage',{ascending:false,nullsFirst:false});
+  window._lvaTechs=techs||[]; window._lvaTechSel=s.technicien_id||((techs&&techs[0])?techs[0].id:'new');
+  const pNm=((window._lvaPrests||[]).find(p=>p.id===s.prestataire_id)||{}).nom||'';
+  const render=()=>{
+    const sel=window._lvaTechSel; const isNew=sel==='new';
+    document.getElementById('lvt_chips').innerHTML=(window._lvaTechs||[]).map(t=>'<span class="lva-chip'+(sel===t.id?' on':'')+'" onclick="window._lvaTechSel=\''+t.id+'\';window._lvaTechRender()">'+esc([t.prenom,t.nom].filter(Boolean).join(' ')||'Technicien')+' · '+esc(lvaFmtMob(t.mobile))+'</span>').join('')+'<span class="lva-chip new'+(isNew?' on':'')+'" onclick="window._lvaTechSel=\'new\';window._lvaTechRender()">+ Nouveau technicien</span>';
+    document.getElementById('lvt_new').style.display=isNew?'':'none';
+  };
+  window._lvaTechRender=render;
+  openModal('<div class="modal-head"><h2>'+(s.technicien_nom?'Modifier le technicien':'Désigner le technicien')+' <span style="font-size:11px;font-weight:600;color:var(--muted)">'+esc(pNm)+'</span></h2><button class="x" onclick="trvDetail(\''+esc(tabId)+'\')">'+I.x+'</button></div>'
+    +'<div class="modal-body" style="display:flex;flex-direction:column;gap:10px">'
+    +'<div style="font-size:12.5px;color:var(--muted)">Le technicien est enregistré dans la fiche du prestataire et reçoit par SMS son lien de signature.</div>'
+    +'<div id="lvt_chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>'
+    +'<div id="lvt_new" class="row2" style="display:none"><div class="fld"><label>Prénom</label><input id="lvt_prenom"></div><div class="fld"><label>Nom *</label><input id="lvt_nom"></div><div class="fld"><label>Mobile *</label><input id="lvt_mob" type="tel" placeholder="06 00 00 00 00"></div></div>'
+    +'<div class="row2"><div class="fld"><label>Date prévue d\'intervention</label><input id="lvt_date" type="date" value="'+esc(s.date_prevue||'')+'"></div><div class="fld"><label>Créneau</label><select id="lvt_cren"><option value="journee">Journée</option><option value="matin"'+(s.creneau==='matin'?' selected':'')+'>Matin</option><option value="apres-midi"'+(s.creneau==='apres-midi'?' selected':'')+'>Après-midi</option></select></div></div>'
+    +'<label style="display:flex;align-items:center;gap:8px;font-size:12.5px"><input type="checkbox" id="lvt_sms" checked style="width:16px;height:16px;accent-color:var(--primary)">Envoyer maintenant le SMS avec le lien de signature</label>'
+    +'</div><div class="modal-foot"><button class="btn" onclick="trvDetail(\''+esc(tabId)+'\')">Annuler</button><button class="btn primary" onclick="lvaTechSave(\''+sid+'\',\''+esc(tabId)+'\')">Enregistrer</button></div>');
+  render();
+};
+window.lvaTechSave=async function(sid,tabId){
+  const s=(window._lvaSuivis||[]).find(x=>x.id===sid); if(!s) return;
+  try{
+    let tech=null; const sel=window._lvaTechSel;
+    if(sel==='new'){
+      const nom=(document.getElementById('lvt_nom').value||'').trim(), prenom=(document.getElementById('lvt_prenom').value||'').trim(), mob=lvaNormMob(document.getElementById('lvt_mob').value);
+      if(!nom){ toast('Nom du technicien requis','err'); return; } if(!mob){ toast('Mobile invalide (06 / 07)','err'); return; }
+      const {data,error}=await sb.from('prestataire_techniciens').upsert({prestataire_id:s.prestataire_id,nom,prenom,mobile:mob,source:'manuel',actif:true},{onConflict:'prestataire_id,mobile'}).select('*').single(); if(error) throw error; tech=data;
+    } else { tech=(window._lvaTechs||[]).find(t=>t.id===sel); if(!tech){ toast('Choisissez un technicien','err'); return; } }
+    const date_prevue=document.getElementById('lvt_date').value||null, creneau=document.getElementById('lvt_cren').value||'journee';
+    const patch={technicien_id:tech.id,technicien_nom:[tech.prenom,tech.nom].filter(Boolean).join(' '),technicien_mobile:tech.mobile,date_prevue,creneau,designe_at:new Date().toISOString(),statut:['signe','clos'].includes(s.statut)?s.statut:'designe',a_notifier:false,rappel_j1_at:null,updated_at:new Date().toISOString()};
+    const {error:e2}=await sb.from('levees_suivi').update(patch).eq('id',sid); if(e2) throw e2;
+    Object.assign(s,patch);
+    const who=state.profile?.nom||state.user?.email||'';
+    await sb.from('levees_envois').insert({suivi_id:s.id,tableau_id:s.tableau_id,prestataire_id:s.prestataire_id,erp_id:s.erp_id,type:'manuel',canal:'app',destinataire:tech.mobile,statut:'envoye',detail:'Technicien '+patch.technicien_nom+(date_prevue?' · intervention prévue le '+lvaFmtD(date_prevue):'')+' · par '+who});
+    if(document.getElementById('lvt_sms').checked){
+      const tok=await lvaEnsureTechToken(s);
+      const erp=(state.erps||[]).find(e=>e.id===s.erp_id)||{}; const erpNom=String(erp.nom||'').replace(/^ERP-\d+[-\s]*/,'').trim();
+      const {count}=await sb.from('reserves').select('id',{count:'exact',head:true}).eq('tableau_id',s.tableau_id).eq('prestataire_id',s.prestataire_id).neq('etat_levee','levee');
+      const msg='PREVA Conseils : bonjour '+(tech.prenom||tech.nom||'')+', vous êtes désigné pour lever '+(count||0)+' réserve(s) sur '+erpNom+(date_prevue?' le '+lvaFmtD(date_prevue):'')+'. Consultez et signez les levées ici : https://app.conformite-securite.fr/#/levees/'+tok;
+      if(typeof smsGuard!=='function'||await smsGuard(s.client_id,1)){
+        await sb.from('sms_scheduled').insert({destinataire:tech.mobile,message:msg,send_at:new Date().toISOString(),statut:'pending',contexte:{type:'levees_auto',sous_type:'designation_manuelle',suivi_id:s.id,tableau_id:s.tableau_id},created_by:who,client_id:s.client_id,erp_id:s.erp_id});
+        await sb.from('levees_envois').insert({suivi_id:s.id,tableau_id:s.tableau_id,prestataire_id:s.prestataire_id,erp_id:s.erp_id,type:'designation',canal:'sms',destinataire:tech.mobile,statut:'programme',detail:'Par '+who});
+      }
+    }
+    toast('Technicien enregistré ✓','ok'); trvDetail(tabId);
+  }catch(e){ toast(e.message||'Erreur','err'); }
+};
+
+/* ── Fiche prestataire : techniciens terrain + pointages non rattachés ── */
+window.lvaTechSection=async function(pid){
+  const host=document.getElementById('pf_techs'); if(!host) return;
+  lvaStyle();
+  try{
+    const p=(window._prestCache||[]).find(x=>x.id===pid)||{};
+    const cids=Array.isArray(p.client_ids)&&p.client_ids.length?p.client_ids:(p.client_id?[p.client_id]:[]);
+    const erpIds=(state.erps||[]).filter(e=>!cids.length||cids.includes(e.client_id)).map(e=>e.id);
+    const [{data:techs},{data:pts}]=await Promise.all([
+      sb.from('prestataire_techniciens').select('*').eq('prestataire_id',pid).order('dernier_passage',{ascending:false,nullsFirst:false}),
+      erpIds.length?sb.from('pointages').select('id,nom,prenom,telephone,societe,erp_id,heure_arrivee,leve_reserves').is('prestataire_id',null).is('rattache',null).in('erp_id',erpIds.slice(0,200)).order('heure_arrivee',{ascending:false}).limit(12):Promise.resolve({data:[]})
+    ]);
+    const erpNm=id=>String(((state.erps||[]).find(e=>e.id===id)||{}).nom||'').replace(/^ERP-\d+[-\s]*/,'').trim();
+    const norm=x=>String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+    const pn=norm(p.nom); const cand=(pts||[]).filter(x=>{ const s=norm(x.societe); return s&&pn&&(s===pn||(pn.length>=4&&s.includes(pn))||(s.length>=4&&pn.includes(s))); });
+    const list=cand.length?cand:(pts||[]).slice(0,5);
+    host.innerHTML=(techs&&techs.length?techs.map(t=>{ const nom=[t.prenom,t.nom].filter(Boolean).join(' ')||'Technicien'; const ini=nom.split(/\s+/).map(x=>x[0]).slice(0,2).join('').toUpperCase();
+        return '<div class="lva-tech"'+(t.actif?'':' style="opacity:.5"')+'><span class="av">'+esc(ini)+'</span><div style="min-width:0"><b>'+esc(nom)+'</b><small>'+esc(lvaFmtMob(t.mobile))+(t.dernier_passage?' · dernier passage '+lvaFmtD(t.dernier_passage)+(t.dernier_erp_id?' · '+esc(erpNm(t.dernier_erp_id)):''):'')+'</small></div><span class="lva-src">'+({qr:'QR',designation:'Désigné',manuel:'Manuel'}[t.source]||t.source)+(t.actif?'':' · inactif')+'</span><button type="button" class="btn sm" style="padding:2px 8px;font-size:11px" onclick="lvaTechToggle(\''+t.id+'\','+(t.actif?'false':'true')+',\''+pid+'\')">'+(t.actif?'Désactiver':'Réactiver')+'</button></div>'; }).join('')
+      :'<div style="font-size:12.5px;color:var(--muted);padding:6px 0">Aucun technicien connu. La liste se construit toute seule à partir des pointages QR et des désignations par la société.</div>')
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:10px"><div class="fld" style="margin:0;flex:1;min-width:110px"><label>Prénom</label><input id="pft_prenom"></div><div class="fld" style="margin:0;flex:1;min-width:110px"><label>Nom</label><input id="pft_nom"></div><div class="fld" style="margin:0;flex:1;min-width:140px"><label>Mobile</label><input id="pft_mob" type="tel" placeholder="06 00 00 00 00"></div><button type="button" class="btn sm" onclick="lvaTechAdd(\''+pid+'\')">+ Ajouter</button></div>'
+      +(list.length?'<div class="lva-warn">⚠ '+list.length+' pointage'+(list.length>1?'s':'')+' QR non rattaché'+(list.length>1?'s':'')+(cand.length?' (société proche de « '+esc(p.nom)+' »)':' récent'+(list.length>1?'s':''))+' :'+list.map(x=>'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:12px"><span><b>'+esc([x.prenom,x.nom].filter(Boolean).join(' '))+'</b> · '+esc(x.societe||'—')+' · '+esc(lvaFmtMob(lvaNormMob(x.telephone))||x.telephone||'')+' · '+esc(erpNm(x.erp_id))+' · '+lvaFmtD(x.heure_arrivee)+(x.leve_reserves?' · <b style="color:#dc2626">levées</b>':'')+'</span><span style="margin-left:auto;display:flex;gap:5px"><button type="button" class="btn sm" style="padding:2px 8px;font-size:11px" onclick="lvaRattacher(\''+x.id+'\',\''+pid+'\')">Rattacher</button><button type="button" class="btn sm ghost" style="padding:2px 8px;font-size:11px" onclick="lvaRattacher(\''+x.id+'\',null,\''+pid+'\')">Ignorer</button></span></div>').join('')+'</div>':'');
+  }catch(e){ host.innerHTML='<div style="font-size:12px;color:var(--muted)">Techniciens indisponibles : '+esc(e.message||e)+'</div>'; }
+};
+window.lvaTechAdd=async function(pid){
+  const nom=(document.getElementById('pft_nom').value||'').trim(), prenom=(document.getElementById('pft_prenom').value||'').trim(), mob=lvaNormMob(document.getElementById('pft_mob').value);
+  if(!nom&&!prenom){ toast('Indiquez le nom du technicien','err'); return; } if(!mob){ toast('Mobile invalide (06 / 07)','err'); return; }
+  try{ const {error}=await sb.from('prestataire_techniciens').upsert({prestataire_id:pid,nom:nom||prenom,prenom:nom?prenom:'',mobile:mob,source:'manuel',actif:true},{onConflict:'prestataire_id,mobile'}); if(error) throw error; toast('Technicien ajouté ✓','ok'); lvaTechSection(pid); }
+  catch(e){ toast(e.message||'Erreur','err'); }
+};
+window.lvaTechToggle=async function(tid,actif,pid){
+  try{ const {error}=await sb.from('prestataire_techniciens').update({actif}).eq('id',tid); if(error) throw error; lvaTechSection(pid); }catch(e){ toast(e.message||'Erreur','err'); }
+};
+window.lvaRattacher=async function(ptId,pid,refresh){
+  try{ const {data,error}=await sb.rpc('pointage_rattacher',{p_pointage:ptId,p_prestataire:pid}); if(error) throw error; if(!data||!data.ok){ toast('Rattachement impossible','err'); return; } toast(pid?'Pointage rattaché — technicien enregistré ✓':'Pointage ignoré','ok'); lvaTechSection(pid||refresh); }
+  catch(e){ toast(e.message||'Erreur','err'); }
+};
+
 window.trvDetail=async function(id){
   try{
     const [{data:t},{data:rows},{data:_prests}]=await Promise.all([
@@ -16977,6 +17287,7 @@ window.trvDetail=async function(id){
           </span>
           <button class="btn sm" style="flex:0 0 auto" onclick="trvVoirRapport()">👁 Voir le rapport</button>
         </div>`:`<div style="font-size:12px;color:var(--muted)">Intervention du ${t.date_intervention?new Date(t.date_intervention+'T00:00:00').toLocaleDateString('fr-FR'):'—'} · saisie manuelle (pas de rapport lié)</div>`}
+        ${t.statut!=='a_valider'?'<div id="lva_host"></div>':''}
         ${rows.map(r=>`<div class="trv-res" style="border:1px solid var(--line);border-radius:10px;padding:10px 12px">
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
             <b style="font-size:12.5px">N°${r.numero||'—'}</b>
@@ -16998,6 +17309,7 @@ window.trvDetail=async function(id){
         <button class="btn" style="white-space:nowrap" onclick="trvPdf('${esc(t.id)}')">📄 PDF</button>
         <button class="btn" style="white-space:nowrap" onclick="trvMailPrest('${esc(t.id)}')">✉ E-mail prestataire…</button>
         <button class="btn primary" style="white-space:nowrap" onclick="trvAffect('${esc(t.id)}')">Répartir aux prestataires…</button>`}</div>`);
+    if(t.statut!=='a_valider'&&typeof lvaSuiviHtml==='function') lvaSuiviHtml(t.id).then(h=>{ const el=document.getElementById('lva_host'); if(el) el.innerHTML=h||''; }).catch(()=>{});
   }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
 };
 
@@ -24862,6 +25174,11 @@ async function formPrest(p){
       <button type="button" onclick="addAffaireRow()" class="btn sm" style="margin-top:8px">+ Ajouter un ERP</button>
     </div>
 
+    ${p.id?`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+      <div style="font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Techniciens terrain</div>
+      <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">Reçoivent par SMS les liens de signature des levées de réserves. Liste alimentée par les pointages QR, les désignations de la société, ou saisie ici.</div>
+      <div id="pf_techs"><span style="font-size:12px;color:var(--muted)">Chargement…</span></div>
+    </div>`:''}
     <div class="fld"><label>Commentaire / note interne</label>
       <textarea id="f_com" placeholder="Remarques, reference, contact prefere..." style="min-height:90px;resize:vertical">${esc(p.commentaire||'')}</textarea></div>
   </div>
@@ -24870,6 +25187,7 @@ async function formPrest(p){
     <button class="btn ghost" onclick="closeModal()">Annuler</button>
     <button class="btn primary" id="save">${p.id?'Enregistrer':'Créer'}</button>
   </div>`,'wide');
+  if(p.id&&typeof lvaTechSection==='function') setTimeout(()=>lvaTechSection(p.id),30);
 
   // Relier bouton haut
   const saveTop=$('#save-top'); if(saveTop) saveTop.onclick=()=>$('#save')?.click();
