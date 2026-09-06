@@ -1810,6 +1810,11 @@ async function boot(){
     renderFichePrestPublic(decodeURIComponent(hashNow.split('/')[2]||''));
     return;
   }
+  if(hashNow.startsWith('/cloture/')){
+    loadCfg(); initSb();
+    renderCloturePublic(decodeURIComponent(hashNow.split('/')[2]||''));
+    return;
+  }
   if(hashNow.startsWith('/levees/')){
     loadCfg(); initSb();
     renderLeveesPublic(decodeURIComponent(hashNow.split('/')[2]||''));
@@ -1917,6 +1922,7 @@ function renderRoute(){
   // Route publique QR
   if(hash.startsWith('/qr/')){ renderQrPublic(hash.split('/')[2]); return; }
   if(hash.startsWith('/levees/')){ renderLeveesPublic(hash.split('/')[2]); return; }
+  if(hash.startsWith('/cloture/')){ renderCloturePublic(hash.split('/')[2]); return; }
   if(hash.startsWith('/confirm/')){ renderConfirmInter((hash.split('?')[0].split('/')[2])||''); return; }
   // Route publique confirmation CS
   if(hash.startsWith('/cs-confirm')){ renderCsConfirm(); return; }
@@ -4226,8 +4232,42 @@ async function viewParametres(c){
     </div>
   </div>
 
+  ${isAdmin?`<!-- Alertes levées de réserves → PREVA -->
+  <div class="card card-pad" style="max-width:560px;margin-bottom:16px" id="pm_levee_card">
+    <h2 style="font-size:14.5px;margin-bottom:6px;display:flex;align-items:center;gap:9px">${cardIc('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>')} Alertes « levées de réserves » vers PREVA</h2>
+    <div style="font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:12px">Quand un technicien coche « levées de réserves » au pointage, PREVA est prévenu en plus des contacts de l'établissement (désactivable ERP par ERP dans « Modifier l'ERP »). Si aucun contact n'est coché sur l'ERP, l'alerte part de toute façon ici.</div>
+    <label style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer"><input type="checkbox" id="pm_lev_actif" style="width:18px;height:18px;accent-color:#16a34a"><b style="font-size:13px">Activer pour tous les établissements</b></label>
+    <div class="row2">
+      <div class="fld"><label>E-mail PREVA</label><input id="pm_lev_email" type="email" placeholder="contact@conformite-securite.fr"></div>
+      <div class="fld"><label>Mobile PREVA (SMS)</label><input id="pm_lev_mobile" type="tel" placeholder="06 00 00 00 00"></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end"><button class="btn primary" id="pm_lev_save">Enregistrer</button></div>
+  </div>`:''}
+
   <button class="btn" onclick="logout()" style="border:1px solid #fecaca;color:#b91c1c;background:var(--surface)">${I.out} Se déconnecter</button>
 `;
+
+  // Réglage global : alertes levées de réserves → PREVA (table app_settings, admin)
+  if(isAdmin){
+    (async()=>{
+      try{
+        const {data}=await sb.from('app_settings').select('value').eq('key','preva_alerte_levee').maybeSingle();
+        const v=(data&&data.value)||{};
+        const a=document.getElementById('pm_lev_actif'), em=document.getElementById('pm_lev_email'), mo=document.getElementById('pm_lev_mobile');
+        if(a) a.checked=v.actif!==false; if(em) em.value=v.email||''; if(mo) mo.value=v.mobile||'';
+      }catch(_){}
+    })();
+    const sv=document.getElementById('pm_lev_save');
+    if(sv) sv.onclick=async()=>{
+      const actif=document.getElementById('pm_lev_actif').checked, email=document.getElementById('pm_lev_email').value.trim(), mobile=document.getElementById('pm_lev_mobile').value.trim();
+      if(!email){ toast('Indiquez l\'e-mail PREVA','err'); return; }
+      if(mobile&&!/^(\+33|0)[67](\s?\d{2}){4}$/.test(mobile.replace(/[.\-]/g,''))){ toast('Mobile invalide (06 / 07)','err'); return; }
+      try{
+        const {error}=await sb.from('app_settings').upsert({key:'preva_alerte_levee',value:{actif,email,mobile},updated_at:new Date().toISOString(),updated_by:state.user?.email||null});
+        if(error) throw error; toast('Réglage enregistré','ok');
+      }catch(e){ toast(e.message||'Erreur','err'); }
+    };
+  }
 
   // Avatar : initiales puis photo si présente
   window.pmSyncAvatar=async function(){
@@ -9526,6 +9566,7 @@ window.assurEtat=function(a){
   return {cls:'ok',txt:'Police active · échéance '+fmtDate(a.echeance),days:d};
 };
 function formErp(er,clientId){
+  if(typeof erpxStyle==='function') erpxStyle();
   const e=er||{}; const cid=clientId||e.client_id||state.currentClient!=='all'?state.currentClient:'';
   const clientOpts=state.clients.filter(c=>window._supervision?c.id===window._supervision:(!sepAbonnesActive()||!c.abonnement_formule||(clientId||e.client_id)===c.id)).map(c=>`<option value="${c.id}"${(clientId||e.client_id)===c.id?' selected':''}>${esc(c.raison_sociale)}</option>`).join('');
   openModal(`<div class="modal-head"><h2>${er?'Modifier l\'ERP':'Nouvel ERP'}</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
@@ -9567,42 +9608,59 @@ function formErp(er,clientId){
         <div class="fld"><label>Contact courtier</label><input id="f_ass_courc" value="${esc((e.assurance||{}).courtier_contact)}" placeholder="téléphone · email"></div></div>
       <div class="fld"><label>Garanties concernées</label><input id="f_ass_gar" value="${esc((e.assurance||{}).garanties)}" placeholder="ex. incendie · dommages aux biens · pertes d'exploitation"></div>
     </div>
-    <div class="fld" style="margin-top:12px;padding-top:14px;border-top:1px solid var(--line)">
-      <label style="display:flex;align-items:center;gap:6px">Contacts de notification <span style="font-size:11px;font-weight:400;color:var(--muted)">(reçoivent les alertes arrivée / départ)</span></label>
-      <div id="f_notif_contacts_list" style="margin-top:8px;display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--surface-2)">
-        <span style="color:var(--muted);font-size:13px">Sélectionnez d'abord un client</span>
+    <div class="fld" id="f_notif_sec" style="margin-top:12px;padding-top:14px;border-top:1px solid var(--line)">
+      <label style="display:flex;align-items:center;gap:6px">Qui est prévenu ? <span style="font-size:11px;font-weight:400;color:var(--muted)">contacts du client</span></label>
+      <div style="font-size:11.5px;color:var(--muted);line-height:1.55;margin:4px 0 8px"><span class="ntf-tag e">ARRIVÉE / DÉPART</span> e-mail à chaque pointage QR ou manuel. &nbsp;<span class="ntf-tag l">LEVÉES DE RÉSERVES</span> e-mail <b>+ SMS immédiat</b> quand un technicien coche la case au pointage — pour lui envoyer le tableau à signer pendant qu'il est sur place.</div>
+      <div id="f_notif_contacts_list" style="border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface-2)">
+        <span style="display:block;padding:10px;color:var(--muted);font-size:13px">Sélectionnez d'abord un client</span>
       </div>
+      <div id="f_notif_sum" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;font-size:11.5px;color:var(--muted)"></div>
+      <label style="display:flex;gap:11px;align-items:flex-start;margin-top:12px;border:1px solid #fde68a;background:#fffbeb;border-radius:12px;padding:11px 13px;cursor:pointer">
+        <input type="checkbox" id="f_preva_levee" ${e.preva_levee_off?'':'checked'} style="width:18px;height:18px;margin-top:2px;accent-color:#16a34a;flex:0 0 auto">
+        <span style="font-size:12.5px;color:#78350f;line-height:1.5"><b>PREVA reçoit aussi les alertes « levées de réserves » de cet ERP</b><br><span style="font-size:11.5px;color:#92400e">E-mail + SMS selon le réglage global (Paramètres). Si aucun contact n'est coché dans la colonne « Levées de réserves », l'alerte part de toute façon vers PREVA.</span></span>
+      </label>
     </div>
   </div>
   <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="save">${er?'Enregistrer':'Créer l\'ERP'}</button></div>`);
   if(clientId){ const s=$('#f_client'); if(s) s.value=clientId; }
   if(!er) erpAutoName();
   // Load notification contacts (multi-select checkboxes)
-  async function loadNotifContacts(cid, selectedIds){
+  async function loadNotifContacts(cid, selectedIds, selectedLev){
     const wrap=document.getElementById('f_notif_contacts_list'); if(!wrap) return;
-    if(!cid){ wrap.innerHTML='<span style="color:var(--muted);font-size:13px">Choisissez un client</span>'; return; }
-    wrap.innerHTML='<span style="color:var(--muted);font-size:12px">Chargement…</span>';
-    const {data:cts}=await sb.from('client_contacts').select('id,civilite,prenom,nom,email').eq('client_id',cid).order('nom');
-    if(!cts||!cts.length){ wrap.innerHTML='<span style="color:var(--muted);font-size:13px">Aucun contact pour ce client</span>'; return; }
-    const ids=Array.isArray(selectedIds)?selectedIds:[];
-    wrap.innerHTML=cts.map(ct=>{
-      const label=[ct.civilite,ct.prenom,ct.nom].filter(Boolean).join(' ')||'(sans nom)';
-      const email=ct.email||'';
-      const checked=ids.includes(ct.id);
-      return '<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:4px 2px">'
-        +'<input type="checkbox" name="f_notif_cb" value="'+ct.id+'"'+(checked?' checked':'')
-        +' style="margin-top:2px;accent-color:var(--primary);width:15px;height:15px;flex-shrink:0">'
-        +'<span style="font-size:13px"><b style="color:var(--ink)">'+esc(label)+'</b>'
-        +(email?'<br><span style="font-size:11.5px;color:var(--primary)">'+esc(email)+'</span>':'<br><span style="font-size:11.5px;color:var(--muted-2)">Sans email</span>')
-        +'</span></label>';
-    }).join('');
+    const sum=document.getElementById('f_notif_sum');
+    if(!cid){ wrap.innerHTML='<span style="display:block;padding:10px;color:var(--muted);font-size:13px">Choisissez un client</span>'; if(sum) sum.innerHTML=''; return; }
+    wrap.innerHTML='<span style="display:block;padding:10px;color:var(--muted);font-size:12px">Chargement…</span>';
+    const {data:cts}=await sb.from('client_contacts').select('id,civilite,prenom,nom,email,mobile,telephone,fonction,role_suivi').eq('client_id',cid).order('nom');
+    if(!cts||!cts.length){ wrap.innerHTML='<span style="display:block;padding:10px;color:var(--muted);font-size:13px">Aucun contact pour ce client — ajoutez-en dans la fiche client.</span>'; if(sum) sum.innerHTML=''; return; }
+    const ids=Array.isArray(selectedIds)?selectedIds:[]; const idl=Array.isArray(selectedLev)?selectedLev:[];
+    const rc=(typeof ROLE_CLIENT!=='undefined'&&ROLE_CLIENT)||{};
+    wrap.innerHTML='<table class="ntf-tbl"><thead><tr><th>Contact</th><th class="c">Arrivée / départ<br><small>e-mail</small></th><th class="c">Levées de réserves<br><small>e-mail + SMS</small></th></tr></thead><tbody>'
+      +cts.map(ct=>{
+        const label=[ct.civilite,ct.prenom,ct.nom].filter(Boolean).join(' ')||'(sans nom)';
+        const fn=ct.fonction||rc[ct.role_suivi]||ct.role_suivi||'';
+        const mob=ct.mobile||ct.telephone||'';
+        const sub=[fn,ct.email||'<i>sans e-mail</i>',mob||'<i>sans mobile</i>'].filter(Boolean).join(' · ');
+        return '<tr><td><b>'+esc(label)+'</b><small>'+sub+'</small></td>'
+          +'<td class="c"><input type="checkbox" name="f_notif_cb" value="'+ct.id+'"'+(ids.includes(ct.id)?' checked':'')+' onchange="erpNotifSum()"></td>'
+          +'<td class="c"><input type="checkbox" name="f_notif_lev" value="'+ct.id+'"'+(idl.includes(ct.id)?' checked':'')+' class="lev" onchange="erpNotifSum()"></td></tr>';
+      }).join('')+'</tbody></table>';
+    erpNotifSum();
   }
+  window.erpNotifSum=function(){
+    const sum=document.getElementById('f_notif_sum'); if(!sum) return;
+    const a=document.querySelectorAll('input[name="f_notif_cb"]:checked').length;
+    const l=[...document.querySelectorAll('input[name="f_notif_lev"]:checked')];
+    const mob=l.filter(cb=>{ const tr=cb.closest('tr'); return tr&&!/sans mobile/.test(tr.textContent); }).length;
+    sum.innerHTML='<span class="ntf-pill">Arrivée / départ : <b>'+a+' contact'+(a>1?'s':'')+'</b></span><span class="ntf-pill'+(l.length?'':' warn')+'">Levées de réserves : <b>'+l.length+' contact'+(l.length>1?'s':'')+'</b>'+(l.length?' ('+mob+' mobile'+(mob>1?'s':'')+')':' — seule PREVA sera prévenue')+'</span>';
+  };
   // Reload contacts when client changes
   const clientSel=document.getElementById('f_client');
-  if(clientSel) clientSel.addEventListener('change',()=>loadNotifContacts(clientSel.value,[]));
+  if(clientSel) clientSel.addEventListener('change',()=>loadNotifContacts(clientSel.value,[],[]));
   const initCid=(clientId||e.client_id||'');
   const initIds=Array.isArray(e.notif_contact_ids)?e.notif_contact_ids:[];
-  if(initCid) loadNotifContacts(initCid, initIds);
+  const initLev=Array.isArray(e.notif_levee_ids)?e.notif_levee_ids:[];
+  if(initCid) loadNotifContacts(initCid, initIds, initLev);
+  if(window._erpFormScrollNotif){ window._erpFormScrollNotif=false; setTimeout(()=>{ const el=document.getElementById('f_notif_sec'); if(el){ try{ el.scrollIntoView({behavior:'smooth',block:'start'}); }catch(_){ } } },250); }
   $('#save').onclick=async()=>{
     const client_id=$('#f_client').value, nom=$('#f_nom').value.trim();
     if(!client_id){toast('Sélectionne un client','err');return;} if(!nom){toast('Le nom est requis','err');return;}
@@ -9620,13 +9678,19 @@ function formErp(er,clientId){
         courtier:$('#f_ass_cour').value.trim()||null,courtier_contact:$('#f_ass_courc').value.trim()||null,
         garanties:$('#f_ass_gar').value.trim()||null},
       commentaire:$('#f_com_erp').value.trim()||null,
-      notif_contact_ids:[...document.querySelectorAll('input[name="f_notif_cb"]:checked')].map(cb=>cb.value)};
+      notif_contact_ids:[...document.querySelectorAll('input[name="f_notif_cb"]:checked')].map(cb=>cb.value),
+      notif_levee_ids:[...document.querySelectorAll('input[name="f_notif_lev"]:checked')].map(cb=>cb.value),
+      preva_levee_off:!(document.getElementById('f_preva_levee')&&document.getElementById('f_preva_levee').checked)};
     try{ if(er){ delete payload.client_id; await sb.from('erps').update(payload).eq('id',er.id);}else{await sb.from('erps').insert(payload);}
       await loadScope(); fillScopeSelectors(); _modalDirty=false; closeModal(); toast(er?'ERP modifié':'ERP créé — QR généré','ok');
       navigate('/erps'+(er?'/'+er.id:''));
     }catch(err){ toast(err.message,'err'); }
   };
 }
+window.erpNotifOpen=async function(erpId){
+  try{ const {data:e}=await sb.from('erps').select('*').eq('id',erpId).single(); if(!e){toast('ERP introuvable','err');return;} window._erpFormScrollNotif=true; formErp(e); }
+  catch(err){ toast(err.message||'Erreur','err'); }
+};
 window.csPassageLinkDoc=async function(passageId,erpId){
   openModal(`<div class="modal-head"><h2>🔗 Lier un PV existant</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
     <div class="modal-body">
@@ -9834,6 +9898,20 @@ function erpxStyle(){ if(document.getElementById('erpx-style'))return; const st=
 .fx-dot{display:flex;align-items:center;gap:8px;font-size:13px;margin-top:9px}
 .fx-dot .d{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
 .fx-ct{display:flex;align-items:center;gap:13px;padding:12px 0;border-top:1px solid var(--line-2)}
+.ntf-tag{display:inline-block;font-size:9.5px;font-weight:800;border-radius:6px;padding:1px 6px;vertical-align:middle;letter-spacing:.2px}
+.ntf-tag.e{background:#dbeafe;color:#1d4ed8}.ntf-tag.l{background:#fee2e2;color:#dc2626}
+.ntf-tbl{width:100%;border-collapse:collapse;background:var(--surface)}
+.ntf-tbl th{font-size:10.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);background:var(--surface-2);padding:7px 10px;text-align:left;border-bottom:1px solid var(--line)}
+.ntf-tbl th.c,.ntf-tbl td.c{text-align:center;width:112px}
+.ntf-tbl th small{display:block;font-weight:500;text-transform:none;letter-spacing:0;font-size:10.5px}
+.ntf-tbl td{padding:8px 10px;border-bottom:1px solid var(--line-2);vertical-align:middle;font-size:12.5px}
+.ntf-tbl td b{display:block;font-size:12.5px;color:var(--ink)}.ntf-tbl td small{color:var(--muted);font-size:11px;overflow-wrap:anywhere}
+.ntf-tbl input[type=checkbox]{width:17px;height:17px;accent-color:var(--primary);cursor:pointer}
+.ntf-tbl input.lev{accent-color:#dc2626}
+.ntf-pill{background:var(--surface-2);border-radius:99px;padding:3px 10px}.ntf-pill.warn{background:#fef2f2;color:#b91c1c}
+.ntf-banner{border:1px solid #fecaca;background:#fef2f2;border-radius:12px;padding:11px 14px;font-size:12.5px;color:#991b1b;margin:0 18px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.ntf-banner .btn{margin-left:auto}
+@media(max-width:700px){.ntf-tbl th.c,.ntf-tbl td.c{width:72px}.ntf-tbl th{font-size:9.5px}}
 .fx-ct:first-of-type{border-top:none}
 .fx-ct .av{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-family:var(--fd);font-weight:700;color:#fff;flex:0 0 auto;font-size:14px}
 @media(max-width:900px){.fx-cols{grid-template-columns:1fr}.fx-idg{grid-template-columns:repeat(2,1fr)}.fx-tabs{grid-template-columns:repeat(3,1fr)}}
@@ -9968,10 +10046,12 @@ function renderErpTab(tab,d){
       </div>
 
       <div class="card" style="margin-top:16px;padding:0;overflow:hidden">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;gap:10px;flex-wrap:wrap">
           <h3 style="margin:0;font-size:14px">Contacts du client</h3>
+          <a onclick="erpNotifOpen('${e.id}')" style="font-size:12px;color:var(--primary);font-weight:700;cursor:pointer">🔔 Régler les notifications</a>
         </div>
-        ${d.cc.length?`<div style="padding:0 18px 14px">${d.cc.map((ct,i)=>{const nom=[ct.prenom,ct.nom].filter(Boolean).join(' ')||'—';const rc=(typeof ROLE_CLIENT!=='undefined'&&ROLE_CLIENT)||{};const tel=[ct.telephone,ct.mobile].filter(Boolean).join(' · ');return `<div class="fx-ct"><div class="av" style="background:${avPal[i%avPal.length]}">${initials(nom)}</div><div style="min-width:0"><div style="font-weight:700;font-size:14px">${esc(nom)}</div><div style="font-size:12px;color:var(--muted)">${esc(rc[ct.role_suivi]||ct.role_suivi||'')}</div></div><div style="margin-left:auto;text-align:right;font-size:12.5px">${ct.email?`<a href="mailto:${esc(ct.email)}" style="color:var(--primary);font-weight:600;text-decoration:none">${esc(ct.email)}</a><br>`:''}${tel?`<span style="color:var(--muted)">${esc(tel)}</span>`:''}<button class="btn sm" style="margin-left:8px" onclick='editContact(${JSON.stringify(ct).replace(/'/g,"&#39;")},${JSON.stringify(e.client_id)})'>Modifier</button></div></div>`;}).join('')}</div>`:`<div style="padding:16px 18px;color:var(--muted);font-size:13px">Aucun contact — cliquez sur Ajouter.</div>`}
+        ${(()=>{const nl=(Array.isArray(e.notif_levee_ids)?e.notif_levee_ids:[]).filter(id=>d.cc.some(c=>c.id===id)).length; return (d.cc.length&&!nl)?`<div class="ntf-banner">⚠️ Aucun contact ne reçoit les alertes <b>levées de réserves</b> sur cet ERP${e.preva_levee_off?' — <b>et PREVA est désactivé</b> : personne ne sera prévenu':' (seule PREVA est prévenue)'}.<button class="btn sm" onclick="erpNotifOpen('${e.id}')">Choisir les contacts</button></div>`:'';})()}
+        ${d.cc.length?`<div style="padding:0 18px 14px">${d.cc.map((ct,i)=>{const nom=[ct.prenom,ct.nom].filter(Boolean).join(' ')||'—';const rc=(typeof ROLE_CLIENT!=='undefined'&&ROLE_CLIENT)||{};const tel=[ct.telephone,ct.mobile].filter(Boolean).join(' · ');const nA=(e.notif_contact_ids||[]).includes(ct.id),nL=(e.notif_levee_ids||[]).includes(ct.id);const badges=(nA?'<span class="ntf-tag e" style="margin-left:6px">ARRIVÉE/DÉPART</span>':'')+(nL?'<span class="ntf-tag l" style="margin-left:4px">LEVÉES</span>':'');return `<div class="fx-ct"><div class="av" style="background:${avPal[i%avPal.length]}">${initials(nom)}</div><div style="min-width:0"><div style="font-weight:700;font-size:14px">${esc(nom)}${badges}</div><div style="font-size:12px;color:var(--muted)">${esc(rc[ct.role_suivi]||ct.role_suivi||'')}</div></div><div style="margin-left:auto;text-align:right;font-size:12.5px">${ct.email?`<a href="mailto:${esc(ct.email)}" style="color:var(--primary);font-weight:600;text-decoration:none">${esc(ct.email)}</a><br>`:''}${tel?`<span style="color:var(--muted)">${esc(tel)}</span>`:''}<button class="btn sm" style="margin-left:8px" onclick='editContact(${JSON.stringify(ct).replace(/'/g,"&#39;")},${JSON.stringify(e.client_id)})'>Modifier</button></div></div>`;}).join('')}</div>`:`<div style="padding:16px 18px;color:var(--muted);font-size:13px">Aucun contact — cliquez sur Ajouter.</div>`}
       </div>
     </div>
 
@@ -13917,7 +13997,7 @@ window.renderPointage=function(period){  window._ptgActivePer=period;
           <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
             <span class="pill ${p.mode_saisie==='qr'?'int':'inf'}">${p.mode_saisie==='qr'?'QR':'Manuel'}</span>
             ${enc
-              ?`<button onclick="event.stopPropagation();ptgSetFin('${p.id}','${p.heure_arrivee}')" style="font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:6px;border:1px solid #fca5a5;background:none;color:#dc2626;cursor:pointer;white-space:nowrap">Clôturer</button>`
+              ?`<button onclick="event.stopPropagation();ptgRelancer('${p.id}')" title="Envoyer au technicien un SMS avec un lien pour clôturer lui-même son passage" style="font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:6px;border:1px solid #93c5fd;background:none;color:#1d4ed8;cursor:pointer;white-space:nowrap">Relancer</button><button onclick="event.stopPropagation();ptgSetFin('${p.id}','${p.heure_arrivee}')" style="font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:6px;border:1px solid #fca5a5;background:none;color:#dc2626;cursor:pointer;white-space:nowrap">Clôturer</button>`
               :p.vu
                 ?`<span class="ptg-vu-ok" title="Traité">✓</span>`
                 :`<button class="ptg-vu-btn" onclick="event.stopPropagation();ptgMarkVu('${p.id}')" title="Marquer comme traité">✓</button>`
@@ -14045,13 +14125,27 @@ window.renderPtgRecap=function(){
   wrap.innerHTML=html;
 };
 
+// Rappel SMS immédiat au technicien (lien de clôture personnel) — les rappels automatiques partent à 17h le jour même et 9h le lendemain
+window.ptgRelancer=async function(pid){
+  const row=(window._ptgRows||[]).find(r=>r.id===pid)||{};
+  const nom=((row.prenom||'')+' '+(row.nom||'')).trim()||'le technicien';
+  if(!confirm('Envoyer maintenant un SMS à '+nom+(row.telephone?' ('+row.telephone+')':'')+' avec le lien pour clôturer son passage ?')) return;
+  try{
+    const {data,error}=await sb.rpc('pointage_relancer_sms',{p_pointage:pid});
+    if(error) throw error;
+    if(!data||!data.ok){ const m={deja_clos:'Ce passage est déjà clôturé.',sans_telephone:'Aucun numéro de téléphone sur ce pointage.',introuvable:'Pointage introuvable.'}; toast(m[(data&&data.error)||'']||'Envoi impossible','err'); return; }
+    toast('Rappel SMS programmé — envoi dans les 5 minutes','ok');
+  }catch(e){ toast(e.message||'Erreur','err'); }
+};
 window.ptgSetFin=function(pid, heure_arrivee){
   // Propose current time as default
   const now=new Date();
-  const todayVal=now.toISOString().slice(0,10);
-  const timeVal=now.toTimeString().slice(0,5);
+  const locIso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   // Parse arrival to show as info
   const arr=heure_arrivee?new Date(heure_arrivee):null;
+  // Par défaut : la date de fin = la date d'arrivée (un passage se clôture le plus souvent le jour même) ; l'heure = maintenant si c'est aujourd'hui, sinon à saisir
+  const todayVal=(arr&&!isNaN(arr))?locIso(arr):locIso(now);
+  const timeVal=(todayVal===locIso(now))?now.toTimeString().slice(0,5):'';
   const arrTxt=arr?arr.toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
   openModal(
     '<div class="modal-head"><h2>Clôturer le passage</h2><button class="x" onclick="closeModal()">'+I.x+'</button></div>'
@@ -14068,17 +14162,19 @@ window.ptgSetFin=function(pid, heure_arrivee){
     const d=document.getElementById('ptg_fin_date').value;
     const t=document.getElementById('ptg_fin_time').value;
     if(!d||!t){toast('Date et heure requises','err');return;}
-    const heure_depart=d+'T'+t+':00';
+    // Heure locale (Europe/Paris) → ISO UTC : sans cela, « 18:30 » était enregistré comme 18:30 UTC, soit 20:30 en France
+    const dep=new Date(d+'T'+t+':00'); if(isNaN(dep)){toast('Date ou heure invalide','err');return;}
+    const heure_depart=dep.toISOString();
     // Validate: depart must be after arrivee
-    if(arr && new Date(heure_depart)<=arr){toast('Heure de fin avant arrivée','err');return;}
+    if(arr && dep<=arr){toast('Heure de fin avant arrivée','err');return;}
     const btn=document.getElementById('ptg_fin_save');
     btn.disabled=true; btn.textContent='Enregistrement…';
     try{
-      const {error}=await sb.from('pointages').update({heure_depart}).eq('id',pid);
+      const {error}=await sb.from('pointages').update({heure_depart,statut:'clos'}).eq('id',pid);
       if(error) throw error;
       // Update in-memory rows
       const row=window._ptgRows&&window._ptgRows.find(r=>r.id===pid);
-      if(row) row.heure_depart=heure_depart;
+      if(row){ row.heure_depart=heure_depart; row.statut='clos'; }
       _modalDirty=false; closeModal();
       toast('Passage clôturé ✓','ok');
       // Re-render current period
@@ -18427,6 +18523,85 @@ async function renderLeveesPublic(token){
   }
 }
 window.renderLeveesPublic=renderLeveesPublic;
+
+/* ══════════════ CLÔTURE DE PASSAGE PAR LIEN (rappel SMS 17h / 9h) ══════════════
+   Lien personnel #/cloture/<token> envoyé au technicien qui a oublié de pointer son départ.
+   Il ajuste l'heure réelle de fin, saisit son compte rendu et clôture — sans rescanner le QR. */
+async function renderCloturePublic(token){
+  document.title='Clôture de passage — PREVA';
+  const root=document.getElementById('root')||document.body;
+  const shell=inner=>'<div style="min-height:100vh;background:#eef1f6;font-family:Inter,system-ui,sans-serif;padding-bottom:40px">'
+    +'<div style="background:#0e1b2e;color:#fff;padding:16px 18px"><div style="font-weight:800;letter-spacing:2px;font-size:13px">CONFORMITÉ SÉCURITÉ</div><div style="font-size:12px;color:#b4c4e6;margin-top:2px">Clôture de passage</div></div>'
+    +'<div style="max-width:520px;margin:18px auto 0;padding:0 14px">'+inner+'</div>'
+    +'<div style="text-align:center;font-size:11px;color:#94a3b8;margin-top:18px">PREVA CONSEILS — conformite-securite.fr — contact@conformite-securite.fr</div></div>';
+  const card=inner=>'<div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:20px 18px;box-shadow:0 10px 30px rgba(15,23,42,.06)">'+inner+'</div>';
+  root.innerHTML=shell(card('<div style="color:#64748b;font-size:13.5px">Chargement…</div>'));
+  let d=null;
+  try{
+    if(!sb){ loadCfg(); initSb(); }
+    const {data,error}=await sb.rpc('pointage_lien_info',{p_token:token});
+    if(error) throw error; d=data;
+  }catch(e){ root.innerHTML=shell(card('<div style="color:#dc2626;font-weight:700">Erreur de chargement — réessayez.</div>')); return; }
+  if(!d||!d.ok){
+    root.innerHTML=shell(card('<div style="font-size:17px;font-weight:800;color:#0f172a;margin-bottom:8px">Lien invalide</div><div style="font-size:13px;color:#64748b;line-height:1.55">Ce lien n\'est pas ou plus valide. Si votre passage est toujours ouvert, contactez le responsable de l\'établissement.</div>'));
+    return;
+  }
+  const nomErp=(d.erp_nom||'').replace(/^ERP-\d+[-\s]*/,'').trim();
+  const arr=d.heure_arrivee?new Date(d.heure_arrivee):null;
+  const fmtDT=x=>x?x.toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—';
+  const prenom=(d.prenom||'').trim();
+  if(d.statut!=='ouvert'){
+    root.innerHTML=shell(card('<div style="font-size:34px;margin-bottom:8px">✅</div><div style="font-size:17px;font-weight:800;color:#0f172a;margin-bottom:8px">Passage déjà clôturé</div>'
+      +'<div style="font-size:13.5px;color:#334155;line-height:1.6">'+(prenom?'Bonjour '+esc(prenom)+', v':'V')+'otre passage sur <b>'+esc(nomErp)+'</b> du '+fmtDT(arr)+' est clôturé'+(d.heure_depart?' (départ le '+fmtDT(new Date(d.heure_depart))+')':'')+'. Rien d\'autre à faire, merci.</div>'));
+    return;
+  }
+  const locIso=x=>x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');
+  const now=new Date();
+  const dDef=arr?locIso(arr):locIso(now);
+  const tDef=(dDef===locIso(now))?now.toTimeString().slice(0,5):'';
+  const inp='width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #cbd5e1;border-radius:10px;font-size:15px;background:#fff;color:#0f172a';
+  const lab='display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:5px';
+  root.innerHTML=shell(card(
+    '<div style="font-size:17px;font-weight:800;color:#0f172a;margin-bottom:6px">'+(prenom?'Bonjour '+esc(prenom)+',':'Bonjour,')+'</div>'
+    +'<div style="font-size:13.5px;color:#334155;line-height:1.6;margin-bottom:14px">Votre passage sur <b>'+esc(nomErp)+'</b>'+(d.ville?' ('+esc(d.ville)+')':'')+' n\'a pas été clôturé. Indiquez l\'heure réelle de votre départ et votre compte rendu.</div>'
+    +'<div style="display:flex;gap:10px;flex-wrap:wrap;background:#f1f5f9;border-radius:10px;padding:10px 12px;font-size:12.5px;color:#475569;margin-bottom:16px">'
+      +'<div><span style="color:#94a3b8">Arrivée</span><br><b style="color:#0f172a">'+fmtDT(arr)+'</b></div>'
+      +(d.societe?'<div><span style="color:#94a3b8">Société</span><br><b style="color:#0f172a">'+esc(d.societe)+'</b></div>':'')
+      +(d.mission?'<div><span style="color:#94a3b8">Mission</span><br><b style="color:#0f172a">'+esc(d.mission)+'</b></div>':'')
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'
+      +'<div><label style="'+lab+'">Date de départ *</label><input type="date" id="cl_date" value="'+dDef+'" style="'+inp+'"></div>'
+      +'<div><label style="'+lab+'">Heure de départ *</label><input type="time" id="cl_time" value="'+tDef+'" style="'+inp+'"></div>'
+    +'</div>'
+    +'<div style="margin-bottom:12px"><label style="'+lab+'">Mission réalisée *</label><select id="cl_mis" style="'+inp+'"><option value="Oui">Oui, complètement</option><option value="Partiellement">Partiellement</option><option value="Non">Non réalisée</option></select></div>'
+    +'<div style="margin-bottom:16px"><label style="'+lab+'">Compte rendu *</label><textarea id="cl_cr" placeholder="Synthèse de l\'intervention…" style="'+inp+';min-height:100px;resize:vertical"></textarea></div>'
+    +'<button id="cl_go" style="width:100%;border:none;background:#1a44ad;color:#fff;border-radius:11px;padding:14px;font-weight:800;font-size:15px;cursor:pointer">Clôturer mon passage</button>'
+    +'<div id="cl_err" style="display:none;margin-top:10px;font-size:12.5px;color:#dc2626;font-weight:600"></div>'
+  ));
+  const err=m=>{ const e=document.getElementById('cl_err'); if(e){ e.textContent=m; e.style.display=m?'block':'none'; } };
+  document.getElementById('cl_go').onclick=async()=>{
+    const dv=document.getElementById('cl_date').value, tv=document.getElementById('cl_time').value, cr=(document.getElementById('cl_cr').value||'').trim();
+    err('');
+    if(!dv||!tv){ err('Indiquez la date et l\'heure de départ.'); return; }
+    if(!cr){ err('Le compte rendu est requis.'); return; }
+    const dep=new Date(dv+'T'+tv+':00'); if(isNaN(dep)){ err('Date ou heure invalide.'); return; }
+    if(arr&&dep<=arr){ err('L\'heure de départ doit être après l\'arrivée ('+fmtDT(arr)+').'); return; }
+    if(dep.getTime()>Date.now()+10*60000){ err('L\'heure de départ ne peut pas être dans le futur.'); return; }
+    const btn=document.getElementById('cl_go'); btn.disabled=true; btn.textContent='Enregistrement…';
+    try{
+      const {data,error}=await sb.rpc('pointage_cloture_lien',{p_token:token,p_heure_depart:dep.toISOString(),p_mission_realisee:document.getElementById('cl_mis').value||'Oui',p_compte_rendu:cr});
+      if(error) throw error;
+      if(!data||!data.ok){
+        const m={deja_clos:'Ce passage a déjà été clôturé.',heure_avant_arrivee:'L\'heure de départ doit être après l\'arrivée.',heure_future:'L\'heure de départ ne peut pas être dans le futur.',lien_invalide:'Lien invalide.'};
+        err(m[(data&&data.error)||'']||'Clôture impossible.'); btn.disabled=false; btn.textContent='Clôturer mon passage'; return;
+      }
+      try{ sb.functions.invoke('notif-pointage',{body:{pointage_id:data.id,type:'depart'}}).catch(()=>{}); }catch(_){}
+      root.innerHTML=shell(card('<div style="font-size:34px;margin-bottom:8px">✅</div><div style="font-size:17px;font-weight:800;color:#0f172a;margin-bottom:8px">Passage clôturé</div>'
+        +'<div style="font-size:13.5px;color:#334155;line-height:1.6">Merci '+esc(prenom)+'. Votre départ de <b>'+esc(nomErp)+'</b> est enregistré le <b>'+fmtDT(dep)+'</b>.</div>'));
+    }catch(e){ err(e.message||'Erreur'); btn.disabled=false; btn.textContent='Clôturer mon passage'; }
+  };
+}
+window.renderCloturePublic=renderCloturePublic;
 function levFmtD(d){ return d?new Date(String(d).slice(0,10)+'T00:00:00').toLocaleDateString('fr-FR'):'—'; }
 function levRender(){
   const d=window.__levData||{}; const rows=d.reserves||[];
@@ -25656,6 +25831,10 @@ function qrArrivee(token,info){
   const body=$('#qrbody'); if(!body) return;
   let _qi={}; try{_qi=JSON.parse(localStorage.getItem('preva_qrinfo')||'{}');}catch(e){}
   body.innerHTML=`
+      <label id="q_lev_band" style="display:flex;align-items:center;gap:11px;background:#1a44ad;border-radius:12px;padding:13px 14px;cursor:pointer;user-select:none;margin:0 0 12px">
+        <input type="checkbox" id="q_lev" ${window._qrLevPre?'checked':''} onchange="window._qrLevPre=this.checked;var c2=document.getElementById('q_lev2');if(c2)c2.checked=this.checked;if(this.checked)trvNotifKick()" style="width:22px;height:22px;accent-color:#16a34a;flex:0 0 auto">
+        <span style="color:#fff;font-size:13.5px;font-weight:700;line-height:1.35">Cochez la case si votre intervention concerne des levées de réserves suite à un PV de commission de sécurité ou à un rapport d'un bureau de contrôle.<br><span style="font-weight:500;font-size:11.5px;opacity:.85">Le responsable sera alerté et pourra vous envoyer le tableau à signer.</span></span>
+      </label>
     <div class="card card-pad" style="margin-bottom:14px">
       <p style="font-size:14px;color:var(--muted);margin-bottom:16px;font-weight:500">Renseignez vos informations pour déclarer votre arrivée sur l'établissement.</p>
       <div style="font-size:13px;font-weight:700;color:var(--ink);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;padding-bottom:7px;border-bottom:1px solid var(--line)">Responsable de l'intervention</div>
@@ -25674,10 +25853,6 @@ function qrArrivee(token,info){
         </div>
       </div>
       <div class="fld" id="q_mis_autre_wrap" style="display:none"><label>Précisez la mission <span class="req">*</span></label><input id="q_mis_autre" placeholder="Saisissez la mission" autocomplete="off"></div>
-      <label id="q_lev_band" style="display:flex;align-items:center;gap:11px;background:#1a44ad;border-radius:12px;padding:13px 14px;cursor:pointer;user-select:none;margin:4px 0 14px">
-        <input type="checkbox" id="q_lev" ${window._qrLevPre?'checked':''} onchange="window._qrLevPre=this.checked;var c2=document.getElementById('q_lev2');if(c2)c2.checked=this.checked;if(this.checked)trvNotifKick()" style="width:22px;height:22px;accent-color:#16a34a;flex:0 0 auto">
-        <span style="color:#fff;font-size:13.5px;font-weight:700;line-height:1.35">Mon intervention concerne des levées de réserves<br><span style="font-weight:500;font-size:11.5px;opacity:.85">Le responsable sera alerté et pourra vous envoyer le tableau à signer.</span></span>
-      </label>
       <button class="btn primary" id="q_go" style="width:100%;justify-content:center;padding:14px;font-size:15px;border-radius:12px">Valider mon arrivée</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:9px">
