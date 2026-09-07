@@ -13061,32 +13061,61 @@ window.crHandleDrop=function(ev){ ev.preventDefault();
   if(pdfs.length) addReportAttachments(pdfs);
   if(!imgs.length && !pdfs.length) toast('Formats acceptés : images et PDF','err');
 };
+/* Bibliothèque Photos : s'ouvre PAR-DESSUS le formulaire en cours (page Compte rendu ou fenêtre « Générer un compte rendu »).
+   Avant, elle remplaçait le contenu de la fenêtre modale : le formulaire disparaissait et « Ajouter la sélection » fermait tout. */
 window.crOpenPhotoLib=async function(){
   let lib=window._photosCache;
-  if(!lib){ try{ const {data}=await sb.from('photos_urgentes').select('*').order('created_at',{ascending:false}); lib=window._photosCache=data||[]; }catch(e){ lib=[]; } }
+  if(!lib||!lib.length){ try{ const {data}=await sb.from('photos_urgentes').select('*').order('created_at',{ascending:false}); lib=window._photosCache=data||[]; }catch(e){ lib=[]; } }
   lib=(lib||[]).filter(p=>p.photo_path && !isVideoPath(p.photo_path));
   if(!lib.length){ toast('Aucune photo dans la bibliothèque','err'); return; }
-  window._crLibSel=new Set();
-  const grid=lib.map(p=>{ const url=p.photo_path?publicPhoto(p.photo_path):''; return `<label style="position:relative;border:1px solid var(--line);border-radius:9px;overflow:hidden;cursor:pointer;display:block">
-      <input type="checkbox" onchange="crLibToggle('${p.id}',this.checked)" style="position:absolute;top:6px;left:6px;width:18px;height:18px;accent-color:var(--primary);z-index:2;margin:0">
-      <img src="${url}" loading="lazy" style="width:100%;height:108px;object-fit:cover;display:block">
-      <div style="font-size:11px;padding:5px 7px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.commentaire||'—')}</div>
-    </label>`; }).join('');
-  openModal(`<div class="modal-head"><h2>Bibliothèque Photos</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
-    <div class="modal-body"><div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">Cochez les photos à ajouter au compte rendu.</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px">${grid}</div></div>
-    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="cr_lib_add" onclick="crAddFromLib()">Ajouter la sélection</button></div>`);
+  window._crLib=lib; window._crLibSel=new Set(); window._crLibErp='';
+  document.getElementById('cr_lib_ov')?.remove();
+  const ov=document.createElement('div'); ov.id='cr_lib_ov';
+  ov.style.cssText='position:fixed;inset:0;z-index:100060;background:rgba(8,12,20,.6);display:flex;align-items:center;justify-content:center;padding:14px';
+  ov.addEventListener('click',e=>{ if(e.target===ov) crLibClose(); });
+  const erps=[...new Set(lib.map(p=>p.erp_id))].map(id=>state.erps.find(e=>e.id===id)).filter(Boolean).sort((x,y)=>String(x.nom).localeCompare(String(y.nom),'fr'));
+  ov.innerHTML=`<div style="background:var(--surface);border-radius:16px;width:min(920px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35)">
+    <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap">
+      <h2 style="margin:0;font-size:16px">Bibliothèque Photos</h2>
+      <span id="cr_lib_cnt" style="font-size:12px;color:var(--muted)">0 sélectionnée</span>
+      <select id="cr_lib_erp" onchange="crLibFilter(this.value)" style="margin-left:auto;padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font-family:inherit;max-width:260px"><option value="">Tous les établissements</option>${erps.map(e=>`<option value="${e.id}">${esc(e.nom)}</option>`).join('')}</select>
+      <button type="button" class="btn sm" onclick="crLibAll(true)">Tout cocher</button><button type="button" class="btn sm ghost" onclick="crLibAll(false)">Aucune</button>
+      <button type="button" class="x" onclick="crLibClose()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)">✕</button>
+    </div>
+    <div id="cr_lib_grid" style="overflow:auto;padding:14px 18px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--line)"><button type="button" class="btn ghost" onclick="crLibClose()">Annuler</button><button type="button" class="btn primary" id="cr_lib_add" onclick="crAddFromLib()">Ajouter la sélection</button></div>
+  </div>`;
+  document.body.appendChild(ov);
+  crLibRender();
 };
-window.crLibToggle=function(id,on){ window._crLibSel=window._crLibSel||new Set(); if(on)window._crLibSel.add(id); else window._crLibSel.delete(id); };
+window.crLibRender=function(){
+  const g=document.getElementById('cr_lib_grid'); if(!g) return;
+  const lib=(window._crLib||[]).filter(p=>!window._crLibErp||p.erp_id===window._crLibErp);
+  const erpNm=id=>{ const e=state.erps.find(x=>x.id===id); return e?String(e.nom).replace(/^ERP-\d+[-\s]*/,''):''; };
+  g.innerHTML=lib.length?lib.map(p=>{ const on=window._crLibSel.has(p.id); return `<label style="position:relative;border:2px solid ${on?'var(--primary)':'var(--line)'};border-radius:10px;overflow:hidden;cursor:pointer;display:block;background:var(--surface-2)">
+      <input type="checkbox" ${on?'checked':''} onchange="crLibToggle('${p.id}',this.checked)" style="position:absolute;top:7px;left:7px;width:20px;height:20px;accent-color:var(--primary);z-index:2;margin:0">
+      <img src="${publicPhoto(p.photo_path)}" loading="lazy" style="width:100%;height:112px;object-fit:cover;display:block;background:#0b0f14">
+      <div style="font-size:11px;padding:5px 7px;color:var(--ink);line-height:1.3"><b style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.commentaire||'—')}</b><span style="color:var(--muted)">${esc(erpNm(p.erp_id))}${p.created_at?' · '+fmtDate(p.date_photo||p.created_at):''}</span></div>
+    </label>`; }).join(''):'<div style="grid-column:1/-1;color:var(--muted);text-align:center;padding:20px">Aucune photo pour cet établissement.</div>';
+  const c=document.getElementById('cr_lib_cnt'); if(c){ const n=window._crLibSel.size; c.textContent=n+' sélectionnée'+(n>1?'s':''); }
+};
+window.crLibFilter=function(v){ window._crLibErp=v||''; crLibRender(); };
+window.crLibAll=function(on){ const lib=(window._crLib||[]).filter(p=>!window._crLibErp||p.erp_id===window._crLibErp); lib.forEach(p=>{ if(on) window._crLibSel.add(p.id); else window._crLibSel.delete(p.id); }); crLibRender(); };
+window.crLibClose=function(){ document.getElementById('cr_lib_ov')?.remove(); };
+window.crLibToggle=function(id,on){ window._crLibSel=window._crLibSel||new Set(); if(on)window._crLibSel.add(id); else window._crLibSel.delete(id);
+  try{ const lab=document.querySelector('#cr_lib_grid input[onchange*="'+id+'"]')?.closest('label'); if(lab) lab.style.borderColor=on?'var(--primary)':'var(--line)'; const c=document.getElementById('cr_lib_cnt'); if(c){ const n=window._crLibSel.size; c.textContent=n+' sélectionnée'+(n>1?'s':''); } }catch(_){ } };
 window.crAddFromLib=async function(){
   const ids=[...(window._crLibSel||[])];
-  if(!ids.length){ toast('Sélectionnez au moins une photo','err'); return; }
-  const lib=window._photosCache||[];
-  const btn=document.getElementById('cr_lib_add'); if(btn){ btn.disabled=true; btn.textContent='Ajout…'; }
-  for(const id of ids){ const p=lib.find(x=>x.id===id); if(!p||!p.photo_path) continue;
-    try{ const im=await loadImgDataUrl(publicPhoto(p.photo_path)); if(im) _crPhotos.push({dataUrl:im.dataUrl,w:im.w,h:im.h,commentaire:p.commentaire||''}); }catch(e){}
+  if(!ids.length){ toast('Cochez au moins une photo','err'); return; }
+  const lib=window._crLib||window._photosCache||[];
+  const btn=document.getElementById('cr_lib_add'); if(btn){ btn.disabled=true; btn.textContent='Ajout… 0/'+ids.length; }
+  let ko=0, k=0;
+  for(const id of ids){ const p=lib.find(x=>x.id===id); if(!p||!p.photo_path){ ko++; continue; }
+    try{ const im=await loadImgDataUrl(publicPhoto(p.photo_path)); if(im) _crPhotos.push({dataUrl:im.dataUrl,w:im.w,h:im.h,commentaire:p.commentaire||''}); else ko++; }catch(e){ ko++; }
+    k++; if(btn) btn.textContent='Ajout… '+k+'/'+ids.length;
   }
-  closeModal(); crRenderPhotos(); toast('Photos ajoutées au compte rendu','ok');
+  crLibClose(); crRenderPhotos();
+  if(ko) toast((ids.length-ko)+' photo(s) ajoutée(s), '+ko+' non chargée(s)','err'); else toast(ids.length+' photo'+(ids.length>1?'s':'')+' ajoutée'+(ids.length>1?'s':'')+' au compte rendu','ok');
 };
 window.crOpenDocLib=async function(){
   let docs=[];
