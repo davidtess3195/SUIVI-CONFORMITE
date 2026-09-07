@@ -5026,7 +5026,7 @@ function formInviteUser(){
 }
 window.formInviteUser=formInviteUser;
 
-function formEditUser(id,nom,role,statut){
+function formEditUser(id,nom,role,statut,accesForm){
   openModal(`<div class="modal-head"><h2>Modifier l'utilisateur</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
   <div class="modal-body">
     <div class="fld"><label>Nom</label><input id="eu_nom" value="${esc(nom)}"></div>
@@ -5036,11 +5036,21 @@ function formEditUser(id,nom,role,statut){
     <div class="fld"><label>Statut</label><select id="eu_statut">
       ${['actif','suspendu','desactive'].map(s=>`<option value="${s}"${statut===s?' selected':''}>${s.charAt(0).toUpperCase()+s.slice(1)}</option>`).join('')}
     </select></div>
+    <div class="fld" style="margin-top:4px">
+      <label style="display:flex;align-items:flex-start;gap:9px;font-weight:600;cursor:pointer">
+        <input type="checkbox" id="eu_form" ${accesForm||role==='admin'?'checked':''} ${role==='admin'?'disabled':''} style="margin-top:2px">
+        <span>Accès à la rubrique <b>Gestion formation</b>
+          <span style="display:block;font-weight:400;color:var(--muted);font-size:12px;line-height:1.5;margin-top:3px">
+            Effectif des salariés, obligations de formation, sessions, convocations, attestations et passeport de prévention.
+            ${role==='admin'?'Toujours accordé aux comptes Admin.':'À réserver aux directeurs et référents formation : ce module contient des données nominatives sur le personnel.'}</span></span>
+      </label></div>
   </div>
   <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Annuler</button><button class="btn primary" id="eu_save">Enregistrer</button></div>`);
   $('#eu_save').onclick=async()=>{
     try{
-      await sb.from('profiles').update({nom:$('#eu_nom').value.trim(),role:$('#eu_role').value,statut:$('#eu_statut').value}).eq('id',id);
+      const _r=$('#eu_role').value;
+      await sb.from('profiles').update({nom:$('#eu_nom').value.trim(),role:_r,statut:$('#eu_statut').value,
+        acces_formation:_r==='admin'?true:$('#eu_form').checked}).eq('id',id);
       closeModal(); toast('Utilisateur mis à jour','ok'); renderRoute();
     }catch(e){toast(e.message,'err');}
   };
@@ -5132,9 +5142,10 @@ function adminRenderUsers(){
         <small>${esc(u.email||'')}</small></div>
       ${u.vu_par_admin===false?'<span style="background:#fee2e2;color:#b91c1c;font-size:10px;font-weight:800;padding:3px 8px;border-radius:8px;flex:0 0 auto">NOUVEAU</span>':''}
       ${demoTag}
+      ${(u.acces_formation&&u.role!=='admin')?'<span title="Accès au module Gestion formation" style="background:#dbeafe;color:#1d4ed8;font-size:10px;font-weight:800;padding:3px 8px;border-radius:8px;flex:0 0 auto">FORMATION</span>':''}
       <span class="adm2-role ${R[1]}">${esc(R[0])}</span>
       <span class="adm2-st ${stCls}"><i></i>${stLbl}</span>
-      <button class="adm2-act" title="Modifier" onclick="formEditUser('${u.id}','${esc(u.nom||'')}','${u.role}','${u.statut}')">${AICO.pencil}</button>
+      <button class="adm2-act" title="Modifier" onclick="formEditUser('${u.id}','${esc(u.nom||'')}','${u.role}','${u.statut}',${u.acces_formation?1:0})">${AICO.pencil}</button>
       ${isSelf?'<span class="adm2-act" style="visibility:hidden;border:none"></span>':`<button class="adm2-act del" title="Supprimer ce compte" onclick="adminDeleteUser('${u.id}')">${AICO.trash}</button>`}
     </div>`;
   };
@@ -10022,7 +10033,8 @@ async function viewErp(c,id){
     erpxStyle();
     const openResHdr=(re.data||[]).filter(r=>!['cloturee','levee','rejetee'].includes(r.statut)).length;
     const heroTags=[`<span class="fx-tag">${esc(e.code_erp)}</span>`, (cl&&cl.raison_sociale)?`<span class="fx-tag">${esc(cl.raison_sociale)}</span>`:'', e.type_erp?`<span class="fx-tag">Type ${esc(e.type_erp)}${e.categorie?' · '+esc(e.categorie)+'ᵉ cat.':''}</span>`:'', `<span class="fx-tag ok">● Fiche validée</span>`].filter(Boolean).join('');
-    const tabsDef=[['apercu','Aperçu','Synthèse'],['oblig','Vérification',(data.ob.length||0)+' points'],['equip','Équipements','Inventaire'],['inter','Interventions','Planifier'],['reserves','Réserves',openResHdr+' ouverte'+(openResHdr>1?'s':'')],['rapports','Rapports','Documents']];
+    let tabsDef=[['apercu','Aperçu','Synthèse'],['oblig','Vérification',(data.ob.length||0)+' points'],['equip','Équipements','Inventaire'],['inter','Interventions','Planifier'],['reserves','Réserves',openResHdr+' ouverte'+(openResHdr>1?'s':'')],['rapports','Rapports','Documents']];
+    if(gfAutorise()) tabsDef.push(['formation','Gestion formation','Salariés']);
     c.innerHTML=`
       <div class="fx-crumb"><span class="lnk" onclick="navigate('/erps')">ERP</span> › ${esc(e.code_erp)}</div>
       <div class="fx-hero"><div class="fx-htop">
@@ -10042,6 +10054,10 @@ async function viewErp(c,id){
 }
 function renderErpTab(tab,d){
   const w=$('#erptab'); const e=d.e;
+  if(tab==='formation'){
+    if(!gfAutorise()){ w.innerHTML='<div style="margin-top:24px">'+emptyBlock('🔒','Accès réservé',
+      "La rubrique Gestion formation contient les données nominatives du personnel. L'accès est accordé nominativement par l'administrateur, dans Administration → Utilisateurs.",'')+'</div>'; return; }
+    gfRender(w,e); return; }
   if(tab==='equip'){
     const eqList=d.eq||[];
     if(!eqList.length){
@@ -27470,6 +27486,2807 @@ function viewVerifications(content){
   };
   verifRefresh();
 }
+
+/* =====================================================================
+   GESTION FORMATION — onglet de la fiche établissement
+   Pilotage des formations obligatoires des salariés : effectif, thèmes
+   réglementaires, sessions, convocations, émargement, attestations,
+   note interne, bilan, export Passeport de prévention, rappels direction.
+   Tables : of_obligations / of_stagiaires / of_sessions / of_inscriptions
+            / of_documents / of_envois  (toutes portées par erp_id)
+   Vue    : v_of_couverture_erp
+===================================================================== */
+
+/* ── Droit d'accès : admin, ou droit accordé nominativement dans Administration ── */
+function gfAutorise(){
+  const p=state&&state.profile; if(!p) return false;
+  if(p.statut==='suspendu'||p.statut==='desactive') return false;
+  return p.role==='admin' || p.acces_formation===true;
+}
+window.gfAutorise=gfAutorise;
+
+/* ── Référentiel réglementaire des thèmes (ERP / ESSMS / EHPAD) ── */
+const GF_REF=[
+ {code:'INC-EXER',lib:"Exercice d'évacuation et instruction du personnel",
+  base:"Code du travail art. R.4227-39 — Règlement de sécurité ERP art. MS 51 — type J art. J 39 — type U art. U 47",
+  per:6,h:1,pp:false,pub:"Tout le personnel",
+  obj:"Reconnaître le signal sonore d'alarme générale, appliquer la consigne d'évacuation ou de transfert horizontal, rejoindre le point de rassemblement et rendre compte au responsable.",
+  prog:"Rappel de la consigne de sécurité incendie — reconnaissance du signal sonore d'alarme générale — cheminements, issues de secours et espaces d'attente sécurisés — rôle des guides-files et serre-files — exercice pratique chronométré — débriefing, relevé des anomalies et inscription au registre de sécurité."},
+ {code:'INC-EPI',lib:"Manipulation des moyens de première intervention (extincteurs, RIA)",
+  base:"Code du travail art. R.4227-28 et R.4227-39 — ERP art. MS 51",
+  per:12,h:3,pp:true,pub:"Tout le personnel",
+  obj:"Identifier un début d'incendie, donner l'alarme, choisir l'agent extincteur adapté et éteindre un feu naissant en sécurité.",
+  prog:"Triangle du feu et classes de feux — modes de propagation, dangers des fumées — agents extincteurs et adéquation — mise en œuvre d'un extincteur sur feux réels (bac à gaz ou générateur de flammes) — mise en œuvre d'un RIA — conduite à tenir et alerte des secours."},
+ {code:'INC-TRANS',lib:"Évacuation différée et transfert horizontal (type J / U)",
+  base:"Règlement de sécurité ERP art. J 39 et U 47 — Code du travail art. R.4227-39",
+  per:12,h:3.5,pp:true,pub:"Personnel soignant et hôtelier",
+  obj:"Mettre en sécurité les résidents ou patients par transfert horizontal vers une zone protégée, sans évacuation totale, dans le respect de la procédure interne.",
+  prog:"Spécificités du feu en établissement de soins ou d'hébergement — compartimentage et zones de mise en sécurité — levée de doute et lecture du report d'alarme — techniques de transfert de personnes à mobilité réduite (drap, chaise, portoir) — recensement et comptage — mise en situation."},
+ {code:'INC-EQUIP',lib:"Équipier de première intervention (EPI)",
+  base:"Code du travail art. R.4227-28 et R.4227-39 — ERP art. MS 51",
+  per:12,h:7,pp:true,pub:"Équipe de sécurité désignée",
+  obj:"Intervenir en équipe sur un début d'incendie, mettre en sécurité les occupants et accueillir les secours.",
+  prog:"Organisation de l'équipe de première intervention — reconnaissance et levée de doute — attaque du feu en binôme — coupure des fluides et des énergies — mise en sécurité des occupants — accueil et guidage des sapeurs-pompiers — exercices pratiques."},
+ {code:'INC-GUIDE',lib:"Guide-file, serre-file et chargé d'évacuation",
+  base:"Code du travail art. R.4227-28 et R.4227-38",
+  per:12,h:3.5,pp:true,pub:"Guides-files et serre-files désignés",
+  obj:"Assurer l'évacuation totale ou partielle d'une zone : guider les occupants, vérifier que personne ne reste, rendre compte au point de rassemblement.",
+  prog:"Rôles respectifs du guide-file, du serre-file et du responsable d'évacuation — reconnaissance des cheminements et des issues — vérification des locaux — prise en charge des personnes en situation de handicap et espaces d'attente sécurisés — comptage au point de rassemblement — compte rendu."},
+ {code:'SSIAP1',lib:"Recyclage SSIAP 1 — agent de service de sécurité incendie",
+  base:"Arrêté du 2 mai 2005 modifié — ERP art. MS 46 à MS 48",
+  per:36,h:14,pp:true,certif:true,pub:"Agents SSIAP 1",
+  obj:"Maintenir les compétences d'agent de service de sécurité incendie et d'assistance à personnes conformément au référentiel.",
+  prog:"Prévention : évolution de la réglementation — Moyens de secours : SSI, moyens d'extinction — Mises en situation d'intervention : levée de doute, alarme, évacuation, accueil des secours — Exploitation du PC sécurité et du registre."},
+ {code:'SST-MAC',lib:"Maintien et actualisation des compétences de sauveteur secouriste du travail (MAC SST)",
+  base:"Code du travail art. R.4224-15 — dispositif INRS / réseau Assurance Maladie Risques professionnels",
+  per:24,h:7,pp:true,certif:true,pub:"Sauveteurs secouristes du travail",
+  obj:"Maintenir les compétences du SST : protéger, examiner, alerter et secourir, et contribuer à la prévention des risques dans l'établissement.",
+  prog:"Retour d'expérience sur les interventions — actualisation du programme national — protection et protection populationnelle — examen de la victime — alerte et information — gestes de secours (saignements, étouffement, malaise, brûlures, traumatismes, inconscience, arrêt cardiaque et DAE) — épreuves certificatives."},
+ {code:'HAB-ELEC',lib:"Recyclage de l'habilitation électrique (NF C 18-510)",
+  base:"Code du travail art. R.4544-9 et R.4544-10 — norme NF C 18-510",
+  per:36,h:7,pp:true,pub:"Personnel technique et de maintenance",
+  obj:"Actualiser les connaissances nécessaires à l'exécution en sécurité des opérations sur ou au voisinage des installations électriques, en vue du renouvellement du titre d'habilitation par l'employeur.",
+  prog:"Rappel des dangers du courant électrique — domaines de tension et zones d'environnement — rôles et limites des habilitations (B0/H0, BS, BE manœuvre, BR…) — équipements de protection individuelle et collective — procédures d'intervention et de consignation — conduite à tenir en cas d'accident ou d'incendie d'origine électrique — évaluation théorique et pratique."},
+ {code:'PRAP',lib:"Prévention des risques liés à l'activité physique (PRAP) — gestes et postures",
+  base:"Code du travail art. R.4541-8",
+  per:24,h:14,pp:true,pub:"Personnel exposé à la manutention",
+  obj:"Identifier les risques liés à l'activité physique, appliquer les principes de sécurité physique et d'économie d'effort, et proposer des améliorations de son poste.",
+  prog:"Anatomie et physiologie — atteintes de l'appareil locomoteur et facteurs de risque — analyse de la situation de travail — principes de sécurité physique et d'économie d'effort — aides techniques à la manutention — manutention des personnes (secteur sanitaire et médico-social) — pistes d'amélioration."},
+ {code:'ACC-SEC',lib:"Formation à la sécurité au poste de travail (accueil d'un nouvel arrivant)",
+  base:"Code du travail art. L.4141-2, R.4141-3 et R.4141-11",
+  per:0,h:2,pp:true,pub:"Tout nouvel arrivant (embauche, mutation, intérim)",
+  obj:"Connaître les risques du poste et de l'établissement, les consignes de sécurité, la conduite à tenir en cas d'incendie ou d'accident, et l'organisation des secours.",
+  prog:"Présentation de l'établissement et de son classement ERP — risques identifiés au DUERP — consignes générales et particulières de sécurité — circulation, issues et points de rassemblement — moyens d'alerte et de secours — équipements de protection individuelle — droit d'alerte et de retrait — émargement de la formation au poste."},
+ {code:'SSI-EXPL',lib:"Exploitation du système de sécurité incendie et levée de doute",
+  base:"Règlement de sécurité ERP art. MS 51, MS 68 et MS 69",
+  per:12,h:3.5,pp:false,pub:"Personnel d'accueil, veilleurs, techniciens",
+  obj:"Exploiter le tableau de signalisation du SSI : interpréter une alarme, réaliser la levée de doute, réarmer, et tracer l'événement au registre de sécurité.",
+  prog:"Architecture d'un SSI (SDI, CMSI, DAS) — lecture du tableau de signalisation et du report d'alarme — alarme restreinte, alarme générale, temporisation — procédure de levée de doute — réarmement et retour à l'état de veille — dérangements courants — inscription au registre de sécurité et appel du mainteneur."},
+ {code:'NUIT',lib:"Conduite à tenir en cas d'alarme incendie la nuit (personnel de nuit)",
+  base:"Règlement de sécurité ERP art. J 39 et U 47 — Code du travail art. R.4227-39",
+  per:6,h:2,pp:false,pub:"Personnel de nuit et veilleurs",
+  obj:"Réagir seul ou en effectif réduit à une alarme nocturne : levée de doute, alerte, mise en sécurité des occupants, accueil des secours.",
+  prog:"Effectif de nuit et organisation prévue au schéma d'organisation de la sécurité — conduite à tenir dès le déclenchement — priorités d'intervention en effectif réduit — transfert horizontal de nuit — alerte des secours et du cadre d'astreinte — exercice de nuit ou en conditions simulées."},
+ {code:'RISQ-CHIM',lib:"Prévention du risque chimique (produits d'entretien et agents chimiques dangereux)",
+  base:"Code du travail art. R.4412-38 et R.4412-39",
+  per:36,h:3.5,pp:true,pub:"Personnel d'entretien, cuisine, lingerie, technique",
+  obj:"Identifier les dangers des produits utilisés, lire une étiquette et une fiche de données de sécurité, appliquer les règles de stockage, de dilution et de protection.",
+  prog:"Pictogrammes CLP et mentions de danger — fiches de données de sécurité — voies de pénétration et effets sur la santé — incompatibilités et risques de mélange — stockage et rétention — équipements de protection individuelle — conduite à tenir en cas de projection, d'inhalation ou de déversement."},
+ {code:'TRAV-HAUT',lib:"Travail en hauteur et utilisation des équipements d'accès",
+  base:"Code du travail art. R.4323-58 à R.4323-90",
+  per:36,h:7,pp:true,pub:"Personnel technique et de maintenance",
+  obj:"Évaluer le risque de chute de hauteur, choisir et utiliser en sécurité les moyens d'accès et les protections adaptés.",
+  prog:"Réglementation et principes généraux de prévention — protections collectives et individuelles — échelles, escabeaux, plateformes individuelles roulantes — vérification des EPI antichute — points d'ancrage — mise en situation pratique."},
+ {code:'CACES',lib:"Conduite en sécurité des équipements de travail mobiles (CACES)",
+  base:"Code du travail art. R.4323-55 à R.4323-57 — recommandations CNAM",
+  per:60,h:14,pp:true,certif:true,pub:"Conducteurs désignés",
+  obj:"Obtenir ou renouveler le certificat d'aptitude à la conduite en sécurité en vue de la délivrance de l'autorisation de conduite par l'employeur.",
+  prog:"Technologie de l'équipement — règles de conduite et de circulation — stabilité et abaques de charge — vérifications avant prise de poste — pratique de conduite et de manœuvre — tests théorique et pratique."}
+];
+const GF_REFI=Object.fromEntries(GF_REF.map(t=>[t.code,t]));
+
+/* ── Styles du module ── */
+function gfStyle(){
+  if(document.getElementById('gf-style')) return;
+  const s=document.createElement('style'); s.id='gf-style';
+  s.textContent=`
+.gf-tabs{display:flex;gap:2px;border-bottom:2px solid #e6eaf1;margin:18px 0 16px;overflow-x:auto;scrollbar-width:none}
+.gf-tabs::-webkit-scrollbar{display:none}
+.gf-tab{position:relative;display:flex;align-items:center;gap:7px;padding:10px 14px 12px;border:none;background:none;font-family:inherit;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;white-space:nowrap;transition:color .15s}
+.gf-tab:hover{color:#1e293b}
+.gf-tab::after{content:"";position:absolute;left:10px;right:10px;bottom:-2px;height:2.5px;border-radius:2px;background:transparent;transition:background .15s}
+.gf-tab.active{color:#0f172a}.gf-tab.active::after{background:#2563eb}
+.gf-badge{min-width:20px;text-align:center;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700;background:#eef1f6;color:#475569}
+.gf-tab.active .gf-badge{background:#dbeafe;color:#1d4ed8}
+.gf-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.gf-kpi{background:#fff;border:1px solid var(--line-2,#e6eaf1);border-radius:12px;padding:14px 16px}
+.gf-kpi .k{font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#8494ab}
+.gf-kpi .v{font-size:26px;font-weight:800;line-height:1.15;margin-top:4px;color:#0f172a}
+.gf-kpi .s{font-size:11.5px;color:#64748b;margin-top:2px}
+.gf-kpi.crit{border-left:3px solid #dc2626}.gf-kpi.warn{border-left:3px solid #f59e0b}
+.gf-kpi.ok{border-left:3px solid #16a34a}.gf-kpi.inf{border-left:3px solid #2563eb}
+.gf-gauge{height:7px;border-radius:4px;background:#eef1f6;overflow:hidden;margin-top:8px}
+.gf-gauge>i{display:block;height:100%;border-radius:4px;background:#16a34a}
+.gf-st{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;border-radius:20px;padding:2px 9px;white-space:nowrap}
+.gf-st.jamais{background:#fee2e2;color:#b91c1c}.gf-st.echu{background:#fee2e2;color:#b91c1c}
+.gf-st.bientot{background:#ffedd5;color:#c2410c}.gf-st.a_jour{background:#dcfce7;color:#15803d}
+.gf-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.gf-sec{font-size:10.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:#8494ab;margin:20px 0 9px;display:flex;align-items:center;gap:8px}
+.gf-sec::after{content:"";flex:1;height:1px;background:#e6eaf1}
+.gf-oblig{border:1px solid var(--line-2,#e6eaf1);border-radius:12px;padding:14px 16px;background:#fff;margin-bottom:10px}
+.gf-oblig.off{opacity:.62;background:#fafbfc}
+.gf-oblig h4{margin:0 0 3px;font-size:13.5px;font-weight:700;color:#0f172a}
+.gf-oblig .base{font-size:11.5px;color:#64748b;line-height:1.5}
+.gf-chip{display:inline-block;font-size:11px;font-weight:600;background:#eef1f6;color:#475569;border-radius:6px;padding:2px 7px;margin:0 4px 4px 0}
+.gf-map{width:100%;font-size:12.5px;border-collapse:collapse}
+.gf-map td{padding:4px 6px;vertical-align:middle}
+.gf-empty{padding:26px 18px;text-align:center;color:#64748b;font-size:13px}
+.gf-grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+@media(max-width:620px){.gf-grid2{grid-template-columns:1fr}}
+@media(max-width:640px){.gf-kpi .v{font-size:22px}}`;
+  document.head.appendChild(s);
+}
+
+/* ── Utilitaires ── */
+const gfEsc = s => esc(s==null?'':String(s));
+function gfNum(n){ return (n==null||isNaN(n))?0:Number(n); }
+function gfDateFr(d){ if(!d) return '—'; const x=new Date(d); return isNaN(x)?'—':x.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+function gfDateIso(d){ if(!d) return ''; const x=new Date(d); return isNaN(x)?'':x.toISOString().slice(0,10); }
+function gfToday(){ return new Date().toISOString().slice(0,10); }
+function gfAddMonths(iso,m){ if(!iso||!m) return null; const d=new Date(iso); d.setMonth(d.getMonth()+Number(m)); return d.toISOString().slice(0,10); }
+function gfFullName(s){ return [(s.prenom||'').trim(),(s.nom||'').trim()].filter(Boolean).join(' ')||'—'; }
+function gfStPill(st){
+  const m={jamais:'Jamais formé',echu:'Échu',bientot:'À renouveler',a_jour:'À jour'};
+  return `<span class="gf-st ${st}">${m[st]||st}</span>`;
+}
+function gfHeures(h){ const n=gfNum(h); if(!n) return '—'; return (n%1===0?n:n.toFixed(1).replace('.',','))+' h'; }
+
+/* ── Chargement + rendu principal ── */
+async function gfRender(w,e){
+  gfStyle();
+  w.innerHTML=loadingBlock();
+  try{
+    const erpId=e.id;
+    const [obR,stR,seR,covR,docR,smsR,mailR,envR,respR]=await Promise.all([
+      sb.from('of_obligations').select('*').eq('erp_id',erpId).order('libelle'),
+      sb.from('of_stagiaires').select('*').eq('erp_id',erpId).order('nom'),
+      sb.from('of_sessions').select('*').eq('erp_id',erpId).order('date_debut',{ascending:false}),
+      sb.from('v_of_couverture_erp').select('*').eq('erp_id',erpId),
+      sb.from('of_documents').select('*').eq('erp_id',erpId).order('created_at',{ascending:false}).limit(200),
+      sb.from('sms_scheduled').select('*').eq('erp_id',erpId).order('send_at',{ascending:false}).limit(200),
+      sb.from('emails_programmes').select('id,type,destinataires,sujet,send_at,statut,sent_at').eq('erp_id',erpId).order('send_at',{ascending:false}).limit(200),
+      sb.from('of_envois').select('*').eq('erp_id',erpId).order('created_at',{ascending:false}).limit(300),
+      sb.from('of_responsables').select('*').eq('erp_id',erpId).order('service')
+    ]);
+    const sessions=seR.data||[];
+    let ins=[];
+    if(sessions.length){
+      const {data}=await sb.from('of_inscriptions').select('*').in('session_id',sessions.map(s=>s.id));
+      ins=data||[];
+    }
+    const cl=(state.clients||[]).find(c=>c.id===e.client_id)||{};
+    window._gf={e,cl,ob:obR.data||[],st:stR.data||[],se:sessions,ins,cov:covR.data||[],docs:docR.data||[],
+      rlSms:(smsR&&smsR.data)||[],rlMail:(mailR&&mailR.data)||[],rlEnv:(envR&&envR.data)||[],
+      resp:(respR&&respR.data)||[]};
+    gfShell();
+  }catch(err){ w.innerHTML=errBlock(err); }
+}
+window.gfRender=gfRender;
+
+function gfShell(tab){
+  const g=window._gf; if(!g) return;
+  const w=document.getElementById('erptab'); if(!w) return;
+  g.tab=tab||g.tab||'pilotage';
+  const alertes=g.cov.filter(c=>c.statut==='jamais'||c.statut==='echu').length;
+  const tabs=[
+    ['pilotage','Pilotage',alertes||''],
+    ['effectif','Effectif',g.st.filter(s=>s.actif!==false).length],
+    ['obligations','Thèmes & obligations',g.ob.filter(o=>o.actif!==false).length],
+    ['sessions','Sessions',g.se.length],
+    ['relances','Relances',(g.rlSms||[]).filter(x=>x.statut==='pending').length+(g.rlMail||[]).filter(x=>x.statut==='pending').length||''],
+    ['documents','Documents',g.docs.length]
+  ];
+  w.innerHTML=`<div class="gf-tabs">${tabs.map(t=>
+    `<button class="gf-tab ${g.tab===t[0]?'active':''}" onclick="gfShell('${t[0]}')">${t[1]}${t[2]!==''?` <span class="gf-badge">${t[2]}</span>`:''}</button>`).join('')}</div>
+    <div id="gfbody"></div>`;
+  const b=document.getElementById('gfbody');
+  if(g.tab==='pilotage')    gfTabPilotage(b);
+  else if(g.tab==='effectif')    gfTabEffectif(b);
+  else if(g.tab==='obligations') gfTabObligations(b);
+  else if(g.tab==='sessions')    gfTabSessions(b);
+  else if(g.tab==='relances')    gfTabRelances(b);
+  else                           gfTabDocuments(b);
+  try{ enhanceTables(b); }catch(_){}
+}
+window.gfShell=gfShell;
+
+async function gfReload(tab){
+  const g=window._gf; if(!g) return;
+  const t=tab||g.tab;
+  const w=document.getElementById('erptab'); if(!w) return;
+  await gfRender(w,g.e);
+  gfShell(t);
+}
+window.gfReload=gfReload;
+
+/* =====================================================================
+   ONGLET 1 — PILOTAGE (vue directeur)
+===================================================================== */
+function gfTabPilotage(b){
+  const g=window._gf;
+  if(!g.ob.filter(o=>o.actif!==false).length){
+    b.innerHTML=emptyBlock('🎓','Aucun thème de formation activé',
+      "Commencez par activer les thèmes réglementaires qui s'appliquent à cet établissement : ils déterminent qui doit être formé, à quelle fréquence et sur quelle base réglementaire.",
+      `<button class="btn primary" onclick="gfShell('obligations')">Choisir les thèmes de formation</button>`);
+    return;
+  }
+  if(!g.st.filter(s=>s.actif!==false).length){
+    b.innerHTML=emptyBlock('👥','Aucun salarié enregistré',
+      "Importez l'effectif de l'établissement depuis un fichier Excel (ou ajoutez les salariés un par un) pour calculer la couverture de chaque obligation.",
+      `<button class="btn primary" onclick="gfShell('effectif')">Importer l'effectif</button>`);
+    return;
+  }
+  const cov=g.cov;
+  const tot=cov.length;
+  const nb=s=>cov.filter(c=>c.statut===s).length;
+  const aJour=nb('a_jour'), bientot=nb('bientot'), echu=nb('echu'), jamais=nb('jamais');
+  const taux=tot?Math.round(aJour*100/tot):0;
+  const nonConf=echu+jamais;
+  const salNonConf=new Set(cov.filter(c=>c.statut==='echu'||c.statut==='jamais').map(c=>c.stagiaire_id)).size;
+  const sessAVenir=g.se.filter(s=>s.statut!=='annulee'&&s.date_debut&&s.date_debut>=gfToday()).length;
+  const anneeHeures=g.se.filter(s=>s.statut==='realisee'&&s.date_fin&&s.date_fin.slice(0,4)===String(new Date().getFullYear()))
+    .reduce((a,s)=>a+gfNum(s.duree_heures)*g.ins.filter(i=>i.session_id===s.id&&i.presente!==false).length,0);
+
+  /* Regroupement par obligation */
+  const parOb={};
+  cov.forEach(c=>{ (parOb[c.obligation_id]=parOb[c.obligation_id]||{o:c,l:[]}).l.push(c); });
+  const lignes=Object.values(parOb).sort((a,b2)=>{
+    const na=a.l.filter(x=>x.statut==='echu'||x.statut==='jamais').length;
+    const nb2=b2.l.filter(x=>x.statut==='echu'||x.statut==='jamais').length;
+    return nb2-na;
+  });
+
+  /* Prochaines échéances (90 j) */
+  const lim=new Date(); lim.setDate(lim.getDate()+90);
+  const proch=cov.filter(c=>c.echeance&&new Date(c.echeance)<=lim).sort((a,b2)=>String(a.echeance).localeCompare(String(b2.echeance))).slice(0,25);
+
+  b.innerHTML=`
+  <div class="gf-kpis">
+    <div class="gf-kpi ${taux>=90?'ok':taux>=70?'warn':'crit'}">
+      <div class="k">Conformité formation</div><div class="v">${taux}%</div>
+      <div class="s">${aJour} obligation${aJour>1?'s':''} sur ${tot} à jour</div>
+      <div class="gf-gauge"><i style="width:${taux}%;background:${taux>=90?'#16a34a':taux>=70?'#f59e0b':'#dc2626'}"></i></div>
+    </div>
+    <div class="gf-kpi crit"><div class="k">Non conformes</div><div class="v">${nonConf}</div>
+      <div class="s">${jamais} jamais formé${jamais>1?'s':''} · ${echu} échu${echu>1?'s':''}</div></div>
+    <div class="gf-kpi warn"><div class="k">À renouveler &lt; ${g.ob[0]&&g.ob[0].alerte_avant_jours?g.ob[0].alerte_avant_jours:60} j</div><div class="v">${bientot}</div>
+      <div class="s">à programmer sans tarder</div></div>
+    <div class="gf-kpi inf"><div class="k">Salariés à former</div><div class="v">${salNonConf}</div>
+      <div class="s">sur ${g.st.filter(s=>s.actif!==false).length} salariés actifs</div></div>
+    <div class="gf-kpi inf"><div class="k">Sessions à venir</div><div class="v">${sessAVenir}</div>
+      <div class="s">${Math.round(anneeHeures)} h stagiaire réalisées en ${new Date().getFullYear()}</div></div>
+  </div>
+
+  <div class="gf-row" style="margin-bottom:14px">
+    <button class="btn primary" onclick="gfSessionModal()">＋ Déclencher une formation</button>
+    <button class="btn" onclick="gfRappelModal()">🔔 Rappel à la direction</button>
+    <button class="btn" onclick="gfRetardModal()">📣 Relancer les salariés en retard</button>
+    <button class="btn" onclick="gfPdfPlanAnnuel()">📄 Plan annuel de formation</button>
+    <button class="btn" onclick="gfPdfBilanAnnuel()">📊 Bilan annuel</button>
+    <button class="btn" onclick="gfExportSuivi()">⤓ Export Excel du suivi</button>
+  </div>
+
+  <div class="gf-sec">Couverture par obligation</div>
+  <div class="card" style="padding:0;overflow:hidden"><div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Obligation</th><th>Concernés</th><th>À jour</th><th>À renouveler</th><th>Non conformes</th><th>Couverture</th><th></th></tr></thead>
+    <tbody>${lignes.map(L=>{
+      const n=L.l.length, aj=L.l.filter(x=>x.statut==='a_jour').length,
+            bi=L.l.filter(x=>x.statut==='bientot').length,
+            nc=L.l.filter(x=>x.statut==='echu'||x.statut==='jamais').length;
+      const p=n?Math.round(aj*100/n):0;
+      return `<tr>
+        <td><b>${gfEsc(L.o.obligation)}</b><div style="font-size:11.5px;color:var(--muted)">${gfEsc(L.o.base_reglementaire)||''}${L.o.periodicite_mois?' · tous les '+L.o.periodicite_mois+' mois':' · à l\'embauche'}</div></td>
+        <td>${n}</td>
+        <td style="color:#15803d;font-weight:700">${aj}</td>
+        <td style="color:#c2410c;font-weight:700">${bi||'—'}</td>
+        <td style="color:#b91c1c;font-weight:700">${nc||'—'}</td>
+        <td style="min-width:110px"><div class="gf-gauge"><i style="width:${p}%;background:${p>=90?'#16a34a':p>=70?'#f59e0b':'#dc2626'}"></i></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">${p}%</div></td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="btn sm" onclick="gfDetailOblig('${L.o.obligation_id}')">Détail</button>
+          ${nc+bi?`<button class="btn sm primary" onclick="gfSessionModal('${L.o.obligation_id}')">Programmer</button>`:''}
+        </td></tr>`;
+    }).join('')}</tbody></table></div></div>
+
+  <div class="gf-sec">Échéances des 90 prochains jours</div>
+  ${proch.length?`<div class="card" style="padding:0;overflow:hidden"><div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Échéance</th><th>Salarié</th><th>Service</th><th>Formation</th><th>Dernière</th><th>Statut</th></tr></thead>
+    <tbody>${proch.map(c=>`<tr>
+      <td><b>${gfDateFr(c.echeance)}</b></td>
+      <td>${gfEsc(gfFullName(c))}</td>
+      <td style="font-size:12.5px;color:var(--muted)">${gfEsc(c.service)||'—'}</td>
+      <td style="font-size:12.5px">${gfEsc(c.obligation)}</td>
+      <td style="font-size:12.5px;color:var(--muted)">${gfDateFr(c.derniere_date)}</td>
+      <td>${gfStPill(c.statut)}</td></tr>`).join('')}</tbody></table></div></div>`
+   :`<div class="card"><div class="gf-empty">Aucune échéance dans les 90 prochains jours.</div></div>`}`;
+}
+
+window.gfDetailOblig=function(obId){
+  const g=window._gf;
+  const l=g.cov.filter(c=>c.obligation_id===obId);
+  const o=g.ob.find(x=>x.id===obId)||{};
+  const ordre={jamais:0,echu:1,bientot:2,a_jour:3};
+  l.sort((a,b)=>(ordre[a.statut]-ordre[b.statut])||String(a.nom).localeCompare(String(b.nom)));
+  openModal(`<div class="modal-head"><h3>${gfEsc(o.libelle)}</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px">${gfEsc(o.base_reglementaire)||''}${o.periodicite_mois?` — périodicité ${o.periodicite_mois} mois`:' — à l\'embauche'}${o.duree_heures?` — ${gfHeures(o.duree_heures)}`:''}</div>
+    <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Salarié</th><th>Fonction</th><th>Service</th><th>Dernière</th><th>Échéance</th><th>Statut</th></tr></thead>
+    <tbody>${l.map(c=>`<tr><td><b>${gfEsc(gfFullName(c))}</b></td><td style="font-size:12.5px">${gfEsc(c.fonction)||'—'}</td>
+      <td style="font-size:12.5px">${gfEsc(c.service)||'—'}</td><td style="font-size:12.5px">${gfDateFr(c.derniere_date)}</td>
+      <td style="font-size:12.5px">${gfDateFr(c.echeance)}</td><td>${gfStPill(c.statut)}</td></tr>`).join('')}</tbody></table></div>
+  </div>
+  <div class="modal-foot"><button class="btn" onclick="closeModal()">Fermer</button>
+    <button class="btn primary" onclick="closeModal();gfSessionModal('${obId}')">Programmer une session</button></div>`,'wide');
+};
+
+/* =====================================================================
+   ONGLET 2 — EFFECTIF (import Excel + fiches salariés)
+===================================================================== */
+function gfTabEffectif(b){
+  const g=window._gf;
+  const actifs=g.st.filter(s=>s.actif!==false);
+  const services=[...new Set(g.st.map(s=>s.service).filter(Boolean))].sort();
+  const f=window._gfFiltEff||{q:'',svc:'',st:''};
+  let list=g.st.slice();
+  if(f.st==='actif') list=list.filter(s=>s.actif!==false);
+  else if(f.st==='inactif') list=list.filter(s=>s.actif===false);
+  if(f.svc) list=list.filter(s=>s.service===f.svc);
+  if(f.q){ const q=f.q.toLowerCase(); list=list.filter(s=>[s.nom,s.prenom,s.matricule,s.fonction,s.email].filter(Boolean).join(' ').toLowerCase().includes(q)); }
+  list.sort((a,b2)=>String(a.nom||'').localeCompare(String(b2.nom||'')));
+
+  const covBySt={};
+  g.cov.forEach(c=>{ (covBySt[c.stagiaire_id]=covBySt[c.stagiaire_id]||[]).push(c); });
+
+  b.innerHTML=`
+  <div class="gf-row" style="margin-bottom:14px">
+    <button class="btn primary" onclick="gfImportModal()">⤒ Importer un fichier Excel</button>
+    <button class="btn" onclick="gfStagiaireModal()">＋ Ajouter un salarié</button>
+    <button class="btn" onclick="gfModeleExcel()">⤓ Modèle de fichier</button>
+    <span style="flex:1"></span>
+    <input id="gf_q" placeholder="Rechercher…" value="${gfEsc(f.q)}" style="max-width:200px" oninput="window._gfFiltEff={q:this.value,svc:document.getElementById('gf_svc').value,st:document.getElementById('gf_stt').value};clearTimeout(window._gfT);window._gfT=setTimeout(()=>gfShell('effectif'),250)">
+    <select id="gf_svc" onchange="window._gfFiltEff={q:document.getElementById('gf_q').value,svc:this.value,st:document.getElementById('gf_stt').value};gfShell('effectif')">
+      <option value="">Tous les services</option>${services.map(s=>`<option ${f.svc===s?'selected':''}>${gfEsc(s)}</option>`).join('')}</select>
+    <select id="gf_stt" onchange="window._gfFiltEff={q:document.getElementById('gf_q').value,svc:document.getElementById('gf_svc').value,st:this.value};gfShell('effectif')">
+      <option value="">Tous</option><option value="actif" ${f.st==='actif'?'selected':''}>Actifs</option><option value="inactif" ${f.st==='inactif'?'selected':''}>Sortis</option></select>
+  </div>
+  ${(()=>{const R=(g.resp||[]).filter(r=>r.actif!==false);
+    const svcSans=services.filter(sv=>!R.some(r=>r.service===sv));
+    return `<div class="card" style="padding:14px 16px;margin-bottom:14px">
+      <div class="gf-row" style="margin-bottom:${R.length?'10px':'0'}">
+        <b style="font-size:13px">Responsables de service</b>
+        <span style="font-size:12px;color:var(--muted)">— destinataires de la feuille de présence et des listes d'agents convoqués</span>
+        <span style="flex:1"></span>
+        <button class="btn sm primary" onclick="gfRespModal()">＋ Ajouter</button>
+      </div>
+      ${R.length?`<div style="display:flex;flex-wrap:wrap;gap:8px">${R.map(r=>`
+        <span class="gf-chip" style="background:#eef2ff;color:#3730a3;cursor:pointer;padding:5px 10px" onclick="gfRespModal('${r.id}')">
+          <b>${gfEsc(r.nom)}</b> · ${gfEsc(r.service)}${r.email?'':' ⚠ sans e-mail'}</span>`).join('')}</div>`:''}
+      ${svcSans.length?`<div style="font-size:12px;color:#c2410c;margin-top:${R.length?'10px':'8px'}">
+        Services sans responsable : ${svcSans.map(gfEsc).join(', ')}.</div>`:''}
+    </div>`;})()}
+  <div style="font-size:12px;color:var(--muted);margin-bottom:10px">${actifs.length} salarié${actifs.length>1?'s':''} actif${actifs.length>1?'s':''}${g.st.length!==actifs.length?` · ${g.st.length-actifs.length} sorti(s)`:''} — ${list.length} affiché(s)</div>
+  ${list.length?`<div class="card" style="padding:0;overflow:hidden"><div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Salarié</th><th>Matricule</th><th>Fonction</th><th>Service</th><th>Entrée</th><th>Conformité</th><th></th></tr></thead>
+    <tbody>${list.map(s=>{
+      const c=covBySt[s.id]||[];
+      const nc=c.filter(x=>x.statut==='echu'||x.statut==='jamais').length;
+      const bi=c.filter(x=>x.statut==='bientot').length;
+      const badge=!c.length?'<span style="color:var(--muted);font-size:12px">—</span>'
+        :nc?`<span class="gf-st echu">${nc} non conforme${nc>1?'s':''}</span>`
+        :bi?`<span class="gf-st bientot">${bi} à renouveler</span>`
+        :'<span class="gf-st a_jour">À jour</span>';
+      return `<tr${s.actif===false?' style="opacity:.55"':''}>
+        <td><b>${gfEsc(gfFullName(s))}</b>${s.email?`<div style="font-size:11.5px;color:var(--muted)">${gfEsc(s.email)}</div>`:''}</td>
+        <td style="font-size:12.5px">${gfEsc(s.matricule)||'—'}</td>
+        <td style="font-size:12.5px">${gfEsc(s.fonction)||'—'}</td>
+        <td style="font-size:12.5px">${gfEsc(s.service)||'—'}</td>
+        <td style="font-size:12.5px">${gfDateFr(s.date_entree)}</td>
+        <td>${badge}</td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="btn sm" onclick="gfFicheSalarie('${s.id}')">Parcours</button>
+          <button class="btn sm" onclick="gfStagiaireModal('${s.id}')">Modifier</button>
+        </td></tr>`;
+    }).join('')}</tbody></table></div></div>`
+  :`<div class="card"><div class="gf-empty">Aucun salarié ne correspond à cette recherche.</div></div>`}`;
+}
+
+window.gfFicheSalarie=function(id){
+  const g=window._gf;
+  const s=g.st.find(x=>x.id===id); if(!s) return;
+  const c=(g.cov||[]).filter(x=>x.stagiaire_id===id);
+  const insList=g.ins.filter(i=>i.stagiaire_id===id);
+  const hist=insList.map(i=>({i,se:g.se.find(x=>x.id===i.session_id)})).filter(x=>x.se)
+    .sort((a,b)=>String(b.se.date_debut||'').localeCompare(String(a.se.date_debut||'')));
+  openModal(`<div class="modal-head"><h3>${gfEsc(gfFullName(s))}</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:14px">
+      ${[s.fonction,s.service,s.matricule?'Mat. '+s.matricule:'',s.date_entree?'Entrée le '+gfDateFr(s.date_entree):''].filter(Boolean).map(gfEsc).join(' · ')}</div>
+    <div class="gf-sec">Obligations applicables</div>
+    ${c.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Formation</th><th>Dernière</th><th>Échéance</th><th>Statut</th></tr></thead>
+      <tbody>${c.map(x=>`<tr><td style="font-size:12.5px">${gfEsc(x.obligation)}</td><td style="font-size:12.5px">${gfDateFr(x.derniere_date)}</td>
+        <td style="font-size:12.5px">${gfDateFr(x.echeance)}</td><td>${gfStPill(x.statut)}</td></tr>`).join('')}</tbody></table></div>`
+     :'<div class="gf-empty">Aucune obligation ne cible ce salarié (vérifiez le service et la fonction).</div>'}
+    <div class="gf-sec">Parcours de formation</div>
+    ${hist.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Date</th><th>Formation</th><th>Durée</th><th>Présence</th><th>Résultat</th></tr></thead>
+      <tbody>${hist.map(h=>`<tr><td style="font-size:12.5px">${gfDateFr(h.se.date_debut)}</td><td style="font-size:12.5px">${gfEsc(h.se.intitule)}</td>
+        <td style="font-size:12.5px">${gfHeures(h.se.duree_heures)}</td>
+        <td style="font-size:12.5px">${h.i.presente===false?'<span style="color:#b91c1c">Absent</span>':h.se.statut==='realisee'?'<span style="color:#15803d">Présent</span>':'—'}</td>
+        <td style="font-size:12.5px">${gfEsc(h.i.resultat_evaluation)||'—'}</td></tr>`).join('')}</tbody></table></div>`
+     :'<div class="gf-empty">Aucune formation enregistrée pour ce salarié.</div>'}
+  </div>
+  <div class="modal-foot"><button class="btn" onclick="closeModal()">Fermer</button>
+    <button class="btn primary" onclick="gfPdfParcours('${id}')">📄 Attestation de parcours</button></div>`,'wide');
+};
+
+window.gfStagiaireModal=function(id){
+  const g=window._gf;
+  const s=id?g.st.find(x=>x.id===id):null;
+  const services=[...new Set(g.st.map(x=>x.service).filter(Boolean))].sort();
+  openModal(`<div class="modal-head"><h3>${s?'Modifier le salarié':'Nouveau salarié'}</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div class="gf-grid2">
+      <div class="fld"><label>Nom <span class="req">*</span></label><input id="gs_nom" value="${gfEsc(s&&s.nom)}"></div>
+      <div class="fld"><label>Prénom</label><input id="gs_pre" value="${gfEsc(s&&s.prenom)}"></div>
+      <div class="fld"><label>Nom de naissance <span style="font-weight:400;color:var(--muted)">(passeport de prévention)</span></label><input id="gs_nn" value="${gfEsc(s&&s.nom_naissance)}"></div>
+      <div class="fld"><label>Matricule</label><input id="gs_mat" value="${gfEsc(s&&s.matricule)}"></div>
+      <div class="fld"><label>Fonction</label><input id="gs_fx" value="${gfEsc(s&&s.fonction)}"></div>
+      <div class="fld"><label>Service</label><input id="gs_svc" list="gs_svcl" value="${gfEsc(s&&s.service)}">
+        <datalist id="gs_svcl">${services.map(x=>`<option>${gfEsc(x)}</option>`).join('')}</datalist></div>
+      <div class="fld"><label>E-mail</label><input id="gs_mail" type="email" value="${gfEsc(s&&s.email)}"></div>
+      <div class="fld"><label>Téléphone</label><input id="gs_tel" value="${gfEsc(s&&s.telephone)}"></div>
+      <div class="fld"><label>Date d'entrée</label><input id="gs_ent" type="date" value="${gfDateIso(s&&s.date_entree)}"></div>
+      <div class="fld"><label>Date de sortie</label><input id="gs_sor" type="date" value="${gfDateIso(s&&s.date_sortie)}"></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-top:6px">
+      <input type="checkbox" id="gs_act" ${!s||s.actif!==false?'checked':''}> Salarié présent dans l'effectif</label>
+  </div>
+  <div class="modal-foot">
+    ${s?`<button class="btn danger" onclick="gfStagiaireDel('${s.id}')">Supprimer</button>`:''}
+    <span style="flex:1"></span>
+    <button class="btn" onclick="closeModal()">Annuler</button>
+    <button class="btn primary" onclick="gfStagiaireSave('${s?s.id:''}')">Enregistrer</button></div>`);
+};
+
+window.gfStagiaireSave=async function(id){
+  const g=window._gf;
+  const v=x=>{const el=document.getElementById(x);return el?el.value.trim():'';};
+  const nom=v('gs_nom'); if(!nom){ toast('Le nom est obligatoire','err'); return; }
+  const pl={erp_id:g.e.id,client_id:g.e.client_id,nom,prenom:v('gs_pre')||null,nom_naissance:v('gs_nn')||null,
+    matricule:v('gs_mat')||null,fonction:v('gs_fx')||null,service:v('gs_svc')||null,
+    email:v('gs_mail')||null,telephone:v('gs_tel')||null,
+    date_entree:v('gs_ent')||null,date_sortie:v('gs_sor')||null,
+    actif:document.getElementById('gs_act').checked,source:'saisie'};
+  try{
+    const q=id?sb.from('of_stagiaires').update(pl).eq('id',id):sb.from('of_stagiaires').insert(pl);
+    const {error}=await q; if(error) throw error;
+    _modalDirty=false; closeModal(); toast('Salarié enregistré ✓','ok'); gfReload('effectif');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+window.gfStagiaireDel=async function(id){
+  if(!confirm('Supprimer définitivement ce salarié et son historique de formation ?')) return;
+  try{
+    await sb.from('of_inscriptions').delete().eq('stagiaire_id',id);
+    const {error}=await sb.from('of_stagiaires').delete().eq('id',id); if(error) throw error;
+    _modalDirty=false; closeModal(); toast('Salarié supprimé','ok'); gfReload('effectif');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+/* ── Modèle de fichier Excel ── */
+window.gfModeleExcel=function(){
+  if(!window.XLSX){ toast('Bibliothèque Excel non chargée','err'); return; }
+  const ws=XLSX.utils.aoa_to_sheet([
+    ['Nom','Prénom','Nom de naissance','Matricule','Fonction','Service','E-mail','Téléphone','Date d\'entrée'],
+    ['DUPONT','Marie','MARTIN','A102','Aide-soignante','Hébergement 1','m.dupont@exemple.fr','0600000000','2021-03-15'],
+    ['BERNARD','Luc','','A103','Agent technique','Services techniques','','','2019-09-01']
+  ]);
+  ws['!cols']=[{wch:18},{wch:14},{wch:18},{wch:12},{wch:22},{wch:20},{wch:26},{wch:14},{wch:13}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Effectif');
+  XLSX.writeFile(wb,'modele-effectif.xlsx');
+};
+
+/* ── Import Excel de l'effectif ── */
+window.gfImportModal=function(){
+  openModal(`<div class="modal-head"><h3>Importer l'effectif</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <p style="font-size:13px;color:var(--muted);line-height:1.6;margin:0 0 14px">
+      Déposez le fichier Excel du personnel (.xlsx, .xls ou .csv). La première ligne doit contenir les intitulés de colonnes.
+      Vous choisirez ensuite quelle colonne correspond à quelle information.</p>
+    <input type="file" id="gf_file" accept=".xlsx,.xls,.csv" style="font-size:13px">
+    <div id="gf_map_zone" style="margin-top:16px"></div>
+  </div>
+  <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+    <button class="btn primary" id="gf_imp_btn" style="display:none" onclick="gfImportRun()">Importer</button></div>`,'wide');
+  document.getElementById('gf_file').onchange=function(){ gfImportRead(this.files[0]); };
+};
+
+function gfImportRead(f){
+  if(!f) return;
+  if(!window.XLSX){ toast('Bibliothèque Excel non chargée','err'); return; }
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array',cellDates:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+      const head=(rows[0]||[]).map(x=>String(x||'').trim());
+      const body=rows.slice(1).filter(r2=>r2.some(c=>String(c||'').trim()!==''));
+      if(!head.length||!body.length){ toast('Fichier vide ou illisible','err'); return; }
+      window._gfImp={head,body,file:f.name};
+      gfImportMapUI();
+    }catch(e){ toast('Lecture impossible : '+(e.message||e),'err'); }
+  };
+  r.readAsArrayBuffer(f);
+}
+
+function gfImportMapUI(){
+  const {head,body}=window._gfImp;
+  const champs=[['nom','Nom',1],['prenom','Prénom',0],['nom_naissance','Nom de naissance',0],['matricule','Matricule',0],
+    ['fonction','Fonction',0],['service','Service',0],['email','E-mail',0],['telephone','Téléphone',0],['date_entree',"Date d'entrée",0]];
+  const norm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z]/g,'');
+  const devine={nom:['nom','nomsalarie','nomdefamille','nomusage'],prenom:['prenom'],nom_naissance:['nomdenaissance','nomnaissance','nomjeunefille'],
+    matricule:['matricule','matr','id','identifiant','numsalarie'],fonction:['fonction','poste','emploi','metier','qualification'],
+    service:['service','unite','pole','secteur','etage','departement','affectation'],email:['email','mail','courriel','adressemail'],
+    telephone:['telephone','tel','portable','mobile'],date_entree:['dateentree','entree','dateembauche','embauche','anciennete']};
+  const auto={};
+  champs.forEach(([k])=>{
+    const idx=head.findIndex(h=>(devine[k]||[]).includes(norm(h)));
+    auto[k]=idx>=0?idx:(head.findIndex(h=>norm(h).startsWith(norm(k)))); });
+  document.getElementById('gf_map_zone').innerHTML=`
+    <div class="gf-sec">Correspondance des colonnes</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">${body.length} ligne${body.length>1?'s':''} détectée${body.length>1?'s':''} dans « ${gfEsc(window._gfImp.file)} ».</div>
+    <table class="gf-map">${champs.map(([k,lbl,req])=>`<tr>
+      <td style="width:42%;font-weight:600">${lbl}${req?' <span class="req">*</span>':''}</td>
+      <td><select id="gm_${k}" style="width:100%">
+        <option value="">— ignorer —</option>
+        ${head.map((h,i)=>`<option value="${i}" ${auto[k]===i?'selected':''}>${gfEsc(h)||('Colonne '+(i+1))}</option>`).join('')}
+      </select></td></tr>`).join('')}</table>
+    <div class="gf-sec">Options</div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" id="gm_maj" checked>
+      Mettre à jour les salariés déjà présents (rapprochement sur le matricule, sinon nom + prénom)</label>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-top:6px"><input type="checkbox" id="gm_sortie">
+      Marquer comme sortis les salariés absents du fichier</label>`;
+  document.getElementById('gf_imp_btn').style.display='';
+}
+
+window.gfImportRun=async function(){
+  const g=window._gf, imp=window._gfImp; if(!imp) return;
+  const btn=document.getElementById('gf_imp_btn'); btn.disabled=true; btn.textContent='Import en cours…';
+  const gi=k=>{const el=document.getElementById('gm_'+k); return el&&el.value!==''?Number(el.value):null;};
+  const cols={nom:gi('nom'),prenom:gi('prenom'),nom_naissance:gi('nom_naissance'),matricule:gi('matricule'),
+    fonction:gi('fonction'),service:gi('service'),email:gi('email'),telephone:gi('telephone'),date_entree:gi('date_entree')};
+  if(cols.nom===null){ toast('La colonne « Nom » est obligatoire','err'); btn.disabled=false; btn.textContent='Importer'; return; }
+  const maj=document.getElementById('gm_maj').checked, sortie=document.getElementById('gm_sortie').checked;
+  const val=(r,k)=>cols[k]===null?null:(String(r[cols[k]]==null?'':r[cols[k]]).trim()||null);
+  const toIso=v=>{ if(!v) return null; const m=String(v).match(/^(\d{2})[\/\-.](\d{2})[\/\-.](\d{4})$/); if(m) return m[3]+'-'+m[2]+'-'+m[1];
+    const d=new Date(v); return isNaN(d)?null:d.toISOString().slice(0,10); };
+  const key=s=>(s.matricule?'M:'+String(s.matricule).toLowerCase():'N:'+String(s.nom||'').toLowerCase()+'|'+String(s.prenom||'').toLowerCase());
+  const exist={}; g.st.forEach(s=>{ exist[key(s)]=s; });
+  let cree=0,misAJour=0,ignore=0; const vus=new Set(); const erreurs=[];
+  try{
+    for(const r of imp.body){
+      const nom=val(r,'nom'); if(!nom){ ignore++; continue; }
+      const rec={erp_id:g.e.id,client_id:g.e.client_id,nom,prenom:val(r,'prenom'),nom_naissance:val(r,'nom_naissance'),
+        matricule:val(r,'matricule'),fonction:val(r,'fonction'),service:val(r,'service'),
+        email:val(r,'email'),telephone:val(r,'telephone'),date_entree:toIso(val(r,'date_entree')),actif:true,source:'import'};
+      const k=key(rec); vus.add(k);
+      const old=exist[k];
+      if(old){
+        if(!maj){ ignore++; continue; }
+        const patch={}; Object.keys(rec).forEach(c=>{ if(rec[c]!==null&&rec[c]!==old[c]) patch[c]=rec[c]; });
+        if(Object.keys(patch).length){ const {error}=await sb.from('of_stagiaires').update(patch).eq('id',old.id); if(error){erreurs.push(nom+' : '+error.message);continue;} misAJour++; }
+        else ignore++;
+      }else{
+        const {error}=await sb.from('of_stagiaires').insert(rec); if(error){erreurs.push(nom+' : '+error.message);continue;} cree++;
+      }
+    }
+    let sortis=0;
+    if(sortie){
+      for(const s of g.st){ if(s.actif===false) continue; if(!vus.has(key(s))){
+        await sb.from('of_stagiaires').update({actif:false,date_sortie:s.date_sortie||gfToday()}).eq('id',s.id); sortis++; } }
+    }
+    await sb.from('of_imports').insert({erp_id:g.e.id,client_id:g.e.client_id,fichier_nom:imp.file,mapping:cols,
+      lignes_total:imp.body.length,lignes_creees:cree,lignes_maj:misAJour,lignes_ignorees:ignore,
+      erreurs:erreurs.length?erreurs.slice(0,50):null,origine:'admin',importe_par:state.user&&state.user.id});
+    _modalDirty=false; closeModal();
+    toast(`Import terminé : ${cree} créé(s), ${misAJour} mis à jour${sortis?', '+sortis+' sorti(s)':''}${erreurs.length?', '+erreurs.length+' erreur(s)':''}`, erreurs.length?'':'ok');
+    gfReload('effectif');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Importer'; }
+};
+
+/* ── Export Excel du suivi ── */
+window.gfExportSuivi=function(){
+  const g=window._gf;
+  if(!window.XLSX){ toast('Bibliothèque Excel non chargée','err'); return; }
+  const rows=[['Nom','Prénom','Matricule','Fonction','Service','Formation','Base réglementaire','Périodicité (mois)','Dernière formation','Échéance','Statut']];
+  const lib={jamais:'Jamais formé',echu:'Échu',bientot:'À renouveler',a_jour:'À jour'};
+  g.cov.slice().sort((a,b)=>String(a.nom).localeCompare(String(b.nom))).forEach(c=>{
+    rows.push([c.nom||'',c.prenom||'',c.matricule||'',c.fonction||'',c.service||'',c.obligation||'',
+      c.base_reglementaire||'',c.periodicite_mois||'',gfDateFr(c.derniere_date),gfDateFr(c.echeance),lib[c.statut]||c.statut]);
+  });
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:18},{wch:14},{wch:11},{wch:22},{wch:20},{wch:42},{wch:46},{wch:12},{wch:14},{wch:14},{wch:14}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Suivi formation');
+  XLSX.writeFile(wb,'suivi-formation-'+(g.e.code_erp||'etab')+'-'+gfToday()+'.xlsx');
+};
+
+/* =====================================================================
+   ONGLET 3 — THÈMES & OBLIGATIONS
+===================================================================== */
+function gfTabObligations(b){
+  const g=window._gf;
+  const parCode={}; g.ob.forEach(o=>{ if(o.theme_code) parCode[o.theme_code]=o; });
+  const sur=g.ob.filter(o=>!o.theme_code);
+  const services=[...new Set(g.st.map(s=>s.service).filter(Boolean))].sort();
+  const typeErp=(g.e.type_erp||'').toUpperCase();
+  const conseil=c=>{
+    if(['INC-TRANS','NUIT'].includes(c)) return (typeErp.includes('J')||typeErp.includes('U'))?'Recommandé pour cet établissement (type '+gfEsc(g.e.type_erp)+')':'';
+    if(c==='INC-EXER'||c==='INC-EPI'||c==='ACC-SEC') return 'Obligation générale — applicable à tout établissement';
+    return '';
+  };
+  b.innerHTML=`
+  <div style="font-size:13px;color:var(--muted);line-height:1.65;margin-bottom:16px;max-width:800px">
+    Activez les thèmes qui s'appliquent à cet établissement. Chaque thème activé devient une <b>obligation suivie</b> :
+    l'application calcule alors, pour chaque salarié concerné, la date de la dernière formation, l'échéance et l'alerte de renouvellement.
+    Vous pouvez restreindre un thème à certains services ou à certaines fonctions.
+  </div>
+  <div class="gf-row" style="margin-bottom:14px">
+    <button class="btn" onclick="gfObligModal()">＋ Thème sur mesure</button>
+    <button class="btn" onclick="gfActiverSocle()">⚡ Activer le socle réglementaire</button>
+  </div>
+  <div class="gf-sec">Référentiel réglementaire</div>
+  ${GF_REF.map(t=>{
+    const o=parCode[t.code], on=o&&o.actif!==false;
+    const cibles=o?[...(o.services||[]),...(o.fonctions||[])]:[];
+    const nbConcernes=o?new Set(g.cov.filter(c=>c.obligation_id===o.id).map(c=>c.stagiaire_id)).size:0;
+    const rec=conseil(t.code);
+    return `<div class="gf-oblig ${on?'':'off'}">
+      <div class="gf-row" style="align-items:flex-start">
+        <div style="flex:1;min-width:220px">
+          <h4>${gfEsc(t.lib)}</h4>
+          <div class="base">${gfEsc(t.base)}</div>
+          <div style="margin-top:8px">
+            <span class="gf-chip">${t.per?('tous les '+t.per+' mois'):"à l'embauche"}</span>
+            <span class="gf-chip">${gfHeures(t.h)}</span>
+            <span class="gf-chip">${gfEsc(t.pub)}</span>
+            ${t.pp?'<span class="gf-chip" style="background:#dbeafe;color:#1d4ed8">Passeport de prévention</span>':''}
+            ${rec&&!on?`<span class="gf-chip" style="background:#fef3c7;color:#92400e">${rec}</span>`:''}
+          </div>
+          ${on?`<div style="margin-top:8px;font-size:12px;color:var(--muted)">
+            ${nbConcernes} salarié${nbConcernes>1?'s':''} concerné${nbConcernes>1?'s':''}${cibles.length?' · ciblage : '+cibles.map(gfEsc).join(', '):' · tout le personnel'}
+            ${o.periodicite_mois!==t.per?` · <b>périodicité adaptée : ${o.periodicite_mois} mois</b>`:''}</div>`:''}
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${on?`<button class="btn sm" onclick="gfObligModal('${o.id}')">Régler</button>
+                <button class="btn sm primary" onclick="gfSessionModal('${o.id}')">Déclencher</button>
+                <button class="btn sm danger" onclick="gfObligToggle('${o.id}',false)">Désactiver</button>`
+              :`<button class="btn sm primary" onclick="gfObligActiver('${t.code}')">Activer</button>
+                <button class="btn sm" onclick="gfThemeDetail('${t.code}')">Programme</button>`}
+        </div>
+      </div></div>`;
+  }).join('')}
+  ${sur.length?`<div class="gf-sec">Thèmes propres à l'établissement</div>
+    ${sur.map(o=>`<div class="gf-oblig ${o.actif!==false?'':'off'}"><div class="gf-row" style="align-items:flex-start">
+      <div style="flex:1;min-width:220px"><h4>${gfEsc(o.libelle)}</h4><div class="base">${gfEsc(o.base_reglementaire)||'Thème interne'}</div>
+      <div style="margin-top:8px"><span class="gf-chip">${o.periodicite_mois?('tous les '+o.periodicite_mois+' mois'):"une seule fois"}</span>
+        ${o.duree_heures?`<span class="gf-chip">${gfHeures(o.duree_heures)}</span>`:''}
+        ${(o.services||[]).concat(o.fonctions||[]).map(x=>`<span class="gf-chip">${gfEsc(x)}</span>`).join('')}</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn sm" onclick="gfObligModal('${o.id}')">Régler</button>
+        <button class="btn sm primary" onclick="gfSessionModal('${o.id}')">Déclencher</button>
+        <button class="btn sm danger" onclick="gfObligDel('${o.id}')">Supprimer</button></div>
+    </div></div>`).join('')}`:''}`;
+}
+
+window.gfThemeDetail=function(code){
+  const t=GF_REFI[code]; if(!t) return;
+  openModal(`<div class="modal-head"><h3>${gfEsc(t.lib)}</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div class="gf-sec">Base réglementaire</div><div style="font-size:13px;line-height:1.6">${gfEsc(t.base)}</div>
+    <div class="gf-sec">Public visé</div><div style="font-size:13px;line-height:1.6">${gfEsc(t.pub)}</div>
+    <div class="gf-sec">Objectifs pédagogiques</div><div style="font-size:13px;line-height:1.65">${gfEsc(t.obj)}</div>
+    <div class="gf-sec">Contenu</div><div style="font-size:13px;line-height:1.65">${gfEsc(t.prog)}</div>
+    <div class="gf-sec">Paramètres</div>
+    <div style="font-size:13px;line-height:1.8">Durée indicative : <b>${gfHeures(t.h)}</b><br>
+      Périodicité : <b>${t.per?('tous les '+t.per+' mois'):"une fois, à la prise de poste"}</b><br>
+      Déclaration au passeport de prévention : <b>${t.pp?'oui':'non'}</b></div>
+  </div>
+  <div class="modal-foot"><button class="btn" onclick="closeModal()">Fermer</button>
+    <button class="btn primary" onclick="closeModal();gfObligActiver('${code}')">Activer ce thème</button></div>`);
+};
+
+window.gfObligActiver=async function(code){
+  const g=window._gf, t=GF_REFI[code]; if(!t) return;
+  const exist=g.ob.find(o=>o.theme_code===code);
+  try{
+    if(exist){ const {error}=await sb.from('of_obligations').update({actif:true}).eq('id',exist.id); if(error) throw error; }
+    else{
+      const {error}=await sb.from('of_obligations').insert({erp_id:g.e.id,client_id:g.e.client_id,theme_code:code,
+        libelle:t.lib,base_reglementaire:t.base,periodicite_mois:t.per||0,duree_heures:t.h,
+        objectifs:t.obj,programme:t.prog,alerte_avant_jours:t.per&&t.per<=6?30:60,
+        obligatoire:true,pp_eligible:!!t.pp,actif:true,services:[],fonctions:[]});
+      if(error) throw error;
+    }
+    toast('Thème activé ✓','ok'); gfReload('obligations');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+window.gfActiverSocle=async function(){
+  const g=window._gf;
+  const t=(g.e.type_erp||'').toUpperCase();
+  const socle=['INC-EXER','INC-EPI','INC-GUIDE','ACC-SEC','SST-MAC'];
+  if(t.includes('J')||t.includes('U')) socle.push('INC-TRANS','NUIT','SSI-EXPL','PRAP','RISQ-CHIM');
+  const manquants=socle.filter(c=>!g.ob.some(o=>o.theme_code===c&&o.actif!==false));
+  if(!manquants.length){ toast('Le socle est déjà activé','ok'); return; }
+  if(!confirm('Activer '+manquants.length+' thème(s) du socle réglementaire pour cet établissement ?\n\n'+
+    manquants.map(c=>'• '+GF_REFI[c].lib).join('\n'))) return;
+  try{
+    for(const c of manquants) await gfObligActiver(c);
+    toast(manquants.length+' thème(s) activé(s) ✓','ok');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+window.gfObligToggle=async function(id,on){
+  try{ const {error}=await sb.from('of_obligations').update({actif:!!on}).eq('id',id); if(error) throw error;
+    toast(on?'Thème réactivé':'Thème désactivé','ok'); gfReload('obligations');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+window.gfObligDel=async function(id){
+  if(!confirm("Supprimer ce thème ? Les sessions déjà enregistrées seront conservées mais ne seront plus rattachées à une obligation.")) return;
+  try{ await sb.from('of_sessions').update({obligation_id:null}).eq('obligation_id',id);
+    const {error}=await sb.from('of_obligations').delete().eq('id',id); if(error) throw error;
+    toast('Thème supprimé','ok'); gfReload('obligations');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+window.gfObligModal=function(id){
+  const g=window._gf;
+  const o=id?g.ob.find(x=>x.id===id):null;
+  const services=[...new Set(g.st.map(s=>s.service).filter(Boolean))].sort();
+  const fonctions=[...new Set(g.st.map(s=>s.fonction).filter(Boolean))].sort();
+  const sel=(arr,v)=>(arr||[]).includes(v)?'checked':'';
+  openModal(`<div class="modal-head"><h3>${o?'Réglage du thème':'Thème sur mesure'}</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div class="fld"><label>Intitulé <span class="req">*</span></label><input id="go_lib" value="${gfEsc(o&&o.libelle)}"></div>
+    <div class="fld"><label>Base réglementaire</label><input id="go_base" value="${gfEsc(o&&o.base_reglementaire)}" placeholder="Ex. Code du travail art. R.4227-39"></div>
+    <div class="gf-grid2">
+      <div class="fld"><label>Périodicité (mois) — 0 = une seule fois</label><input id="go_per" type="number" min="0" max="120" value="${o?gfNum(o.periodicite_mois):12}"></div>
+      <div class="fld"><label>Durée (heures)</label><input id="go_h" type="number" step="0.5" min="0" value="${o&&o.duree_heures!=null?o.duree_heures:''}"></div>
+      <div class="fld"><label>Alerter combien de jours avant l'échéance ?</label><input id="go_al" type="number" min="0" max="365" value="${o?gfNum(o.alerte_avant_jours)||60:60}"></div>
+      <div class="fld"><label>Passeport de prévention</label>
+        <select id="go_pp"><option value="0" ${o&&o.pp_eligible?'':'selected'}>Non déclarable</option>
+        <option value="1" ${o&&o.pp_eligible?'selected':''}>Formation santé-sécurité à déclarer</option></select></div>
+    </div>
+    <div class="fld"><label>Objectifs (repris sur l'attestation)</label><textarea id="go_obj" rows="3">${gfEsc(o&&o.objectifs)}</textarea></div>
+    <div class="fld"><label>Contenu / programme</label><textarea id="go_prog" rows="4">${gfEsc(o&&o.programme)}</textarea></div>
+    <div class="gf-sec">Qui est concerné ?</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Aucune case cochée = tout le personnel de l'établissement.</div>
+    ${services.length?`<div style="font-weight:600;font-size:12.5px;margin:8px 0 4px">Services</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">${services.map(s=>`<label style="display:flex;align-items:center;gap:6px;font-size:12.5px">
+        <input type="checkbox" class="go_svc" value="${gfEsc(s)}" ${sel(o&&o.services,s)}> ${gfEsc(s)}</label>`).join('')}</div>`:''}
+    ${fonctions.length?`<div style="font-weight:600;font-size:12.5px;margin:14px 0 4px">Fonctions</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">${fonctions.map(s=>`<label style="display:flex;align-items:center;gap:6px;font-size:12.5px">
+        <input type="checkbox" class="go_fx" value="${gfEsc(s)}" ${sel(o&&o.fonctions,s)}> ${gfEsc(s)}</label>`).join('')}</div>`:''}
+  </div>
+  <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+    <button class="btn primary" onclick="gfObligSave('${o?o.id:''}')">Enregistrer</button></div>`,'wide');
+};
+
+window.gfObligSave=async function(id){
+  const g=window._gf;
+  const v=x=>{const el=document.getElementById(x);return el?el.value.trim():'';};
+  const lib=v('go_lib'); if(!lib){ toast("L'intitulé est obligatoire",'err'); return; }
+  const pl={erp_id:g.e.id,client_id:g.e.client_id,libelle:lib,base_reglementaire:v('go_base')||null,
+    periodicite_mois:gfNum(v('go_per')),duree_heures:v('go_h')?Number(v('go_h')):null,
+    alerte_avant_jours:gfNum(v('go_al'))||60,objectifs:v('go_obj')||null,programme:v('go_prog')||null,
+    pp_eligible:document.getElementById('go_pp').value==='1',actif:true,
+    services:[...document.querySelectorAll('.go_svc:checked')].map(x=>x.value),
+    fonctions:[...document.querySelectorAll('.go_fx:checked')].map(x=>x.value)};
+  try{
+    const q=id?sb.from('of_obligations').update(pl).eq('id',id):sb.from('of_obligations').insert(pl);
+    const {error}=await q; if(error) throw error;
+    _modalDirty=false; closeModal(); toast('Thème enregistré ✓','ok'); gfReload('obligations');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+/* =====================================================================
+   ONGLET 4 — SESSIONS
+===================================================================== */
+function gfTabSessions(b){
+  const g=window._gf;
+  const stat={planifiee:['Planifiée','#4f46e5'],confirmee:['Confirmée','#0891b2'],realisee:['Réalisée','#16a34a'],
+              annulee:['Annulée','#94a3b8'],reportee:['Reportée','#f59e0b']};
+  const aVenir=g.se.filter(s=>s.statut==='planifiee'||s.statut==='confirmee');
+  const passees=g.se.filter(s=>s.statut==='realisee');
+  const autres=g.se.filter(s=>['annulee','reportee'].includes(s.statut));
+  const carte=s=>{
+    const ins=g.ins.filter(i=>i.session_id===s.id);
+    const pres=ins.filter(i=>i.presente===true).length;
+    const st=stat[s.statut]||['—','#94a3b8'];
+    return `<div class="gf-oblig"><div class="gf-row" style="align-items:flex-start">
+      <div style="flex:1;min-width:230px">
+        <h4>${gfEsc(s.intitule)}</h4>
+        <div class="base">${gfDateFr(s.date_debut)}${s.date_fin&&s.date_fin!==s.date_debut?' → '+gfDateFr(s.date_fin):''}
+          ${s.horaires?' · '+gfEsc(s.horaires):''}${s.lieu?' · '+gfEsc(s.lieu):''}</div>
+        <div style="margin-top:8px">
+          <span class="gf-chip" style="background:${st[1]}1a;color:${st[1]}">${st[0]}</span>
+          <span class="gf-chip">${ins.length} inscrit${ins.length>1?'s':''}${s.statut==='realisee'?' · '+pres+' présent'+(pres>1?'s':''):''}</span>
+          ${s.duree_heures?`<span class="gf-chip">${gfHeures(s.duree_heures)}</span>`:''}
+          ${s.formateur_nom?`<span class="gf-chip">${gfEsc(s.formateur_nom)}</span>`:''}
+          ${s.reference?`<span class="gf-chip">${gfEsc(s.reference)}</span>`:''}
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn sm primary" onclick="gfSessionOuvrir('${s.id}')">Ouvrir</button>
+      </div></div></div>`;
+  };
+  b.innerHTML=`
+  <div class="gf-row" style="margin-bottom:16px">
+    <button class="btn primary" onclick="gfSessionModal()">＋ Déclencher une formation</button>
+  </div>
+  ${aVenir.length?`<div class="gf-sec">À venir et en préparation</div>${aVenir.map(carte).join('')}`:''}
+  ${passees.length?`<div class="gf-sec">Sessions réalisées</div>${passees.map(carte).join('')}`:''}
+  ${autres.length?`<div class="gf-sec">Annulées / reportées</div>${autres.map(carte).join('')}`:''}
+  ${!g.se.length?emptyBlock('📅','Aucune session enregistrée',
+     "Déclenchez une formation : choisissez le thème, la date et les participants — l'application produit ensuite les convocations, la feuille d'émargement, la note interne, les attestations et le bilan.",
+     `<button class="btn primary" onclick="gfSessionModal()">Déclencher une formation</button>`):''}`;
+}
+
+/* ── Création / modification d'une session ── */
+window.gfSessionModal=function(obligId,sessionId){
+  const g=window._gf;
+  const s=sessionId?g.se.find(x=>x.id===sessionId):null;
+  const obs=g.ob.filter(o=>o.actif!==false);
+  if(!obs.length&&!s){ toast("Activez d'abord un thème de formation",'err'); gfShell('obligations'); return; }
+  const obId=obligId||(s&&s.obligation_id)||(obs[0]&&obs[0].id);
+  openModal(`<div class="modal-head"><h3>${s?'Modifier la session':'Déclencher une formation'}</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div class="fld"><label>Thème de formation <span class="req">*</span></label>
+      <select id="gse_ob" onchange="gfSessionThemeChange()">
+        ${obs.map(o=>`<option value="${o.id}" ${obId===o.id?'selected':''}>${gfEsc(o.libelle)}</option>`).join('')}
+        <option value="" ${s&&!s.obligation_id?'selected':''}>— Formation hors obligation suivie —</option>
+      </select></div>
+    <div class="fld"><label>Intitulé porté sur les documents <span class="req">*</span></label><input id="gse_int" value="${gfEsc(s&&s.intitule)}"></div>
+    <div class="gf-grid2">
+      <div class="fld"><label>Date de début <span class="req">*</span></label><input id="gse_d1" type="date" value="${gfDateIso(s&&s.date_debut)||gfToday()}"></div>
+      <div class="fld"><label>Date de fin</label><input id="gse_d2" type="date" value="${gfDateIso(s&&s.date_fin)}"></div>
+      <div class="fld"><label>Horaires</label><input id="gse_h" value="${gfEsc(s&&s.horaires)||'9h00 – 12h00'}" placeholder="9h00 – 12h00 / 14h00 – 17h00"></div>
+      <div class="fld"><label>Durée totale (heures)</label><input id="gse_dur" type="number" step="0.5" min="0" value="${s&&s.duree_heures!=null?s.duree_heures:''}"></div>
+      <div class="fld"><label>Lieu</label><input id="gse_lieu" value="${gfEsc(s&&s.lieu)||gfEsc(g.e.nom)}"></div>
+      <div class="fld"><label>Salle</label><input id="gse_salle" value="${gfEsc(s&&s.salle)}" placeholder="Salle de réunion, 1er étage"></div>
+      <div class="fld"><label>Effectif maximum par groupe</label><input id="gse_max" type="number" min="1" value="${s&&s.effectif_max||12}"></div>
+      <div class="fld"><label>Modalité</label><select id="gse_mod">
+        <option value="PRESENTIEL">Présentiel</option><option value="A_DISTANCE">À distance</option><option value="MIXTE">Mixte</option></select></div>
+    </div>
+    <div class="gf-sec">Intervenant</div>
+    <div class="gf-grid2">
+      <div class="fld"><label>Nom du formateur</label><input id="gse_fnom" value="${gfEsc(s&&s.formateur_nom)}"></div>
+      <div class="fld"><label>Organisme / société</label><input id="gse_forg" value="${gfEsc(s&&s.formateur_organisme)}" placeholder="PREVA CONSEILS, interne…"></div>
+      <div class="fld"><label>Qualité de l'intervenant</label>
+        <select id="gse_fq">
+          <option value="">— non précisé —</option>
+          <option value="PREVENTEUR">Préventeur</option>
+          <option value="FORMATEUR_D_ADULTES_FORMATION_SPECIALISEE">Formateur d'adultes spécialisé</option>
+          <option value="RESPONSABLE_QHSE">Responsable QHSE</option>
+          <option value="INGENIEUR">Ingénieur</option>
+          <option value="ENSEIGNANT">Enseignant</option>
+          <option value="ANCIEN_PROFESSIONNEL">Ancien professionnel du secteur</option>
+          <option value="PSYCHOLOGUE">Psychologue</option>
+        </select></div>
+      <div class="fld"><label>Origine</label><select id="gse_ft">
+        <option value="sous_traitant">Organisme extérieur</option><option value="interne">Formateur interne</option></select></div>
+      <div class="fld"><label>E-mail de l'intervenant</label><input id="gse_fmail" type="email" value="${gfEsc(s&&s.formateur_email)}" placeholder="pour lui transmettre la feuille de présence"></div>
+      <div class="fld"><label>Téléphone de l'intervenant</label><input id="gse_ftel" value="${gfEsc(s&&s.formateur_telephone)}"></div>
+    </div>
+    <div class="fld"><label>Modalités d'évaluation des acquis <span style="font-weight:400;color:var(--muted)">(mention obligatoire de l'attestation)</span></label>
+      <input id="gse_eval" value="${gfEsc(s&&s.modalites_evaluation)||'Évaluation continue par mise en situation pratique et questionnaire de fin de formation'}"></div>
+    <div class="fld"><label>Notes internes</label><textarea id="gse_notes" rows="2">${gfEsc(s&&s.notes)}</textarea></div>
+  </div>
+  <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+    <button class="btn primary" onclick="gfSessionSave('${s?s.id:''}')">${s?'Enregistrer':'Créer la session'}</button></div>`,'wide');
+  if(s){ const m=document.getElementById('gse_mod'); if(m&&s.modalites) m.value=s.modalites;
+         const q=document.getElementById('gse_fq'); if(q&&s.formateur_qualite) q.value=s.formateur_qualite;
+         const t=document.getElementById('gse_ft'); if(t&&s.formateur_type) t.value=s.formateur_type; }
+  else gfSessionThemeChange();
+};
+
+window.gfSessionThemeChange=function(){
+  const g=window._gf;
+  const id=document.getElementById('gse_ob').value;
+  const o=g.ob.find(x=>x.id===id); if(!o) return;
+  const set=(el,v)=>{const x=document.getElementById(el); if(x&&!x.value) x.value=v==null?'':v;};
+  const force=(el,v)=>{const x=document.getElementById(el); if(x) x.value=v==null?'':v;};
+  force('gse_int',o.libelle);
+  force('gse_dur',o.duree_heures!=null?o.duree_heures:'');
+  set('gse_lieu',g.e.nom);
+};
+
+window.gfSessionSave=async function(id){
+  const g=window._gf;
+  const v=x=>{const el=document.getElementById(x);return el?el.value.trim():'';};
+  const intitule=v('gse_int'), d1=v('gse_d1');
+  if(!intitule){ toast("L'intitulé est obligatoire",'err'); return; }
+  if(!d1){ toast('La date de début est obligatoire','err'); return; }
+  const obId=document.getElementById('gse_ob').value||null;
+  const o=obId?g.ob.find(x=>x.id===obId):null;
+  const pl={erp_id:g.e.id,client_id:g.e.client_id,obligation_id:obId,theme_code:o?o.theme_code:null,
+    intitule,type:'intra',date_debut:d1,date_fin:v('gse_d2')||d1,horaires:v('gse_h')||null,
+    duree_heures:v('gse_dur')?Number(v('gse_dur')):null,lieu:v('gse_lieu')||null,salle:v('gse_salle')||null,
+    ville:g.e.ville||null,effectif_max:gfNum(v('gse_max'))||null,
+    modalites:document.getElementById('gse_mod').value,
+    formateur_nom:v('gse_fnom')||null,formateur_organisme:v('gse_forg')||null,
+    formateur_qualite:document.getElementById('gse_fq').value||null,
+    formateur_type:document.getElementById('gse_ft').value,
+    formateur_email:v('gse_fmail')||null,formateur_telephone:v('gse_ftel')||null,
+    modalites_evaluation:v('gse_eval')||null,notes:v('gse_notes')||null,
+    objectifs:o?o.objectifs:null,programme:o?o.programme:null,base_reglementaire:o?o.base_reglementaire:null};
+  try{
+    if(id){ const {error}=await sb.from('of_sessions').update(pl).eq('id',id); if(error) throw error;
+      _modalDirty=false; closeModal(); toast('Session enregistrée ✓','ok'); await gfReload('sessions'); gfSessionOuvrir(id); return; }
+    pl.reference='FORM-'+(g.e.code_erp||'ETAB')+'-'+d1.replace(/-/g,'').slice(2)+'-'+Math.random().toString(36).slice(2,5).toUpperCase();
+    pl.statut='planifiee';
+    const {data,error}=await sb.from('of_sessions').insert(pl).select().single(); if(error) throw error;
+    _modalDirty=false; closeModal(); toast('Session créée ✓','ok');
+    await gfReload('sessions');
+    gfParticipantsModal(data.id,true);
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+/* ── Fiche session : le poste de pilotage du directeur ── */
+window.gfSessionOuvrir=function(id){
+  const g=window._gf;
+  const s=g.se.find(x=>x.id===id); if(!s) return;
+  const ins=g.ins.filter(i=>i.session_id===id);
+  const stg=id2=>g.st.find(x=>x.id===id2)||{};
+  const realisee=s.statut==='realisee';
+  const pres=ins.filter(i=>i.presente===true).length, abs=ins.filter(i=>i.presente===false).length;
+  const o=s.obligation_id?g.ob.find(x=>x.id===s.obligation_id):null;
+  const stat={planifiee:'Planifiée',confirmee:'Confirmée',realisee:'Réalisée',annulee:'Annulée',reportee:'Reportée'};
+  openModal(`<div class="modal-head"><h3>${gfEsc(s.intitule)}</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div style="font-size:12.5px;color:var(--muted);line-height:1.7;margin-bottom:6px">
+      ${gfEsc(s.reference)||''} — ${gfDateFr(s.date_debut)}${s.date_fin&&s.date_fin!==s.date_debut?' → '+gfDateFr(s.date_fin):''}
+      ${s.horaires?' · '+gfEsc(s.horaires):''}<br>
+      ${[s.lieu,s.salle].filter(Boolean).map(gfEsc).join(' — ')}${s.formateur_nom?' · Intervenant : '+gfEsc(s.formateur_nom):''}
+      ${s.formateur_organisme?' ('+gfEsc(s.formateur_organisme)+')':''}<br>
+      ${o?'Obligation suivie : '+gfEsc(o.libelle):'Formation hors obligation suivie'}
+    </div>
+    <div class="gf-row" style="margin:12px 0 4px">
+      <select id="gse_stt" onchange="gfSessionStatut('${id}',this.value)" style="max-width:190px">
+        ${Object.keys(stat).map(k=>`<option value="${k}" ${s.statut===k?'selected':''}>${stat[k]}</option>`).join('')}
+      </select>
+      <button class="btn sm" onclick="gfSessionModal(null,'${id}')">Modifier la session</button>
+      <span style="flex:1"></span>
+      <button class="btn sm danger" onclick="gfSessionDel('${id}')">Supprimer</button>
+    </div>
+
+    <div class="gf-sec">Participants — ${ins.length} inscrit${ins.length>1?'s':''}${realisee?` · ${pres} présent(s) · ${abs} absent(s)`:''}</div>
+    <div class="gf-row" style="margin-bottom:10px">
+      <button class="btn sm primary" onclick="gfParticipantsModal('${id}')">Gérer les participants</button>
+      ${ins.length?`<button class="btn sm" onclick="gfPresenceTous('${id}',true)">Tous présents</button>`:''}
+    </div>
+    ${ins.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Salarié</th><th>Fonction</th><th>Service</th>
+      <th style="width:120px">Présence</th><th style="width:150px">Résultat</th></tr></thead>
+      <tbody>${ins.map(i=>{const p=stg(i.stagiaire_id);return `<tr>
+        <td><b>${gfEsc(gfFullName(p))}</b></td><td style="font-size:12.5px">${gfEsc(p.fonction)||'—'}</td>
+        <td style="font-size:12.5px">${gfEsc(p.service)||'—'}</td>
+        <td><select onchange="gfPresence('${i.id}',this.value)" style="font-size:12px;padding:3px 6px">
+          <option value="" ${i.presente==null?'selected':''}>—</option>
+          <option value="1" ${i.presente===true?'selected':''}>Présent</option>
+          <option value="0" ${i.presente===false?'selected':''}>Absent</option></select></td>
+        <td><select onchange="gfResultat('${i.id}',this.value)" style="font-size:12px;padding:3px 6px">
+          <option value="" ${!i.resultat_evaluation?'selected':''}>—</option>
+          <option ${i.resultat_evaluation==='Acquis'?'selected':''}>Acquis</option>
+          <option ${i.resultat_evaluation==='En cours d\'acquisition'?'selected':''}>En cours d'acquisition</option>
+          <option ${i.resultat_evaluation==='Non acquis'?'selected':''}>Non acquis</option></select></td></tr>`;}).join('')}
+      </tbody></table></div>`:'<div class="gf-empty">Aucun participant inscrit.</div>'}
+
+    <div class="gf-sec">Documents à produire</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:9px">
+      <button class="btn" onclick="gfPdfConvocations('${id}')">✉️ Convocations individuelles</button>
+      <button class="btn" onclick="gfPdfEmargement('${id}')">✍️ Feuille d'émargement</button>
+      <button class="btn" onclick="gfPdfNoteInterne('${id}')">📌 Note interne d'affichage</button>
+      <button class="btn" onclick="gfPdfProgramme('${id}')">📘 Programme de formation</button>
+      <button class="btn ${realisee?'primary':''}" onclick="gfPdfAttestations('${id}')">🎓 Attestations de fin de formation</button>
+      <button class="btn" onclick="gfPdfBilanSession('${id}')">📊 Bilan de la session</button>
+      <button class="btn" onclick="gfPpExport('${id}')">🛡️ Fichier passeport de prévention</button>
+      <button class="btn" onclick="gfEnvoiModal('${id}')">📧 Envoyer par e-mail</button>
+      <button class="btn" onclick="gfRelanceOuvrir('${id}')">🔔 Relances SMS / e-mail</button>
+      <button class="btn primary" onclick="gfTransmettreModal('${id}')">📨 Transmettre au formateur / chef de service</button>
+    </div>
+    ${!realisee?`<div class="fx-state" style="margin-top:14px;font-size:12.5px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px">
+      Les attestations et la mise à jour des échéances ne prennent effet que lorsque la session est passée au statut <b>Réalisée</b> et que la présence est renseignée.</div>`:''}
+  </div>
+  <div class="modal-foot"><button class="btn" onclick="closeModal()">Fermer</button></div>`,'wide');
+};
+
+window.gfSessionStatut=async function(id,st){
+  try{ const {error}=await sb.from('of_sessions').update({statut:st}).eq('id',id); if(error) throw error;
+    if(st==='realisee'){ await sb.from('of_inscriptions').update({presente:true,statut:'present'}).eq('session_id',id).is('presente',null); }
+    toast('Statut mis à jour ✓','ok'); await gfReload('sessions'); gfSessionOuvrir(id);
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+window.gfSessionDel=async function(id){
+  if(!confirm('Supprimer cette session et toutes ses inscriptions ?')) return;
+  try{ await sb.from('of_inscriptions').delete().eq('session_id',id);
+    const {error}=await sb.from('of_sessions').delete().eq('id',id); if(error) throw error;
+    _modalDirty=false; closeModal(); toast('Session supprimée','ok'); gfReload('sessions');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+window.gfPresence=async function(insId,val){
+  const p=val===''?null:val==='1';
+  try{ await sb.from('of_inscriptions').update({presente:p,statut:p===true?'present':p===false?'absent':'inscrit'}).eq('id',insId);
+    const g=window._gf; const i=g.ins.find(x=>x.id===insId); if(i){i.presente=p;}
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+window.gfResultat=async function(insId,val){
+  try{ await sb.from('of_inscriptions').update({resultat_evaluation:val||null}).eq('id',insId);
+    const g=window._gf; const i=g.ins.find(x=>x.id===insId); if(i){i.resultat_evaluation=val||null;}
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+window.gfPresenceTous=async function(id,p){
+  try{ await sb.from('of_inscriptions').update({presente:p,statut:p?'present':'absent'}).eq('session_id',id);
+    toast('Présences enregistrées ✓','ok'); await gfReload('sessions'); gfSessionOuvrir(id);
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+/* ── Sélection des participants (propose d'abord les non conformes) ── */
+window.gfParticipantsModal=function(sessionId,creation){
+  const g=window._gf;
+  const s=g.se.find(x=>x.id===sessionId)||(window._gfNewSess||{});
+  const dejaIds=new Set(g.ins.filter(i=>i.session_id===sessionId).map(i=>i.stagiaire_id));
+  const cov=s.obligation_id?g.cov.filter(c=>c.obligation_id===s.obligation_id):[];
+  const covBy={}; cov.forEach(c=>{covBy[c.stagiaire_id]=c;});
+  const concernes=cov.length?cov.map(c=>g.st.find(x=>x.id===c.stagiaire_id)).filter(Boolean)
+                            :g.st.filter(x=>x.actif!==false);
+  const ordre={jamais:0,echu:1,bientot:2,a_jour:3};
+  concernes.sort((a,b)=>{
+    const ca=covBy[a.id], cb=covBy[b.id];
+    const oa=ca?ordre[ca.statut]:9, ob=cb?ordre[cb.statut]:9;
+    return (oa-ob)||String(a.nom||'').localeCompare(String(b.nom||''));
+  });
+  const preco=id=>{ const c=covBy[id]; return dejaIds.has(id)||(creation&&c&&(c.statut==='jamais'||c.statut==='echu'||c.statut==='bientot')); };
+  const autres=g.st.filter(x=>x.actif!==false&&!concernes.some(c=>c.id===x.id));
+  const ligne=p=>{ const c=covBy[p.id];
+    return `<label style="display:flex;align-items:center;gap:10px;padding:7px 4px;border-bottom:1px solid #f1f5f9;font-size:13px">
+      <input type="checkbox" class="gp_st" value="${p.id}" ${preco(p.id)?'checked':''}>
+      <span style="flex:1"><b>${gfEsc(gfFullName(p))}</b>
+        <span style="color:var(--muted);font-size:12px">${[p.fonction,p.service].filter(Boolean).map(gfEsc).join(' · ')}</span></span>
+      ${c?gfStPill(c.statut):''}
+      ${c&&c.derniere_date?`<span style="font-size:11.5px;color:var(--muted);white-space:nowrap">${gfDateFr(c.derniere_date)}</span>`:''}
+    </label>`; };
+  openModal(`<div class="modal-head"><h3>Participants — ${gfEsc(s.intitule||'')}</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">
+      ${cov.length?'Salariés concernés par cette obligation, les non conformes en tête.':'Aucune obligation rattachée : tout le personnel actif est proposé.'}
+      ${s.effectif_max?` Effectif maximum conseillé par groupe : <b>${s.effectif_max}</b>.`:''}</div>
+    <div class="gf-row" style="margin-bottom:8px">
+      <button class="btn sm" onclick="document.querySelectorAll('.gp_st').forEach(x=>x.checked=true);gfPartCount()">Tout cocher</button>
+      <button class="btn sm" onclick="document.querySelectorAll('.gp_st').forEach(x=>x.checked=false);gfPartCount()">Tout décocher</button>
+      <span style="flex:1"></span><span id="gp_cnt" style="font-size:12.5px;font-weight:700"></span>
+    </div>
+    <div onchange="gfPartCount()" style="max-height:46vh;overflow:auto;border:1px solid var(--line-2,#e6eaf1);border-radius:10px;padding:4px 10px">
+      ${concernes.map(ligne).join('')}
+      ${autres.length?`<div class="gf-sec" style="margin:14px 0 4px">Autres salariés (hors ciblage)</div>${autres.map(ligne).join('')}`:''}
+    </div>
+  </div>
+  <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+    <button class="btn primary" onclick="gfParticipantsSave('${sessionId}')">Enregistrer les participants</button></div>`,'wide');
+  gfPartCount();
+};
+window.gfPartCount=function(){
+  const n=document.querySelectorAll('.gp_st:checked').length;
+  const el=document.getElementById('gp_cnt'); if(el) el.textContent=n+' sélectionné'+(n>1?'s':'');
+};
+
+window.gfParticipantsSave=async function(sessionId){
+  const g=window._gf;
+  const sel=[...document.querySelectorAll('.gp_st:checked')].map(x=>x.value);
+  const deja=g.ins.filter(i=>i.session_id===sessionId);
+  const dejaIds=new Set(deja.map(i=>i.stagiaire_id));
+  const ajouts=sel.filter(id=>!dejaIds.has(id));
+  const retraits=deja.filter(i=>!sel.includes(i.stagiaire_id));
+  try{
+    if(ajouts.length){ const {error}=await sb.from('of_inscriptions').insert(
+      ajouts.map(id=>({session_id:sessionId,stagiaire_id:id,statut:'inscrit'}))); if(error) throw error; }
+    for(const r of retraits) await sb.from('of_inscriptions').delete().eq('id',r.id);
+    _modalDirty=false; closeModal(); toast(sel.length+' participant(s) enregistré(s) ✓','ok');
+    await gfReload('sessions'); gfSessionOuvrir(sessionId);
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+/* =====================================================================
+   ONGLET 5 — DOCUMENTS PRODUITS
+===================================================================== */
+function gfTabDocuments(b){
+  const g=window._gf;
+  const lib={convocation:'Convocation',emargement:"Feuille d'émargement",feuille_presence:'Feuille de présence',
+    attestation:'Attestation',note_interne:'Note interne',affiche:'Affiche',programme:'Programme',evaluation:'Bilan',autre:'Autre'};
+  if(!g.docs.length){ b.innerHTML=emptyBlock('🗂️','Aucun document produit',
+    "Les convocations, feuilles d'émargement, notes internes, attestations et bilans générés depuis une session sont archivés ici.",''); return; }
+  b.innerHTML=`<div class="card" style="padding:0;overflow:hidden"><div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Date</th><th>Type</th><th>Document</th><th>Session</th><th></th></tr></thead>
+    <tbody>${g.docs.map(d=>{
+      const s=g.se.find(x=>x.id===d.session_id);
+      return `<tr><td style="font-size:12.5px">${gfDateFr(d.created_at)}</td>
+        <td><span class="gf-chip">${lib[d.type]||d.type}</span></td>
+        <td style="font-size:12.5px"><b>${gfEsc(d.libelle)}</b></td>
+        <td style="font-size:12.5px;color:var(--muted)">${s?gfEsc(s.intitule):'—'}</td>
+        <td style="text-align:right">${d.fichier_path?`<button class="btn sm" onclick="gfDocOuvrir('${gfEsc(d.fichier_path)}','${gfEsc(d.libelle)}')">Ouvrir</button>`:''}</td></tr>`;
+    }).join('')}</tbody></table></div></div>`;
+}
+
+window.gfDocOuvrir=async function(path,nom){
+  try{
+    const {data,error}=await sb.storage.from('documents').createSignedUrl(path,3600); if(error) throw error;
+    window.open(data.signedUrl,'_blank');
+  }catch(e){ toast('Document indisponible : '+(e.message||e),'err'); }
+};
+
+/* =====================================================================
+   DOCUMENTS — génération PDF (jsPDF)
+===================================================================== */
+const GF_W=210, GF_H=297, GF_M=16;
+function gfS(s){ return String(s==null?'':s)
+  .replace(/[\u2018\u2019\u2032]/g,"'").replace(/[\u201C\u201D]/g,'"')
+  .replace(/[\u2013\u2014]/g,'-').replace(/\u2026/g,'...').replace(/\u00A0/g,' ')
+  .replace(/[\u2022]/g,'-'); }
+function gfPdf(orient){
+  const J=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
+  if(!J) throw new Error('Bibliothèque PDF non chargée — rechargez la page');
+  return new J({unit:'mm',format:'a4',orientation:orient||'portrait',compress:true});
+}
+function gfPdfHead(doc,titre,sousTitre,land){
+  const g=window._gf, W=land?297:210;
+  doc.setFillColor(14,27,46); doc.rect(0,0,W,24,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold'); doc.setFontSize(12.5);
+  doc.text(gfS((g.cl.raison_sociale||'ÉTABLISSEMENT').toUpperCase()),GF_M,11);
+  doc.setFont('helvetica','normal'); doc.setFontSize(8.6);
+  const adr=[g.e.adresse,[g.e.code_postal,g.e.ville].filter(Boolean).join(' ')].filter(Boolean).join(' — ');
+  doc.text(gfS(g.e.nom+(adr?' · '+adr:'')),GF_M,17.2);
+  if(g.e.type_erp) doc.text(gfS('ERP type '+g.e.type_erp+(g.e.categorie?' - '+g.e.categorie+'e categorie':'')),W-GF_M,17.2,{align:'right'});
+  doc.setTextColor(15,23,42);
+  doc.setFont('helvetica','bold'); doc.setFontSize(15.5);
+  doc.text(gfS(titre),GF_M,37);
+  let y=37;
+  if(sousTitre){ doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(90,102,120);
+    y+=6.5; doc.text(gfS(sousTitre),GF_M,y); doc.setTextColor(15,23,42); }
+  doc.setDrawColor(226,232,240); doc.setLineWidth(.4); doc.line(GF_M,y+4,W-GF_M,y+4);
+  return y+13;
+}
+function gfPdfFoot(doc,mention,land){
+  const W=land?297:210, H=land?210:297;
+  const n=doc.internal.getNumberOfPages();
+  for(let i=1;i<=n;i++){
+    doc.setPage(i);
+    doc.setDrawColor(226,232,240); doc.setLineWidth(.3); doc.line(GF_M,H-15,W-GF_M,H-15);
+    doc.setFont('helvetica','normal'); doc.setFontSize(7.6); doc.setTextColor(120,132,148);
+    doc.text(gfS(mention||''),GF_M,H-10.5,{maxWidth:W-2*GF_M-24});
+    doc.text('Page '+i+'/'+n,W-GF_M,H-10.5,{align:'right'});
+  }
+}
+function gfPdfPara(doc,txt,y,size,W){
+  doc.setFont('helvetica','normal'); doc.setFontSize(size||10.5); doc.setTextColor(30,41,59);
+  const lines=doc.splitTextToSize(gfS(txt),(W||GF_W)-2*GF_M);
+  lines.forEach(l=>{ if(y>GF_H-30){ doc.addPage(); y=28; } doc.text(l,GF_M,y); y+=(size||10.5)*0.52+1.4; });
+  return y+2;
+}
+function gfPdfLabel(doc,label,valeur,y,wl){
+  doc.setFont('helvetica','bold'); doc.setFontSize(9.4); doc.setTextColor(100,116,139);
+  doc.text(gfS(label),GF_M,y);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10.2); doc.setTextColor(15,23,42);
+  const lines=doc.splitTextToSize(gfS(valeur||'—'),GF_W-GF_M-(wl||52)-GF_M);
+  lines.forEach((l,i)=>doc.text(l,GF_M+(wl||52),y+i*5));
+  return y+Math.max(6.4,lines.length*5+1.4);
+}
+function gfSign(doc,y,gauche,droite){
+  if(y>GF_H-52){ doc.addPage(); y=30; }
+  doc.setFont('helvetica','bold'); doc.setFontSize(9.4); doc.setTextColor(100,116,139);
+  doc.text(gfS(gauche),GF_M,y);
+  doc.text(gfS(droite),GF_W/2+6,y);
+  doc.setDrawColor(210,218,228); doc.setLineWidth(.3);
+  doc.rect(GF_M,y+3,72,26); doc.rect(GF_W/2+6,y+3,72,26);
+  return y+36;
+}
+function gfMentionBas(){
+  const g=window._gf;
+  return 'Document genere par SUIVI-CONFORMITE (PREVA CONSEILS) le '+new Date().toLocaleDateString('fr-FR')
+    +' - '+(g.cl.raison_sociale||'')+' - '+(g.e.nom||'')+' - A conserver au registre de securite.';
+}
+function gfCtx(sessionId){
+  const g=window._gf;
+  const s=g.se.find(x=>x.id===sessionId);
+  if(!s) throw new Error('Session introuvable');
+  const ins=g.ins.filter(i=>i.session_id===sessionId);
+  const part=ins.map(i=>({i,p:g.st.find(x=>x.id===i.stagiaire_id)||{}}))
+    .sort((a,b)=>String(a.p.nom||'').localeCompare(String(b.p.nom||'')));
+  const o=s.obligation_id?g.ob.find(x=>x.id===s.obligation_id):null;
+  return {g,s,ins,part,o};
+}
+function gfPeriode(s){
+  if(!s.date_debut) return '—';
+  return s.date_fin&&s.date_fin!==s.date_debut
+    ? 'du '+gfDateFr(s.date_debut)+' au '+gfDateFr(s.date_fin)
+    : 'le '+gfDateFr(s.date_debut);
+}
+
+/* ── Archivage d'un PDF produit ── */
+async function gfArchive(doc,type,libelle,sessionId,nomFichier){
+  const g=window._gf;
+  try{
+    const blob=doc.output('blob');
+    const path=g.e.id+'/formation/'+Date.now()+'-'+nomFichier.replace(/[^a-zA-Z0-9._-]/g,'_');
+    const {error}=await sb.storage.from('documents').upload(path,blob,{contentType:'application/pdf'});
+    if(error) throw error;
+    await sb.from('of_documents').insert({erp_id:g.e.id,session_id:sessionId||null,type,libelle,
+      fichier_path:path,genere_le:new Date().toISOString()});
+    g.docs.unshift({erp_id:g.e.id,session_id:sessionId||null,type,libelle,fichier_path:path,created_at:new Date().toISOString()});
+  }catch(e){ console.warn('[formation] archivage impossible',e); }
+}
+async function gfSortie(doc,type,libelle,sessionId,nomFichier){
+  doc.save(nomFichier);
+  await gfArchive(doc,type,libelle,sessionId,nomFichier);
+  toast('Document généré ✓','ok');
+}
+
+/* ── 1. CONVOCATIONS INDIVIDUELLES ── */
+function gfDocConvocations(sessionId){
+    const {g,s,part,o}=gfCtx(sessionId);
+    if(!part.length) throw new Error('Aucun participant inscrit');
+    const doc=gfPdf();
+    part.forEach((x,idx)=>{
+      if(idx) doc.addPage();
+      let y=gfPdfHead(doc,'Convocation à une formation','Formation obligatoire — '+(o?'obligation réglementaire suivie':'action de formation'));
+      doc.setFont('helvetica','bold'); doc.setFontSize(11);
+      doc.text(gfS(gfFullName(x.p)),GF_W-GF_M,y,{align:'right'});
+      doc.setFont('helvetica','normal'); doc.setFontSize(9.4); doc.setTextColor(100,116,139);
+      doc.text(gfS([x.p.fonction,x.p.service].filter(Boolean).join(' — ')),GF_W-GF_M,y+5,{align:'right'});
+      doc.setTextColor(15,23,42);
+      y+=16;
+      y=gfPdfPara(doc,'Madame, Monsieur,',y,10.5);
+      y=gfPdfPara(doc,"Dans le cadre des obligations de l'employeur en matière de santé et de sécurité au travail, "
+        +"vous êtes convoqué(e) à la formation suivante. Votre participation est obligatoire et s'effectue sur le temps de travail.",y,10.5);
+      y+=3;
+      y=gfPdfLabel(doc,'Formation',s.intitule,y);
+      y=gfPdfLabel(doc,'Date',gfPeriode(s),y);
+      y=gfPdfLabel(doc,'Horaires',s.horaires||'communiqués par le service',y);
+      y=gfPdfLabel(doc,'Durée',gfHeures(s.duree_heures),y);
+      y=gfPdfLabel(doc,'Lieu',[s.lieu,s.salle].filter(Boolean).join(' — '),y);
+      y=gfPdfLabel(doc,'Intervenant',[s.formateur_nom,s.formateur_organisme].filter(Boolean).join(' — ')||'communiqué sur place',y);
+      if(o&&o.base_reglementaire) y=gfPdfLabel(doc,'Base réglementaire',o.base_reglementaire,y);
+      if(s.objectifs){ y+=3; doc.setFont('helvetica','bold'); doc.setFontSize(9.4); doc.setTextColor(100,116,139);
+        doc.text('OBJECTIFS DE LA FORMATION',GF_M,y); doc.setTextColor(15,23,42); y+=5.5;
+        y=gfPdfPara(doc,s.objectifs,y,10); }
+      y+=2;
+      y=gfPdfPara(doc,"Merci de vous présenter cinq minutes avant le début de la session et de signer la feuille d'émargement "
+        +"à chaque demi-journée. En cas d'empêchement, prévenez sans délai votre responsable hiérarchique afin qu'un report soit organisé : "
+        +"l'absence à une formation obligatoire doit être justifiée et rattrapée.",y,10.5);
+      y+=4;
+      doc.setFont('helvetica','normal'); doc.setFontSize(10.2);
+      doc.text(gfS('Fait à '+(g.e.ville||'')+', le '+new Date().toLocaleDateString('fr-FR')),GF_W-GF_M,y,{align:'right'});
+      y+=8;
+      gfSign(doc,y,'La direction','Le salarié (reçu le)');
+    });
+    gfPdfFoot(doc,gfMentionBas());
+    return doc;
+}
+window.gfPdfConvocations=async function(sessionId){
+  try{ const {s}=gfCtx(sessionId);
+    await gfSortie(gfDocConvocations(sessionId),'convocation','Convocations — '+s.intitule,sessionId,'convocations-'+(s.reference||'session')+'.pdf');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+/* ── 2. FEUILLE D'ÉMARGEMENT ── */
+function gfDocEmargement(sessionId){
+    const {g,s,part}=gfCtx(sessionId);
+    const doc=gfPdf('landscape');
+    const W=297, M=GF_M;
+    const demi=(gfNum(s.duree_heures)>4)?2:1;
+    let page=0;
+    const parPage=12;
+    for(let k=0;k<Math.max(1,Math.ceil(part.length/parPage));k++){
+      if(page++) doc.addPage();
+      let y=gfPdfHead(doc,"Feuille d'émargement",s.intitule,true);
+      doc.setFont('helvetica','normal'); doc.setFontSize(9);
+      doc.setTextColor(70,84,104);
+      doc.text(gfS(gfPeriode(s)+(s.horaires?'  ·  '+s.horaires:'')+'  ·  '+gfHeures(s.duree_heures)
+        +'  ·  '+[s.lieu,s.salle].filter(Boolean).join(' — ')),M,y-4);
+      doc.text(gfS('Intervenant : '+([s.formateur_nom,s.formateur_organisme].filter(Boolean).join(' — ')||'—')),M,y+1);
+      doc.setTextColor(15,23,42);
+      y+=8;
+      const cols=demi===2
+        ? [['Nom et prénom',72],['Fonction / service',62],['Signature matin',70],['Signature après-midi',70]]
+        : [['Nom et prénom',86],['Fonction / service',75],['Signature',113]];
+      doc.setFillColor(241,245,249); doc.rect(M,y,W-2*M,9,'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(8.8); doc.setTextColor(51,65,85);
+      let x=M;
+      cols.forEach(c=>{ doc.text(gfS(c[0]),x+2.5,y+6); x+=c[1]; });
+      y+=9;
+      doc.setDrawColor(214,222,232); doc.setLineWidth(.25);
+      const slice=part.slice(k*parPage,(k+1)*parPage);
+      const hLigne=11.5;
+      for(let i=0;i<parPage;i++){
+        const it=slice[i];
+        doc.rect(M,y,W-2*M,hLigne);
+        x=M;
+        cols.forEach((c,ci)=>{ if(ci) doc.line(x,y,x,y+hLigne); x+=c[1]; });
+        if(it){
+          doc.setFont('helvetica','bold'); doc.setFontSize(9.4); doc.setTextColor(15,23,42);
+          doc.text(gfS(gfFullName(it.p)),M+2.5,y+7);
+          doc.setFont('helvetica','normal'); doc.setFontSize(8.6); doc.setTextColor(90,102,120);
+          doc.text(gfS([it.p.fonction,it.p.service].filter(Boolean).join(' / ')),M+cols[0][1]+2.5,y+7,{maxWidth:cols[1][1]-5});
+        }
+        y+=hLigne;
+      }
+      y+=8;
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(100,116,139);
+      doc.text("Signature et cachet de l'intervenant",M,y);
+      doc.text('Visa de la direction',W/2+10,y);
+      doc.setDrawColor(210,218,228); doc.rect(M,y+3,105,24); doc.rect(W/2+10,y+3,105,24);
+    }
+    gfPdfFoot(doc,"Feuille d'emargement - piece justificative de la realisation de l'action de formation (art. L.6362-6 du Code du travail). "+gfMentionBas(),true);
+    return doc;
+}
+window.gfPdfEmargement=async function(sessionId){
+  try{ const {s}=gfCtx(sessionId);
+    await gfSortie(gfDocEmargement(sessionId),'emargement',"Feuille d'émargement — "+s.intitule,sessionId,'emargement-'+(s.reference||'session')+'.pdf');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+/* ── 3. NOTE INTERNE D'AFFICHAGE ── */
+window.gfPdfNoteInterne=function(sessionId){
+  const {g,s,part,o}=gfCtx(sessionId);
+  const num='NS-'+new Date().getFullYear()+'-'+String(g.docs.filter(d=>d.type==='note_interne').length+1).padStart(3,'0');
+  const corpsDef="L'ensemble du personnel concerné est informé de la tenue de la session de formation mentionnée ci-dessous.\n\n"
+    +"Cette formation répond à une obligation réglementaire de l'employeur : la présence des agents convoqués est obligatoire "
+    +"et s'effectue sur le temps de travail. Les responsables de service veilleront à l'organisation des remplacements "
+    +"nécessaires pour permettre la participation de chacun.\n\n"
+    +"Les agents convoqués sont invités à se présenter cinq minutes avant le début de la session et à signer la feuille d'émargement.";
+  openModal(`<div class="modal-head"><h3>Note interne d'affichage</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div class="gf-grid2">
+      <div class="fld"><label>Numéro de note</label><input id="gn_num" value="${gfEsc(num)}"></div>
+      <div class="fld"><label>Émetteur</label><input id="gn_em" value="La Direction"></div>
+    </div>
+    <div class="fld"><label>Objet</label><input id="gn_obj" value="${gfEsc('Formation obligatoire — '+s.intitule)}"></div>
+    <div class="fld"><label>Destinataires (affichage)</label><input id="gn_dest" value="Ensemble du personnel — affichage dans les services et salle de pause"></div>
+    <div class="fld"><label>Corps de la note</label><textarea id="gn_corps" rows="9">${gfEsc(corpsDef)}</textarea></div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" id="gn_liste" checked>
+      Faire figurer la liste nominative des personnes convoquées (${part.length})</label>
+  </div>
+  <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+    <button class="btn primary" onclick="gfPdfNoteInterneGo('${sessionId}')">Générer la note</button></div>`,'wide');
+};
+
+window.gfPdfNoteInterneGo=async function(sessionId){
+  try{
+    const {g,s,part,o}=gfCtx(sessionId);
+    const v=x=>{const el=document.getElementById(x);return el?el.value.trim():'';};
+    const num=v('gn_num'), obj=v('gn_obj'), corps=v('gn_corps'), dest=v('gn_dest'), em=v('gn_em');
+    const avecListe=document.getElementById('gn_liste').checked;
+    _modalDirty=false; closeModal();
+    const doc=gfPdf();
+    let y=gfPdfHead(doc,'NOTE DE SERVICE',num+' — '+new Date().toLocaleDateString('fr-FR'));
+    y=gfPdfLabel(doc,'Objet',obj,y,26);
+    y=gfPdfLabel(doc,'Destinataires',dest,y,26);
+    y=gfPdfLabel(doc,'Émetteur',em,y,26);
+    y+=3; doc.setDrawColor(226,232,240); doc.line(GF_M,y,GF_W-GF_M,y); y+=9;
+    corps.split(/\n{2,}/).forEach(p=>{ y=gfPdfPara(doc,p,y,10.8); y+=2; });
+    y+=2;
+    doc.setFillColor(246,249,252); doc.setDrawColor(214,222,232);
+    const hBox=(o&&o.base_reglementaire)?46:39;
+    if(y>GF_H-hBox-40){ doc.addPage(); y=28; }
+    doc.roundedRect(GF_M,y,GF_W-2*GF_M,hBox,2,2,'FD');
+    let yy=y+8;
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(15,23,42);
+    doc.text(gfS(s.intitule),GF_M+6,yy); yy+=6.5;
+    doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(51,65,85);
+    doc.text(gfS(gfPeriode(s)+(s.horaires?'  ·  '+s.horaires:'')),GF_M+6,yy); yy+=5.5;
+    doc.text(gfS('Lieu : '+([s.lieu,s.salle].filter(Boolean).join(' — ')||'—')+'   ·   Durée : '+gfHeures(s.duree_heures)),GF_M+6,yy); yy+=5.5;
+    doc.text(gfS('Intervenant : '+([s.formateur_nom,s.formateur_organisme].filter(Boolean).join(' — ')||'—')),GF_M+6,yy); yy+=5.5;
+    if(o&&o.base_reglementaire){ doc.setFontSize(8.8); doc.setTextColor(100,116,139);
+      doc.text(gfS(o.base_reglementaire),GF_M+6,yy,{maxWidth:GF_W-2*GF_M-12}); }
+    y+=hBox+10;
+    if(avecListe&&part.length){
+      if(y>GF_H-60){ doc.addPage(); y=28; }
+      doc.setFont('helvetica','bold'); doc.setFontSize(9.6); doc.setTextColor(100,116,139);
+      doc.text('PERSONNEL CONVOQUÉ',GF_M,y); y+=6;
+      doc.setFont('helvetica','normal'); doc.setFontSize(9.8); doc.setTextColor(15,23,42);
+      const col=Math.ceil(part.length/2);
+      part.forEach((x,i)=>{
+        const cx=i<col?GF_M:GF_W/2+2, cy=y+(i<col?i:i-col)*5.4;
+        doc.text(gfS('- '+gfFullName(x.p)+(x.p.service?' ('+x.p.service+')':'')),cx,cy,{maxWidth:GF_W/2-GF_M-4});
+      });
+      y+=col*5.4+8;
+    }
+    if(y>GF_H-46){ doc.addPage(); y=30; }
+    doc.setFont('helvetica','normal'); doc.setFontSize(10.2);
+    doc.text(gfS('Fait à '+(g.e.ville||'')+', le '+new Date().toLocaleDateString('fr-FR')),GF_W-GF_M,y,{align:'right'});
+    y+=8;
+    doc.setFont('helvetica','bold'); doc.setFontSize(9.4); doc.setTextColor(100,116,139);
+    doc.text('Signature de la direction',GF_W-GF_M-72,y);
+    doc.setDrawColor(210,218,228); doc.rect(GF_W-GF_M-72,y+3,72,26);
+    gfPdfFoot(doc,'Note de service a afficher. '+gfMentionBas());
+    await gfSortie(doc,'note_interne',obj,sessionId,'note-interne-'+num+'.pdf');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+/* ── 4. PROGRAMME DE FORMATION ── */
+function gfDocProgramme(sessionId){
+    const {g,s,o}=gfCtx(sessionId);
+    const doc=gfPdf();
+    let y=gfPdfHead(doc,'Programme de formation',s.intitule);
+    y=gfPdfLabel(doc,'Public visé',(o&&GF_REFI[o.theme_code]&&GF_REFI[o.theme_code].pub)||'Personnel de l\'établissement',y);
+    y=gfPdfLabel(doc,'Durée',gfHeures(s.duree_heures),y);
+    y=gfPdfLabel(doc,'Modalité',s.modalites==='A_DISTANCE'?'À distance':s.modalites==='MIXTE'?'Mixte':'Présentiel',y);
+    y=gfPdfLabel(doc,'Prérequis','Aucun prérequis',y);
+    y=gfPdfLabel(doc,'Base réglementaire',(o&&o.base_reglementaire)||s.base_reglementaire||'—',y);
+    y+=4;
+    const bloc=(t,c)=>{ if(!c) return; if(y>GF_H-50){doc.addPage();y=28;}
+      doc.setFont('helvetica','bold'); doc.setFontSize(9.6); doc.setTextColor(100,116,139);
+      doc.text(gfS(t),GF_M,y); doc.setTextColor(15,23,42); y+=6; y=gfPdfPara(doc,c,y,10.4); y+=3; };
+    bloc('OBJECTIFS PÉDAGOGIQUES',s.objectifs||(o&&o.objectifs));
+    bloc('CONTENU DE LA FORMATION',s.programme||(o&&o.programme));
+    bloc("MOYENS PÉDAGOGIQUES","Apports théoriques illustrés par des exemples propres à l'établissement, supports projetés, "
+      +"documentation remise aux participants, mises en situation et exercices pratiques sur site.");
+    bloc("MODALITÉS D'ÉVALUATION DES ACQUIS",s.modalites_evaluation||"Évaluation continue par mise en situation pratique et questionnaire de fin de formation.");
+    bloc("ACCESSIBILITÉ","Formation adaptable aux personnes en situation de handicap : signalez toute situation particulière "
+      +"avant la session afin que les aménagements nécessaires soient étudiés.");
+    bloc("SANCTION DE LA FORMATION","Attestation de fin de formation remise à chaque participant, conformément à l'article L.6353-1 du Code du travail.");
+    gfPdfFoot(doc,gfMentionBas());
+    return doc;
+}
+window.gfPdfProgramme=async function(sessionId){
+  try{ const {s}=gfCtx(sessionId);
+    await gfSortie(gfDocProgramme(sessionId),'programme','Programme — '+s.intitule,sessionId,'programme-'+(s.reference||'session')+'.pdf');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+/* ── 5. ATTESTATIONS DE FIN DE FORMATION (art. L.6353-1) ── */
+window.gfPdfAttestations=async function(sessionId){
+  try{
+    const {g,s,part,o}=gfCtx(sessionId);
+    if(s.statut!=='realisee'){
+      if(!confirm("La session n'est pas encore au statut « Réalisée ».\nGénérer quand même les attestations ?")) return;
+    }
+    const presents=part.filter(x=>x.i.presente!==false);
+    if(!presents.length){ toast('Aucun participant présent','err'); return; }
+    const doc=gfPdf();
+    const an=new Date().getFullYear();
+    const nums=[];
+    presents.forEach((x,idx)=>{
+      if(idx) doc.addPage();
+      const num='ATT-'+(g.e.code_erp||'ETAB')+'-'+an+'-'+String(idx+1).padStart(3,'0')
+        +'-'+String(s.reference||'').slice(-3);
+      nums.push({insId:x.i.id,num});
+      let y=gfPdfHead(doc,'Attestation de fin de formation',"Article L.6353-1 du Code du travail — n° "+num);
+      y+=2;
+      y=gfPdfPara(doc,'Je soussigné(e), représentant légal de '+(g.cl.raison_sociale||"l'établissement")
+        +', atteste que :',y,10.5);
+      y+=3;
+      doc.setFillColor(246,249,252); doc.setDrawColor(214,222,232);
+      doc.roundedRect(GF_M,y,GF_W-2*GF_M,20,2,2,'FD');
+      doc.setFont('helvetica','bold'); doc.setFontSize(13.5); doc.setTextColor(15,23,42);
+      doc.text(gfS(gfFullName(x.p)),GF_M+6,y+9);
+      doc.setFont('helvetica','normal'); doc.setFontSize(9.6); doc.setTextColor(90,102,120);
+      doc.text(gfS([x.p.fonction,x.p.service,x.p.matricule?'matricule '+x.p.matricule:''].filter(Boolean).join(' — ')),GF_M+6,y+15.5);
+      doc.setTextColor(15,23,42);
+      y+=27;
+      y=gfPdfPara(doc,"a suivi l'action de formation décrite ci-dessous, réalisée conformément à un programme préétabli.",y,10.5);
+      y+=2;
+      y=gfPdfLabel(doc,'Intitulé',s.intitule,y);
+      y=gfPdfLabel(doc,"Nature de l'action","Action de formation au sens de l'article L.6313-1 du Code du travail — "
+        +"formation à la sécurité et à la prévention des risques professionnels",y);
+      y=gfPdfLabel(doc,'Objectifs',s.objectifs||(o&&o.objectifs)||'—',y);
+      y=gfPdfLabel(doc,'Durée',gfHeures(s.duree_heures)+(s.horaires?' ('+s.horaires+')':''),y);
+      y=gfPdfLabel(doc,'Dates',gfPeriode(s),y);
+      y=gfPdfLabel(doc,'Lieu',[s.lieu,s.salle].filter(Boolean).join(' — ')||'—',y);
+      y=gfPdfLabel(doc,'Modalité',s.modalites==='A_DISTANCE'?'À distance':s.modalites==='MIXTE'?'Mixte':'Présentiel',y);
+      y=gfPdfLabel(doc,'Intervenant',[s.formateur_nom,s.formateur_organisme].filter(Boolean).join(' — ')||'—',y);
+      if(o&&o.base_reglementaire) y=gfPdfLabel(doc,'Base réglementaire',o.base_reglementaire,y);
+      y=gfPdfLabel(doc,"Évaluation des acquis",
+        (x.i.resultat_evaluation||'Acquis')+' — '+(s.modalites_evaluation||"évaluation continue et mise en situation pratique"),y);
+      if(o&&o.periodicite_mois){
+        const ech=gfAddMonths(s.date_fin||s.date_debut,o.periodicite_mois);
+        y=gfPdfLabel(doc,'Prochain recyclage',gfDateFr(ech)+' (périodicité '+o.periodicite_mois+' mois)',y);
+      }
+      y+=4;
+      doc.setFont('helvetica','normal'); doc.setFontSize(10.2);
+      doc.text(gfS('Fait à '+(g.e.ville||'')+', le '+new Date().toLocaleDateString('fr-FR')),GF_W-GF_M,y,{align:'right'});
+      y+=8;
+      doc.setFont('helvetica','bold'); doc.setFontSize(9.4); doc.setTextColor(100,116,139);
+      doc.text('Signature et cachet de la direction',GF_W-GF_M-76,y);
+      doc.setDrawColor(210,218,228); doc.rect(GF_W-GF_M-76,y+3,76,27);
+    });
+    gfPdfFoot(doc,"Attestation delivree en application de l'article L.6353-1 du Code du travail. "+gfMentionBas());
+    await gfSortie(doc,'attestation','Attestations — '+s.intitule,sessionId,'attestations-'+(s.reference||'session')+'.pdf');
+    try{
+      for(const n of nums) await sb.from('of_inscriptions').update({attestation_num:n.num,attestation_emise_le:new Date().toISOString()}).eq('id',n.insId);
+    }catch(_){}
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+/* ── 6. BILAN DE SESSION ── */
+window.gfPdfBilanSession=async function(sessionId){
+  try{
+    const {g,s,part,o}=gfCtx(sessionId);
+    const pres=part.filter(x=>x.i.presente===true), abs=part.filter(x=>x.i.presente===false);
+    const taux=part.length?Math.round(pres.length*100/part.length):0;
+    const doc=gfPdf();
+    let y=gfPdfHead(doc,'Bilan de la session de formation',s.intitule);
+    y=gfPdfLabel(doc,'Référence',s.reference||'—',y);
+    y=gfPdfLabel(doc,'Dates',gfPeriode(s)+(s.horaires?' — '+s.horaires:''),y);
+    y=gfPdfLabel(doc,'Durée',gfHeures(s.duree_heures),y);
+    y=gfPdfLabel(doc,'Lieu',[s.lieu,s.salle].filter(Boolean).join(' — ')||'—',y);
+    y=gfPdfLabel(doc,'Intervenant',[s.formateur_nom,s.formateur_organisme].filter(Boolean).join(' — ')||'—',y);
+    if(o) y=gfPdfLabel(doc,'Obligation',o.libelle+(o.base_reglementaire?' ('+o.base_reglementaire+')':''),y);
+    y+=5;
+    const kpis=[['Inscrits',part.length],['Présents',pres.length],['Absents',abs.length],
+      ['Taux de présence',taux+'%'],['Heures stagiaires',Math.round(gfNum(s.duree_heures)*pres.length)+' h']];
+    const wK=(GF_W-2*GF_M-4*3)/5;
+    kpis.forEach((k,i)=>{
+      const x=GF_M+i*(wK+3);
+      doc.setFillColor(246,249,252); doc.setDrawColor(222,229,238);
+      doc.roundedRect(x,y,wK,20,2,2,'FD');
+      doc.setFont('helvetica','normal'); doc.setFontSize(7.4); doc.setTextColor(120,132,148);
+      doc.text(gfS(k[0].toUpperCase()),x+3,y+6.5,{maxWidth:wK-6});
+      doc.setFont('helvetica','bold'); doc.setFontSize(13.5); doc.setTextColor(15,23,42);
+      doc.text(String(k[1]),x+3,y+16);
+    });
+    y+=28;
+    doc.setFont('helvetica','bold'); doc.setFontSize(9.6); doc.setTextColor(100,116,139);
+    doc.text('DÉTAIL DES PARTICIPANTS',GF_M,y); y+=6;
+    doc.setFillColor(241,245,249); doc.rect(GF_M,y,GF_W-2*GF_M,7.5,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(8.6); doc.setTextColor(51,65,85);
+    const C=[GF_M+2,GF_M+62,GF_M+108,GF_M+134,GF_M+156];
+    doc.text('Nom et prénom',C[0],y+5); doc.text('Fonction / service',C[1],y+5);
+    doc.text('Présence',C[2],y+5); doc.text('Acquis',C[3],y+5); doc.text('Prochaine échéance',C[4],y+5);
+    y+=7.5;
+    doc.setDrawColor(232,238,245); doc.setLineWidth(.2);
+    part.forEach(x=>{
+      if(y>GF_H-32){ doc.addPage(); y=26; }
+      doc.setFont('helvetica','normal'); doc.setFontSize(8.8); doc.setTextColor(15,23,42);
+      doc.text(gfS(gfFullName(x.p)),C[0],y+5,{maxWidth:58});
+      doc.setTextColor(90,102,120);
+      doc.text(gfS([x.p.fonction,x.p.service].filter(Boolean).join(' / ')),C[1],y+5,{maxWidth:44});
+      doc.setTextColor(x.i.presente===false?185:22,x.i.presente===false?28:101,x.i.presente===false?28:52);
+      doc.text(x.i.presente===false?'Absent':x.i.presente===true?'Présent':'—',C[2],y+5);
+      doc.setTextColor(15,23,42);
+      doc.text(gfS(x.i.resultat_evaluation||'—'),C[3],y+5,{maxWidth:20});
+      const ech=(o&&o.periodicite_mois&&x.i.presente!==false)?gfDateFr(gfAddMonths(s.date_fin||s.date_debut,o.periodicite_mois)):'—';
+      doc.text(gfS(ech),C[4],y+5);
+      doc.line(GF_M,y+7.5,GF_W-GF_M,y+7.5);
+      y+=7.6;
+    });
+    y+=8;
+    if(abs.length){
+      if(y>GF_H-50){ doc.addPage(); y=28; }
+      doc.setFont('helvetica','bold'); doc.setFontSize(9.6); doc.setTextColor(185,28,28);
+      doc.text('SUITES À DONNER',GF_M,y); y+=6; doc.setTextColor(15,23,42);
+      y=gfPdfPara(doc,abs.length+" salarié(s) n'ont pas suivi la session : "
+        +abs.map(x=>gfFullName(x.p)).join(', ')
+        +". Ces personnes restent non conformes au regard de l'obligation et doivent être reprogrammées sur une prochaine session.",y,10.2);
+    }
+    if(s.notes){ y+=2;
+      doc.setFont('helvetica','bold'); doc.setFontSize(9.6); doc.setTextColor(100,116,139);
+      doc.text('OBSERVATIONS',GF_M,y); y+=6; doc.setTextColor(15,23,42);
+      y=gfPdfPara(doc,s.notes,y,10.2); }
+    gfPdfFoot(doc,gfMentionBas());
+    await gfSortie(doc,'evaluation','Bilan — '+s.intitule,sessionId,'bilan-'+(s.reference||'session')+'.pdf');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+/* ── 7. PLAN ANNUEL DE FORMATION ── */
+window.gfPdfPlanAnnuel=async function(){
+  try{
+    const g=window._gf;
+    const doc=gfPdf('landscape'); const W=297;
+    const an=new Date().getFullYear();
+    let y=gfPdfHead(doc,'Plan de formation '+an,g.e.nom,true);
+    const parOb={};
+    g.cov.forEach(c=>{ (parOb[c.obligation_id]=parOb[c.obligation_id]||{o:c,l:[]}).l.push(c); });
+    const lignes=Object.values(parOb);
+    doc.setFillColor(241,245,249); doc.rect(GF_M,y,W-2*GF_M,8,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(8.6); doc.setTextColor(51,65,85);
+    const C=[GF_M+2,GF_M+92,GF_M+120,GF_M+140,GF_M+163,GF_M+188,GF_M+216];
+    ['Formation obligatoire','Périodicité','Concernés','À former','Groupes','Heures à prévoir','Échéance la plus proche']
+      .forEach((t,i)=>doc.text(t,C[i],y+5.5));
+    y+=8;
+    doc.setDrawColor(232,238,245); doc.setLineWidth(.2);
+    let totH=0, totF=0;
+    lignes.sort((a,b)=>b.l.filter(x=>x.statut!=='a_jour').length-a.l.filter(x=>x.statut!=='a_jour').length)
+    .forEach(L=>{
+      if(y>190){ doc.addPage(); y=26; }
+      const ob=g.ob.find(o=>o.id===L.o.obligation_id)||{};
+      const aFormer=L.l.filter(x=>x.statut!=='a_jour').length;
+      const grp=Math.ceil(aFormer/12)||0;
+      const h=Math.round(gfNum(ob.duree_heures)*aFormer);
+      totH+=h; totF+=aFormer;
+      const ech=L.l.filter(x=>x.echeance).map(x=>x.echeance).sort()[0];
+      doc.setFont('helvetica','bold'); doc.setFontSize(8.8); doc.setTextColor(15,23,42);
+      doc.text(gfS(L.o.obligation),C[0],y+5,{maxWidth:88});
+      doc.setFont('helvetica','normal'); doc.setTextColor(70,84,104);
+      doc.text(L.o.periodicite_mois?L.o.periodicite_mois+' mois':'embauche',C[1],y+5);
+      doc.text(String(L.l.length),C[2],y+5);
+      doc.setTextColor(aFormer?185:22,aFormer?28:101,aFormer?28:52);
+      doc.setFont('helvetica','bold'); doc.text(String(aFormer),C[3],y+5);
+      doc.setFont('helvetica','normal'); doc.setTextColor(70,84,104);
+      doc.text(String(grp),C[4],y+5);
+      doc.text(h+' h',C[5],y+5);
+      doc.text(gfS(ech?gfDateFr(ech):'—'),C[6],y+5);
+      doc.line(GF_M,y+7.5,W-GF_M,y+7.5);
+      y+=7.6;
+    });
+    y+=6;
+    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(15,23,42);
+    doc.text(gfS('Total : '+totF+' participations a programmer - '+totH+' heures stagiaires - '
+      +Math.ceil(totF/12)+' groupes estimes (12 personnes par groupe)'),GF_M,y);
+    y+=10;
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.6); doc.setTextColor(100,116,139);
+    doc.text(gfS("Ce plan recense les besoins issus des obligations reglementaires suivies pour l'etablissement. "
+      +"Il ne se substitue pas au plan de developpement des competences, dont il constitue le volet securite."),GF_M,y,{maxWidth:W-2*GF_M});
+    gfPdfFoot(doc,gfMentionBas(),true);
+    await gfSortie(doc,'autre','Plan de formation '+an,null,'plan-formation-'+an+'.pdf');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+/* ── 8. BILAN ANNUEL ── */
+window.gfPdfBilanAnnuel=async function(){
+  try{
+    const g=window._gf;
+    const an=new Date().getFullYear();
+    const doc=gfPdf();
+    let y=gfPdfHead(doc,'Bilan annuel de la formation '+an,g.e.nom);
+    const seAn=g.se.filter(s=>s.statut==='realisee'&&(s.date_fin||s.date_debut||'').slice(0,4)===String(an));
+    const insAn=g.ins.filter(i=>seAn.some(s=>s.id===i.session_id));
+    const presAn=insAn.filter(i=>i.presente!==false).length;
+    const heures=seAn.reduce((a,s)=>a+gfNum(s.duree_heures)*g.ins.filter(i=>i.session_id===s.id&&i.presente!==false).length,0);
+    const salForm=new Set(insAn.filter(i=>i.presente!==false).map(i=>i.stagiaire_id)).size;
+    const eff=g.st.filter(s=>s.actif!==false).length;
+    const tot=g.cov.length, aj=g.cov.filter(c=>c.statut==='a_jour').length;
+    const taux=tot?Math.round(aj*100/tot):0;
+    const kpis=[['Sessions réalisées',seAn.length],['Participations',presAn],['Salariés formés',salForm+' / '+eff],
+      ['Heures stagiaires',Math.round(heures)+' h'],['Conformité',taux+'%']];
+    const wK=(GF_W-2*GF_M-4*3)/5;
+    kpis.forEach((k,i)=>{
+      const x=GF_M+i*(wK+3);
+      doc.setFillColor(246,249,252); doc.setDrawColor(222,229,238);
+      doc.roundedRect(x,y,wK,21,2,2,'FD');
+      doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(120,132,148);
+      doc.text(gfS(k[0].toUpperCase()),x+3,y+6.5,{maxWidth:wK-6});
+      doc.setFont('helvetica','bold'); doc.setFontSize(12.5); doc.setTextColor(15,23,42);
+      doc.text(String(k[1]),x+3,y+16.5);
+    });
+    y+=30;
+    doc.setFont('helvetica','bold'); doc.setFontSize(9.6); doc.setTextColor(100,116,139);
+    doc.text('COUVERTURE PAR OBLIGATION',GF_M,y); y+=6;
+    doc.setFillColor(241,245,249); doc.rect(GF_M,y,GF_W-2*GF_M,7.5,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(8.4); doc.setTextColor(51,65,85);
+    const C=[GF_M+2,GF_M+96,GF_M+116,GF_M+134,GF_M+156];
+    ['Obligation','Concernés','À jour','Non conformes','Couverture'].forEach((t,i)=>doc.text(t,C[i],y+5));
+    y+=7.5;
+    const parOb={}; g.cov.forEach(c=>{ (parOb[c.obligation_id]=parOb[c.obligation_id]||{o:c,l:[]}).l.push(c); });
+    doc.setDrawColor(232,238,245); doc.setLineWidth(.2);
+    Object.values(parOb).forEach(L=>{
+      if(y>GF_H-40){ doc.addPage(); y=26; }
+      const n=L.l.length, ok=L.l.filter(x=>x.statut==='a_jour').length, nc=n-ok;
+      const p=n?Math.round(ok*100/n):0;
+      doc.setFont('helvetica','normal'); doc.setFontSize(8.6); doc.setTextColor(15,23,42);
+      doc.text(gfS(L.o.obligation),C[0],y+5,{maxWidth:92});
+      doc.setTextColor(70,84,104);
+      doc.text(String(n),C[1],y+5); doc.text(String(ok),C[2],y+5);
+      doc.setTextColor(nc?185:70,nc?28:84,nc?28:104); doc.text(String(nc),C[3],y+5);
+      doc.setFillColor(238,241,246); doc.rect(C[4],y+2.4,34,3.4,'F');
+      doc.setFillColor(p>=90?22:p>=70?245:220,p>=90?163:p>=70?158:38,p>=90?74:p>=70?11:38);
+      doc.rect(C[4],y+2.4,34*p/100,3.4,'F');
+      doc.setTextColor(70,84,104); doc.setFontSize(7.6);
+      doc.text(p+'%',C[4]+36,y+5.4);
+      doc.line(GF_M,y+7.5,GF_W-GF_M,y+7.5);
+      y+=7.6;
+    });
+    y+=8;
+    if(y>GF_H-70){ doc.addPage(); y=28; }
+    doc.setFont('helvetica','bold'); doc.setFontSize(9.6); doc.setTextColor(100,116,139);
+    doc.text('SESSIONS RÉALISÉES DANS L\'ANNÉE',GF_M,y); y+=6; doc.setTextColor(15,23,42);
+    if(seAn.length){
+      seAn.forEach(s=>{
+        if(y>GF_H-30){ doc.addPage(); y=26; }
+        const np=g.ins.filter(i=>i.session_id===s.id&&i.presente!==false).length;
+        doc.setFont('helvetica','normal'); doc.setFontSize(9);
+        doc.text(gfS('- '+gfDateFr(s.date_debut)+'  '+s.intitule+'  ('+np+' participant'+(np>1?'s':'')+', '+gfHeures(s.duree_heures)+')'),
+          GF_M,y,{maxWidth:GF_W-2*GF_M}); y+=5.4;
+      });
+    } else { y=gfPdfPara(doc,'Aucune session réalisée sur la période.',y,10); }
+    y+=6;
+    if(y>GF_H-56){ doc.addPage(); y=28; }
+    doc.setFont('helvetica','bold'); doc.setFontSize(9.6); doc.setTextColor(100,116,139);
+    doc.text('ANALYSE ET PERSPECTIVES',GF_M,y); y+=6; doc.setTextColor(15,23,42);
+    const nc=tot-aj;
+    y=gfPdfPara(doc,"Au "+new Date().toLocaleDateString('fr-FR')+", "+aj+" obligations individuelles sur "+tot+" sont satisfaites, soit un taux de conformité de "+taux+" %."
+      +(nc?" "+nc+" situations restent à régulariser et font l'objet du plan de formation joint.":" Aucune situation n'est à régulariser.")
+      +" Le présent bilan est tenu à la disposition de la commission de sécurité, du CSE et de l'inspection du travail, et complète le registre de sécurité.",y,10.4);
+    gfPdfFoot(doc,gfMentionBas());
+    await gfSortie(doc,'evaluation','Bilan annuel '+an,null,'bilan-formation-'+an+'.pdf');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+/* ── 9. ATTESTATION DE PARCOURS INDIVIDUEL ── */
+window.gfPdfParcours=async function(stagiaireId){
+  try{
+    const g=window._gf;
+    const p=g.st.find(x=>x.id===stagiaireId); if(!p) return;
+    const hist=g.ins.filter(i=>i.stagiaire_id===stagiaireId)
+      .map(i=>({i,s:g.se.find(x=>x.id===i.session_id)}))
+      .filter(x=>x.s&&x.s.statut==='realisee'&&x.i.presente!==false)
+      .sort((a,b)=>String(b.s.date_debut||'').localeCompare(String(a.s.date_debut||'')));
+    const doc=gfPdf();
+    let y=gfPdfHead(doc,'Parcours de formation sécurité',gfFullName(p));
+    y=gfPdfLabel(doc,'Fonction',p.fonction||'—',y);
+    y=gfPdfLabel(doc,'Service',p.service||'—',y);
+    if(p.matricule) y=gfPdfLabel(doc,'Matricule',p.matricule,y);
+    if(p.date_entree) y=gfPdfLabel(doc,'Date d\'entrée',gfDateFr(p.date_entree),y);
+    y+=5;
+    doc.setFont('helvetica','bold'); doc.setFontSize(9.6); doc.setTextColor(100,116,139);
+    doc.text('FORMATIONS SUIVIES',GF_M,y); y+=6;
+    doc.setFillColor(241,245,249); doc.rect(GF_M,y,GF_W-2*GF_M,7.5,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(8.4); doc.setTextColor(51,65,85);
+    const C=[GF_M+2,GF_M+90,GF_M+112,GF_M+134,GF_M+156];
+    ['Formation','Date','Durée','Résultat','Échéance'].forEach((t,i)=>doc.text(t,C[i],y+5));
+    y+=7.5; doc.setDrawColor(232,238,245); doc.setLineWidth(.2);
+    if(hist.length){
+      hist.forEach(h=>{
+        if(y>GF_H-36){ doc.addPage(); y=26; }
+        const o=h.s.obligation_id?g.ob.find(x=>x.id===h.s.obligation_id):null;
+        const ech=(o&&o.periodicite_mois)?gfDateFr(gfAddMonths(h.s.date_fin||h.s.date_debut,o.periodicite_mois)):'—';
+        doc.setFont('helvetica','normal'); doc.setFontSize(8.6); doc.setTextColor(15,23,42);
+        doc.text(gfS(h.s.intitule),C[0],y+5,{maxWidth:86});
+        doc.setTextColor(70,84,104);
+        doc.text(gfDateFr(h.s.date_debut),C[1],y+5);
+        doc.text(gfHeures(h.s.duree_heures),C[2],y+5);
+        doc.text(gfS(h.i.resultat_evaluation||'Acquis'),C[3],y+5,{maxWidth:20});
+        doc.text(gfS(ech),C[4],y+5);
+        doc.line(GF_M,y+7.5,GF_W-GF_M,y+7.5); y+=7.6;
+      });
+    } else { doc.setFont('helvetica','normal'); doc.setFontSize(9.6); doc.setTextColor(120,132,148);
+      doc.text('Aucune formation enregistrée.',GF_M,y+5); y+=12; }
+    y+=8;
+    const cov=g.cov.filter(c=>c.stagiaire_id===stagiaireId&&(c.statut==='jamais'||c.statut==='echu'));
+    if(cov.length){
+      if(y>GF_H-50){ doc.addPage(); y=28; }
+      doc.setFont('helvetica','bold'); doc.setFontSize(9.6); doc.setTextColor(185,28,28);
+      doc.text('FORMATIONS RESTANT À SUIVRE',GF_M,y); y+=6; doc.setTextColor(15,23,42);
+      cov.forEach(c=>{ doc.setFont('helvetica','normal'); doc.setFontSize(9.4);
+        doc.text(gfS('- '+c.obligation),GF_M,y,{maxWidth:GF_W-2*GF_M}); y+=5.4; });
+      y+=4;
+    }
+    if(y>GF_H-46){ doc.addPage(); y=30; }
+    doc.setFont('helvetica','normal'); doc.setFontSize(10.2); doc.setTextColor(15,23,42);
+    doc.text(gfS('Fait à '+(g.e.ville||'')+', le '+new Date().toLocaleDateString('fr-FR')),GF_W-GF_M,y,{align:'right'});
+    y+=8;
+    doc.setFont('helvetica','bold'); doc.setFontSize(9.4); doc.setTextColor(100,116,139);
+    doc.text('Signature de la direction',GF_W-GF_M-72,y);
+    doc.setDrawColor(210,218,228); doc.rect(GF_W-GF_M-72,y+3,72,26);
+    gfPdfFoot(doc,gfMentionBas());
+    doc.save('parcours-'+String(p.nom||'salarie').toLowerCase().replace(/[^a-z0-9]/g,'-')+'.pdf');
+    toast('Document généré ✓','ok');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+/* =====================================================================
+   PASSEPORT DE PRÉVENTION — fichier d'import de masse (ADF employeur)
+   20 colonnes, séparateur « | », encodage UTF-8
+===================================================================== */
+const GF_PP_COLS=['ID_DECLARATION','REFERENCE_DECLARATION','ID_UNIQUE_PARTENAIRE','NOM_FORMATION',
+ 'DATE_DEBUT_FORMATION','DATE_FIN_FORMATION','MODALITE_DISPENSE','COMPETENCE_TRANSFERABLE',
+ 'QUALIFICATION_FORMATEUR','FORMATION_CERTIFIANTE','CERTIFICATION_VISEE','DOMAINE_FORMATION',
+ 'SPECIALITE_FORMATION','NIR','NOM_TITULAIRE','PRESENCE_EMPLOYEUR','SIRET_EMPLOYEUR',
+ 'REFERENCE_EMPLOYEUR','DATE_DEBUT_VALIDITE','DATE_FIN_VALIDITE'];
+
+window.gfPpExport=async function(sessionId){
+  const {g,s,part,o}=gfCtx(sessionId);
+  const presents=part.filter(x=>x.i.presente!==false);
+  if(!presents.length){ toast('Aucun participant présent à déclarer','err'); return; }
+  let nirs={};
+  try{
+    const {data}=await sb.from('of_titulaire_nir').select('stagiaire_id,nir').in('stagiaire_id',presents.map(x=>x.p.id));
+    (data||[]).forEach(r=>{ nirs[r.stagiaire_id]=r.nir; });
+  }catch(_){}
+  const theme=o&&GF_REFI[o.theme_code];
+  const certif=theme&&theme.certif?'OUI':'NON';
+  openModal(`<div class="modal-head"><h3>Passeport de prévention — fichier d'import</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:14px">
+      Génère le fichier CSV « attestation de formation » (profil employeur) : 20 colonnes, séparateur <b>|</b>, encodage UTF-8,
+      à déposer depuis votre espace du Passeport de prévention.<br>
+      <b>Le NIR (13 chiffres, sans la clé) et le nom de naissance sont obligatoires</b> : le couple NIR + nom de naissance
+      permet à la plateforme de retrouver le salarié. Une ligne incomplète est rejetée.
+      Délai de déclaration : 3 mois après la fin du trimestre au cours duquel la formation s'est terminée.
+    </div>
+    <div class="gf-grid2">
+      <div class="fld"><label>Identifiant de la déclaration</label>
+        <input id="gpp_id" value="${gfEsc((s.reference||'SESSION').replace(/[^A-Za-z0-9_-]/g,'_'))}"></div>
+      <div class="fld"><label>Référence de la déclaration</label>
+        <input id="gpp_ref" value="${gfEsc('REF_'+(s.reference||'SESSION').replace(/[^A-Za-z0-9_-]/g,'_'))}"></div>
+      <div class="fld"><label>Modalité de dispense</label><select id="gpp_mod">
+        <option value="PRESENTIEL" ${s.modalites!=='A_DISTANCE'&&s.modalites!=='MIXTE'?'selected':''}>Présentiel</option>
+        <option value="A_DISTANCE" ${s.modalites==='A_DISTANCE'?'selected':''}>À distance</option>
+        <option value="MIXTE" ${s.modalites==='MIXTE'?'selected':''}>Mixte</option></select></div>
+      <div class="fld"><label>Qualification du formateur</label><select id="gpp_qual">
+        <option value="">— non renseigné —</option>
+        ${['PREVENTEUR','FORMATEUR_D_ADULTES_FORMATION_SPECIALISEE','RESPONSABLE_QHSE','INGENIEUR','ENSEIGNANT','ANCIEN_PROFESSIONNEL','PSYCHOLOGUE']
+          .map(q=>`<option value="${q}" ${s.formateur_qualite===q?'selected':''}>${q.replace(/_/g,' ').toLowerCase()}</option>`).join('')}
+      </select></div>
+      <div class="fld"><label>Formation certifiante</label><select id="gpp_cert" onchange="gfPpCertChange()">
+        <option value="NON" ${certif==='NON'?'selected':''}>Non</option>
+        <option value="OUI" ${certif==='OUI'?'selected':''}>Oui</option></select></div>
+      <div class="fld" id="gpp_wcert" style="${certif==='OUI'?'':'display:none'}"><label>Code certification RS</label>
+        <input id="gpp_rs" placeholder="RS6550" maxlength="9"></div>
+      <div class="fld" id="gpp_wdom" style="${certif==='OUI'?'display:none':''}"><label>Domaine(s) — Formacode, séparés par /</label>
+        <input id="gpp_dom" placeholder="42829/42817" maxlength="30"></div>
+      <div class="fld" id="gpp_wspe" style="${certif==='OUI'?'display:none':''}"><label>Spécialité(s) — code NSF, séparés par /</label>
+        <input id="gpp_spe" placeholder="344r" maxlength="15"></div>
+      <div class="fld"><label>Compétences transférables — codes ROME, séparés par /</label>
+        <input id="gpp_rome" maxlength="70" placeholder="115650/121885"></div>
+      <div class="fld"><label>Validité de l'attestation (mois) — vide si sans limite</label>
+        <input id="gpp_val" type="number" min="0" value="${o&&o.periodicite_mois?o.periodicite_mois:''}"></div>
+    </div>
+    <div class="gf-sec">Titulaires — NIR et nom de naissance</div>
+    <div style="max-height:34vh;overflow:auto;border:1px solid var(--line-2,#e6eaf1);border-radius:10px;padding:6px 10px">
+      ${presents.map(x=>`<div style="display:grid;grid-template-columns:1.1fr 1fr .9fr;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #f1f5f9">
+        <div style="font-size:12.5px"><b>${gfEsc(gfFullName(x.p))}</b></div>
+        <input class="gpp_nn" data-id="${x.p.id}" placeholder="Nom de naissance" value="${gfEsc(x.p.nom_naissance||x.p.nom||'')}" style="font-size:12px;padding:4px 7px">
+        <input class="gpp_nir" data-id="${x.p.id}" placeholder="NIR (13 chiffres)" maxlength="13" value="${gfEsc(nirs[x.p.id]||'')}" style="font-size:12px;padding:4px 7px">
+      </div>`).join('')}
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-top:10px">
+      <input type="checkbox" id="gpp_save" checked> Conserver les NIR saisis dans l'application (table isolée, accès administrateur)</label>
+  </div>
+  <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+    <button class="btn primary" onclick="gfPpGenerer('${sessionId}')">Générer le fichier CSV</button></div>`,'wide');
+};
+window.gfPpCertChange=function(){
+  const c=document.getElementById('gpp_cert').value==='OUI';
+  document.getElementById('gpp_wcert').style.display=c?'':'none';
+  document.getElementById('gpp_wdom').style.display=c?'none':'';
+  document.getElementById('gpp_wspe').style.display=c?'none':'';
+};
+
+window.gfPpGenerer=async function(sessionId){
+  try{
+    const {g,s,part,o}=gfCtx(sessionId);
+    const presents=part.filter(x=>x.i.presente!==false);
+    const v=x=>{const el=document.getElementById(x);return el?el.value.trim():'';};
+    const idDecl=v('gpp_id'), ref=v('gpp_ref'), mod=v('gpp_mod'), qual=v('gpp_qual'),
+          cert=v('gpp_cert'), rs=v('gpp_rs'), dom=v('gpp_dom'), spe=v('gpp_spe'), rome=v('gpp_rome');
+    const valMois=v('gpp_val');
+    if(!idDecl||!ref){ toast("L'identifiant et la référence de déclaration sont obligatoires",'err'); return; }
+    const fr=d=>{ if(!d) return ''; const x=new Date(d); return String(x.getDate()).padStart(2,'0')+'/'+String(x.getMonth()+1).padStart(2,'0')+'/'+x.getFullYear(); };
+    const dDeb=s.date_debut, dFin=s.date_fin||s.date_debut;
+    if(new Date(dFin)>new Date()){ toast('La formation doit être terminée pour être déclarée','err'); return; }
+    const nn={}, nir={}, err=[];
+    document.querySelectorAll('.gpp_nn').forEach(i=>{ nn[i.dataset.id]=i.value.trim().toUpperCase(); });
+    document.querySelectorAll('.gpp_nir').forEach(i=>{ nir[i.dataset.id]=i.value.replace(/\s/g,''); });
+    presents.forEach(x=>{
+      if(!nn[x.p.id]) err.push(gfFullName(x.p)+' : nom de naissance manquant');
+      if(!/^[0-9AB]{13}$/i.test(nir[x.p.id]||'')) err.push(gfFullName(x.p)+' : NIR invalide (13 caractères attendus)');
+    });
+    if(err.length){ toast(err[0]+(err.length>1?' (+'+(err.length-1)+' autre[s])':''),'err'); return; }
+    const finVal=valMois?fr(gfAddMonths(dFin,Number(valMois))):'';
+    const lignes=[GF_PP_COLS.join('|')];
+    presents.forEach((x,i)=>{
+      const idU=idDecl+'-'+String(i+1).padStart(3,'0');
+      lignes.push([idDecl,ref,idU,s.intitule,fr(dDeb),fr(dFin),mod,rome,qual,cert,
+        cert==='OUI'?rs:'', cert==='OUI'?'':dom, cert==='OUI'?'':spe,
+        nir[x.p.id],nn[x.p.id],'','', '', fr(dFin), finVal]
+        .map(c=>String(c==null?'':c).replace(/[|\r\n]/g,' ').trim()).join('|'));
+    });
+    const csv='\uFEFF'+lignes.join('\r\n');
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='passeport-prevention-'+(s.reference||'session').replace(/[^A-Za-z0-9._-]/g,'_')+'.csv';
+    a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+    if(document.getElementById('gpp_save').checked){
+      for(const x of presents){
+        try{ await sb.from('of_titulaire_nir').upsert({stagiaire_id:x.p.id,nir:nir[x.p.id],
+          saisi_le:new Date().toISOString(),saisi_par:state.user&&state.user.id},{onConflict:'stagiaire_id'}); }catch(_){}
+        if(nn[x.p.id]&&nn[x.p.id]!==x.p.nom_naissance){
+          try{ await sb.from('of_stagiaires').update({nom_naissance:nn[x.p.id]}).eq('id',x.p.id); }catch(_){}
+        }
+      }
+    }
+    try{
+      await sb.from('of_pp_declarations').insert({session_id:sessionId,id_declaration:idDecl,reference_declaration:ref,
+        nom_formation:s.intitule,date_debut:dDeb,date_fin:dFin,modalite_dispense:mod,
+        competence_transferable:rome||null,qualification_formateur:qual||null,formation_certifiante:cert,
+        certification_visee:cert==='OUI'?(rs||null):null,domaine_formation:cert==='OUI'?null:(dom||null),
+        specialite_formation:cert==='OUI'?null:(spe||null),nb_titulaires:presents.length,statut:'prete',
+        date_limite:gfPpDateLimite(dFin)});
+    }catch(_){}
+    _modalDirty=false; closeModal();
+    toast('Fichier CSV généré — '+presents.length+' titulaire(s) ✓','ok');
+    gfReload('sessions');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+function gfPpDateLimite(dFin){
+  const d=new Date(dFin); const t=Math.floor(d.getMonth()/3);
+  const finTrim=new Date(d.getFullYear(),t*3+3,0);
+  finTrim.setMonth(finTrim.getMonth()+3);
+  return finTrim.toISOString().slice(0,10);
+}
+
+/* =====================================================================
+   ENVOIS E-MAIL
+===================================================================== */
+window.gfEnvoiModal=function(sessionId){
+  const {g,s,part}=gfCtx(sessionId);
+  const avecMail=part.filter(x=>x.p.email);
+  const sansMail=part.filter(x=>!x.p.email);
+  openModal(`<div class="modal-head"><h3>Envoyer par e-mail</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div class="fld"><label>Type d'envoi</label><select id="ge_type">
+      <option value="convocation">Convocation individuelle</option>
+      <option value="attestation">Attestation de fin de formation</option></select></div>
+    <div class="fld"><label>Destinataires supplémentaires (séparés par des virgules)</label>
+      <input id="ge_cc" placeholder="direction@exemple.fr, cadre.sante@exemple.fr"></div>
+    <div style="font-size:12.5px;color:var(--muted);line-height:1.6;margin-top:10px">
+      ${avecMail.length} participant(s) avec adresse e-mail.
+      ${sansMail.length?`<br><b style="color:#b91c1c">${sansMail.length} sans adresse</b> : ${sansMail.map(x=>gfEsc(gfFullName(x.p))).join(', ')} — remettez-leur le document en main propre.`:''}
+    </div>
+    <div class="fld" style="margin-top:12px"><label>Message</label>
+      <textarea id="ge_msg" rows="5">Bonjour,
+
+Vous trouverez ci-dessous les informations relatives à la formation « ${gfEsc(s.intitule)} » prévue ${gfEsc(gfPeriode(s))}${s.horaires?', '+gfEsc(s.horaires):''}.
+
+Votre présence est obligatoire.
+
+Cordialement,
+La Direction</textarea></div>
+  </div>
+  <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+    <button class="btn primary" id="ge_btn" onclick="gfEnvoiGo('${sessionId}')">Envoyer</button></div>`,'wide');
+};
+
+window.gfEnvoiGo=async function(sessionId){
+  const btn=document.getElementById('ge_btn'); btn.disabled=true; btn.textContent='Envoi…';
+  try{
+    const {g,s,part}=gfCtx(sessionId);
+    const type=document.getElementById('ge_type').value;
+    const msg=document.getElementById('ge_msg').value;
+    const cc=document.getElementById('ge_cc').value.split(',').map(x=>x.trim()).filter(Boolean);
+    const cibles=part.filter(x=>x.p.email&&(type!=='attestation'||x.i.presente!==false));
+    if(!cibles.length&&!cc.length){ toast('Aucun destinataire','err'); btn.disabled=false; btn.textContent='Envoyer'; return; }
+    const bloc=`<table style="border-collapse:collapse;font-size:14px;margin:14px 0">
+      <tr><td style="padding:4px 14px 4px 0;color:#64748b">Formation</td><td><b>${gfEsc(s.intitule)}</b></td></tr>
+      <tr><td style="padding:4px 14px 4px 0;color:#64748b">Date</td><td>${gfEsc(gfPeriode(s))}${s.horaires?' — '+gfEsc(s.horaires):''}</td></tr>
+      <tr><td style="padding:4px 14px 4px 0;color:#64748b">Lieu</td><td>${gfEsc([s.lieu,s.salle].filter(Boolean).join(' — '))}</td></tr>
+      <tr><td style="padding:4px 14px 4px 0;color:#64748b">Durée</td><td>${gfEsc(gfHeures(s.duree_heures))}</td></tr>
+      ${s.formateur_nom?`<tr><td style="padding:4px 14px 4px 0;color:#64748b">Intervenant</td><td>${gfEsc(s.formateur_nom)}${s.formateur_organisme?' — '+gfEsc(s.formateur_organisme):''}</td></tr>`:''}
+    </table>`;
+    const sujet=(type==='attestation'?'Attestation de formation — ':'Convocation — ')+s.intitule;
+    let ok=0, ko=0;
+    const dests=[...new Set(cibles.map(x=>x.p.email).concat(cc))];
+    for(const to of dests){
+      const html=`<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#0f172a;line-height:1.6">
+        ${msg.split('\n').map(l=>`<div>${gfEsc(l)||'&nbsp;'}</div>`).join('')}
+        ${bloc}
+        <div style="font-size:12px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px;margin-top:14px">
+          ${gfEsc(g.cl.raison_sociale||'')} — ${gfEsc(g.e.nom||'')}</div></div>`;
+      try{
+        const {error}=await sb.functions.invoke('send-client-email',{body:{to:[to],subject:sujet,html}});
+        if(error) throw error; ok++;
+        const x=cibles.find(c=>c.p.email===to);
+        await sb.from('of_envois').insert({session_id:sessionId,inscription_id:x?x.i.id:null,stagiaire_id:x?x.p.id:null,
+          type:type==='attestation'?'attestation':'convocation',canal:'email',destinataire:to,statut:'envoye',
+          envoye_le:new Date().toISOString()});
+        if(x&&type==='convocation') await sb.from('of_inscriptions').update({convocation_envoyee_le:new Date().toISOString()}).eq('id',x.i.id);
+      }catch(e){ ko++; console.warn('[formation] envoi',to,e); }
+    }
+    _modalDirty=false; closeModal();
+    toast(ok+' e-mail(s) envoyé(s)'+(ko?' — '+ko+' échec(s)':' ✓'),ko?'err':'ok');
+    gfReload('sessions');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Envoyer'; }
+};
+
+/* =====================================================================
+   RAPPELS À LA DIRECTION
+===================================================================== */
+window.gfRappelModal=async function(){
+  const g=window._gf;
+  let contacts=[];
+  try{
+    const {data}=await sb.from('client_contacts').select('nom,fonction,email').eq('client_id',g.e.client_id);
+    contacts=(data||[]).filter(c=>c.email);
+  }catch(_){}
+  try{
+    const {data}=await sb.from('organisation_personnes').select('nom,fonction,email,erp_ids').eq('client_id',g.e.client_id);
+    (data||[]).forEach(p=>{ if(p.email&&(!p.erp_ids||!p.erp_ids.length||p.erp_ids.includes(g.e.id))) contacts.push(p); });
+  }catch(_){}
+  const uniq=[]; const vus=new Set();
+  contacts.forEach(c=>{ if(!vus.has(c.email)){ vus.add(c.email); uniq.push(c); } });
+  const nc=g.cov.filter(c=>c.statut==='echu'||c.statut==='jamais');
+  const bi=g.cov.filter(c=>c.statut==='bientot');
+  const parOb={}; nc.concat(bi).forEach(c=>{ (parOb[c.obligation]=parOb[c.obligation]||[]).push(c); });
+  openModal(`<div class="modal-head"><h3>Rappel à la direction</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div style="font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:14px">
+      Adresse au directeur et aux responsables de service la synthèse des formations à programmer :
+      <b>${nc.length} situation(s) non conforme(s)</b> et <b>${bi.length} échéance(s) proche(s)</b>.</div>
+    <div class="fld"><label>Destinataires</label>
+      ${uniq.length?`<div style="display:flex;flex-direction:column;gap:5px;max-height:24vh;overflow:auto;border:1px solid var(--line-2,#e6eaf1);border-radius:9px;padding:8px 10px">
+        ${uniq.map(c=>`<label style="display:flex;align-items:center;gap:8px;font-size:12.5px">
+          <input type="checkbox" class="gr_to" value="${gfEsc(c.email)}" checked>
+          <b>${gfEsc(c.nom)||c.email}</b> <span style="color:var(--muted)">${gfEsc(c.fonction)||''} — ${gfEsc(c.email)}</span></label>`).join('')}
+      </div>`:'<div style="font-size:12.5px;color:var(--muted)">Aucun contact enregistré pour ce client.</div>'}
+    </div>
+    <div class="fld"><label>Autres adresses (séparées par des virgules)</label><input id="gr_autres"></div>
+    <div class="fld"><label>Objet</label>
+      <input id="gr_sujet" value="${gfEsc('Formations obligatoires à programmer — '+g.e.nom)}"></div>
+    <div class="fld"><label>Message d'introduction</label>
+      <textarea id="gr_msg" rows="4">Bonjour,
+
+Voici l'état des formations réglementaires du personnel de l'établissement. Merci de programmer les sessions nécessaires et de prévoir l'organisation des remplacements.</textarea></div>
+    <div class="fld"><label>Envoi</label><select id="gr_quand" onchange="document.getElementById('gr_wdate').style.display=this.value==='plus_tard'?'':'none'">
+      <option value="maintenant">Envoyer maintenant</option>
+      <option value="plus_tard">Programmer l'envoi</option></select></div>
+    <div class="fld" id="gr_wdate" style="display:none"><label>Date d'envoi</label>
+      <input id="gr_date" type="date" value="${gfToday()}"></div>
+    <div class="gf-sec">Contenu du rappel</div>
+    <div style="max-height:26vh;overflow:auto;font-size:12.5px;border:1px solid var(--line-2,#e6eaf1);border-radius:9px;padding:10px 12px">
+      ${Object.keys(parOb).length?Object.keys(parOb).map(k=>`<div style="margin-bottom:8px">
+        <b>${gfEsc(k)}</b> — ${parOb[k].length} salarié(s)<br>
+        <span style="color:var(--muted)">${parOb[k].slice(0,12).map(c=>gfEsc(gfFullName(c))).join(', ')}${parOb[k].length>12?'…':''}</span></div>`).join('')
+        :'<span style="color:var(--muted)">Aucune situation à signaler : toutes les formations sont à jour.</span>'}
+    </div>
+  </div>
+  <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+    <button class="btn primary" id="gr_btn" onclick="gfRappelGo()">Envoyer le rappel</button></div>`,'wide');
+};
+
+window.gfRappelGo=async function(){
+  const btn=document.getElementById('gr_btn'); btn.disabled=true; btn.textContent='Traitement…';
+  try{
+    const g=window._gf;
+    const tos=[...document.querySelectorAll('.gr_to:checked')].map(x=>x.value)
+      .concat(document.getElementById('gr_autres').value.split(',').map(x=>x.trim()).filter(Boolean));
+    if(!tos.length){ toast('Choisissez au moins un destinataire','err'); btn.disabled=false; btn.textContent='Envoyer le rappel'; return; }
+    const sujet=document.getElementById('gr_sujet').value.trim()||'Formations obligatoires';
+    const msg=document.getElementById('gr_msg').value;
+    const quand=document.getElementById('gr_quand').value;
+    const nc=g.cov.filter(c=>c.statut==='echu'||c.statut==='jamais');
+    const bi=g.cov.filter(c=>c.statut==='bientot');
+    const bloc=(titre,list,coul)=>{
+      if(!list.length) return '';
+      const parOb={}; list.forEach(c=>{ (parOb[c.obligation]=parOb[c.obligation]||[]).push(c); });
+      return `<h3 style="font-size:14px;color:${coul};margin:18px 0 8px">${titre} (${list.length})</h3>
+        <table style="border-collapse:collapse;width:100%;font-size:13px">
+        <tr style="background:#f1f5f9"><th align="left" style="padding:6px 8px">Formation</th><th align="left" style="padding:6px 8px">Salariés</th><th align="left" style="padding:6px 8px">Échéance</th></tr>
+        ${Object.keys(parOb).map(k=>{
+          const l=parOb[k]; const ech=l.map(c=>c.echeance).filter(Boolean).sort()[0];
+          return `<tr style="border-bottom:1px solid #e2e8f0"><td style="padding:6px 8px;vertical-align:top"><b>${gfEsc(k)}</b></td>
+            <td style="padding:6px 8px;vertical-align:top">${l.map(c=>gfEsc(gfFullName(c))+(c.service?' <span style="color:#94a3b8">('+gfEsc(c.service)+')</span>':'')).join('<br>')}</td>
+            <td style="padding:6px 8px;vertical-align:top;white-space:nowrap">${ech?gfDateFr(ech):'jamais formé'}</td></tr>`;
+        }).join('')}</table>`;
+    };
+    const tot=g.cov.length, aj=g.cov.filter(c=>c.statut==='a_jour').length;
+    const taux=tot?Math.round(aj*100/tot):0;
+    const html=`<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#0f172a;line-height:1.6;max-width:720px">
+      ${msg.split('\n').map(l=>`<div>${gfEsc(l)||'&nbsp;'}</div>`).join('')}
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;margin:16px 0">
+        <b>${gfEsc(g.e.nom)}</b><br>
+        Taux de conformité : <b style="color:${taux>=90?'#16a34a':taux>=70?'#d97706':'#dc2626'}">${taux}%</b>
+        — ${aj} obligation(s) satisfaite(s) sur ${tot}
+      </div>
+      ${bloc('À régulariser sans délai',nc,'#dc2626')}
+      ${bloc('À renouveler prochainement',bi,'#d97706')}
+      <div style="font-size:12px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px;margin-top:20px">
+        Message généré par SUIVI-CONFORMITÉ — ${gfEsc(g.cl.raison_sociale||'')}. Les justificatifs (attestations, feuilles d'émargement)
+        sont disponibles dans l'onglet Gestion formation de la fiche établissement.</div></div>`;
+    if(quand==='plus_tard'){
+      const d=document.getElementById('gr_date').value;
+      const {error}=await sb.from('emails_programmes').insert({type:'formation_rappel',destinataires:tos.join(','),
+        sujet,corps_html:html,send_at:new Date(d+'T08:00:00').toISOString(),statut:'pending'});
+      if(error) throw error;
+      _modalDirty=false; closeModal(); toast('Rappel programmé pour le '+gfDateFr(d)+' ✓','ok');
+    }else{
+      let ok=0,ko=0;
+      for(const to of tos){
+        try{ const {error}=await sb.functions.invoke('send-client-email',{body:{to:[to],subject:sujet,html}});
+          if(error) throw error; ok++; }catch(e){ ko++; }
+      }
+      _modalDirty=false; closeModal();
+      toast(ok+' rappel(s) envoyé(s)'+(ko?' — '+ko+' échec(s)':' ✓'),ko?'err':'ok');
+    }
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); btn.disabled=false; btn.textContent='Envoyer le rappel'; }
+};
+
+
+/* =====================================================================
+   RELANCES AUX PARTICIPANTS — e-mail et SMS
+   Envoi immédiat ou programmation automatique (J-7, J-2, veille, jour J).
+   Les SMS différés partent via sms_scheduled (robot ≤ 5 min),
+   les e-mails différés via emails_programmes (cron send-scheduled-emails).
+===================================================================== */
+
+const GF_MOMENTS=[
+  {k:'j7',   lbl:'7 jours avant',      j:-7, h:'09:00', type:'rappel_j7'},
+  {k:'j2',   lbl:'2 jours avant',      j:-2, h:'09:00', type:'rappel_j2'},
+  {k:'veille',lbl:'La veille au soir', j:-1, h:'17:00', type:'rappel_veille'},
+  {k:'jour', lbl:'Le matin même',      j:0,  h:'07:30', type:'rappel_jour'}
+];
+function gfMomentDate(dateDebut,m){
+  if(!dateDebut) return null;
+  const d=new Date(dateDebut+'T00:00:00');
+  d.setDate(d.getDate()+m.j);
+  return new Date(d.toISOString().slice(0,10)+'T'+m.h+':00');
+}
+function gfMobile(p){ try{ return _cleanMobile(p&&(p.telephone||p.mobile)); }catch(_){ return null; } }
+function gfSmsInfo(txt){
+  const n=(txt||'').length;
+  const uni=/[^\u0000-\u007F\u00E0-\u00FF]/.test(txt||'')||/[€\[\]{}~^|\\]/.test(txt||'');
+  const lim=uni?70:160, seg=n?Math.ceil(n/(n>lim?(uni?67:153):lim)):0;
+  return {n,lim,seg:Math.max(seg,n?1:0),uni};
+}
+function gfSmsClean(t){
+  return String(t||'').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"')
+    .replace(/[\u2013\u2014]/g,'-').replace(/\u2026/g,'...').replace(/\u00A0/g,' ');
+}
+function gfVars(txt,p,s){
+  const g=window._gf;
+  const heure=(s.horaires||'').split(/[-–]/)[0].trim();
+  return gfSmsClean(String(txt||'')
+    .replace(/\{NOM\}/g,gfFullName(p||{}))
+    .replace(/\{PRENOM\}/g,(p&&p.prenom)||'')
+    .replace(/\{FORMATION\}/g,s.intitule||'')
+    .replace(/\{DATE\}/g,s.date_debut?new Date(s.date_debut).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}):'')
+    .replace(/\{HEURE\}/g,heure||'')
+    .replace(/\{LIEU\}/g,[s.lieu,s.salle].filter(Boolean).join(' ')||'')
+    .replace(/\{ETABLISSEMENT\}/g,g.e.nom||''));
+}
+
+/* ── Modale de relance d'une session ── */
+window.gfRelanceModal=function(sessionId){
+  const {g,s,part}=gfCtx(sessionId);
+  if(!part.length){ toast('Aucun participant inscrit','err'); return; }
+  window._gfRelPart=part; window._gfRelSession=sessionId;
+  const avecMail=part.filter(x=>x.p.email).length;
+  const avecTel=part.filter(x=>gfMobile(x.p)).length;
+  const sansRien=part.filter(x=>!x.p.email&&!gfMobile(x.p));
+  const moments=GF_MOMENTS.map(m=>({m,d:gfMomentDate(s.date_debut,m)}))
+    .filter(x=>x.d&&x.d>new Date());
+  const smsDef='Rappel : formation {FORMATION} le {DATE} a {HEURE}, {LIEU}. Presence obligatoire. '+gfSmsClean(g.e.nom||'');
+  openModal(`<div class="modal-head"><h3>Relancer les participants</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div style="font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:14px">
+      <b>${gfEsc(s.intitule)}</b> — ${gfEsc(gfPeriode(s))}${s.horaires?', '+gfEsc(s.horaires):''}<br>
+      ${part.length} participant(s) : ${avecMail} avec e-mail, ${avecTel} avec mobile.
+      ${sansRien.length?`<br><b style="color:#b91c1c">${sansRien.length} sans e-mail ni mobile</b> : ${sansRien.map(x=>gfEsc(gfFullName(x.p))).join(', ')} — à prévenir par le responsable de service.`:''}
+    </div>
+
+    <div class="gf-sec">Canal</div>
+    <div style="display:flex;gap:18px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:7px;font-size:13px"><input type="checkbox" id="grl_mail" checked onchange="gfRelCount()"> E-mail</label>
+      <label style="display:flex;align-items:center;gap:7px;font-size:13px"><input type="checkbox" id="grl_sms" onchange="gfRelCount()"> SMS</label>
+    </div>
+
+    <div class="gf-sec">Quand ?</div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0">
+      <input type="checkbox" class="grl_m" value="now" onchange="gfRelCount()"> <b>Tout de suite</b>
+      <span style="color:var(--muted);font-size:12px">— envoi immédiat</span></label>
+    ${moments.length?moments.map(x=>`<label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0">
+      <input type="checkbox" class="grl_m" value="${x.m.k}" ${x.m.k==='veille'?'checked':''} onchange="gfRelCount()"> ${x.m.lbl}
+      <span style="color:var(--muted);font-size:12px">— ${x.d.toLocaleDateString('fr-FR')} à ${x.m.h}</span></label>`).join('')
+      :'<div style="font-size:12.5px;color:var(--muted);padding:4px 0">Aucune échéance automatique possible : la date de la session est passée ou trop proche.</div>'}
+
+    <div class="gf-sec">Message e-mail</div>
+    <div class="fld" style="margin:0"><textarea id="grl_mtxt" rows="5">Bonjour {PRENOM},
+
+Nous vous rappelons votre participation à la formation « {FORMATION} » le {DATE} à {HEURE}, {LIEU}.
+
+Votre présence est obligatoire. En cas d'empêchement, prévenez immédiatement votre responsable.
+
+Cordialement,
+La Direction</textarea></div>
+
+    <div class="gf-sec">Message SMS</div>
+    <div class="fld" style="margin:0"><textarea id="grl_stxt" rows="3" oninput="gfRelSmsCount()">${gfEsc(smsDef)}</textarea>
+      <div id="grl_scnt" style="font-size:11.5px;color:var(--muted);margin-top:4px"></div></div>
+    <div style="font-size:11.5px;color:var(--muted);margin-top:6px">
+      Variables disponibles : <code>{PRENOM}</code> <code>{NOM}</code> <code>{FORMATION}</code> <code>{DATE}</code> <code>{HEURE}</code> <code>{LIEU}</code> <code>{ETABLISSEMENT}</code></div>
+
+    <div id="grl_est" style="margin-top:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:10px 13px;font-size:12.5px"></div>
+  </div>
+  <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+    <button class="btn primary" id="grl_btn" onclick="gfRelanceGo('${sessionId}')">Programmer les relances</button></div>`,'wide');
+  gfRelSmsCount(); gfRelCount();
+};
+
+window.gfRelanceOuvrir=window.gfRelanceModal;
+
+window.gfRelSmsCount=function(){
+  const el=document.getElementById('grl_stxt'); if(!el) return;
+  const i=gfSmsInfo(el.value);
+  const c=document.getElementById('grl_scnt');
+  if(c) c.innerHTML=i.n+' caractère'+(i.n>1?'s':'')+' — <b>'+i.seg+' SMS</b> par destinataire'
+    +(i.uni?' <span style="color:#c2410c">(caractères spéciaux : limite ramenée à 70)</span>':'')
+    +(i.seg>1?' <span style="color:#c2410c">— pensez à raccourcir</span>':'');
+  gfRelCount();
+};
+
+window.gfRelCount=function(){
+  const el=document.getElementById('grl_est'); if(!el) return;
+  const g=window._gf;
+  const sid=window._gfRelSession;
+  const mails=document.getElementById('grl_mail').checked;
+  const sms=document.getElementById('grl_sms').checked;
+  const nbM=[...document.querySelectorAll('.grl_m:checked')].length;
+  const part=(window._gfRelPart||[]);
+  const nMail=part.filter(x=>x.p.email).length, nTel=part.filter(x=>gfMobile(x.p)).length;
+  const seg=gfSmsInfo((document.getElementById('grl_stxt')||{}).value||'').seg||1;
+  const crd=sms?nTel*nbM*seg:0;
+  const btn=document.getElementById('grl_btn');
+  const immediat=[...document.querySelectorAll('.grl_m:checked')].some(x=>x.value==='now');
+  if(btn) btn.textContent=(nbM===1&&immediat)?'Envoyer maintenant':'Programmer les relances';
+  el.innerHTML=!nbM?'<span style="color:#b91c1c">Choisissez au moins une échéance.</span>'
+    :(!mails&&!sms)?'<span style="color:#b91c1c">Choisissez au moins un canal.</span>'
+    :`<b>Récapitulatif</b><br>
+      ${mails?`${nMail*nbM} e-mail(s) — ${nMail} destinataire(s) × ${nbM} échéance(s)<br>`:''}
+      ${sms?`${nTel*nbM} SMS — ${nTel} destinataire(s) × ${nbM} échéance(s)${seg>1?' × '+seg+' segments':''} = <b>${crd} crédit(s)</b> débité(s) du pack<br>`:''}
+      <span style="color:var(--muted)">Les envois différés partent automatiquement, même si vous n'êtes pas connecté.</span>`;
+};
+
+window.gfRelanceGo=async function(sessionId){
+  const btn=document.getElementById('grl_btn'); btn.disabled=true; btn.textContent='Traitement…';
+  try{
+    const {g,s,part}=gfCtx(sessionId);
+    const parMail=document.getElementById('grl_mail').checked;
+    const parSms=document.getElementById('grl_sms').checked;
+    const choix=[...document.querySelectorAll('.grl_m:checked')].map(x=>x.value);
+    const mtxt=document.getElementById('grl_mtxt').value;
+    const stxt=document.getElementById('grl_stxt').value;
+    if(!choix.length){ throw new Error('Choisissez au moins une échéance'); }
+    if(!parMail&&!parSms){ throw new Error('Choisissez au moins un canal'); }
+    const who=(state.profile&&state.profile.nom)||(state.user&&state.user.email)||'';
+    const cibMail=part.filter(x=>x.p.email);
+    const cibSms=part.filter(x=>gfMobile(x.p));
+    const seg=gfSmsInfo(stxt).seg||1;
+
+    /* Contrôle du pack SMS pour la totalité de l'opération */
+    if(parSms&&cibSms.length){
+      const total=cibSms.length*choix.length*seg;
+      const ok=await smsGuard(g.e.client_id,total);
+      if(!ok){ btn.disabled=false; btn.textContent='Programmer les relances'; return; }
+    }
+
+    let envMail=0, progMail=0, envSms=0, progSms=0, echecs=0;
+    const journal=[];
+
+    for(const k of choix){
+      const mom=GF_MOMENTS.find(m=>m.k===k);
+      const quand=k==='now'?new Date():gfMomentDate(s.date_debut,mom);
+      const immediat=(k==='now');
+      const typeEnv=immediat?'relance':(mom?mom.type:'relance');
+
+      /* ---------- E-MAIL ---------- */
+      if(parMail){
+        for(const x of cibMail){
+          const corps=gfVars(mtxt,x.p,s);
+          const html=`<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#0f172a;line-height:1.6;max-width:640px">
+            ${corps.split('\n').map(l=>`<div>${gfEsc(l)||'&nbsp;'}</div>`).join('')}
+            <table style="border-collapse:collapse;font-size:14px;margin:16px 0;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+              <tr><td style="padding:7px 16px 3px;color:#64748b">Formation</td><td style="padding:7px 16px 3px"><b>${gfEsc(s.intitule)}</b></td></tr>
+              <tr><td style="padding:3px 16px;color:#64748b">Date</td><td style="padding:3px 16px">${gfEsc(gfPeriode(s))}${s.horaires?' — '+gfEsc(s.horaires):''}</td></tr>
+              <tr><td style="padding:3px 16px;color:#64748b">Lieu</td><td style="padding:3px 16px">${gfEsc([s.lieu,s.salle].filter(Boolean).join(' — '))}</td></tr>
+              <tr><td style="padding:3px 16px 7px;color:#64748b">Durée</td><td style="padding:3px 16px 7px">${gfEsc(gfHeures(s.duree_heures))}</td></tr>
+            </table>
+            <div style="font-size:12px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px">
+              ${gfEsc(g.cl.raison_sociale||'')} — ${gfEsc(g.e.nom||'')}</div></div>`;
+          const sujet='Rappel — '+s.intitule+' le '+gfDateFr(s.date_debut);
+          if(immediat){
+            try{
+              const {error}=await sb.functions.invoke('send-client-email',{body:{to:[x.p.email],subject:sujet,html}});
+              if(error) throw error; envMail++;
+              journal.push({session_id:sessionId,inscription_id:x.i.id,stagiaire_id:x.p.id,type:typeEnv,canal:'email',
+                destinataire:x.p.email,statut:'envoye',envoye_le:new Date().toISOString()});
+            }catch(e){ echecs++; journal.push({session_id:sessionId,inscription_id:x.i.id,stagiaire_id:x.p.id,type:typeEnv,
+                canal:'email',destinataire:x.p.email,statut:'echec',erreur:String(e.message||e).slice(0,300)}); }
+          }else{
+            try{
+              const {data,error}=await sb.from('emails_programmes').insert({type:'formation_relance',erp_id:g.e.id,session_id:sessionId,
+                destinataires:x.p.email,sujet,corps_html:html,send_at:quand.toISOString(),statut:'pending'}).select('id').single();
+              if(error) throw error; progMail++;
+              journal.push({session_id:sessionId,inscription_id:x.i.id,stagiaire_id:x.p.id,type:typeEnv,canal:'email',
+                destinataire:x.p.email,statut:'programme',planifie_le:quand.toISOString(),email_id:data&&data.id});
+            }catch(e){ echecs++; }
+          }
+        }
+      }
+
+      /* ---------- SMS ---------- */
+      if(parSms&&cibSms.length){
+        const lignes=[];
+        for(const x of cibSms){
+          const num=gfMobile(x.p);
+          const msg=gfVars(stxt,x.p,s);
+          lignes.push({x,num,msg});
+        }
+        if(immediat){
+          for(const L of lignes){
+            try{
+              const {data,error}=await sb.functions.invoke('send-sms',{body:{to:[L.num],message:L.msg}});
+              if(error||!data||!data.ok) throw new Error((error&&error.message)||(data&&data.error)||'Envoi refusé');
+              envSms++;
+              const used=Math.max(1,Number(data.credits)||0);
+              try{ await smsDebit(g.e.client_id,used); }catch(_){}
+              try{ await sb.from('sms_scheduled').insert({destinataire:L.num,message:L.msg,send_at:new Date().toISOString(),
+                statut:'sent',sent_at:new Date().toISOString(),credits:used,
+                contexte:{type:'formation_relance',session:s.intitule,erp:g.e.nom},
+                created_by:who,client_id:g.e.client_id,erp_id:g.e.id}); }catch(_){}
+              journal.push({session_id:sessionId,inscription_id:L.x.i.id,stagiaire_id:L.x.p.id,type:typeEnv,canal:'sms',
+                destinataire:L.num,statut:'envoye',envoye_le:new Date().toISOString()});
+            }catch(e){ echecs++; journal.push({session_id:sessionId,inscription_id:L.x.i.id,stagiaire_id:L.x.p.id,type:typeEnv,
+              canal:'sms',destinataire:L.num,statut:'echec',erreur:String(e.message||e).slice(0,300)}); }
+          }
+        }else{
+          try{
+            const {data,error}=await sb.from('sms_scheduled').insert(lignes.map(L=>({destinataire:L.num,message:L.msg,
+              send_at:quand.toISOString(),statut:'pending',credits:seg,
+              contexte:{type:'formation_relance',session:s.intitule,session_id:sessionId,erp:g.e.nom,moment:k},
+              created_by:who,client_id:g.e.client_id,erp_id:g.e.id}))).select('id');
+            if(error) throw error;
+            progSms+=lignes.length;
+            lignes.forEach((L,i)=>journal.push({session_id:sessionId,inscription_id:L.x.i.id,stagiaire_id:L.x.p.id,type:typeEnv,
+              canal:'sms',destinataire:L.num,statut:'programme',planifie_le:quand.toISOString(),sms_id:data&&data[i]&&data[i].id}));
+          }catch(e){ echecs++; }
+        }
+      }
+    }
+
+    /* Sans coordonnées : tracé pour que le directeur sache qui prévenir de vive voix */
+    part.filter(x=>!x.p.email&&!gfMobile(x.p)).forEach(x=>journal.push({session_id:sessionId,inscription_id:x.i.id,
+      stagiaire_id:x.p.id,type:'relance',canal:'referent',destinataire:'—',statut:'sans_email'}));
+
+    if(journal.length){ try{ await sb.from('of_envois').insert(journal.map(j=>Object.assign({erp_id:g.e.id},j))); }catch(_){} }
+
+    _modalDirty=false; closeModal();
+    const bilan=[envMail?envMail+' e-mail(s) envoyé(s)':'',progMail?progMail+' e-mail(s) programmé(s)':'',
+      envSms?envSms+' SMS envoyé(s)':'',progSms?progSms+' SMS programmé(s)':'',echecs?echecs+' échec(s)':'']
+      .filter(Boolean).join(' · ');
+    toast(bilan||'Aucun envoi',echecs?'err':'ok');
+    await gfReload('relances');
+  }catch(e){
+    toast('Erreur : '+(e.message||e),'err');
+    const b=document.getElementById('grl_btn'); if(b){ b.disabled=false; b.textContent='Programmer les relances'; }
+  }
+};
+
+/* ── Relance des salariés en retard (hors session) ── */
+window.gfRetardModal=function(){
+  const g=window._gf;
+  const nc=g.cov.filter(c=>c.statut==='echu'||c.statut==='jamais');
+  if(!nc.length){ toast('Aucun salarié en retard — tout est à jour','ok'); return; }
+  const parSt={};
+  nc.forEach(c=>{ (parSt[c.stagiaire_id]=parSt[c.stagiaire_id]||{c,l:[]}).l.push(c.obligation); });
+  const lignes=Object.values(parSt).map(o=>{
+    const p=g.st.find(x=>x.id===o.c.stagiaire_id)||{};
+    return {p,form:o.l};
+  }).sort((a,b)=>String(a.p.nom||'').localeCompare(String(b.p.nom||'')));
+  openModal(`<div class="modal-head"><h3>Relancer les salariés en retard</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div style="font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:12px">
+      ${lignes.length} salarié(s) doivent suivre une ou plusieurs formations obligatoires.
+      Chacun reçoit la liste des formations qui le concernent personnellement.</div>
+    <div class="gf-sec">Canal</div>
+    <div style="display:flex;gap:18px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:7px;font-size:13px"><input type="checkbox" id="grt_mail" checked> E-mail</label>
+      <label style="display:flex;align-items:center;gap:7px;font-size:13px"><input type="checkbox" id="grt_sms"> SMS</label>
+    </div>
+    <div class="gf-sec">Destinataires</div>
+    <div style="max-height:32vh;overflow:auto;border:1px solid var(--line-2,#e6eaf1);border-radius:10px;padding:4px 10px">
+      ${lignes.map(L=>{
+        const mail=L.p.email, tel=gfMobile(L.p);
+        return `<label style="display:flex;align-items:flex-start;gap:9px;padding:7px 2px;border-bottom:1px solid #f1f5f9;font-size:12.5px">
+          <input type="checkbox" class="grt_st" value="${L.p.id}" ${mail||tel?'checked':'disabled'} style="margin-top:2px">
+          <span style="flex:1"><b>${gfEsc(gfFullName(L.p))}</b>
+            <span style="color:var(--muted)">${[L.p.fonction,L.p.service].filter(Boolean).map(gfEsc).join(' · ')}</span>
+            <span style="display:block;color:#b91c1c;font-size:11.5px;margin-top:2px">${L.form.map(gfEsc).join(' · ')}</span></span>
+          <span style="white-space:nowrap;font-size:11px;color:var(--muted)">${mail?'✉️':''}${tel?' 📱':''}${!mail&&!tel?'aucun contact':''}</span>
+        </label>`;
+      }).join('')}
+    </div>
+    <div class="gf-sec">Message</div>
+    <div class="fld" style="margin:0"><textarea id="grt_mtxt" rows="5">Bonjour {PRENOM},
+
+Une ou plusieurs formations obligatoires à la sécurité vous concernent et n'ont pas été suivies ou doivent être renouvelées.
+
+Merci de vous rapprocher de votre responsable de service afin d'être inscrit(e) à la prochaine session.
+
+Cordialement,
+La Direction</textarea></div>
+    <div class="fld" style="margin-top:10px"><label>Message SMS</label>
+      <textarea id="grt_stxt" rows="2">Formation securite obligatoire non a jour. Merci de contacter votre responsable de service pour vous inscrire. ${gfEsc(gfSmsClean(g.e.nom||''))}</textarea></div>
+    <div class="fld"><label>Envoi</label><select id="grt_quand" onchange="document.getElementById('grt_wd').style.display=this.value==='plus_tard'?'':'none'">
+      <option value="maintenant">Envoyer maintenant</option><option value="plus_tard">Programmer</option></select></div>
+    <div class="fld" id="grt_wd" style="display:none"><label>Date d'envoi</label><input id="grt_date" type="date" value="${gfToday()}"></div>
+  </div>
+  <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+    <button class="btn primary" id="grt_btn" onclick="gfRetardGo()">Envoyer</button></div>`,'wide');
+};
+
+window.gfRetardGo=async function(){
+  const btn=document.getElementById('grt_btn'); btn.disabled=true; btn.textContent='Traitement…';
+  try{
+    const g=window._gf;
+    const ids=[...document.querySelectorAll('.grt_st:checked')].map(x=>x.value);
+    if(!ids.length) throw new Error('Aucun destinataire sélectionné');
+    const parMail=document.getElementById('grt_mail').checked;
+    const parSms=document.getElementById('grt_sms').checked;
+    if(!parMail&&!parSms) throw new Error('Choisissez au moins un canal');
+    const mtxt=document.getElementById('grt_mtxt').value, stxt=document.getElementById('grt_stxt').value;
+    const quand=document.getElementById('grt_quand').value;
+    const dateEnvoi=quand==='plus_tard'?new Date(document.getElementById('grt_date').value+'T08:00:00'):new Date();
+    const immediat=(quand!=='plus_tard');
+    const who=(state.profile&&state.profile.nom)||(state.user&&state.user.email)||'';
+    const faux={intitule:'',date_debut:null,horaires:'',lieu:'',salle:''};
+    let envM=0,progM=0,envS=0,progS=0,ech=0; const journal=[];
+    if(parSms){
+      const nb=ids.filter(id=>gfMobile(g.st.find(x=>x.id===id))).length;
+      if(nb){ const ok=await smsGuard(g.e.client_id,nb); if(!ok){ btn.disabled=false; btn.textContent='Envoyer'; return; } }
+    }
+    for(const id of ids){
+      const p=g.st.find(x=>x.id===id); if(!p) continue;
+      const form=g.cov.filter(c=>c.stagiaire_id===id&&(c.statut==='echu'||c.statut==='jamais'));
+      const liste=form.map(c=>`<li style="margin:3px 0">${gfEsc(c.obligation)}${c.echeance?` <span style="color:#b91c1c">— échu depuis le ${gfDateFr(c.echeance)}</span>`:' <span style="color:#b91c1c">— jamais suivie</span>'}</li>`).join('');
+      const sujet='Formations obligatoires à suivre — '+g.e.nom;
+      const html=`<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#0f172a;line-height:1.6;max-width:640px">
+        ${gfVars(mtxt,p,faux).split('\n').map(l=>`<div>${gfEsc(l)||'&nbsp;'}</div>`).join('')}
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 16px;margin:16px 0">
+          <b style="color:#b91c1c">Formations vous concernant</b>
+          <ul style="margin:8px 0 0;padding-left:18px;font-size:14px">${liste}</ul></div>
+        <div style="font-size:12px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px">
+          ${gfEsc(g.cl.raison_sociale||'')} — ${gfEsc(g.e.nom||'')}</div></div>`;
+      if(parMail&&p.email){
+        if(immediat){
+          try{ const {error}=await sb.functions.invoke('send-client-email',{body:{to:[p.email],subject:sujet,html}});
+            if(error) throw error; envM++;
+            journal.push({erp_id:g.e.id,stagiaire_id:id,type:'relance',canal:'email',destinataire:p.email,statut:'envoye',envoye_le:new Date().toISOString()});
+          }catch(e){ ech++; }
+        }else{
+          try{ await sb.from('emails_programmes').insert({type:'formation_relance',erp_id:g.e.id,destinataires:p.email,
+            sujet,corps_html:html,send_at:dateEnvoi.toISOString(),statut:'pending'}); progM++;
+            journal.push({erp_id:g.e.id,stagiaire_id:id,type:'relance',canal:'email',destinataire:p.email,statut:'programme',planifie_le:dateEnvoi.toISOString()});
+          }catch(e){ ech++; }
+        }
+      }
+      const num=gfMobile(p);
+      if(parSms&&num){
+        const msg=gfVars(stxt,p,faux);
+        if(immediat){
+          try{
+            const {data,error}=await sb.functions.invoke('send-sms',{body:{to:[num],message:msg}});
+            if(error||!data||!data.ok) throw new Error('refus');
+            envS++; const used=Math.max(1,Number(data.credits)||0);
+            try{ await smsDebit(g.e.client_id,used); }catch(_){}
+            try{ await sb.from('sms_scheduled').insert({destinataire:num,message:msg,send_at:new Date().toISOString(),
+              statut:'sent',sent_at:new Date().toISOString(),credits:used,
+              contexte:{type:'formation_retard',erp:g.e.nom},created_by:who,client_id:g.e.client_id,erp_id:g.e.id}); }catch(_){}
+            journal.push({erp_id:g.e.id,stagiaire_id:id,type:'relance',canal:'sms',destinataire:num,statut:'envoye',envoye_le:new Date().toISOString()});
+          }catch(e){ ech++; }
+        }else{
+          try{ await sb.from('sms_scheduled').insert({destinataire:num,message:msg,send_at:dateEnvoi.toISOString(),
+            statut:'pending',credits:1,contexte:{type:'formation_retard',erp:g.e.nom},created_by:who,client_id:g.e.client_id,erp_id:g.e.id});
+            progS++;
+            journal.push({erp_id:g.e.id,stagiaire_id:id,type:'relance',canal:'sms',destinataire:num,statut:'programme',planifie_le:dateEnvoi.toISOString()});
+          }catch(e){ ech++; }
+        }
+      }
+    }
+    if(journal.length){ try{ await sb.from('of_envois').insert(journal); }catch(_){} }
+    _modalDirty=false; closeModal();
+    toast([envM?envM+' e-mail(s) envoyé(s)':'',progM?progM+' e-mail(s) programmé(s)':'',
+      envS?envS+' SMS envoyé(s)':'',progS?progS+' SMS programmé(s)':'',ech?ech+' échec(s)':'']
+      .filter(Boolean).join(' · ')||'Aucun envoi',ech?'err':'ok');
+    await gfReload('relances');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err');
+    const b=document.getElementById('grt_btn'); if(b){ b.disabled=false; b.textContent='Envoyer'; } }
+};
+
+/* =====================================================================
+   ONGLET RELANCES — suivi et annulation
+===================================================================== */
+function gfTabRelances(b){
+  const g=window._gf;
+  const sms=(g.rlSms||[]), mails=(g.rlMail||[]), env=(g.rlEnv||[]);
+  const now=new Date();
+  const aVenirSms=sms.filter(x=>x.statut==='pending');
+  const aVenirMail=mails.filter(x=>x.statut==='pending');
+  const nomSt=id=>{ const p=g.st.find(x=>x.id===id); return p?gfFullName(p):'—'; };
+  const lblType={relance:'Relance',rappel_j7:'J-7',rappel_j2:'J-2',rappel_veille:'Veille',rappel_jour:'Jour J',
+    convocation:'Convocation',attestation:'Attestation',note_interne:'Note interne'};
+  const lblSt={envoye:['Envoyé','#15803d'],programme:['Programmé','#1d4ed8'],echec:['Échec','#b91c1c'],
+    sans_email:['Sans contact','#c2410c'],annule:['Annulé','#94a3b8'],a_envoyer:['À envoyer','#c2410c']};
+  b.innerHTML=`
+  <div class="gf-kpis">
+    <div class="gf-kpi inf"><div class="k">Relances programmées</div><div class="v">${aVenirSms.length+aVenirMail.length}</div>
+      <div class="s">${aVenirMail.length} e-mail(s) · ${aVenirSms.length} SMS</div></div>
+    <div class="gf-kpi ok"><div class="k">Envoyées (90 j)</div><div class="v">${env.filter(x=>x.statut==='envoye').length}</div>
+      <div class="s">tous canaux confondus</div></div>
+    <div class="gf-kpi ${env.filter(x=>x.statut==='echec').length?'crit':'ok'}"><div class="k">Échecs</div>
+      <div class="v">${env.filter(x=>x.statut==='echec').length}</div><div class="s">à renvoyer manuellement</div></div>
+    <div class="gf-kpi warn"><div class="k">Sans coordonnées</div>
+      <div class="v">${g.st.filter(s=>s.actif!==false&&!s.email&&!gfMobile(s)).length}</div>
+      <div class="s">salariés à prévenir de vive voix</div></div>
+  </div>
+
+  <div class="gf-row" style="margin-bottom:14px">
+    <button class="btn primary" onclick="gfRetardModal()">🔔 Relancer les salariés en retard</button>
+    <button class="btn" onclick="gfShell('sessions')">Relancer les participants d'une session</button>
+  </div>
+
+  <div class="gf-sec">En attente d'envoi</div>
+  ${(aVenirSms.length+aVenirMail.length)?`<div class="card" style="padding:0;overflow:hidden"><div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Départ prévu</th><th>Canal</th><th>Destinataire</th><th>Contenu</th><th></th></tr></thead>
+    <tbody>
+    ${aVenirMail.map(m=>`<tr><td style="font-size:12.5px"><b>${new Date(m.send_at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</b></td>
+      <td><span class="gf-chip">✉️ E-mail</span></td><td style="font-size:12.5px">${gfEsc(m.destinataires)}</td>
+      <td style="font-size:12.5px;color:var(--muted)">${gfEsc(m.sujet)}</td>
+      <td style="text-align:right"><button class="btn sm danger" onclick="gfRelanceAnnuler('mail','${m.id}')">Annuler</button></td></tr>`).join('')}
+    ${aVenirSms.map(m=>`<tr><td style="font-size:12.5px"><b>${new Date(m.send_at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</b></td>
+      <td><span class="gf-chip">📱 SMS</span></td><td style="font-size:12.5px">${gfEsc(m.destinataire)}</td>
+      <td style="font-size:12.5px;color:var(--muted)">${gfEsc(String(m.message||'').slice(0,70))}${String(m.message||'').length>70?'…':''}</td>
+      <td style="text-align:right"><button class="btn sm danger" onclick="gfRelanceAnnuler('sms','${m.id}')">Annuler</button></td></tr>`).join('')}
+    </tbody></table></div></div>`
+   :`<div class="card"><div class="gf-empty">Aucune relance en attente.</div></div>`}
+
+  <div class="gf-sec">Historique des envois</div>
+  ${env.length?`<div class="card" style="padding:0;overflow:hidden"><div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Date</th><th>Salarié</th><th>Type</th><th>Canal</th><th>Destinataire</th><th>Statut</th></tr></thead>
+    <tbody>${env.slice(0,150).map(x=>{
+      const st=lblSt[x.statut]||[x.statut,'#64748b'];
+      const d=x.envoye_le||x.planifie_le||x.created_at;
+      return `<tr><td style="font-size:12.5px">${d?new Date(d).toLocaleDateString('fr-FR'):'—'}</td>
+        <td style="font-size:12.5px"><b>${gfEsc(nomSt(x.stagiaire_id))}</b></td>
+        <td><span class="gf-chip">${lblType[x.type]||x.type}</span></td>
+        <td style="font-size:12.5px">${x.canal==='sms'?'📱 SMS':x.canal==='email'?'✉️ E-mail':gfEsc(x.canal)}</td>
+        <td style="font-size:12.5px;color:var(--muted)">${gfEsc(x.destinataire)}</td>
+        <td><span style="font-weight:700;font-size:12px;color:${st[1]}">${st[0]}</span></td></tr>`;
+    }).join('')}</tbody></table></div></div>`
+   :`<div class="card"><div class="gf-empty">Aucun envoi enregistré pour le moment.</div></div>`}`;
+}
+
+window.gfRelanceAnnuler=async function(type,id){
+  if(!confirm('Annuler cet envoi programmé ?')) return;
+  try{
+    if(type==='sms'){ const {error}=await sb.from('sms_scheduled').delete().eq('id',id); if(error) throw error;
+      try{ await sb.from('of_envois').update({statut:'annule'}).eq('sms_id',id); }catch(_){} }
+    else{ const {error}=await sb.from('emails_programmes').update({statut:'annule'}).eq('id',id); if(error) throw error;
+      try{ await sb.from('of_envois').update({statut:'annule'}).eq('email_id',id); }catch(_){} }
+    toast('Envoi annulé','ok'); gfReload('relances');
+  }catch(e){ toast('Annulation impossible : '+(e.message||e),'err'); }
+};
+
+/* =====================================================================
+   TRANSMISSION DU DOSSIER DE SESSION
+   Le responsable choisit les salariés -> la feuille de présence se remplit
+   toute seule -> il l'envoie au formateur et aux chefs de service concernés.
+===================================================================== */
+
+/* ── Responsables de service (chefs de service) ── */
+window.gfRespModal=function(id){
+  const g=window._gf;
+  const r=id?(g.resp||[]).find(x=>x.id===id):null;
+  const services=[...new Set(g.st.map(x=>x.service).filter(Boolean))].sort();
+  openModal(`<div class="modal-head"><h3>${r?'Modifier le responsable':'Nouveau responsable de service'}</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div style="font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:14px">
+      Les responsables reçoivent la feuille de présence et la liste des agents de leur service convoqués,
+      afin d'organiser les remplacements.</div>
+    <div class="gf-grid2">
+      <div class="fld"><label>Nom <span class="req">*</span></label><input id="grp_nom" value="${gfEsc(r&&r.nom)}"></div>
+      <div class="fld"><label>Fonction</label><input id="grp_fx" value="${gfEsc(r&&r.fonction)||''}" placeholder="Cadre de santé, chef de service…"></div>
+      <div class="fld"><label>Service <span class="req">*</span></label>
+        <input id="grp_svc" list="grp_svcl" value="${gfEsc(r&&r.service)}">
+        <datalist id="grp_svcl">${services.map(x=>`<option>${gfEsc(x)}</option>`).join('')}</datalist></div>
+      <div class="fld"><label>E-mail</label><input id="grp_mail" type="email" value="${gfEsc(r&&r.email)}"></div>
+      <div class="fld"><label>Téléphone</label><input id="grp_tel" value="${gfEsc(r&&r.telephone)}"></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-top:4px">
+      <input type="checkbox" id="grp_act" ${!r||r.actif!==false?'checked':''}> Responsable en poste</label>
+  </div>
+  <div class="modal-foot">
+    ${r?`<button class="btn danger" onclick="gfRespDel('${r.id}')">Supprimer</button>`:''}
+    <span style="flex:1"></span>
+    <button class="btn" onclick="closeModal()">Annuler</button>
+    <button class="btn primary" onclick="gfRespSave('${r?r.id:''}')">Enregistrer</button></div>`);
+};
+
+window.gfRespSave=async function(id){
+  const g=window._gf;
+  const v=x=>{const el=document.getElementById(x);return el?el.value.trim():'';};
+  const nom=v('grp_nom'), svc=v('grp_svc');
+  if(!nom){ toast('Le nom est obligatoire','err'); return; }
+  if(!svc){ toast('Le service est obligatoire','err'); return; }
+  const pl={erp_id:g.e.id,client_id:g.e.client_id,nom,fonction:v('grp_fx')||null,service:svc,
+    email:v('grp_mail')||null,telephone:v('grp_tel')||null,actif:document.getElementById('grp_act').checked,
+    updated_at:new Date().toISOString()};
+  try{
+    const q=id?sb.from('of_responsables').update(pl).eq('id',id):sb.from('of_responsables').insert(pl);
+    const {error}=await q; if(error) throw error;
+    _modalDirty=false; closeModal(); toast('Responsable enregistré ✓','ok'); gfReload('effectif');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+window.gfRespDel=async function(id){
+  if(!confirm('Supprimer ce responsable de service ?')) return;
+  try{ const {error}=await sb.from('of_responsables').delete().eq('id',id); if(error) throw error;
+    _modalDirty=false; closeModal(); toast('Responsable supprimé','ok'); gfReload('effectif');
+  }catch(e){ toast('Erreur : '+(e.message||e),'err'); }
+};
+
+/* Responsables concernés par une session = ceux des services des participants */
+function gfRespConcernes(part){
+  const g=window._gf;
+  const svc=new Set(part.map(x=>x.p.service).filter(Boolean));
+  return (g.resp||[]).filter(r=>r.actif!==false&&r.email&&(svc.has(r.service)||!r.service));
+}
+
+/* ── Modale de transmission ── */
+window.gfTransmettreModal=function(sessionId){
+  const {g,s,part}=gfCtx(sessionId);
+  if(!part.length){ toast("Choisissez d'abord les participants",'err'); gfParticipantsModal(sessionId,true); return; }
+  const resp=gfRespConcernes(part);
+  const svcSans=[...new Set(part.map(x=>x.p.service).filter(Boolean))]
+    .filter(sv=>!(g.resp||[]).some(r=>r.actif!==false&&r.email&&r.service===sv));
+  const parSvc={};
+  part.forEach(x=>{ const k=x.p.service||'Sans service'; (parSvc[k]=parSvc[k]||[]).push(x); });
+  openModal(`<div class="modal-head"><h3>Transmettre le dossier de session</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div style="font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:14px">
+      <b>${gfEsc(s.intitule)}</b> — ${gfEsc(gfPeriode(s))}${s.horaires?', '+gfEsc(s.horaires):''}<br>
+      La feuille de présence est déjà remplie avec les <b>${part.length} participant(s)</b> que vous avez choisis :
+      ${Object.keys(parSvc).map(k=>gfEsc(k)+' ('+parSvc[k].length+')').join(' · ')}
+    </div>
+
+    <div class="gf-sec">Destinataires</div>
+    <label style="display:flex;align-items:flex-start;gap:9px;padding:7px 2px;border-bottom:1px solid #f1f5f9;font-size:13px">
+      <input type="checkbox" class="gtr_to" data-role="formateur" value="${gfEsc(s.formateur_email||'')}"
+        ${s.formateur_email?'checked':'disabled'} style="margin-top:2px">
+      <span style="flex:1"><b>Intervenant — ${gfEsc(s.formateur_nom)||'non renseigné'}</b>
+        ${s.formateur_organisme?`<span style="color:var(--muted)"> · ${gfEsc(s.formateur_organisme)}</span>`:''}
+        <span style="display:block;color:${s.formateur_email?'var(--muted)':'#b91c1c'};font-size:12px;margin-top:2px">
+          ${s.formateur_email?gfEsc(s.formateur_email):"aucune adresse e-mail enregistrée — renseignez-la dans « Modifier la session »"}</span></span>
+    </label>
+    ${resp.length?resp.map(r=>`<label style="display:flex;align-items:flex-start;gap:9px;padding:7px 2px;border-bottom:1px solid #f1f5f9;font-size:13px">
+      <input type="checkbox" class="gtr_to" data-role="chef_service" value="${gfEsc(r.email)}" checked style="margin-top:2px">
+      <span style="flex:1"><b>${gfEsc(r.nom)}</b>
+        <span style="color:var(--muted)"> · ${gfEsc(r.fonction)||'Responsable'} — ${gfEsc(r.service)}</span>
+        <span style="display:block;color:var(--muted);font-size:12px;margin-top:2px">${gfEsc(r.email)}
+          — ${(parSvc[r.service]||[]).length} agent(s) de son service convoqué(s)</span></span>
+    </label>`).join('')
+    :`<div style="font-size:12.5px;color:var(--muted);padding:8px 2px">Aucun chef de service enregistré.
+      <a onclick="closeModal();gfShell('effectif')" style="color:var(--primary);font-weight:600;cursor:pointer">Les ajouter dans l'onglet Effectif</a>.</div>`}
+    ${svcSans.length?`<div style="font-size:12px;color:#c2410c;margin-top:8px">Sans responsable enregistré : ${svcSans.map(gfEsc).join(', ')}.</div>`:''}
+    <div class="fld" style="margin-top:12px"><label>Autres adresses (séparées par des virgules)</label><input id="gtr_autres"></div>
+
+    <div class="gf-sec">Pièces jointes</div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 0">
+      <input type="checkbox" id="gtr_emarg" checked> Feuille de présence pré-remplie</label>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 0">
+      <input type="checkbox" id="gtr_prog"> Programme de formation</label>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 0">
+      <input type="checkbox" id="gtr_conv"> Convocations individuelles</label>
+
+    <div class="gf-sec">Message</div>
+    <div class="fld" style="margin:0"><textarea id="gtr_msg" rows="6">Bonjour,
+
+Vous trouverez ci-joint la feuille de présence de la session « ${gfEsc(s.intitule)} », déjà renseignée avec la liste des participants inscrits.
+
+Merci de la faire émarger sur place et de nous la retourner signée à l'issue de la formation.
+
+Cordialement,
+La Direction</textarea></div>
+  </div>
+  <div class="modal-foot"><button class="btn" onclick="closeModal()">Annuler</button>
+    <button class="btn primary" id="gtr_btn" onclick="gfTransmettreGo('${sessionId}')">Envoyer</button></div>`,'wide');
+};
+
+/* Conversion d'un document jsPDF en pièce jointe base64 */
+async function gfPieceJointe(doc,nom){
+  const blob=doc.output('blob');
+  const b64=await new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>res(String(r.result).split(',')[1]||'');
+    r.onerror=()=>rej(new Error('Lecture du PDF impossible'));
+    r.readAsDataURL(blob);
+  });
+  return {filename:nom,content:b64,contentType:'application/pdf'};
+}
+
+window.gfTransmettreGo=async function(sessionId){
+  const btn=document.getElementById('gtr_btn'); btn.disabled=true; btn.textContent='Préparation…';
+  try{
+    const {g,s,part}=gfCtx(sessionId);
+    const coches=[...document.querySelectorAll('.gtr_to:checked')].map(x=>({email:x.value,role:x.dataset.role}));
+    const autres=document.getElementById('gtr_autres').value.split(',').map(x=>x.trim()).filter(Boolean)
+      .map(e=>({email:e,role:'autre'}));
+    const dests=coches.concat(autres).filter(d=>d.email);
+    if(!dests.length) throw new Error('Choisissez au moins un destinataire');
+    const msg=document.getElementById('gtr_msg').value;
+    const ref=(s.reference||'session').replace(/[^A-Za-z0-9._-]/g,'_');
+
+    const pj=[];
+    if(document.getElementById('gtr_emarg').checked) pj.push(await gfPieceJointe(gfDocEmargement(sessionId),'feuille-presence-'+ref+'.pdf'));
+    if(document.getElementById('gtr_prog').checked)  pj.push(await gfPieceJointe(gfDocProgramme(sessionId),'programme-'+ref+'.pdf'));
+    if(document.getElementById('gtr_conv').checked)  pj.push(await gfPieceJointe(gfDocConvocations(sessionId),'convocations-'+ref+'.pdf'));
+    if(!pj.length) throw new Error('Choisissez au moins une pièce jointe');
+
+    const parSvc={};
+    part.forEach(x=>{ const k=x.p.service||'Sans service'; (parSvc[k]=parSvc[k]||[]).push(x); });
+    const listeHtml=Object.keys(parSvc).sort().map(k=>`<div style="margin-bottom:8px">
+        <b style="font-size:13px">${gfEsc(k)}</b>
+        <div style="font-size:13px;color:#334155">${parSvc[k].map(x=>gfEsc(gfFullName(x.p))+(x.p.fonction?' <span style="color:#94a3b8">('+gfEsc(x.p.fonction)+')</span>':'')).join('<br>')}</div>
+      </div>`).join('');
+    const html=`<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#0f172a;line-height:1.6;max-width:660px">
+      ${msg.split('\n').map(l=>`<div>${gfEsc(l)||'&nbsp;'}</div>`).join('')}
+      <table style="border-collapse:collapse;font-size:14px;margin:16px 0;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+        <tr><td style="padding:8px 16px 3px;color:#64748b">Formation</td><td style="padding:8px 16px 3px"><b>${gfEsc(s.intitule)}</b></td></tr>
+        <tr><td style="padding:3px 16px;color:#64748b">Date</td><td style="padding:3px 16px">${gfEsc(gfPeriode(s))}${s.horaires?' — '+gfEsc(s.horaires):''}</td></tr>
+        <tr><td style="padding:3px 16px;color:#64748b">Lieu</td><td style="padding:3px 16px">${gfEsc([s.lieu,s.salle].filter(Boolean).join(' — '))}</td></tr>
+        <tr><td style="padding:3px 16px;color:#64748b">Durée</td><td style="padding:3px 16px">${gfEsc(gfHeures(s.duree_heures))}</td></tr>
+        <tr><td style="padding:3px 16px 8px;color:#64748b">Participants</td><td style="padding:3px 16px 8px">${part.length}</td></tr>
+      </table>
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:14px 18px;margin:16px 0">
+        <b style="font-size:13px;color:#1d4ed8">Participants inscrits</b>
+        <div style="margin-top:10px">${listeHtml}</div></div>
+      <div style="font-size:12px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px">
+        ${gfEsc(g.cl.raison_sociale||'')} — ${gfEsc(g.e.nom||'')}</div></div>`;
+    const sujet='Feuille de présence — '+s.intitule+' du '+gfDateFr(s.date_debut);
+
+    btn.textContent='Envoi…';
+    let ok=0, ko=0; const journal=[];
+    const tk=await sb.auth.getSession().then(r=>r.data&&r.data.session).catch(()=>null);
+    for(const d of dests){
+      try{
+        const resp=await fetch(SUPABASE_URL+'/functions/v1/send-client-email',{
+          method:'POST',
+          headers:{'Content-Type':'application/json',apikey:SUPABASE_ANON_KEY,
+            Authorization:'Bearer '+((tk&&tk.access_token)||SUPABASE_ANON_KEY)},
+          body:JSON.stringify({to:[d.email],subject:sujet,html,
+            replyTo:(state.user&&state.user.email)||undefined,attachments:pj})
+        });
+        const j=await resp.json().catch(()=>({}));
+        if(!resp.ok||j.error) throw new Error(j.error||('HTTP '+resp.status));
+        ok++;
+        journal.push({erp_id:g.e.id,session_id:sessionId,type:d.role==='formateur'?'dossier_formateur':'feuille_presence',
+          canal:'email',destinataire:d.email,role_destinataire:d.role,statut:'envoye',envoye_le:new Date().toISOString()});
+      }catch(e){ ko++; console.warn('[formation] transmission',d.email,e);
+        journal.push({erp_id:g.e.id,session_id:sessionId,type:'feuille_presence',canal:'email',
+          destinataire:d.email,role_destinataire:d.role,statut:'echec',erreur:String(e.message||e).slice(0,300)}); }
+    }
+    if(journal.length){ try{ await sb.from('of_envois').insert(journal); }catch(_){} }
+    try{ await gfArchive(gfDocEmargement(sessionId),'emargement',"Feuille de présence transmise — "+s.intitule,sessionId,'feuille-presence-'+ref+'.pdf'); }catch(_){}
+    _modalDirty=false; closeModal();
+    toast(ok+' envoi(s) effectué(s)'+(ko?' — '+ko+' échec(s)':' ✓'),ko?'err':'ok');
+    await gfReload('sessions'); gfSessionOuvrir(sessionId);
+  }catch(e){
+    toast('Erreur : '+(e.message||e),'err');
+    const b=document.getElementById('gtr_btn'); if(b){ b.disabled=false; b.textContent='Envoyer'; }
+  }
+};
 
 /* =====================================================================
    START
