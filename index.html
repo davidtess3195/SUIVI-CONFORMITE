@@ -14683,7 +14683,7 @@ async function viewDocuments(c){
     const typeOpts=types.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('');
     const nbRecu=(window._tri.raps||[]).filter(r=>(r.statut||'recu')==='recu').length;
     c.innerHTML=`<div class="page-head"><div class="t"><h1>Classeur</h1><p>${rows.length} document(s) classé(s) par client et par type${nbRecu?` · <b style="color:#b45309">${nbRecu} rapport${nbRecu>1?'s':''} reçu${nbRecu>1?'s':''} par e-mail à classer</b>`:''}.</p></div>
-      <div class="actions"><button class="btn sm" onclick="triRelever(this)" title="Relever maintenant les adresses e-mail dédiées">Relever</button><button class="btn sm" onclick="pvForm({})">Générer un PV de réception</button><button class="btn primary" onclick="formDoc()">${I.plus} Déposer un document</button></div></div>
+      <div class="actions"><button class="btn sm" onclick="pvForm({})">Générer un PV de réception</button><button class="btn primary" onclick="formDoc()">${I.plus} Déposer un document</button></div></div>
       <div id="ged_tri"></div>
       <div id="ged_drop" ondragover="event.preventDefault();this.style.borderColor='var(--primary)';this.style.background='rgba(37,99,235,.05)'" ondragleave="this.style.borderColor='var(--line)';this.style.background='transparent'" ondrop="gedHandleDrop(event)" style="border:2px dashed var(--line);border-radius:12px;padding:14px;text-align:center;color:var(--muted);font-size:13px;margin-bottom:14px;transition:.12s">
         Glissez-déposez ici vos documents (rapports, PV, plans, attestations…)</div>
@@ -15611,7 +15611,9 @@ function gedxStyle(){ if(document.getElementById('gedx-style'))return; const st=
   .gedx-band.min .gedx-hd{padding:5px 12px}
   .gedx-band.min .gedx-hd h2{font-size:12px}
   .gedx-band.open .gedx-hd h2{font-size:15px}
+  #ged_search,#ged_rub,#ged_prest{width:100%;min-width:0;flex:1 1 100%}
 }
+.gedx-band.flt{box-shadow:0 2px 10px rgba(37,99,235,.10)}
 @media(max-width:700px){
   .gedx-dr{flex-wrap:wrap}
   .gedx-dr .bx{flex:1 1 calc(100% - 110px)}
@@ -15674,11 +15676,23 @@ function gedRenderList(){
   // Accordéon exclusif : un seul client ouvert ; les autres se replient en lignes compactes (toujours cliquables)
   const openCid = searching ? null : ([...window._gedOpen].find(x=>cids.includes(x))||null);
   const tools = openCid ? `<div class="gedx-tools"><a onclick="gedFermerTout()">Tout replier</a></div>` : '';
-  try{ const tb=document.querySelector('.topbar'); const th=tb?Math.round(tb.getBoundingClientRect().height):0; if(th>0) host.style.setProperty('--gedtop',th+'px'); }catch(_){}
+  try{
+    // Décalage du bandeau collant = partie du bandeau haut qui recouvre le conteneur de défilement.
+    // Sur mobile le défilement se fait dans .content (sous un bandeau haut « fixed ») : décalage 0,
+    // sinon (défilement du document) : hauteur du bandeau haut. Sans ça, l'en-tête flottait sous les tuiles.
+    const tb=document.querySelector('.topbar'); let sc=host.parentElement;
+    while(sc && sc!==document.body && sc!==document.documentElement){ const cs=getComputedStyle(sc); if(/(auto|scroll)/.test(cs.overflowY) && sc.scrollHeight>sc.clientHeight+1) break; sc=sc.parentElement; }
+    const scTop=(sc && sc!==document.body && sc!==document.documentElement) ? sc.getBoundingClientRect().top : 0;
+    const tbBottom=tb ? tb.getBoundingClientRect().bottom : 0;
+    const tbFixed=tb ? /fixed|sticky/.test(getComputedStyle(tb).position) : false;
+    const th=tbFixed ? Math.max(0, Math.round(tbBottom - scTop)) : 0;
+    host.style.setProperty('--gedtop',th+'px');
+  }catch(_){}
   host.innerHTML=tools+cids.map(cid=>{
     const docs=byClient[cid];
     const open = searching || cid===openCid;
-    const bandCls = searching ? '' : (open ? ' open' : (openCid ? ' min' : ''));
+    // En recherche / filtre, les bandeaux affichés sont dépliés : même mise en forme qu'un bandeau ouvert (sinon l'en-tête, avec sa marge négative, recouvrait la première tuile)
+    const bandCls = searching ? ' open flt' : (open ? ' open' : (openCid ? ' min' : ''));
     const byType={}; docs.forEach(d=>{ const t=d.type||'Autre'; (byType[t]=byType[t]||[]).push(d); });
     const CAT_ORDER=['Commission de sécurité','Bureau de contrôle','Maintenance préventive','Maintenance corrective','Maintenance','Compte rendu','Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Courrier mairie','Mail','Plans','DOE','Attestation','Sécurité','Autres'];
     const CAT_ICON={'Attestation':'✅','Commission de sécurité':'⚖️','Bureau de contrôle':'🔎','Maintenance préventive':'🗓️','Maintenance corrective':'🔧','Maintenance':'🔧','Compte rendu':'📝','Rapport':'📋','Devis':'📝','Devis signé':'✍️','Facture':'🧾',"Bon d'intervention":'🛠️','PV de réception':'🤝','Courrier mairie':'🏛️','Mail':'📧','Plans':'🗺️','DOE':'📐','Sécurité':'🛟','Autres':'📄'};
