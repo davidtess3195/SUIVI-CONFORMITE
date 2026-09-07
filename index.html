@@ -17534,15 +17534,18 @@ window.lvaTechSection=async function(pid){
     host.innerHTML=(techs&&techs.length?techs.map(t=>{ const nom=[t.prenom,t.nom].filter(Boolean).join(' ')||'Technicien'; const ini=nom.split(/\s+/).map(x=>x[0]).slice(0,2).join('').toUpperCase();
         return '<div class="lva-tech"'+(t.actif?'':' style="opacity:.5"')+'><span class="av">'+esc(ini)+'</span><div style="min-width:0"><b>'+esc(nom)+'</b><small>'+esc(lvaFmtMob(t.mobile))+(t.dernier_passage?' · dernier passage '+lvaFmtD(t.dernier_passage)+(t.dernier_erp_id?' · '+esc(erpNm(t.dernier_erp_id)):''):'')+'</small></div><span class="lva-src">'+({qr:'QR',designation:'Désigné',manuel:'Manuel'}[t.source]||t.source)+(t.actif?'':' · inactif')+'</span><button type="button" class="btn sm" style="padding:2px 8px;font-size:11px" onclick="lvaTechToggle(\''+t.id+'\','+(t.actif?'false':'true')+',\''+pid+'\')">'+(t.actif?'Désactiver':'Réactiver')+'</button></div>'; }).join('')
       :'<div style="font-size:12.5px;color:var(--muted);padding:6px 0">Aucun technicien connu. La liste se construit toute seule à partir des pointages QR et des désignations par la société.</div>')
-      +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:10px"><div class="fld" style="margin:0;flex:1;min-width:110px"><label>Prénom</label><input id="pft_prenom"></div><div class="fld" style="margin:0;flex:1;min-width:110px"><label>Nom</label><input id="pft_nom"></div><div class="fld" style="margin:0;flex:1;min-width:140px"><label>Mobile</label><input id="pft_mob" type="tel" placeholder="06 00 00 00 00"></div><button type="button" class="btn sm" onclick="lvaTechAdd(\''+pid+'\')">+ Ajouter</button></div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:10px" onkeydown="if(event.key===\'Enter\'){event.preventDefault();lvaTechAdd(\''+pid+'\');}"><div class="fld" style="margin:0;flex:1;min-width:110px"><label>Prénom</label><input id="pft_prenom"></div><div class="fld" style="margin:0;flex:1;min-width:110px"><label>Nom</label><input id="pft_nom"></div><div class="fld" style="margin:0;flex:1;min-width:140px"><label>Mobile</label><input id="pft_mob" type="tel" placeholder="06 00 00 00 00"></div><button type="button" class="btn sm" onclick="lvaTechAdd(\''+pid+'\')">+ Ajouter</button></div>'
+      +'<div style="font-size:11px;color:var(--muted);margin-top:4px">Le technicien est enregistré dès « + Ajouter » (ou la touche Entrée), indépendamment du bouton « Enregistrer » de la fiche.</div>'
       +(list.length?'<div class="lva-warn">⚠ '+list.length+' pointage'+(list.length>1?'s':'')+' QR non rattaché'+(list.length>1?'s':'')+(cand.length?' (société proche de « '+esc(p.nom)+' »)':' récent'+(list.length>1?'s':''))+' :'+list.map(x=>'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:12px"><span><b>'+esc([x.prenom,x.nom].filter(Boolean).join(' '))+'</b> · '+esc(x.societe||'—')+' · '+esc(lvaFmtMob(lvaNormMob(x.telephone))||x.telephone||'')+' · '+esc(erpNm(x.erp_id))+' · '+lvaFmtD(x.heure_arrivee)+(x.leve_reserves?' · <b style="color:#dc2626">levées</b>':'')+'</span><span style="margin-left:auto;display:flex;gap:5px"><button type="button" class="btn sm" style="padding:2px 8px;font-size:11px" onclick="lvaRattacher(\''+x.id+'\',\''+pid+'\')">Rattacher</button><button type="button" class="btn sm ghost" style="padding:2px 8px;font-size:11px" onclick="lvaRattacher(\''+x.id+'\',null,\''+pid+'\')">Ignorer</button></span></div>').join('')+'</div>':'');
   }catch(e){ host.innerHTML='<div style="font-size:12px;color:var(--muted)">Techniciens indisponibles : '+esc(e.message||e)+'</div>'; }
 };
 window.lvaTechAdd=async function(pid){
-  const nom=(document.getElementById('pft_nom').value||'').trim(), prenom=(document.getElementById('pft_prenom').value||'').trim(), mob=lvaNormMob(document.getElementById('pft_mob').value);
-  if(!nom&&!prenom){ toast('Indiquez le nom du technicien','err'); return; } if(!mob){ toast('Mobile invalide (06 / 07)','err'); return; }
-  try{ const {error}=await sb.from('prestataire_techniciens').upsert({prestataire_id:pid,nom:nom||prenom,prenom:nom?prenom:'',mobile:mob,source:'manuel',actif:true},{onConflict:'prestataire_id,mobile'}); if(error) throw error; toast('Technicien ajouté ✓','ok'); lvaTechSection(pid); }
-  catch(e){ toast(e.message||'Erreur','err'); }
+  const nom=(document.getElementById('pft_nom')?.value||'').trim(), prenom=(document.getElementById('pft_prenom')?.value||'').trim(), mobRaw=(document.getElementById('pft_mob')?.value||'').trim(), mob=lvaNormMob(mobRaw);
+  if(!nom&&!prenom&&!mobRaw) return false;
+  if(!nom&&!prenom){ toast('Indiquez le nom du technicien','err'); return false; }
+  if(!mob){ toast('Mobile invalide : indiquez un numéro de portable (06 ou 07), les techniciens reçoivent les liens de levée par SMS.','err'); return false; }
+  try{ const {error}=await sb.from('prestataire_techniciens').upsert({prestataire_id:pid,nom:nom||prenom,prenom:nom?prenom:'',mobile:mob,source:'manuel',actif:true},{onConflict:'prestataire_id,mobile'}); if(error) throw error; toast('Technicien '+esc([prenom,nom].filter(Boolean).join(' '))+' enregistré ✓','ok'); lvaTechSection(pid); return true; }
+  catch(e){ toast(e.message||'Erreur','err'); return false; }
 };
 window.lvaTechToggle=async function(tid,actif,pid){
   try{ const {error}=await sb.from('prestataire_techniciens').update({actif}).eq('id',tid); if(error) throw error; lvaTechSection(pid); }catch(e){ toast(e.message||'Erreur','err'); }
@@ -25220,6 +25223,12 @@ async function formPrest(p){
   let _cAut=p.contacts; if(typeof _cAut==='string'){ try{ _cAut=JSON.parse(_cAut); }catch(_){ _cAut=null; } }
   window._autresSaved=(((_cAut||{}).autres)||[]).map(a=>Object.assign({},a));
   setTimeout(()=>{ try{ prestRenderAutresAcc(); }catch(_){} },0);
+  // Coordonnées manquantes : proposer l'e-mail / le téléphone trouvés dans les contacts (fiche existante uniquement)
+  const _pfSug={email:'',tel:''};
+  if(p.id){ try{ const _cc=_cAut&&typeof _cAut==='object'?_cAut:{}; const _all=[_cc.charge_affaire,_cc.planning,_cc.sav,_cc.technicien_1,_cc.technicien_2,_cc.technicien_3].concat(Array.isArray(_cc.autres)?_cc.autres:[]).filter(Boolean);
+    const _isMail=x=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(x||'').trim());
+    _pfSug.email=String((_all.map(c=>c.email).find(_isMail))||'').trim();
+    _pfSug.tel=String((_all.map(c=>c.telephone).find(Boolean)||_all.map(c=>c.mobile).find(Boolean)||p.tel_depannage||p.tel_astreinte||'')).trim(); }catch(_){} }
   const cat=p.categorie||'prestataire';
 
   const typesBdc=PREST_TYPES_BDC;
@@ -25261,8 +25270,8 @@ async function formPrest(p){
         <div class="fld" style="margin-bottom:10px;grid-column:1/-1"><label>Adresse</label><input id="f_adresse" value="${esc(p.adresse||'')}" placeholder="12 rue de la République"></div>
         <div class="fld" style="margin-bottom:10px"><label>Code postal</label><input id="f_code_postal" value="${esc(p.code_postal||'')}" placeholder="75001" inputmode="numeric"></div>
         <div class="fld" style="margin-bottom:10px"><label>Ville</label><input id="f_ville" value="${esc(p.ville||'')}" placeholder="Paris"></div>
-        <div class="fld" style="margin-bottom:10px"><label>Téléphone (fixe ou mobile) <span class="req" style="color:#dc2626">*</span></label><input id="f_telephone" type="tel" value="${esc(p.telephone||'')}" placeholder="01 23 45 67 89"></div>
-        <div class="fld" style="margin-bottom:10px"><label>Email <span class="req" style="color:#dc2626">*</span></label><input id="f_email" type="email" value="${esc(p.email_rapports||'')}" placeholder="contact@entreprise.fr">
+        <div class="fld" style="margin-bottom:10px"><label>Téléphone (fixe ou mobile) <span class="req" style="color:#dc2626">*</span></label><input id="f_telephone" type="tel" value="${esc(p.telephone||_pfSug.tel||'')}" placeholder="01 23 45 67 89">${!p.telephone&&_pfSug.tel?'<div class="aide" style="color:#b45309">Proposé depuis les contacts de la fiche — vérifiez puis enregistrez.</div>':''}</div>
+        <div class="fld" style="margin-bottom:10px"><label>Email <span class="req" style="color:#dc2626">*</span></label><input id="f_email" type="email" value="${esc(p.email_rapports||_pfSug.email||'')}" placeholder="contact@entreprise.fr">${!p.email_rapports&&_pfSug.email?'<div class="aide" style="color:#b45309">Proposé depuis les contacts de la fiche — vérifiez puis enregistrez.</div>':''}
         <div class="aide">C'est par cette adresse que partent vos demandes d'intervention et qu'arrivent les rapports classés automatiquement. <b>Une faute de frappe casse tout le circuit</b> — recopiez-la depuis un email reçu du prestataire.</div></div>
         <div class="fld" style="margin-bottom:10px"><label>SIRET</label><input id="f_siret" value="${esc(p.siret||'')}" placeholder="123 456 789 00012" inputmode="numeric"></div>
 
@@ -25484,11 +25493,18 @@ async function formPrest(p){
     <div class="fld"><label>Commentaire / note interne</label>
       <textarea id="f_com" placeholder="Remarques, reference, contact prefere..." style="min-height:90px;resize:vertical">${esc(p.commentaire||'')}</textarea></div>
   </div>
-  <div class="modal-foot">
+  <div class="modal-foot" style="flex-direction:column;align-items:stretch">
+    <div id="pf_err" hidden style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:9px;padding:9px 12px;font-size:13px;line-height:1.4"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
     ${p.id?'<button class="btn danger" id="del_prest" style="margin-right:auto">Supprimer</button>':''}
     <button class="btn ghost" onclick="closeModal()">Annuler</button>
     <button class="btn primary" id="save">${p.id?'Enregistrer':'Créer'}</button>
+    </div>
   </div>`,'wide');
+  // Erreur bloquante visible en permanence dans le pied du formulaire (le toast disparaît en 3 s)
+  const pfErr=(msg,fieldId)=>{ toast(msg,'err'); const b=$('#pf_err'); if(b){ b.textContent=msg; b.hidden=false; }
+    document.querySelectorAll('#modal .pf-bad').forEach(x=>x.classList.remove('pf-bad'));
+    const f=fieldId?$('#'+fieldId):null; if(f){ f.classList.add('pf-bad'); f.style.outline='2px solid #dc2626'; f.style.outlineOffset='1px'; f.addEventListener('input',()=>{ f.style.outline=''; const bb=$('#pf_err'); if(bb) bb.hidden=true; },{once:true}); try{ f.focus({preventScroll:true}); f.scrollIntoView({block:'center',behavior:'smooth'}); }catch(_){ } } };
   if(p.id&&typeof lvaTechSection==='function') setTimeout(()=>lvaTechSection(p.id),30);
 
   // Relier bouton haut
@@ -25497,7 +25513,7 @@ async function formPrest(p){
   $('#save').onclick=async()=>{
     const nom=$('#f_nom').value.trim();
     const categorie=document.querySelector('input[name="f_cat"]:checked')?.value||'prestataire';
-    if(!nom){toast('La raison sociale est requise','err');return;}
+    if(!nom){pfErr('La raison sociale est requise.','f_nom');return;}
     const types=[...document.querySelectorAll('input[name="f_type_cb"]:checked')].map(cb=>cb.value);
     // Récupérer les contacts par rôle
     const contacts={};
@@ -25549,17 +25565,22 @@ async function formPrest(p){
       has_avenant: document.querySelector('input[name="rb_avenant"]:checked')?.value==='oui'||false,
     };
     try{
+      // Technicien terrain saisi mais non ajouté : on l'enregistre d'abord (indépendant des règles de la fiche)
+      if(p.id && typeof lvaTechAdd==='function' && document.getElementById('pft_mob')){
+        const hasTech=['pft_nom','pft_prenom','pft_mob'].some(i=>(document.getElementById(i)?.value||'').trim());
+        if(hasTech){ const okT=await lvaTechAdd(p.id); if(!okT) return; }
+      }
       payload.client_id=payload.client_ids[0]||null;
       // Rattachement obligatoire pour tout le monde : aucun prestataire sans client
       if(!payload.client_id){
-        toast('Rattachement obligatoire : cochez au moins un client dans « Clients rattachés » avant d\'enregistrer.','err'); return;
+        pfErr('Fiche non enregistrée : cochez au moins un client dans « Clients rattachés ».'); return;
       }
       // Email et téléphone obligatoires : sans eux, ni demandes d'intervention ni SMS
       if(!payload.email_rapports || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email_rapports)){
-        toast('Email obligatoire : renseignez une adresse email valide pour ce prestataire.','err'); return;
+        pfErr('Fiche non enregistrée : l\'e-mail du prestataire (bloc « Coordonnées ») est obligatoire.','f_email'); return;
       }
       if(!payload.telephone){
-        toast('Téléphone obligatoire : renseignez un numéro (fixe ou mobile) pour ce prestataire.','err'); return;
+        pfErr('Fiche non enregistrée : le téléphone du prestataire (bloc « Coordonnées ») est obligatoire.','f_telephone'); return;
       }
       // Ajouter les paths de fichiers si uploadés
       if(window._prest_contrat_path){ payload.contrat_path=window._prest_contrat_path; payload.contrat_nom=window._prest_contrat_nom||null; delete window._prest_contrat_path; delete window._prest_contrat_nom; }
@@ -25585,7 +25606,7 @@ async function formPrest(p){
       // Rester sur l'onglet de la catégorie sauvegardée
       _prestOnglet = categorie;
       closeModal(); toast(p.id?'Modifié':'Créé','ok'); renderRoute();
-    }catch(e){ toast(e.message,'err'); }
+    }catch(e){ pfErr('Enregistrement refusé : '+(e.message||e)); }
   };
 
   const delBtn=$('#del_prest');
