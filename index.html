@@ -12507,7 +12507,12 @@ window.deletePhoto=deletePhoto;
 window.togglePhotoSelGroup=function(idsCsv,on){
   String(idsCsv).split(',').filter(Boolean).forEach(id=>{ if(on)_photoSel.add(id); else _photoSel.delete(id); });
   updatePhotoSelUI();
-  afficherPhotos(window._photosCache||[]);
+  // Mise à jour locale de la carte (sans re-rendu de toute la grille : sur mobile le re-rendu rechargeait
+  // les images et faisait sauter le défilement, donnant l'impression que la case ne répondait pas)
+  let card=null;
+  try{ const cb=[...document.querySelectorAll('.ph-sel')].find(x=>(x.getAttribute('onclick')||'').includes("'"+idsCsv+"'")); card=cb?cb.closest('.card'):null; if(cb) cb.checked=!!on; }catch(_){ }
+  if(card) card.style.boxShadow = on?'0 0 0 2px var(--primary)':'';
+  else afficherPhotos(window._photosCache||[]);
 };
 async function setPhotoTraitementGroup(idsCsv,val){
   const ids=String(idsCsv).split(',').filter(Boolean); if(!ids.length) return;
@@ -12583,22 +12588,31 @@ window.clearPhotoSel=function(){
 };
 
 // Charge une image (bucket public) et renvoie un dataURL JPEG + dimensions
-function loadImgDataUrl(url){
-  return new Promise(resolve=>{
-    if(!url){ resolve(null); return; }
-    const img=new Image(); img.crossOrigin='anonymous';
-    img.onload=()=>{
-      try{
-        const maxd=1100; let w=img.naturalWidth, h=img.naturalHeight;
-        const sc=Math.min(1, maxd/Math.max(w,h)); w=Math.round(w*sc); h=Math.round(h*sc);
-        const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
-        cv.getContext('2d').drawImage(img,0,0,w,h);
-        resolve({dataUrl:cv.toDataURL('image/jpeg',0.82), w, h});
-      }catch(e){ resolve(null); }
-    };
-    img.onerror=()=>resolve(null);
-    img.src=url;
-  });
+/* Image distante → dataURL (pour le PDF).
+   1) fetch en CORS avec cache contourné, puis blob local (jamais de canvas « tainted ») ;
+   2) repli : <img crossOrigin> avec cache contourné ;
+   3) repli : téléchargement authentifié via le SDK pour les photos du bucket urgent-photos.
+   Sans ça, une photo déjà affichée dans la grille (mise en cache sans en-tête CORS, ou revalidée en 304)
+   échouait silencieusement et n'apparaissait pas dans le compte rendu. */
+async function loadImgDataUrl(url){
+  if(!url) return null;
+  const draw=img=>{ const maxd=1100; let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height; if(!w||!h) return null;
+    const sc=Math.min(1, maxd/Math.max(w,h)); w=Math.round(w*sc); h=Math.round(h*sc);
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h);
+    return {dataUrl:cv.toDataURL('image/jpeg',0.82), w, h}; };
+  const fromBlob=blob=>new Promise(resolve=>{ if(!blob||!blob.size){ resolve(null); return; } const u=URL.createObjectURL(blob); const img=new Image();
+    img.onload=()=>{ try{ resolve(draw(img)); }catch(e){ resolve(null); } URL.revokeObjectURL(u); };
+    img.onerror=()=>{ URL.revokeObjectURL(u); resolve(null); }; img.src=u; });
+  const bust=u=>u+(u.includes('?')?'&':'?')+'cb='+Date.now();
+  // 1) fetch CORS
+  try{ const r=await fetch(bust(url),{mode:'cors',cache:'no-store',credentials:'omit'}); if(r.ok){ const out=await fromBlob(await r.blob()); if(out) return out; } }catch(_){ }
+  // 2) <img crossOrigin>
+  const viaImg=await new Promise(resolve=>{ const img=new Image(); img.crossOrigin='anonymous';
+    img.onload=()=>{ try{ resolve(draw(img)); }catch(e){ resolve(null); } }; img.onerror=()=>resolve(null); img.src=bust(url); });
+  if(viaImg) return viaImg;
+  // 3) SDK (bucket urgent-photos)
+  try{ const m=String(url).match(/\/storage\/v1\/object\/(?:public\/)?urgent-photos\/([^?]+)/); if(m && window.sb){ const {data}=await sb.storage.from('urgent-photos').download(decodeURIComponent(m[1])); const out=await fromBlob(data); if(out) return out; } }catch(_){ }
+  return null;
 }
 
 // Pièces jointes : conversion fichier -> dataURL / image / pages PDF
@@ -12711,7 +12725,12 @@ async function openReportModal(mode){
   window._reportDests=[]; renderReportDestChips();
   rpOnClient(preErpId);
   _crPhotos=[]; if(!isNote) crRenderPhotos();
-  if(!isNote){ (async()=>{ for(const p of photos){ if(p.photo_path && !isVideoPath(p.photo_path)){ try{ const im=await loadImgDataUrl(publicPhoto(p.photo_path)); if(im) _crPhotos.push({dataUrl:im.dataUrl,w:im.w,h:im.h,commentaire:p.commentaire||''}); }catch(e){} } } crRenderPhotos(); })(); }
+  // Photos cochées dans la grille : chargées avant d'autoriser la génération (sinon un clic rapide produisait un PDF sans photos)
+  window._crPhotosLoading=false;
+  if(!isNote){ const sel=photos.filter(p=>p.photo_path && !isVideoPath(p.photo_path)); if(sel.length){ window._crPhotosLoading=true; const go=$('#rp_go'); const ot=go?go.textContent:''; if(go){ go.disabled=true; go.textContent='Chargement des photos…'; }
+    (async()=>{ let ko=0; for(const p of sel){ try{ const im=await loadImgDataUrl(publicPhoto(p.photo_path)); if(im) _crPhotos.push({dataUrl:im.dataUrl,w:im.w,h:im.h,commentaire:p.commentaire||''}); else ko++; }catch(e){ ko++; } }
+      window._crPhotosLoading=false; crRenderPhotos(); const g2=$('#rp_go'); if(g2){ g2.disabled=false; g2.textContent=ot||'📄 Générer le PDF'; }
+      if(ko) toast(ko+' photo'+(ko>1?'s':'')+' n\'a pas pu être chargée'+(ko>1?'s':'')+' — réessayez ou ajoutez-la depuis la bibliothèque.','err'); })(); } }
   $('#rp_go').onclick=async()=>{
     const osel=$('#rp_obj_sel').value;
     const objet = osel==='__autre__' ? $('#rp_obj').value.trim() : osel;
