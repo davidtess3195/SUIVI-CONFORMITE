@@ -1436,8 +1436,10 @@ window.secHelpOff=function(key){ try{localStorage.setItem('sechelp_'+key,'off');
 const TOUR_STEPS=[
   {sel:'.kpis', t:'Vos priorités, déjà triées', p:'Ce tableau de bord classe ce qui presse. La checklist « Premiers pas » vous accompagne jusqu\'à ce que tout soit en place.'},
   {sel:'a[href="#/verifications"]', t:'Votre échéancier vit ici', p:'Chaque ligne est une obligation datée. La pastille rouge compte ce qui est en retard — c\'est le seul chiffre à regarder le lundi matin.'},
-  {sel:'a[href="#/documents"]', t:'Vos documents se classent tout seuls', p:'Quand un prestataire envoie son rapport sur votre adresse dédiée, il arrive en tête du Classeur avec une proposition de classement : un clic et il rejoint le bon endroit.'},
+  {sel:'a[href="#/documents"]', t:'Vos rapports se classent presque tout seuls', p:'Un rapport envoyé sur votre adresse dédiée arrive en tête du Classeur avec sa proposition : établissement, type, lot, prestataire. Vérifiez, cliquez « Classer » — ou « Classer les sûrs » pour tout traiter d\'un coup.'},
   {sel:'#btn-quick-inter', t:'Vos prestataires répondent enfin', p:'Une demande d\'intervention part par email ou SMS, et le prestataire confirme la date en un clic — sans compte, sans mot de passe.'},
+  {sel:'a[href="#/reserves"]', t:'Les réserves partent toutes seules', p:'Affectez une réserve à un prestataire : la société reçoit un e-mail, désigne le technicien qui viendra, et celui-ci reçoit son lien de signature par SMS. Les relances sont automatiques ; vous suivez tout dans le tableau de réserves.'},
+  {sel:'a[href="#/erps"]', t:'Qui est prévenu, et de quoi', p:'Sur chaque fiche établissement, deux listes : les contacts prévenus des arrivées et départs sur site, et ceux prévenus quand un prestataire vient pour des levées de réserves. Sans contact, seule PREVA est alertée.'},
   {sel:'#selClient', t:'Tout se filtre ici', p:'Le sélecteur client / établissement décide de ce que vous voyez sur toutes les pages. Bonne visite — l\'aide reste présente sur chaque écran.'}
 ];
 window._tourIdx=0;
@@ -5923,7 +5925,7 @@ function getStepContent(){
           <div class="ntxt"><b>${n.t}</b><span>${n.d}</span></div>
           <div class="tog"></div>
         </div>`).join('')}
-      <div style="margin-top:6px;font-size:12.5px;color:var(--muted-2);text-align:center">Les emails seront envoyés à l'adresse renseignée à l'étape précédente.</div>`;
+      <div style="margin-top:6px;font-size:12.5px;color:var(--muted-2);text-align:center">Les emails seront envoyés à l'adresse renseignée à l'étape précédente.<br>Les alertes propres à un établissement (arrivées et départs des prestataires, levées de réserves) se règlent ensuite sur la fiche ERP, section « Notifications ».</div>`;
 
     /* ── Étape 5 : RÉCAP + INVITATION ───────────────────── */
     case 5:
@@ -6445,15 +6447,15 @@ window.actPing=actPing;
 /* ═══════════════ FORMATION — plateforme e-learning intégrée ═══════════════ */
 const FORM_CHAPS={1:'Bien démarrer',2:'Au quotidien',3:'Les moments importants'};
 const FORM_MODULES=[
- {no:1,ch:1,t:'Créer votre établissement',dur:'2 min',act:['/erps','Créer un établissement'],
-  obj:'créer la fiche de votre ERP avec la bonne catégorie et le bon type — la base de tout le reste.',
+ {no:1,ch:1,t:'Créer votre établissement',dur:'2 min 30',act:['/erps','Créer un établissement'],upd:'2026-09-07',
+  obj:'créer la fiche de votre ERP avec la bonne catégorie et le bon type, et décider qui est prévenu de ce qui se passe sur site.',
   et:[['Ouvrez « Établissement → ERP »','et cliquez « Nouvel ERP ».'],
       ['Renseignez le nom et l’adresse','tels qu’ils figurent sur vos documents officiels.'],
       ['Prenez la catégorie et le type sur le dernier PV de commission','— jamais de mémoire ni d’estimation.'],
-      ['Ajoutez vos contacts',': ils recevront les alertes et les convocations.']],
+      ['Section « Notifications » : cochez qui est prévenu',': une liste pour les arrivées et départs des prestataires, une autre pour les levées de réserves. Sans contact coché, seule PREVA est alertée.']],
   err:'Estimer la catégorie « à peu près » d’après l’effectif. Elle pilote la fréquence de toutes vos vérifications : fausse, votre échéancier est faux pendant des années.',
-  avis:'La catégorie et le type de votre ERP décident de tout le reste — fréquences de vérification, registre, commission. Reprenez-les sur le dernier PV de commission, jamais de mémoire : une catégorie fausse, c’est un échéancier faux pendant des années sans qu’aucune alerte ne vous prévienne.',
-  q:{t:'Où prendre la catégorie exacte de votre établissement ?',a:['Sur le dernier PV de commission de sécurité','En l’estimant d’après l’effectif','Peu importe, elle ne change rien'],g:0}},
+  avis:'La catégorie et le type de votre ERP décident de tout le reste — fréquences de vérification, registre, commission. Reprenez-les sur le dernier PV de commission, jamais de mémoire. Et prenez trente secondes pour cocher qui est prévenu : une alerte qui n’arrive à personne ne sert à rien.',
+  q:{t:'Qui est prévenu quand un technicien vient lever des réserves ?',a:['Tous les contacts du client','Les contacts cochés « Levées de réserves » sur la fiche ERP — sinon PREVA seule','Personne, c’est dans le journal'],g:1}},
  {no:2,ch:1,t:'Le plan de maintenance',dur:'3 min',act:['/plan-maintenance','Ouvrir le plan de maintenance'],
   obj:'construire l’échéancier automatique de vos vérifications réglementaires.',
   et:[['Ouvrez « Établissement → Plan de maintenance »','et chargez les obligations proposées pour votre catégorie.'],
@@ -6463,6 +6465,15 @@ const FORM_MODULES=[
   err:'Laisser une périodicité par défaut sans la vérifier. Une périodicité fausse ne sonne jamais — l’erreur reste invisible jusqu’au jour de la commission.',
   avis:'Le plan de maintenance n’est pas de la paperasse : c’est lui qui vous réveille avant chaque échéance. Prenez trente minutes pour le construire proprement une fois — vous ne courrez plus jamais après une vérification oubliée.',
   q:{t:'Que fabrique le plan de maintenance ?',a:['La liste de vos factures','Votre échéancier de vérifications, avec relances automatiques','Le planning des congés'],g:1}},
+ {no:11,ch:1,t:'Le registre des équipements',dur:'3 min',act:['/erps','Ouvrir un établissement → Équipements'],upd:'2026-09-07',
+  obj:'savoir exactement quels appareils vous avez, où ils sont, et retrouver leur notice en dix secondes.',
+  et:[['Créez une famille','(Ascenseur, Extincteur, SSI…) avec la quantité déclarée et la périodicité de vérification.'],
+      ['Ajoutez chaque unité',': désignation (ASC-1), niveau, zone, repère, numéro d’appareil et prestataire. Le numéro s’affiche dans le bandeau et sur la ligne.'],
+      ['Rattachez ses documents à l’unité',': notice, fiche technique, notice de maintenance, fiche de sécurité. « Communs à la famille » sert à la notice constructeur unique.'],
+      ['Imprimez le registre pour la commission','; les garanties (GPA) apparaissent sur la famille concernée.']],
+  err:'Déclarer « 12 extincteurs » sans les situer. Le jour de la commission, l’inspecteur demande celui du sous-sol — et personne ne sait s’il existe.',
+  avis:'Le registre n’est pas une liste, c’est un plan : chaque appareil a un numéro, une place et ses papiers. C’est ce qui vous permet de répondre « oui, il est là, voici sa notice » sans quitter la pièce.',
+  q:{t:'Où déposer l’étude de sécurité de l’ascenseur n° 6055 ?',a:['Dans « Communs à la famille »','Dans l’onglet de l’unité ASC-1 — elle ne concerne que cet appareil','Dans le Classeur, rubrique Devis'],g:1}},
  {no:3,ch:1,t:'Lire le tableau de bord',dur:'2 min',act:['/','Ouvrir le tableau de bord'],
   obj:'trouver en dix secondes ce qui presse, sans rien rater.',
   et:[['Le chiffre rouge « En retard »','se lit en premier : c’est votre priorité de la semaine.'],
@@ -6481,33 +6492,42 @@ const FORM_MODULES=[
   err:'Tout faire par téléphone. Sans trace écrite ni date confirmée, impossible de prouver la demande le jour où le prestataire conteste.',
   avis:'Une demande écrite qui part de l’application laisse une trace datée. Le jour où un prestataire affirme « on ne m’a rien demandé », cette trace vaut tous les coups de téléphone du monde.',
   q:{t:'Que doit faire le prestataire pour confirmer la date ?',a:['Créer un compte sur l’application','Cliquer sur le lien reçu par email ou SMS','Envoyer un courrier'],g:1}},
- {no:5,ch:2,t:'Les rapports arrivent tout seuls',dur:'2 min',act:['/documents','Ouvrir le Classeur'],
-  obj:'recevoir les rapports de vérification sans les chercher, et les classer en un geste.',
-  et:[['Chaque compte dispose d’une adresse email dédiée',': transmettez-la à vos prestataires une bonne fois.'],
-      ['Le rapport envoyé à cette adresse','apparaît en tête du Classeur, à classer.'],
-      ['Vous le rattachez à la bonne vérification','en deux clics — l’échéance se met à jour.'],
-      ['Il rejoint le Classeur','au bon endroit, daté et retrouvable.']],
+ {no:5,ch:2,t:'Les rapports arrivent tout seuls',dur:'2 min 30',act:['/documents','Ouvrir le Classeur'],upd:'2026-09-07',
+  obj:'recevoir les rapports de vérification sans les chercher, et les classer en un geste depuis le poste de tri.',
+  et:[['Chaque établissement dispose d’une adresse e-mail dédiée',': transmettez-la à vos prestataires une bonne fois.'],
+      ['Le rapport reçu apparaît en tête du Classeur, onglet « À classer »',', avec une proposition (établissement, type, lot, prestataire) et un niveau de confiance.'],
+      ['Vérifiez l’aperçu, corrigez si besoin, cliquez « Classer »','. Les rapports « Sûre » se traitent d’un coup avec « Classer les N sûrs ».'],
+      ['Un e-mail qui n’est pas un rapport : « Ignorer »','(restaurable). « Classés récemment » et « Ignorés » gardent la trace 30 jours.']],
   err:'Laisser les rapports dormir dans une boîte mail personnelle. Un rapport introuvable le jour de la commission est un rapport qui n’existe pas.',
-  avis:'Transmettez l’adresse dédiée à vos prestataires une bonne fois pour toutes : un rapport qui arrive tout seul est un rapport qui ne se perd pas. Votre boîte mail personnelle n’est pas un système d’archivage.',
-  q:{t:'Où arrive le rapport envoyé par un prestataire ?',a:['En tête du Classeur, prêt à classer','Dans votre boîte mail personnelle','Il faut le scanner soi-même'],g:0}},
- {no:6,ch:2,t:'Le Classeur',dur:'2 min',act:['/documents','Ouvrir le Classeur'],
+  avis:'Transmettez l’adresse dédiée à vos prestataires une bonne fois pour toutes : un rapport qui arrive tout seul est un rapport qui ne se perd pas. Le poste de tri fait le gros du travail — il vous reste à vérifier et à cliquer.',
+  q:{t:'Que fait « Classer les 3 sûrs » ?',a:['Supprime les trois rapports','Classe d’un coup les rapports dont la proposition est certaine ; les autres restent à vérifier','Les renvoie au prestataire'],g:1}},
+ {no:6,ch:2,t:'Le Classeur',dur:'2 min',act:['/documents','Ouvrir le Classeur'],upd:'2026-09-07',
   obj:'retrouver n’importe quel document en dix secondes, même face à l’inspecteur.',
-  et:[['Le Classeur range par catégories',': rapports, PV, contrats, devis, attestations…'],
-      ['« ✓ Classé » : le document est à sa place','; « ⚠ À classer » : reçu mais pas encore rangé.'],
-      ['Glissez-déposez un fichier','directement dans la bonne catégorie.'],
-      ['Traitez les « À classer » chaque semaine','— pas la veille de la commission.']],
-  err:'Accumuler les « À classer » pendant des mois. Le classement de dernière minute, c’est la certitude d’un document manquant le jour J.',
+  et:[['Un bandeau par client, un seul ouvert à la fois',': les autres se replient. « Tout replier » pour repartir de zéro.'],
+      ['Dans le bandeau, une tuile par rubrique','(Rapport, PV, Devis signé, Compte rendu…). L’étiquette « NOUVEAU » signale ce qui a été classé depuis 7 jours.'],
+      ['Recherche par nom, client ou ERP, filtres rubrique et prestataire',', glisser-déposer dans la zone en haut de page.'],
+      ['Vos comptes rendus envoyés sont archivés ici','(rubrique Compte rendu), tant que la case « Archiver une copie » reste cochée à l’envoi.']],
+  err:'Accumuler les rapports « À classer » pendant des mois. Le classement de dernière minute, c’est la certitude d’un document manquant le jour J.',
   avis:'Un Classeur bien tenu, c’est une commission qui commence bien : l’inspecteur demande, vous ouvrez, c’est là. La confiance qui s’installe dans les cinq premières minutes change le ton de toute la visite.',
-  q:{t:'Que signifie la pastille « ⚠ À classer » ?',a:['Document à supprimer','Document reçu mais pas encore rangé','Document expiré'],g:1}},
- {no:7,ch:2,t:'Le QR code terrain',dur:'3 min',act:['/pointage','Voir pointage & journal'],
-  obj:'faire pointer les prestataires sur site et récupérer leurs photos, sans compte.',
-  et:[['Imprimez le QR code de l’établissement','et affichez-le près du registre ou à l’accueil.'],
-      ['Le prestataire le scanne en arrivant','avec son téléphone — aucun compte à créer.'],
-      ['Il pointe son passage et dépose ses photos','d’intervention, horodatées.'],
-      ['Tout se retrouve dans « Pointage & journal »',', rattaché à l’établissement.']],
+  q:{t:'Où retrouver le compte rendu envoyé la semaine dernière ?',a:['Uniquement dans votre messagerie','Bandeau du client → tuile « Compte rendu » (ou la carte « Comptes rendus » de la fiche client)','Dans « Rapports reçus »'],g:1}},
+ {no:7,ch:2,t:'Le QR code terrain',dur:'3 min 30',act:['/pointage','Voir pointage & journal'],upd:'2026-09-07',
+  obj:'faire pointer les prestataires sur site, récupérer leurs photos, et ne jamais laisser un passage ouvert.',
+  et:[['Imprimez le QR code de l’établissement','et affichez-le là où les prestataires passent vraiment.'],
+      ['Le prestataire le scanne, pointe son arrivée','et coche « levées de réserves » si c’est l’objet de sa visite : les bons contacts sont prévenus.'],
+      ['Passage oublié ? SMS de rappel à 17 h, puis à 9 h le lendemain',', avec un lien de clôture. Vous gardez la main : « Clôturer » ou « Relancer » depuis Pointage & journal.'],
+      ['Un pointage d’un technicien inconnu se rattache à son prestataire en un clic',': il rejoint ses techniciens terrain.']],
   err:'Ranger le QR dans un tiroir. S’il n’est pas visible à l’endroit où le prestataire passe, personne ne le scanne jamais.',
   avis:'Le QR sur site fait travailler le prestataire à votre place : passage pointé, photos horodatées, journal qui se remplit tout seul. Affichez-le là où les prestataires passent vraiment — près du registre, à l’accueil, au PC sécurité.',
-  q:{t:'À quoi sert le QR code affiché sur site ?',a:['À payer les prestataires','C’est décoratif','Le prestataire pointe et dépose ses photos, sans compte'],g:2}},
+  q:{t:'Un technicien a oublié de clôturer son passage : que se passe-t-il ?',a:['Le passage est clôturé automatiquement','Il reçoit un SMS à 17 h puis à 9 h le lendemain avec un lien pour clôturer ; vous pouvez aussi clôturer ou relancer','Rien'],g:1}},
+ {no:12,ch:2,t:'La fiche prestataire',dur:'2 min 30',act:['/prestataires','Ouvrir les prestataires'],upd:'2026-09-07',
+  obj:'tenir une fiche complète, pour que demandes, rapports et levées de réserves circulent sans vous.',
+  et:[['E-mail et téléphone de la société sont obligatoires',': c’est par là que partent les demandes et qu’arrivent les rapports.'],
+      ['Contacts par rôle','(chargé d’affaires, planning, SAV…) et numéros d’affaire par ERP.'],
+      ['Techniciens terrain : prénom, nom, portable','. Ils reçoivent les liens de signature par SMS. La liste se remplit aussi toute seule (QR, désignation par la société).'],
+      ['Un blocage à l’enregistrement s’affiche en rouge au bas de la fiche',', avec le champ à corriger.']],
+  err:'Saisir le prestataire avec le seul nom de la société. Sans e-mail ni portable, ni demande d’intervention, ni levée de réserves ne peut partir.',
+  avis:'Un technicien de terrain a rarement une adresse e-mail professionnelle : son portable est la seule porte. Enregistrez-le une fois, et chaque levée de réserves lui arrivera directement, sans passer par vous.',
+  q:{t:'Pourquoi enregistrer le portable du technicien terrain ?',a:['Pour le facturer','Il n’a en général pas d’e-mail professionnel : les liens de levée lui arrivent par SMS','C’est facultatif'],g:1}},
  {no:8,ch:3,t:'Préparer la commission de sécurité',dur:'4 min',act:['/preparation-cs','Préparer la commission'],
   obj:'arriver le jour J avec un dossier complet et des prestataires convoqués.',
   et:[['Saisissez la date de la commission','dès que la mairie vous la communique.'],
@@ -6517,15 +6537,15 @@ const FORM_MODULES=[
   err:'Commencer la préparation la semaine de la visite. Les prestataires ont besoin de délai — une convocation tardive, c’est une chaise vide le jour J.',
   avis:'La date de commission pilote tout : convocations, relances, préparation du dossier. Saisissez-la le jour où la mairie vous la donne — chaque semaine gagnée en amont, c’est un prestataire de plus présent le jour J.',
   q:{t:'Quand saisir la date de la commission ?',a:['La veille de la visite','Dès que la mairie la communique','Après la visite'],g:1}},
- {no:9,ch:3,t:'Faire lever les réserves',dur:'2 min 30',act:['/reserves','Ouvrir les levées de réserves'],
-  obj:'confier une réserve à un prestataire et obtenir sa levée signée, sans relance téléphonique.',
-  et:[['Ouvrez « Réserves » (onglet Suivi des levées)','et choisissez la réserve à traiter.'],
-      ['Attribuez-la à un prestataire',': il reçoit un lien par email ou SMS — sans compte, sans mot de passe.'],
-      ['Il signe depuis son téléphone',': description, photos, signature dans le cadre.'],
-      ['Vous validez ou refusez','— la levée signée rejoint le dossier de preuves.']],
+ {no:9,ch:3,t:'Faire lever les réserves',dur:'3 min',act:['/reserves','Ouvrir les levées de réserves'],upd:'2026-09-07',
+  obj:'confier une réserve à un prestataire et obtenir sa levée signée — l’application relance à votre place.',
+  et:[['Ouvrez le tableau de réserves','et affectez chaque réserve à un prestataire.'],
+      ['Dix minutes plus tard, la société reçoit un e-mail avec la liste',': elle désigne le technicien qui viendra (ou en enregistre un nouveau) et la date prévue.'],
+      ['Le technicien reçoit son lien par SMS',': rappel la veille, relance à J+1 et J+8 si rien n’est signé, alerte à J+15. La société est relancée à J+5 et alertée à J+10 sans désignation.'],
+      ['Il signe sur son téléphone, vous validez ou refusez','. « Suspendre » arrête les envois pour une affectation ; les délais se règlent dans Paramètres.']],
   err:'Marquer « levée » sur un simple coup de fil. Sans signature, aucune preuve le jour de la commission — laissez le prestataire signer, 30 secondes.',
-  avis:'En commission, une réserve n’est presque jamais refusée parce que les travaux sont mal faits — elle l’est parce que la preuve manque. La signature du prestataire est votre protection : exigez-la à chaque fois, même quand tout s’est bien passé.',
-  q:{t:'Qui décide qu’une réserve est levée ?',a:['Le prestataire, dès qu’il a signé','Vous — après la signature du prestataire','Le bureau de contrôle'],g:1}},
+  avis:'En commission, une réserve n’est presque jamais refusée parce que les travaux sont mal faits — elle l’est parce que la preuve manque. La signature du technicien est votre protection : le circuit automatique la réclame pour vous, à vous de valider.',
+  q:{t:'Que se passe-t-il après l’affectation d’une réserve ?',a:['Rien tant que vous n’avez pas appelé le prestataire','La société reçoit un e-mail, désigne son technicien, qui reçoit le lien de signature par SMS ; relances automatiques','La réserve est levée automatiquement'],g:1}},
  {no:10,ch:3,t:'Après les travaux : PV et garanties',dur:'3 min',act:['/travaux','Ouvrir les travaux'],
   obj:'clore un chantier proprement : PV de réception signé et garanties qui courent.',
   et:[['À la fin des travaux, exigez le PV de réception',': c’est lui qui déclenche les garanties.'],
@@ -6534,15 +6554,21 @@ const FORM_MODULES=[
       ['Un désordre pendant la garantie ?','Signalez-le depuis l’application : la trace est datée.']],
   err:'Payer le solde sans PV de réception signé. Sans PV, la garantie de parfait achèvement ne court pas — un désordre à 11 mois se paie plein pot.',
   avis:'Le PV de réception n’est pas une formalité : c’est lui qui fait courir vos garanties. Réclamez-le avant le dernier paiement — après, vous n’avez plus aucun levier.',
-  q:{t:'Quel document déclenche vos garanties après travaux ?',a:['Le devis','Le PV de réception signé','La facture'],g:1}},
+  q:{t:'Quel document déclenche vos garanties après travaux ?',a:['Le devis','Le PV de réception signé','La facture'],g:1}}
 ];
 const FORM_FINAL=[
  {t:'Où prendre la catégorie exacte de votre ERP ?',a:['Sur le dernier PV de commission','D’après l’effectif, à peu près','Dans l’annuaire'],g:0},
  {t:'Quel chiffre regarder en premier chaque lundi ?',a:['Le nombre de documents','« En retard »','Le nombre de prestataires'],g:1},
  {t:'Que doit faire un prestataire pour confirmer ou signer ?',a:['Créer un compte','Rien, PREVA s’en charge','Cliquer sur le lien reçu — sans compte'],g:2},
  {t:'Une réserve est levée quand…',a:['le prestataire a signé ET que vous avez validé','le prestataire l’a dit au téléphone','les travaux sont payés'],g:0},
- {t:'Que signifie « ⚠ À classer » dans le Classeur ?',a:['Document expiré','Document reçu mais pas encore rangé','Document à supprimer'],g:1},
+ {t:'Un rapport arrive sur l’adresse dédiée : où le retrouvez-vous ?',a:['Dans votre boîte mail personnelle','En tête du Classeur, onglet « À classer », avec sa proposition de classement','Il faut le scanner soi-même'],g:1},
 ];
+/* Numéro affiché = position dans le parcours ; `no` reste la clé stable en base (progression, contenus, vidéos, audios) */
+function fxNum(no){ const i=FORM_MODULES.findIndex(m=>m.no===no); return i<0?no:i+1; }
+function fxNext(no){ const i=FORM_MODULES.findIndex(m=>m.no===no); return (i>=0&&i<FORM_MODULES.length-1)?FORM_MODULES[i+1].no:null; }
+/* Module mis à jour après validation par l'utilisateur : signalé jusqu'à sa réouverture */
+function fxIsUpdated(m,p){ return !!(m.upd && p && p.quiz_ok && (!p.updated_at || String(p.updated_at).slice(0,10) < m.upd)); }
+window.fxNum=fxNum;
 function fxStyle(){ if(document.getElementById('fx-style')) return; const s=document.createElement('style'); s.id='fx-style'; s.textContent=`
 .fx-hero{background:linear-gradient(120deg,#0e1b2e 0%,#1e3a5f 55%,#2563eb 130%);border-radius:16px;color:#fff;padding:20px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .fx-ava{width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#60a5fa,#2563eb);display:grid;place-items:center;font-weight:800;font-size:20px;border:3px solid rgba(255,255,255,.35);flex:0 0 auto}
@@ -6639,12 +6665,12 @@ function fxYT(u){
 }
 async function viewFormation(c){
   fxStyle();
-  c.innerHTML=`<div class="page-head"><div class="t"><h1>Formation</h1><p>Votre prise en main de l’application — 10 modules, 3 chapitres, attestation à la clé.</p></div>
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Formation</h1><p>Votre prise en main de l’application — ${FORM_MODULES.length} modules, 3 chapitres, attestation à la clé.</p></div>
     ${state.profile?.role==='admin'?`<div class="actions"><button class="btn" onclick="fxAdmin()">⚙ Gérer les contenus</button></div>`:''}</div>${loadingBlock()}`;
   try{ await fxLoad(); }catch(e){ c.querySelector('.loading-block')?.remove(); }
   const prog=window._fx.prog;
   const doneN=FORM_MODULES.filter(m=>prog[m.no]?.quiz_ok).length;
-  const pct=Math.round(doneN/10*100);
+  const pct=Math.round(doneN/FORM_MODULES.length*100);
   const finalOk=!!prog[0]?.quiz_ok;
   const initials=(state.profile?.nom||state.user?.email||'?').split(/[\s.@]+/).filter(Boolean).map(s=>s[0]).slice(0,2).join('').toUpperCase();
   const chBadge=ch=>{ const ms=FORM_MODULES.filter(m=>m.ch===ch); const d=ms.filter(m=>prog[m.no]?.quiz_ok).length;
@@ -6652,28 +6678,28 @@ async function viewFormation(c){
   const resume=FORM_MODULES.find(m=>prog[m.no]?.consulte&&!prog[m.no]?.quiz_ok)||FORM_MODULES.find(m=>!prog[m.no]?.quiz_ok);
   const cert = finalOk
     ? `<div class="fx-cert"><div class="ico">🎓</div><small><b>Attestation obtenue</b></small><button class="btn sm" style="margin-top:8px" onclick="fxAttestation()">Télécharger</button></div>`
-    : doneN===10
+    : doneN===FORM_MODULES.length
       ? `<div class="fx-cert"><div class="ico">🎓</div><small><b>Examen final</b><br>5 questions pour votre attestation</small><button class="btn sm primary" style="margin-top:8px" onclick="fxExam()">Passer l’examen</button></div>`
-      : `<div class="fx-cert"><div class="ico">🎓</div><small><b>Attestation de prise en main</b><br>débloquée à 10 modules + examen</small><button class="btn sm" style="margin-top:8px" onclick="fxAttestation()">👁 Aperçu</button></div>`;
+      : `<div class="fx-cert"><div class="ico">🎓</div><small><b>Attestation de prise en main</b><br>débloquée à ${FORM_MODULES.length} modules + examen</small><button class="btn sm" style="margin-top:8px" onclick="fxAttestation()">👁 Aperçu</button></div>`;
   const card=m=>{ const p=prog[m.no]||{}; const vid=fxVideoFor(m.no);
-    const st=p.quiz_ok?`<span class="st" style="background:#16a34a">✓ Terminé</span>`:(p.consulte?`<span class="st" style="background:#2563eb">👁 Consulté</span>`:'');
+    const st=fxIsUpdated(m,p)?`<span class="st" style="background:#d97706">Mis à jour</span>`:(p.quiz_ok?`<span class="st" style="background:#16a34a">✓ Terminé</span>`:(p.consulte?`<span class="st" style="background:#2563eb">👁 Consulté</span>`:''));
     return `<div class="fx-vc" onclick="fxOpen(${m.no})"><div class="fx-th">${st}<div class="play"><i>${vid?'▶':'📖'}</i></div><span class="dur">${m.dur}</span></div>
-      <div class="fx-vb"><span class="no">MODULE ${m.no}</span><b>${m.t}</b><small>${vid?'Vidéo':'Fiche'} + question de validation</small></div></div>`; };
+      <div class="fx-vb"><span class="no">MODULE ${fxNum(m.no)}</span><b>${m.t}</b><small>${vid?'Vidéo':'Fiche'} + question de validation</small></div></div>`; };
   const chapBlock=ch=>{ const ms=FORM_MODULES.filter(m=>m.ch===ch); const d=ms.filter(m=>prog[m.no]?.quiz_ok).length;
     const cls=d===ms.length?'full':(d>0?'mid':'');
     return `<div class="fx-chap">CHAPITRE ${ch} — ${FORM_CHAPS[ch]} <span class="fx-cprog ${cls}">${d}/${ms.length}${d===ms.length?' ✓':''}</span></div>
       <div class="fx-grid">${ms.map(card).join('')}</div>`; };
-  c.innerHTML=`<div class="page-head"><div class="t"><h1>Formation</h1><p>Votre prise en main de l’application — 10 modules, 3 chapitres, attestation à la clé.</p></div>
+  c.innerHTML=`<div class="page-head"><div class="t"><h1>Formation</h1><p>Votre prise en main de l’application — ${FORM_MODULES.length} modules, 3 chapitres, attestation à la clé.</p></div>
     ${state.profile?.role==='admin'?`<div class="actions"><button class="btn" onclick="fxAdmin()">⚙ Gérer les contenus</button></div>`:''}</div>
   <div class="fx-hero">
     <div class="fx-ava" id="fx-heroava" style="background-size:cover;background-position:center;overflow:hidden">${esc(initials)}</div>
     <div class="who"><b>${esc(state.profile?.nom||state.user?.email||'')}</b><small>Parcours de prise en main</small></div>
-    <div class="fx-prog"><div class="top"><span>Votre progression</span><span>${doneN} / 10 modules · ${pct} %</span></div>
+    <div class="fx-prog"><div class="top"><span>Votre progression</span><span>${doneN} / ${FORM_MODULES.length} modules · ${pct} %</span></div>
       <div class="fx-bar"><i style="width:${pct}%"></i></div>
       <div class="fx-badges">${chBadge(1)}${chBadge(2)}${chBadge(3)}</div></div>
     ${cert}
   </div>
-  ${resume?`<div class="fx-resume"><div class="tx"><small>${prog[resume.no]?.consulte?'REPRENDRE OÙ VOUS EN ÉTIEZ':'COMMENCER'}</small><b>Module ${resume.no} — ${esc(resume.t)}</b></div>
+  ${resume?`<div class="fx-resume"><div class="tx"><small>${prog[resume.no]?.consulte?'REPRENDRE OÙ VOUS EN ÉTIEZ':'COMMENCER'}</small><b>Module ${fxNum(resume.no)} — ${esc(resume.t)}</b></div>
     <button class="btn primary" onclick="fxOpen(${resume.no})">${prog[resume.no]?.consulte?'Reprendre':'Commencer'} ▶</button></div>`:''}
   ${chapBlock(1)}${chapBlock(2)}${chapBlock(3)}`;
   // photo de profil : reprise automatique de celle du compte (Mon compte → photo)
@@ -6709,7 +6735,7 @@ async function fxOpen(no){
   <div class="fx-lesson">
     <div class="fx-player">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 16px;color:#fff">
-        <div><small style="font-size:10px;font-weight:800;letter-spacing:.12em;opacity:.7">MODULE ${m.no} · CHAPITRE ${m.ch} — ${FORM_CHAPS[m.ch].toUpperCase()}</small>
+        <div><small style="font-size:10px;font-weight:800;letter-spacing:.12em;opacity:.7">MODULE ${fxNum(m.no)} · CHAPITRE ${m.ch} — ${FORM_CHAPS[m.ch].toUpperCase()}</small>
         <b style="display:block;font-size:16px">${esc(m.t)}</b></div>
         <span style="font-size:11px;font-weight:700;background:rgba(255,255,255,.14);border-radius:20px;padding:3px 10px">${m.dur}</span></div>
       ${playerHtml}
@@ -6733,9 +6759,9 @@ async function fxOpen(no){
       </div>
     </div>
     <div class="fx-foot">
-      <button class="btn primary" onclick="navigate('${m.act[0]}')">Faire maintenant → ${esc(m.act[1])}</button>
+      <button class="btn primary" onclick="navigate('${(m.no===11&&state.erps&&state.erps[0])?('/erps/'+state.erps[0].id+'?t=equip'):m.act[0]}')">Faire maintenant → ${esc(m.act[1])}</button>
       <button class="btn" onclick="fxFiche(${m.no})">📄 Fiche de synthèse</button>
-      ${no<10?`<button class="btn" onclick="fxOpen(${no+1})">Module suivant ▶</button>`:''}
+      ${fxNext(no)?`<button class="btn" onclick="fxOpen(${fxNext(no)})">Module suivant ▶</button>`:''}
       <span class="rule">Module « terminé » = contenu consulté <b>+ la question validée</b>. Votre progression est enregistrée sur votre compte : ordinateur et téléphone partagent le même avancement.</span>
     </div>
   </div>`;
@@ -6755,7 +6781,7 @@ function fxAnswer(no,i){
     rows.forEach((r,k)=>{ r.classList.toggle('good',k===i); if(k===i) r.querySelector('i').textContent='✓'; });
     msg.style.display=''; msg.style.color='#16a34a'; msg.textContent='✓ Bonne réponse — module validé !';
     fxUpsert(no,{consulte:true,quiz_ok:true});
-    toast('Module '+no+' validé','ok');
+    toast('Module '+fxNum(no)+' validé','ok');
   } else {
     rows[i].classList.add('bad');
     msg.style.display=''; msg.style.color='#b91c1c'; msg.textContent='Ce n’est pas ça — relisez la fiche ci-contre et réessayez.';
@@ -6772,7 +6798,7 @@ async function fxFiche(no){
   }
   const avis=cont.avis_expert||m.avis;
   const w=window.open('','_blank'); if(!w){ toast('Autorisez l’ouverture de fenêtres pour voir la fiche','err'); return; }
-  w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Fiche — Module ${m.no} · ${esc(m.t)}</title>
+  w.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Fiche — Module ${fxNum(m.no)} · ${esc(m.t)}</title>
   <style>@page{size:A4;margin:14mm}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#eef1f6}
   .page{max-width:186mm;margin:0 auto;background:#fff;padding:12mm 14mm;box-shadow:0 4px 30px rgba(15,23,42,.15)}
   @media print{body{background:#fff}.page{box-shadow:none;padding:0}.noprint{display:none}}
@@ -6796,7 +6822,7 @@ async function fxFiche(no){
   <button class="noprint" onclick="window.close();setTimeout(function(){if(!window.closed){history.back()}},300)" title="Fermer cette page" style="position:fixed;left:14px;top:14px;z-index:9999;background:#0f172a;color:#fff;border:none;border-radius:18px;padding:18px 32px;font-weight:800;font-size:28px;line-height:1;font-family:Arial,sans-serif;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.4)">\u2715 Fermer</button>
   <button class="btnp noprint" onclick="window.print()">🖨 Imprimer / enregistrer en PDF</button>
   <div class="page">
-    <div class="top"><span class="brand">CONFORMITÉ SÉCURITÉ · FORMATION</span><span class="mod">MODULE ${m.no} · CHAPITRE ${m.ch} — ${esc(FORM_CHAPS[m.ch].toUpperCase())}</span></div>
+    <div class="top"><span class="brand">CONFORMITÉ SÉCURITÉ · FORMATION</span><span class="mod">MODULE ${fxNum(m.no)} · CHAPITRE ${m.ch} — ${esc(FORM_CHAPS[m.ch].toUpperCase())}</span></div>
     <h1>${esc(m.t)}</h1>
     <div class="obj"><b>À la fin de ce module, vous saurez :</b> ${esc(m.obj)}</div>
     <h2>Les 4 étapes</h2>
@@ -6804,7 +6830,7 @@ async function fxFiche(no){
     <div class="warn">⚠️ <b>L’erreur classique —</b> ${esc(m.err)}</div>
     <div class="avis"><span class="lab">L’AVIS DE L’EXPERT</span>« ${esc(avis)} »</div>
     <div class="q"><b>La question du module :</b> ${esc(m.q.t)}<br>✅ ${esc(m.q.a[m.q.g])}</div>
-    <div class="foot">PREVA CONSEILS — conformite-securite.fr · Fiche de synthèse du module ${m.no}</div>
+    <div class="foot">PREVA CONSEILS — conformite-securite.fr · Fiche de synthèse du module ${fxNum(m.no)}</div>
   </div></body></html>`);
   w.document.close();
 }
@@ -6908,14 +6934,14 @@ async function fxAttestation(){
   </style></head><body>
   <button class="noprint" onclick="window.close();setTimeout(function(){if(!window.closed){history.back()}},300)" title="Fermer cette page" style="position:fixed;left:14px;top:14px;z-index:9999;background:#0f172a;color:#fff;border:none;border-radius:18px;padding:18px 32px;font-weight:800;font-size:28px;line-height:1;font-family:Arial,sans-serif;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.4)">\u2715 Fermer</button>
   ${unlocked?'<button class="btnp noprint" onclick="window.print()">\ud83d\udda8 Imprimer / enregistrer en PDF</button>'
-            :'<div class="lock noprint">\ud83d\udd12 <b>Aper\u00e7u.</b> L\u2019impression se d\u00e9bloque quand les 10 modules et l\u2019examen final sont valid\u00e9s.</div>'}
+            :'<div class="lock noprint">\ud83d\udd12 <b>Aper\u00e7u.</b> L\u2019impression se d\u00e9bloque quand les '+FORM_MODULES.length+' modules et l\u2019examen final sont valid\u00e9s.</div>'}
   <div class="sheet">
     <div class="left">
       <div class="brand"><span class="sq">\ud83d\udee1</span>CONFORMIT\u00c9 S\u00c9CURIT\u00c9<br>FORMATION</div>
       <h1>ATTESTATION<small>de prise en main de l\u2019application</small></h1>
       <div class="disp">
         <b>PARCOURS VALID\u00c9</b>
-        <div class="r"><i>\u2713</i>10 modules \u00b7 3 chapitres</div>
+        <div class="r"><i>\u2713</i>${FORM_MODULES.length} modules \u00b7 3 chapitres</div>
         <div class="r"><i>\u2713</i>1 question de contr\u00f4le par module</div>
         <div class="r"><i>\u2713</i>Examen final r\u00e9ussi \u2014 5/5</div>
       </div>
@@ -6938,7 +6964,7 @@ async function fxAttestation(){
         <div class="stamp"><img src="${FX_TAMPON}"></div>
       </div>
     </div>
-    ${unlocked?'':'<div class="wm"><span>SP\u00c9CIMEN</span><small>Aper\u00e7u \u2014 cette attestation sera d\u00e9livr\u00e9e \u00e0 la validation des 10 modules et de l\u2019examen final.</small></div>'}
+    ${unlocked?'':'<div class="wm"><span>SP\u00c9CIMEN</span><small>Aper\u00e7u \u2014 cette attestation sera d\u00e9livr\u00e9e \u00e0 la validation des '+FORM_MODULES.length+' modules et de l\u2019examen final.</small></div>'}
   </div></body></html>`);
   w.document.close();
 }
@@ -6955,7 +6981,7 @@ async function fxAdmin(){
     const hasV=!!(c.video_url||c.video_path), hasA=mauds.length>0, hasF=!!c.fiche_path;
     return `<div style="border:1px solid var(--line);border-radius:11px;margin-bottom:9px;overflow:hidden">
       <div onclick="fxAdmTog(${m.no})" style="display:flex;align-items:center;gap:9px;padding:10px 13px;cursor:pointer;flex-wrap:wrap;background:var(--surface)">
-        <span style="font-size:9.5px;font-weight:800;color:var(--muted);width:70px;flex:0 0 auto">MODULE ${m.no}</span>
+        <span style="font-size:9.5px;font-weight:800;color:var(--muted);width:70px;flex:0 0 auto">MODULE ${fxNum(m.no)}</span>
         <b style="flex:1;min-width:140px;font-size:13px">${esc(m.t)}</b>
         <span style="font-size:10px;font-weight:800;border-radius:20px;padding:2px 8px;${hasV?'background:#dcfce7;color:#166534':'background:#fef3c7;color:#92400e'}">🎬 ${hasV?'vidéo':'à ajouter'}</span>
         <span style="font-size:10px;font-weight:800;border-radius:20px;padding:2px 8px;${hasA?'background:#ede9fe;color:#6d28d9':'background:#fef3c7;color:#92400e'}">🎙 ${hasA?(mauds.length+' audio'+(mauds.length>1?'s':'')):'à ajouter'}</span>
@@ -6999,7 +7025,7 @@ async function fxAdmin(){
           <button class="btn sm primary" onclick="fxAdmVCUrl(${m.no})">Ajouter</button>
         </div>
         <div style="display:flex;justify-content:flex-end;gap:8px">
-          <button class="btn primary" onclick="fxAdmSave(${m.no})">Enregistrer le module ${m.no}</button>
+          <button class="btn primary" onclick="fxAdmSave(${m.no})">Enregistrer le module ${fxNum(m.no)}</button>
         </div>
       </div>
     </div>`;
@@ -7648,7 +7674,7 @@ async function viewDashboard(c){
   const inScopePhotos = arr => arr.filter(x=>erpIds.includes(x.erp_id));
 
   try{
-    const [ob,re,it,ph,cv,dg,pn,tb,ccN,docN] = await Promise.all([
+    const [ob,re,it,ph,cv,dg,pn,tb,ccN,docN,ntfE,unN] = await Promise.all([
       sb.from('obligations').select('id,erp_id,libelle,prochaine_echeance,statut,criticite,domaine,derniere_verif'),
       sb.from('reserves').select('id,erp_id,libelle,criticite,statut,date_limite,localisation,observations,tableau_id'),
       sb.from('interventions').select('id,erp_id,code_int,objet,statut,date_prevue,type,domaine,nb_relances,reponse_a_traiter,prestataire_id,date_proposee,proposition_commentaire,demande_envoyee_le,demande_destinataire'),
@@ -7659,6 +7685,8 @@ async function viewDashboard(c){
       sb.from('tableaux_reserves').select('id,source,organisme,date_intervention,created_at'),
       sb.from('client_contacts').select('id',{count:'exact',head:true}),
       sb.from('documents').select('id',{count:'exact',head:true}),
+      sb.from('erps').select('id,notif_contact_ids,notif_levee_ids'),
+      sb.from('equipement_unites').select('id',{count:'exact',head:true}),
     ]);
     window._convInterIds = new Set(((cv&&cv.data)||[]).map(x=>x.intervention_id).filter(Boolean));
     const obs=inScope(ob.data||[]), res=inScope(re.data||[]), its=inScope(it.data||[]), phs=inScopePhotos(ph.data||[]);
@@ -7931,20 +7959,24 @@ async function viewDashboard(c){
 
     // ── Checklist de démarrage (pattern 06) : cochée par l'usage réel, jamais à la main.
     //    Visible tant que tout n'est pas en place ; disparaît d'elle-même à 7/7. Masquée en supervision.
+    const _ntfOk=((ntfE&&ntfE.data)||[]).some(e=>Array.isArray(e.notif_contact_ids)&&e.notif_contact_ids.length&&Array.isArray(e.notif_levee_ids)&&e.notif_levee_ids.length);
+    const _ntfErp=((ntfE&&ntfE.data)||[])[0];
     const obSteps=[
       {t:'Créer votre premier établissement',d:'Sa fiche, sa catégorie, son QR code.',done:(state.erps||[]).length>0,go:"navigate('/erps')"},
       {t:'Renseigner vos contacts',d:'Direction, référent sécurité, service maintenance…',done:((ccN&&ccN.count)||0)>0,go:"navigate('/clients')"},
+      {t:'Choisir qui est prévenu',d:'Sur la fiche ERP : contacts arrivée / départ des prestataires, contacts levées de réserves.',done:_ntfOk,go:_ntfErp?("erpNotifOpen('"+_ntfErp.id+"')"):"navigate('/erps')"},
       {t:'Générer votre plan de maintenance',d:'Il crée vos vérifications périodiques.',done:((ob&&ob.data)||[]).length>0,go:"navigate('/plan-maintenance')"},
       {t:'Saisir les dates de dernière vérification',d:"Ce sont elles qui activent l'échéancier.",done:((ob&&ob.data)||[]).some(o=>o.derniere_verif),go:"navigate('/verifications')"},
-      {t:'Renseigner les prestataires',d:'Mainteneurs, bureaux de contrôle — pour les demandes d\'intervention et les rapports.',done:((pn&&pn.data)||[]).length>0,go:"navigate('/prestataires')"},
-      {t:'Déposer un premier rapport',d:'Le plus récent suffit pour démarrer.',done:((docN&&docN.count)||0)>0,go:"navigate('/documents')"},
+      {t:'Inventorier vos équipements',d:'Familles, unités, numéros d\'appareil, documents de chaque appareil.',done:((unN&&unN.count)||0)>0,go:(state.erps&&state.erps[0])?("navigate('/erps/"+state.erps[0].id+"?t=equip')"):"navigate('/erps')"},
+      {t:'Renseigner les prestataires',d:'E-mail et téléphone obligatoires, contacts, techniciens terrain (ils reçoivent les levées par SMS).',done:((pn&&pn.data)||[]).length>0,go:"navigate('/prestataires')"},
+      {t:'Déposer ou classer un premier rapport',d:'Depuis le poste de tri du Classeur, ou par glisser-déposer.',done:((docN&&docN.count)||0)>0,go:"navigate('/documents')"},
       {t:'Suivre vos réserves',d:'Depuis un PV de commission ou un rapport de bureau de contrôle.',done:(((tb&&tb.data)||[]).length>0)||(((re&&re.data)||[]).length>0),go:"navigate('/tableaux-reserves')"},
     ];
     const obDone=obSteps.filter(x=>x.done).length;
     const onboardHtml=(window._supervision||obDone>=obSteps.length)?'':`
       <div class="card" style="margin-bottom:16px"><div class="card-pad">
         <h3 style="font-size:15px;margin:0 0 3px">Premiers pas — ${obDone} sur ${obSteps.length}</h3>
-        <p style="font-size:12.5px;color:var(--muted);margin:0 0 10px">${obSteps[3].done?('Encore '+(obSteps.length-obDone)+' étape'+(obSteps.length-obDone>1?'s':'')+' pour un suivi complet.'):"Il vous reste l'essentiel : l'échéancier n'est pas encore actif."}</p>
+        <p style="font-size:12.5px;color:var(--muted);margin:0 0 10px">${obSteps[4].done?('Encore '+(obSteps.length-obDone)+' étape'+(obSteps.length-obDone>1?'s':'')+' pour un suivi complet.'):"Il vous reste l'essentiel : l'échéancier n'est pas encore actif."}</p>
         <div>
           ${obSteps.map((x,i)=>`<div ${x.done?'':`onclick="${x.go}" style="cursor:pointer"`} title="${x.done?'Fait ✓':'Cliquer pour y aller'}">
             <div style="display:flex;align-items:flex-start;gap:11px;padding:9px 0;border-bottom:${i<obSteps.length-1?'1px solid var(--line-2)':'none'}">
@@ -11747,7 +11779,7 @@ async function viewReserves(c){
     c.innerHTML=`<div class="page-head"><div class="t"><h1>Réserves</h1><p>${reserves.length} réserve(s) — dossier par client et ERP.</p></div>
       <div class="actions"><button class="btn primary" onclick="formReserve()">${I.plus} Nouvelle levée de réserve</button></div></div>
       ${trvfTabs('alever',reserves.filter(r=>r.etat_levee!=='levee').length)}
-      ${secHelp('reserves','Faire produire la preuve par celui qui a agi',"Attribuez une réserve à un prestataire : il reçoit un lien, décrit son intervention, joint ses photos et signe depuis son téléphone. Vous validez ou vous refusez — la décision reste la vôtre.")}
+      ${secHelp('reserves2','La preuve est produite par celui qui a agi — et l\'application relance pour vous',"Affectez une réserve à un prestataire : dix minutes plus tard la société reçoit un e-mail, désigne le technicien qui viendra (ou en enregistre un nouveau) et la date prévue ; le technicien reçoit son lien de signature par SMS, avec rappel la veille et relances à J+1 et J+8. Il décrit son intervention, joint ses photos et signe depuis son téléphone. Vous validez ou vous refusez — la décision reste la vôtre. « Suspendre » arrête les envois pour une affectation ; les délais se règlent dans Paramètres.")}
       ${clientIds.length?body:emptyBlock(I.reserve,'Aucune réserve enregistrée','Les réserves viennent de vos PV de commission et rapports de bureaux de contrôle : ouvrez le Classeur et cliquez « Extraire réserves » sur un rapport. Vous pouvez aussi en saisir une à la main.',`<button class="btn primary" onclick="navigate('/documents')">Ouvrir le Classeur</button> <button class="btn" onclick="formReserve()">${I.plus} Saisir à la main</button>`)}`;
     setTimeout(resLoadThumbs,80);
   }catch(e){ c.innerHTML=errBlock(e); }
@@ -13966,6 +13998,7 @@ async function viewPointage(c){
       }
     }catch(_){}
     c.innerHTML=`<div class="page-head"><div class="t"><h1>Pointage & journal</h1><p>Présences des intervenants sur le terrain.</p></div></div>
+      ${secHelp('pointage2','Un passage ne reste jamais ouvert',"Le prestataire scanne le QR, pointe son arrivée et coche « levées de réserves » si c'est l'objet de sa visite : les contacts choisis sur la fiche ERP sont prévenus. Passage oublié ? SMS de rappel à 17 h puis à 9 h le lendemain, avec un lien de clôture. Vous gardez la main : « Clôturer » ou « Relancer » sur chaque ligne. Un pointage d'un technicien inconnu se rattache à son prestataire depuis la fiche de celui-ci.")}
       <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:2px solid var(--line);padding-bottom:0">
         <button id="ptg-view-journal" onclick="ptgSwitchView('journal')" style="padding:9px 18px;font-size:13.5px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2.5px solid var(--primary);color:var(--primary);margin-bottom:-2px">Journal</button>
         <button id="ptg-view-recap" onclick="ptgSwitchView('recap')" style="padding:9px 18px;font-size:13.5px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2.5px solid transparent;color:var(--muted)">Récapitulatif</button>
@@ -14684,6 +14717,7 @@ async function viewDocuments(c){
     const nbRecu=(window._tri.raps||[]).filter(r=>(r.statut||'recu')==='recu').length;
     c.innerHTML=`<div class="page-head"><div class="t"><h1>Classeur</h1><p>${rows.length} document(s) classé(s) par client et par type${nbRecu?` · <b style="color:#b45309">${nbRecu} rapport${nbRecu>1?'s':''} reçu${nbRecu>1?'s':''} par e-mail à classer</b>`:''}.</p></div>
       <div class="actions"><button class="btn sm" onclick="pvForm({})">Générer un PV de réception</button><button class="btn primary" onclick="formDoc()">${I.plus} Déposer un document</button></div></div>
+      ${secHelp('classeur2','Un seul endroit : le poste de tri, puis le Classeur',"Les rapports reçus sur l'adresse dédiée arrivent en tête de page avec une proposition de classement (établissement, type, lot, prestataire) : vérifiez, « Classer » — ou « Classer les sûrs » pour tout traiter d'un coup ; « Ignorer » pour un e-mail qui n'est pas un rapport (restaurable). En dessous, un bandeau par client, un seul ouvert à la fois ; l'étiquette « NOUVEAU » signale ce qui a été classé depuis 7 jours. Vos comptes rendus envoyés sont archivés ici, rubrique Compte rendu.")}
       <div id="ged_tri"></div>
       <div id="ged_drop" ondragover="event.preventDefault();this.style.borderColor='var(--primary)';this.style.background='rgba(37,99,235,.05)'" ondragleave="this.style.borderColor='var(--line)';this.style.background='transparent'" ondrop="gedHandleDrop(event)" style="border:2px dashed var(--line);border-radius:12px;padding:14px;text-align:center;color:var(--muted);font-size:13px;margin-bottom:14px;transition:.12s">
         Glissez-déposez ici vos documents (rapports, PV, plans, attestations…)</div>
@@ -24075,7 +24109,7 @@ window.eqxRender=function(w,e,d){
       </div>`;
     }).join('')+'</div>';
   }
-  w.innerHTML=`<div id="eqx">
+  w.innerHTML=`${typeof secHelp==='function'?secHelp('equip2','Chaque appareil a un numéro, une place et ses papiers',"Une famille (Ascenseur, Extincteur…) regroupe des unités : désignation, niveau, zone, numéro d'appareil et prestataire — le numéro s'affiche dans le bandeau et sur la ligne. Les documents (notice, fiche technique, maintenance, fiche de sécurité) se rattachent à l'unité concernée ; « Communs à la famille » sert à la notice constructeur unique. Imprimez le registre pour la commission."):''}<div id="eqx">
     <div class="eqx-search">
       <div class="in"><span style="color:var(--muted-2)">⌕</span><input id="eqx_q" placeholder="Référence, niveau, zone… (ex. « exti n2 »)" value="${esc(st.q)}" oninput="eqxQ(this.value)"></div>
     </div>
@@ -24874,6 +24908,7 @@ async function viewPrestataires(c, defaultCat){
       <button class="btn" onclick="pinvInviteModal()">✉ Inviter</button>
       <button class="btn primary" onclick="formPrest(_prestOnglet==='acces'?'prestataire':_prestOnglet)">${I.plus} Ajouter un prestataire</button>
     </div></div>
+    ${secHelp('prest2','Une fiche complète, et tout circule sans vous',"E-mail et téléphone de la société sont obligatoires : c'est par là que partent les demandes d'intervention et qu'arrivent les rapports. Ajoutez les techniciens terrain (prénom, nom, portable) : ils reçoivent les liens de signature des levées de réserves par SMS. Si l'enregistrement est refusé, le motif reste affiché en rouge au bas de la fiche, avec le champ à corriger.")}
     <div class="anx-toolbar">
       <span class="anx-seg">
         <button id="tab-prest" onclick="switchPrestOnglet('prestataire')">Prestataires <span class="n" id="anx-n-prest">…</span></button>
