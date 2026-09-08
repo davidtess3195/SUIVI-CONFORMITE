@@ -16265,11 +16265,35 @@ window.dpFreres=async function(prestId,exclureId){
   return (data||[]).filter(x=>x.id!==exclureId && x.fichier_path);
 };
 
+// Lecture souple : on essaie d'abord les marqueurs calibrés du prestataire ; s'ils
+// ne correspondent plus (mise en page modifiée, autre modèle de devis), on repère
+// le tableau tout seul — entête « Désignation / Qté / PU / Montant » puis « Total HT ».
+const DP_HDR_RX=/(designation|libelle|description|prestation|nature des travaux)/;
+const DP_COL_RX=/(qte|quantite|p\.?\s?u\b|prix|montant|total)/;
+const DP_FIN_RX=/(total\s*h\.?\s*t|total\s*t\.?\s*v\.?\s*a|total\s*ttc|net\s*a\s*payer|montant\s*total)/;
+window.dpParseSouple=function(lines,cfg){
+  cfg=cfg||{};
+  const r=dpParse(lines,cfg);
+  if(!r.error && r.lignes && r.lignes.length>=2) return r;
+  const L=(lines||[]).filter(l=>l && l!=='⏎PAGE⏎');
+  const N=L.map(dpNorm);
+  let si=-1;
+  for(let i=0;i<N.length;i++){ if(DP_HDR_RX.test(N[i]) && DP_COL_RX.test(N[i])){ si=i; break; } }
+  if(si<0) for(let i=0;i<N.length;i++){ if(DP_HDR_RX.test(N[i])){ si=i; break; } }
+  if(si<0) return r.error?r:{error:'Aucun tableau de prestations reconnu dans ce document.'};
+  let ei=-1;
+  for(let i=si+1;i<N.length;i++){ if(DP_FIN_RX.test(N[i])){ ei=i; break; } }
+  const r2=dpParse(L,{start:dpMark(L[si]),stop:ei>=0?dpMark(L[ei]):'',
+    excludes:cfg.excludes||[],objet:cfg.objet||''});
+  if(!r2.error && r2.lignes && r2.lignes.length>=2){ r2.souple=true; return r2; }
+  return r.error?r:r2;
+};
+
 // Tente une lecture ; renvoie null si le document est illisible ou hors format
 async function dpEssai(doc,cfg){
   try{
     const lines=await dpExtractDoc(doc);
-    const r=dpParse(lines,cfg||{});
+    const r=dpParseSouple(lines,cfg||{});
     if(r.error||!r.lignes||r.lignes.length<2) return null;
     return r;
   }catch(_){ return null; }
@@ -16279,10 +16303,11 @@ async function dpEssai(doc,cfg){
 // (scan sans couche texte), les autres exemplaires du MÊME devis.
 window.dpLireAvecRepli=async function(doc,prof,prestId){
   const cfg=prof.config||{};
-  let scan=false, msgMarqueur='';
+  let scan=false, msgMarqueur='', apercu=null;
   try{
     const lines=await dpExtractDoc(doc);
-    const r=dpParse(lines,cfg);
+    apercu=lines;
+    const r=dpParseSouple(lines,cfg);
     if(!r.error && r.lignes && r.lignes.length>=2) return {ok:true,r,doc};
     msgMarqueur=r.error||'Moins de 2 prestations détectées.';
   }catch(e){
@@ -16296,12 +16321,12 @@ window.dpLireAvecRepli=async function(doc,prof,prestId){
       const r=await dpEssai(j,cfg);
       if(r) return {ok:true,r,doc:j};
     }
-    return {ok:false,raison:'scan',freres,
+    return {ok:false,raison:'scan',freres,apercu,
       msg:jumeaux.length
         ? "Ce devis est un scan, et l'autre exemplaire du même numéro n'est pas lisible non plus."
         : "Ce devis est un scan : aucune couche texte à lire, et aucun autre exemplaire du même numéro dans le Classeur."};
   }
-  return {ok:false,raison:'marqueur',freres,msg:msgMarqueur};
+  return {ok:false,raison:'marqueur',freres,apercu,msg:msgMarqueur};
 };
 
 // Reporte le résultat dans le formulaire du PV
@@ -16312,16 +16337,23 @@ window.dpAppliquer=function(r,docLu,docChoisi){
   const autre=docChoisi && docLu.id!==docChoisi.id;
   toast('✅ '+r.lignes.length+' prestation(s) reprises du devis'
     +(r.montant!=null?' · Total HT '+dpFmtEur(r.montant)+' €':'')
-    +(autre?' · lu depuis « '+String(docLu.nom_original||'').replace(/\.[a-zA-Z0-9]+$/,'')+' »':''),'ok');
+    +(autre?' · lu depuis « '+String(docLu.nom_original||'').replace(/\.[a-zA-Z0-9]+$/,'')+' »':'')
+    +(r.souple?' · mise en page inhabituelle, vérifie les lignes':''),'ok');
 };
 
 // Choix manuel du document à lire quand le repli automatique n'a rien donné
-window.dpChoisirSource=function(msg,freres,prestId){
+window.dpChoisirSource=function(msg,freres,prestId,apercu){
   window._pvFreres=freres; window._pvPrestLect=prestId;
+  const ap=(apercu||[]).filter(l=>l&&l!=='⏎PAGE⏎').slice(0,45);
   openModal(`<div class="modal-head"><h2>📄 Lire le devis</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
     <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
       <div style="background:rgba(217,119,6,.09);border:1px solid rgba(217,119,6,.45);border-radius:10px;padding:11px 13px;font-size:13px;line-height:1.55">
         ⚠️ ${esc(msg)}</div>
+      ${ap.length?`<details style="border:1px solid var(--line);border-radius:9px;padding:8px 11px">
+        <summary style="cursor:pointer;font-size:12.5px;font-weight:600">Voir le texte lu dans ce PDF (${ap.length} premières lignes)</summary>
+        <div style="margin-top:8px;max-height:200px;overflow:auto;font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:1.5;color:var(--muted);white-space:pre-wrap">${esc(ap.join('\n'))}</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:7px">Repérez ici la ligne d'entête du tableau et la ligne de total : ce sont elles qu'il faut cocher en recalibrant le profil dans Administration → Profils de devis.</div>
+      </details>`:''}
       ${freres.length?`<div style="font-size:13px;color:var(--muted)">
         Choisissez un autre exemplaire de ce devis dans le Classeur — la version d'origine du prestataire, non scannée, est généralement lisible.</div>
       <div style="display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow:auto">
@@ -16371,10 +16403,10 @@ window.pvReadDevis=async function(){
     if(res.ok){ dpAppliquer(res.r,res.doc,doc); return; }
     if(res.raison==='marqueur'){
       try{ await sb.from('devis_profils').update({statut:'a_recalibrer',updated_at:new Date().toISOString()}).eq('id',prof.id); }catch(_){}
-      dpChoisirSource(res.msg+' Le profil a été marqué « à recalibrer » dans l\'Administration.',res.freres,prestId);
+      dpChoisirSource(res.msg+' Le profil a été marqué « à recalibrer » dans l\'Administration.',res.freres,prestId,res.apercu);
       return;
     }
-    dpChoisirSource(res.msg,res.freres,prestId);
+    dpChoisirSource(res.msg,res.freres,prestId,res.apercu);
   }catch(e){ toast('Lecture impossible : '+(e.message||e),'err'); }
   finally{ btn.disabled=false; btn.innerHTML=old; }
 };
