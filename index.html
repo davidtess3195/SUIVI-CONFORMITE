@@ -1957,6 +1957,7 @@ function renderRoute(){
   if(base==='/clients') return parts[1]?viewClient(content,parts[1]):viewClients(content);
   if(base==='/erps') return parts[1]?viewErp(content,parts[1]):viewErps(content);
   if(base==='/interventions') return viewInterventions(content);
+  if(base==='/levees') return viewLevees(content);
   if(base==='/reserves') return viewReserves(content);
   if(base==='/documents') return viewDocuments(content);
   if(base==='/rapports') return viewDocuments(content); // ancienne rubrique « Rapports reçus » : fusionnée dans le Classeur
@@ -7156,7 +7157,7 @@ function getNAV(){ return [
     ...(gfAutorise()?[['/gestion-formation','Gestion formation',NI.grad]]:[])]},
   {sec:'sitdeg', titre:'Situation dégradée',     ic:NI.alert,     items:[['/photos','Photos et vidéos',NI.cam],['/compte-rendu','Compte rendu',NI.cr]]},
   {sec:'prest',  titre:'Suivi des prestataires', ic:NI.briefcase, items:[['/prestataires','Prestataires',NI.wrench],['/conversations','Conversations',NI.chat],['/pointage','Pointage & journal',NI.clock]]},
-  {sec:'suivi',  titre:'Suivi et conformité',    ic:NI.shield,    items:[['/interventions','Interventions',NI.tools],['/travaux','Travaux',NI.trvx],['/gpa','Garanties GPA',NI.checks],['/verifications','Vérifications & relances',NI.bell],['/reserves','Réserves',NI.tablo]]},
+  {sec:'suivi',  titre:'Suivi et conformité',    ic:NI.shield,    items:[['/interventions','Interventions',NI.tools],['/travaux','Travaux',NI.trvx],['/gpa','Garanties GPA',NI.checks],['/verifications','Vérifications & relances',NI.bell],['/reserves','Réserves',NI.tablo],['/levees','Levées de réserves',NI.checks]]},
   {sec:'ged',    titre:'Documents',   ic:NI.folderO,   items:[['/documents','Classeur',NI.folder],['/contrats','Contrats de maintenance',NI.contrat]]},
   {link:['/preparation-cs','Commission de sécurité',NI.landmark]},
   {link:['/formation','Formation',NI.grad]},
@@ -7164,7 +7165,7 @@ function getNAV(){ return [
     ? [{sec:'admin', titre:'Administration', ic:NI.gear, items:[['/admin','Tableau de bord admin',NI.gauge],['/formation-contenus','Formation — contenus',NI.grad],['/parametres','Paramètres & email',NI.gear]]}]
     : [{link:['/parametres','Mon compte',NI.user]}]),
 ];}
-const NAV_BADGES={'/photos':'badge-photos','/documents':'badge-rapports','/verifications':'badge-verif','/pointage':'badge-pointage','/admin':'badge-admin'};
+const NAV_BADGES={'/photos':'badge-photos','/documents':'badge-rapports','/verifications':'badge-verif','/pointage':'badge-pointage','/admin':'badge-admin','/levees':'badge-levees'};
 function navLink(it){ const p=it[0],l=it[1],ic=it[2];
   const b=NAV_BADGES[p]?`<span class="badge" id="${NAV_BADGES[p]}" style="display:none">0</span>`:'';
   return `<a href="#${p}" data-base="${p}">${ic}<span>${l}</span>${b}</a>`; }
@@ -7728,6 +7729,7 @@ async function viewDashboard(c){
     const prestNom={}; ((pn&&pn.data)||[]).forEach(p=>prestNom[p.id]=p.nom);
     const badge=$('#badge-photos'); if(badge){ if(photoNT.length){badge.style.display='grid';badge.textContent=photoNT.length;}else badge.style.display='none'; }
     const mobBadgePhotos=document.getElementById('mob-badge-photos'); if(mobBadgePhotos){mobBadgePhotos.textContent=photoNT.length;mobBadgePhotos.style.display=photoNT.length?'grid':'none';}
+    setTimeout(()=>{ try{ lsgEncartAccueil(); lsgBadge(); }catch(_){} },0);
 
     const kpis=[
       ['Vérifications en retard',enRetard.length,'critique','Échéances dépassées','⏰','/verifications?f=retard'],
@@ -8038,6 +8040,7 @@ async function viewDashboard(c){
       ${onboardHtml}
       <div class="mkpi-head"><span class="ic"><svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 3 6-7"/><path d="M14 8h4v4"/></svg></span><b>INDICATEURS CLÉS</b></div>
       <div class="kpis">${kpis.map(kpiCard).join('')}</div>
+      <div id="lsg-accueil"></div>
       <div class="mkpi-head mfil"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 5h12a1.5 1.5 0 0 1 1.5 1.5V18"/><path d="M17.5 18a1.8 1.8 0 0 0 3.6 0V8.5H17.5"/><path d="M4 5v13a1.8 1.8 0 0 0 1.8 1.8h13.5"/><rect x="6.6" y="8" width="4" height="3.4" rx=".5"/><path d="M13 8.4h1.6M6.6 14h8M6.6 16.4h8"/></svg></span><b>FIL D'ACTUALITÉS</b></div>
       <div class="card msec msec-first" style="overflow:hidden"><div class="card-pad" style="padding:0">
         ${mh('dashprio-section-body','dashPrioSectionToggle()',
@@ -30717,6 +30720,195 @@ window.gfCalJour=function(iso){
   </div>
   <div class="modal-foot"><button class="btn" onclick="closeModal()">Fermer</button>
     <button class="btn primary" onclick="closeModal();gfSessionModal()">＋ Programmer une formation ce mois-ci</button></div>`);
+};
+
+/* =====================================================================
+   SUIVI DES SIGNATURES DE LEVÉES
+   Niveau 1 — page « Levées de réserves » + pastille dans le menu
+   Niveau 2 — encart sur l'accueil
+===================================================================== */
+const LSG_ST={
+  a_envoyer:['À envoyer à la société','#d97706','#fffbeb','ti-mail-forward'],
+  envoye:['Technicien à désigner','#2563eb','#eff6ff','ti-user-question'],
+  sans_contact:['Sans contact — envoi impossible','#dc2626','#fef2f2','ti-alert-triangle'],
+  designe:['Signature attendue','#7c3aed','#f5f3ff','ti-writing-sign'],
+  signe:['Signée','#16a34a','#f0fdf4','ti-circle-check'],
+  clos:['Clos','#64748b','#f1f5f9','ti-archive']
+};
+function lsgJours(d){ if(!d) return null; return Math.floor((Date.now()-new Date(d).getTime())/86400000); }
+function lsgDT(x){ if(!x) return '—'; const d=new Date(x); return isNaN(d)?'—':d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+
+/* Chargement commun : suivis + libellés établissement / prestataire / tableau */
+async function lsgCharger(){
+  let q=sb.from('levees_suivi').select('*');
+  try{ q=erpFilter(q); }catch(_){}
+  const [suR,tabR]=await Promise.all([
+    q.order('updated_at',{ascending:false}),
+    sb.from('tableaux_reserves').select('id,source,organisme,numero_tableau,date_visite')
+  ]);
+  const suivis=suR.data||[];
+  const tabs={}; (tabR.data||[]).forEach(t=>{ tabs[t.id]=t; });
+  let nbRes={};
+  if(suivis.length){
+    const {data}=await sb.from('reserves').select('tableau_id,prestataire_id,statut')
+      .in('tableau_id',[...new Set(suivis.map(s=>s.tableau_id).filter(Boolean))]);
+    (data||[]).forEach(r=>{ const k=r.tableau_id+'|'+r.prestataire_id; nbRes[k]=(nbRes[k]||0)+1; });
+  }
+  const erps=state.erps||[], prests=window._lvaPrests||[];
+  let pn={};
+  if(!prests.length){
+    const {data}=await sb.from('prestataires').select('id,nom');
+    (data||[]).forEach(p=>{ pn[p.id]=p.nom; });
+  } else prests.forEach(p=>{ pn[p.id]=p.nom; });
+  return {suivis,tabs,nbRes,
+    erpNom:id=>((erps.find(e=>e.id===id)||{}).nom)||'Établissement',
+    prestNom:id=>pn[id]||'Prestataire',
+    nb:s=>nbRes[s.tableau_id+'|'+s.prestataire_id]||0};
+}
+
+/* Compteurs — sert à la pastille du menu et à l'encart d'accueil */
+function lsgCompteurs(suivis,vuesAt){
+  const attente=suivis.filter(s=>s.statut==='designe');
+  const aDesigner=suivis.filter(s=>['a_envoyer','envoye'].includes(s.statut));
+  const bloques=suivis.filter(s=>s.statut==='sans_contact');
+  const signes=suivis.filter(s=>s.statut==='signe');
+  const v=vuesAt?new Date(vuesAt).getTime():0;
+  const nouvelles=signes.filter(s=>{ const d=s.signe_at||s.updated_at; return d && new Date(d).getTime()>v; });
+  return {attente,aDesigner,bloques,signes,nouvelles};
+}
+
+/* ── Pastille du menu ── */
+window.lsgBadge=async function(){
+  try{
+    const el=document.getElementById('badge-levees');
+    const mel=document.getElementById('mob-badge-levees');
+    if(!el&&!mel) return;
+    let q=sb.from('levees_suivi').select('statut,signe_at,updated_at');
+    try{ q=erpFilter(q); }catch(_){}
+    const {data}=await q;
+    const c=lsgCompteurs(data||[],state.profile&&state.profile.levees_vues_at);
+    const n=c.attente.length+c.nouvelles.length+c.bloques.length;
+    [el,mel].forEach(b=>{ if(!b) return; b.textContent=n; b.style.display=n?(b.id.startsWith('mob')?'grid':'grid'):'none'; });
+  }catch(_){}
+};
+
+/* ── Niveau 1 : page complète ── */
+async function viewLevees(c){
+  c.innerHTML=loadingBlock();
+  try{
+    const d=await lsgCharger();
+    const vues=state.profile&&state.profile.levees_vues_at;
+    const cpt=lsgCompteurs(d.suivis,vues);
+    window._lsg=d;
+    const carte=(s,accent)=>{
+      const st=LSG_ST[s.statut]||[s.statut,'#64748b','#f1f5f9','ti-point'];
+      const t=d.tabs[s.tableau_id]||{};
+      const jours=s.statut==='designe'?lsgJours(s.designe_at):null;
+      const nouveau=s.statut==='signe'&&vues&&new Date(s.signe_at||s.updated_at)>new Date(vues);
+      return `<div class="card" style="padding:13px 15px;cursor:pointer${accent?';border-left:3px solid '+st[1]:''}"
+        onclick="lsgOuvrir('${s.tableau_id}')">
+        <div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">
+          <div style="flex:1;min-width:200px">
+            <div style="font-weight:700;font-size:13.5px">${esc(d.prestNom(s.prestataire_id))}
+              ${nouveau?'<span style="background:#dcfce7;color:#15803d;font-size:10px;font-weight:800;padding:2px 7px;border-radius:8px;margin-left:6px">NOUVEAU</span>':''}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">${esc(d.erpNom(s.erp_id))}
+              ${t.numero_tableau?' · tableau '+esc(t.numero_tableau):''}${t.organisme?' · '+esc(t.organisme):''}
+              · ${d.nb(s)} réserve${d.nb(s)>1?'s':''}</div>
+            ${s.technicien_nom?`<div style="font-size:12px;margin-top:5px">👷 <b>${esc(s.technicien_nom)}</b>${s.date_prevue?' · intervention le '+lsgDT(s.date_prevue):''}</div>`:''}
+            ${s.statut==='signe'?`<div style="font-size:12px;color:#15803d;margin-top:5px">Signée le ${lsgDT(s.signe_at||s.updated_at)}</div>`:''}
+            ${jours!==null?`<div style="font-size:12px;color:${jours>=7?'#b91c1c':'var(--muted)'};margin-top:5px">
+              Désigné le ${lsgDT(s.designe_at)} — ${jours===0?"aujourd'hui":jours+' jour'+(jours>1?'s':'')+" d'attente"}${jours>=7?' ⚠️':''}</div>`:''}
+            ${s.suspendu?'<div style="font-size:11.5px;color:#b91c1c;margin-top:4px">Envois automatiques suspendus</div>':''}
+          </div>
+          <span style="font-size:11px;font-weight:800;border-radius:99px;padding:4px 11px;white-space:nowrap;color:${st[1]};background:${st[2]}">${st[0]}</span>
+        </div></div>`;
+    };
+    const bloc=(titre,list,accent)=>list.length?`<div class="gf-sec" style="margin:22px 0 9px">${titre} — ${list.length}</div>
+      <div style="display:grid;gap:9px">${list.map(s=>carte(s,accent)).join('')}</div>`:'';
+    const kpi=(lbl,val,coul,sous)=>`<div class="card" style="padding:14px 16px;border-left:3px solid ${coul}">
+      <div style="font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#8494ab">${lbl}</div>
+      <div style="font-size:26px;font-weight:800;line-height:1.15;margin-top:4px;color:${coul}">${val}</div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:2px">${sous}</div></div>`;
+    c.innerHTML=`
+      <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+        <div style="flex:1;min-width:220px">
+          <h1 style="margin:0 0 4px;font-size:21px">Levées de réserves</h1>
+          <div style="font-size:13px;color:var(--muted)">Suivi des signatures attendues et reçues, par prestataire.</div>
+        </div>
+        <button class="btn" onclick="navigate('/tableaux-reserves')">Registre des tableaux</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:6px">
+        ${kpi('Signature attendue',cpt.attente.length,'#7c3aed','technicien désigné')}
+        ${kpi('Reçues',cpt.signes.length,'#16a34a',cpt.nouvelles.length?cpt.nouvelles.length+' depuis votre dernière visite':'toutes consultées')}
+        ${kpi('Technicien à désigner',cpt.aDesigner.length,'#d97706','en amont de la signature')}
+        ${cpt.bloques.length?kpi('Envoi impossible',cpt.bloques.length,'#dc2626','fiche prestataire incomplète'):''}
+      </div>
+      ${bloc('Signature attendue',cpt.attente,true)}
+      ${bloc('Envoi impossible',cpt.bloques,true)}
+      ${bloc('Technicien à désigner',cpt.aDesigner)}
+      ${bloc('Signatures reçues',cpt.signes)}
+      ${!d.suivis.length?emptyBlock('✍️','Aucun suivi de levée',
+        "Les suivis se créent automatiquement quand vous affectez des réserves à un prestataire depuis un tableau.",
+        `<button class="btn primary" onclick="navigate('/tableaux-reserves')">Ouvrir le registre</button>`):''}`;
+    lsgMarquerVues();
+  }catch(e){ c.innerHTML=errBlock(e); }
+}
+window.viewLevees=viewLevees;
+
+window.lsgOuvrir=function(tabId){
+  navigate('/tableaux-reserves');
+  setTimeout(()=>{ try{ trvDetail(tabId); }catch(_){} },220);
+};
+
+async function lsgMarquerVues(){
+  try{
+    const now=new Date().toISOString();
+    await sb.from('profiles').update({levees_vues_at:now}).eq('id',state.user.id);
+    if(state.profile) state.profile.levees_vues_at=now;
+    lsgBadge();
+  }catch(_){}
+}
+
+/* ── Niveau 2 : encart d'accueil ── */
+window.lsgEncartAccueil=async function(){
+  const host=document.getElementById('lsg-accueil'); if(!host) return;
+  try{
+    const d=await lsgCharger();
+    if(!d.suivis.length){ host.innerHTML=''; return; }
+    const vues=state.profile&&state.profile.levees_vues_at;
+    const cpt=lsgCompteurs(d.suivis,vues);
+    const retard=cpt.attente.filter(s=>lsgJours(s.designe_at)>=7);
+    const ligne=(pastille,titre,sous)=>`<div style="display:flex;align-items:flex-start;gap:10px;font-size:13px;padding:6px 0">
+      <span style="width:8px;height:8px;border-radius:50%;background:${pastille};flex:0 0 auto;margin-top:5px"></span>
+      <span style="flex:1">${titre}<div style="color:var(--muted);font-size:12px;margin-top:1px">${sous}</div></span></div>`;
+    const kpi=(lbl,val,coul,fond)=>`<div style="background:${fond};border-radius:10px;padding:11px 13px">
+      <div style="font-size:11.5px;color:${coul};font-weight:700">${lbl}</div>
+      <div style="font-size:24px;font-weight:800;color:${coul};line-height:1.2">${val}</div></div>`;
+    host.innerHTML=`<div class="card" style="padding:16px 18px;margin-bottom:16px;cursor:pointer" onclick="navigate('/levees')">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:13px">
+        <span style="font-size:16px">✍️</span>
+        <b style="font-size:14.5px">Signatures de levées</b>
+        <span style="flex:1"></span>
+        <span style="font-size:12px;color:var(--primary);font-weight:700">Tout voir →</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px">
+        ${kpi('En attente',cpt.attente.length,'#92400e','#fffbeb')}
+        ${kpi(cpt.nouvelles.length?'Reçues — nouvelles':'Reçues',cpt.nouvelles.length||cpt.signes.length,'#15803d','#f0fdf4')}
+        ${kpi('Technicien à désigner',cpt.aDesigner.length,'#475569','#f1f5f9')}
+      </div>
+      <div style="border-top:1px solid var(--line);padding-top:9px">
+        ${cpt.attente.slice(0,3).map(s=>{const j=lsgJours(s.designe_at);
+          return ligne(j>=7?'#dc2626':'#BA7517',
+            esc(d.prestNom(s.prestataire_id))+' · '+esc(d.erpNom(s.erp_id)),
+            (s.technicien_nom?esc(s.technicien_nom)+' désigné le '+lsgDT(s.designe_at):'Technicien désigné')
+            +' — '+(j===0?"aujourd'hui":j+' jour'+(j>1?'s':'')+" d'attente"));}).join('')}
+        ${cpt.nouvelles.length?ligne('#639922',cpt.nouvelles.length+' signature'+(cpt.nouvelles.length>1?'s':'')+' reçue'+(cpt.nouvelles.length>1?'s':''),
+          'Toutes les levées signées — à vérifier'):''}
+        ${retard.length?ligne('#dc2626',retard.length+' signature'+(retard.length>1?'s':'')+' en retard',
+          'Désignation de plus de 7 jours sans signature'):''}
+        ${!cpt.attente.length&&!cpt.nouvelles.length?ligne('#639922','Rien en attente','Toutes les signatures attendues sont reçues'):''}
+      </div></div>`;
+  }catch(_){ host.innerHTML=''; }
 };
 
 /* =====================================================================
