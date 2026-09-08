@@ -17711,22 +17711,56 @@ window.lvaRenvoyerSms=async function(sid,tabId){
     toast('SMS programmé — envoi dans les 5 minutes','ok'); trvDetail(tabId);
   }catch(e){ toast(e.message||'Erreur','err'); }
 };
+// « NOM Prénom » -> {nom, prenom}
+window.lvaSplitNom=function(v){
+  const t=String(v||'').trim().split(/\s+/).filter(Boolean);
+  if(t.length<2) return {nom:t[0]||'',prenom:''};
+  return {nom:t[0],prenom:t.slice(1).join(' ')};
+};
+// Techniciens déclarés dans la fiche du prestataire (bloc « contacts »)
+window.lvaTechsFiche=function(pres){
+  const c=pres&&pres.contacts; if(!c||typeof c!=='object') return [];
+  const out=[];
+  Object.keys(c).forEach(k=>{
+    const v=c[k]; if(!v||typeof v!=='object') return;
+    if(!/technicien|charge_affaire|chargé|conducteur|responsable_travaux/i.test(k)) return;
+    const mob=lvaNormMob(v.mobile||v.telephone||''); if(!mob) return;
+    const n=lvaSplitNom(v.nom);
+    out.push({id:'fiche:'+k,nom:n.nom,prenom:n.prenom,mobile:mob,email:v.email||null,
+      role:/charge_affaire|chargé/i.test(k)?"Chargé d'affaire":'Technicien',fiche:true});
+  });
+  return out;
+};
+
 window.lvaTechModal=async function(sid,tabId){
   const s=(window._lvaSuivis||[]).find(x=>x.id===sid); if(!s) return;
   lvaStyle();
-  const {data:techs}=await sb.from('prestataire_techniciens').select('*').eq('prestataire_id',s.prestataire_id).eq('actif',true).order('dernier_passage',{ascending:false,nullsFirst:false});
-  window._lvaTechs=techs||[]; window._lvaTechSel=s.technicien_id||((techs&&techs[0])?techs[0].id:'new');
-  const pNm=((window._lvaPrests||[]).find(p=>p.id===s.prestataire_id)||{}).nom||'';
+  const [tr,pr]=await Promise.all([
+    sb.from('prestataire_techniciens').select('*').eq('prestataire_id',s.prestataire_id).eq('actif',true).order('dernier_passage',{ascending:false,nullsFirst:false}),
+    sb.from('prestataires').select('nom,contacts').eq('id',s.prestataire_id).maybeSingle()
+  ]);
+  const techs=tr.data||[];
+  // On complète avec les techniciens de la fiche prestataire, sans doublon de mobile
+  const vus=new Set(techs.map(t=>lvaNormMob(t.mobile)).filter(Boolean));
+  const fiche=lvaTechsFiche(pr.data||{}).filter(f=>!vus.has(f.mobile));
+  window._lvaTechs=techs.concat(fiche);
+  window._lvaTechSel=s.technicien_id||((window._lvaTechs[0])?window._lvaTechs[0].id:'new');
+  const pNm=(pr.data&&pr.data.nom)||((window._lvaPrests||[]).find(p=>p.id===s.prestataire_id)||{}).nom||'';
   const render=()=>{
     const sel=window._lvaTechSel; const isNew=sel==='new';
-    document.getElementById('lvt_chips').innerHTML=(window._lvaTechs||[]).map(t=>'<span class="lva-chip'+(sel===t.id?' on':'')+'" onclick="window._lvaTechSel=\''+t.id+'\';window._lvaTechRender()">'+esc([t.prenom,t.nom].filter(Boolean).join(' ')||'Technicien')+' · '+esc(lvaFmtMob(t.mobile))+'</span>').join('')+'<span class="lva-chip new'+(isNew?' on':'')+'" onclick="window._lvaTechSel=\'new\';window._lvaTechRender()">+ Nouveau technicien</span>';
+    document.getElementById('lvt_chips').innerHTML=(window._lvaTechs||[]).map(t=>'<span class="lva-chip'+(sel===t.id?' on':'')+'" onclick="window._lvaTechSel=\''+t.id+'\';window._lvaTechRender()" title="'+esc(t.fiche?'Depuis la fiche du prestataire':'Déjà intervenu')+'">'+esc([t.prenom,t.nom].filter(Boolean).join(' ')||'Technicien')+' · '+esc(lvaFmtMob(t.mobile))+(t.fiche?' <span style="opacity:.6;font-size:10px">fiche</span>':'')+'</span>').join('')+'<span class="lva-chip new'+(isNew?' on':'')+'" onclick="window._lvaTechSel=\'new\';window._lvaTechRender()">+ Nouveau technicien</span>';
     document.getElementById('lvt_new').style.display=isNew?'':'none';
+    const h=document.getElementById('lvt_hint');
+    if(h){ const t=(window._lvaTechs||[]).find(x=>x.id===sel);
+      h.textContent=t&&t.fiche?('Repris de la fiche '+pNm+' — '+t.role+'. Il sera enregistré comme intervenant à la première désignation.')
+        :(window._lvaTechs||[]).length?'':'Aucun technicien connu pour ce prestataire : saisissez-le, ou complétez le bloc Contacts de sa fiche.'; }
   };
   window._lvaTechRender=render;
   openModal('<div class="modal-head"><h2>'+(s.technicien_nom?'Modifier le technicien':'Désigner le technicien')+' <span style="font-size:11px;font-weight:600;color:var(--muted)">'+esc(pNm)+'</span></h2><button class="x" onclick="trvDetail(\''+esc(tabId)+'\')">'+I.x+'</button></div>'
     +'<div class="modal-body" style="display:flex;flex-direction:column;gap:10px">'
     +'<div style="font-size:12.5px;color:var(--muted)">Le technicien est enregistré dans la fiche du prestataire et reçoit par SMS son lien de signature.</div>'
     +'<div id="lvt_chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>'
+    +'<div id="lvt_hint" style="font-size:11.5px;color:var(--muted)"></div>'
     +'<div id="lvt_new" class="row2" style="display:none"><div class="fld"><label>Prénom</label><input id="lvt_prenom"></div><div class="fld"><label>Nom *</label><input id="lvt_nom"></div><div class="fld"><label>Mobile *</label><input id="lvt_mob" type="tel" placeholder="06 00 00 00 00"></div></div>'
     +'<div class="row2"><div class="fld"><label>Date prévue d\'intervention</label><input id="lvt_date" type="date" value="'+esc(s.date_prevue||'')+'"></div><div class="fld"><label>Créneau</label><select id="lvt_cren"><option value="journee">Journée</option><option value="matin"'+(s.creneau==='matin'?' selected':'')+'>Matin</option><option value="apres-midi"'+(s.creneau==='apres-midi'?' selected':'')+'>Après-midi</option></select></div></div>'
     +'<label style="display:flex;align-items:center;gap:8px;font-size:12.5px"><input type="checkbox" id="lvt_sms" checked style="width:16px;height:16px;accent-color:var(--primary)">Envoyer maintenant le SMS avec le lien de signature</label>'
@@ -17741,7 +17775,15 @@ window.lvaTechSave=async function(sid,tabId){
       const nom=(document.getElementById('lvt_nom').value||'').trim(), prenom=(document.getElementById('lvt_prenom').value||'').trim(), mob=lvaNormMob(document.getElementById('lvt_mob').value);
       if(!nom){ toast('Nom du technicien requis','err'); return; } if(!mob){ toast('Mobile invalide (06 / 07)','err'); return; }
       const {data,error}=await sb.from('prestataire_techniciens').upsert({prestataire_id:s.prestataire_id,nom,prenom,mobile:mob,source:'manuel',actif:true},{onConflict:'prestataire_id,mobile'}).select('*').single(); if(error) throw error; tech=data;
-    } else { tech=(window._lvaTechs||[]).find(t=>t.id===sel); if(!tech){ toast('Choisissez un technicien','err'); return; } }
+    } else {
+      tech=(window._lvaTechs||[]).find(t=>t.id===sel); if(!tech){ toast('Choisissez un technicien','err'); return; }
+      if(tech.fiche){
+        const {data,error}=await sb.from('prestataire_techniciens').upsert(
+          {prestataire_id:s.prestataire_id,nom:tech.nom,prenom:tech.prenom,mobile:tech.mobile,source:'fiche',actif:true},
+          {onConflict:'prestataire_id,mobile'}).select('*').single();
+        if(error) throw error; tech=data;
+      }
+    }
     const date_prevue=document.getElementById('lvt_date').value||null, creneau=document.getElementById('lvt_cren').value||'journee';
     const patch={technicien_id:tech.id,technicien_nom:[tech.prenom,tech.nom].filter(Boolean).join(' '),technicien_mobile:tech.mobile,date_prevue,creneau,designe_at:new Date().toISOString(),statut:['signe','clos'].includes(s.statut)?s.statut:'designe',a_notifier:false,rappel_j1_at:null,updated_at:new Date().toISOString()};
     const {error:e2}=await sb.from('levees_suivi').update(patch).eq('id',sid); if(e2) throw e2;
