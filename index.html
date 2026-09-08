@@ -1972,6 +1972,7 @@ function renderRoute(){
   if(base==='/acces-rapports') return viewAccesRapports(content);
   if(base==='/tableaux-reserves') return viewTableauxReserves(content);
   if(base==='/preparation-cs') return viewPreparationCS(content);
+  if(base==='/gestion-formation') return viewGestionFormation(content);
   if(base==='/formation') return viewFormation(content);
   if(base==='/formation-contenus') return viewFormation(content).then(()=>{ if(state.profile?.role==='admin') fxAdmin(); });
   if(base==='/prestataires') return viewPrestataires(content);
@@ -7151,7 +7152,8 @@ window.fxAdmDelVC=fxAdmDelVC;
 
 function getNAV(){ return [
   {link:['/','Tableau de bord',NI.dash]},
-  {sec:'etab',   titre:'Établissement',          ic:NI.etab,      items:[['/clients','Clients',NI.clients],['/erps','ERP',NI.erp],['/organisation','Organisation',NI.clients],['/plan-maintenance','Plan de maintenance',NI.plan],['/budget','Budget',NI.plan],['/bilan','Bilan',NI.bilan]]},
+  {sec:'etab',   titre:'Établissement',          ic:NI.etab,      items:[['/clients','Clients',NI.clients],['/erps','ERP',NI.erp],['/organisation','Organisation',NI.clients],['/plan-maintenance','Plan de maintenance',NI.plan],['/budget','Budget',NI.plan],['/bilan','Bilan',NI.bilan],
+    ...(gfAutorise()?[['/gestion-formation','Gestion formation',NI.grad]]:[])]},
   {sec:'sitdeg', titre:'Situation dégradée',     ic:NI.alert,     items:[['/photos','Photos et vidéos',NI.cam],['/compte-rendu','Compte rendu',NI.cr]]},
   {sec:'prest',  titre:'Suivi des prestataires', ic:NI.briefcase, items:[['/prestataires','Prestataires',NI.wrench],['/conversations','Conversations',NI.chat],['/pointage','Pointage & journal',NI.clock]]},
   {sec:'suivi',  titre:'Suivi et conformité',    ic:NI.shield,    items:[['/interventions','Interventions',NI.tools],['/travaux','Travaux',NI.trvx],['/gpa','Garanties GPA',NI.checks],['/verifications','Vérifications & relances',NI.bell],['/reserves','Réserves',NI.tablo]]},
@@ -30286,6 +30288,74 @@ window.gfTransmettreGo=async function(sessionId){
     toast('Erreur : '+(e.message||e),'err');
     const b=document.getElementById('gtr_btn'); if(b){ b.disabled=false; b.textContent='Envoyer'; }
   }
+};
+
+
+/* =====================================================================
+   PAGE « GESTION FORMATION » (menu de gauche)
+   Même module que l'onglet de la fiche établissement, avec un sélecteur
+   d'établissement en tête de page.
+===================================================================== */
+async function viewGestionFormation(c){
+  if(!gfAutorise()){
+    c.innerHTML=emptyBlock('🔒','Accès réservé',
+      "La rubrique Gestion formation contient les données nominatives du personnel. L'accès est accordé nominativement par l'administrateur, dans Administration → Utilisateurs.",'');
+    return;
+  }
+  gfStyle();
+  const erps=(state.erps||[]).filter(e=>e.statut!=='archive');
+  if(!erps.length){
+    c.innerHTML=emptyBlock('🏢','Aucun établissement',
+      "Créez d'abord un établissement : la gestion de la formation est portée par chaque site.",
+      `<button class="btn primary" onclick="navigate('/erps')">Ouvrir les établissements</button>`);
+    return;
+  }
+  let id=window._gfErp||state.currentErp||(erps.length===1?erps[0].id:null);
+  if(id && !erps.some(e=>e.id===id)) id=null;
+  if(!id){
+    c.innerHTML=`
+      <h1 style="margin:0 0 6px;font-size:22px">Gestion formation</h1>
+      <p style="color:var(--muted);font-size:13.5px;margin:0 0 20px;max-width:720px">
+        Effectif, obligations réglementaires, sessions, convocations, attestations et relances.
+        Choisissez l'établissement à piloter.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
+        ${erps.map(e=>{
+          const cl=(state.clients||[]).find(x=>x.id===e.client_id);
+          return `<div class="card" style="padding:16px 18px;cursor:pointer" onclick="gfChoisirErp('${e.id}')">
+            <div style="font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#8494ab">${gfEsc(e.code_erp)||'ERP'}</div>
+            <div style="font-weight:700;font-size:14.5px;margin:4px 0 3px;color:#0f172a">${gfEsc(e.nom)}</div>
+            <div style="font-size:12px;color:var(--muted)">${gfEsc(cl&&cl.raison_sociale)||''}${e.ville?' · '+gfEsc(e.ville):''}</div>
+            ${e.type_erp?`<div style="margin-top:9px"><span class="gf-chip">Type ${gfEsc(e.type_erp)}${e.categorie?' · '+gfEsc(e.categorie)+'ᵉ cat.':''}</span></div>`:''}
+          </div>`;
+        }).join('')}
+      </div>`;
+    return;
+  }
+  c.innerHTML=loadingBlock();
+  try{
+    const {data:e}=await sb.from('erps').select('*').eq('id',id).maybeSingle();
+    if(!e){ window._gfErp=null; return viewGestionFormation(c); }
+    const cl=(state.clients||[]).find(x=>x.id===e.client_id);
+    c.innerHTML=`
+      <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:4px">
+        <div style="flex:1;min-width:240px">
+          <h1 style="margin:0 0 4px;font-size:21px">Gestion formation</h1>
+          <div style="font-size:13px;color:var(--muted)">${gfEsc(e.nom)}${cl?' — '+gfEsc(cl.raison_sociale):''}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          ${erps.length>1?`<select onchange="gfChoisirErp(this.value)" style="max-width:270px">
+            ${erps.map(x=>`<option value="${x.id}" ${x.id===id?'selected':''}>${gfEsc(x.nom)}</option>`).join('')}
+          </select>`:''}
+          <button class="btn" onclick="navigate('/erps/${e.id}')">Fiche de l'établissement</button>
+        </div>
+      </div>
+      <div id="erptab"></div>`;
+    gfRender(document.getElementById('erptab'),e);
+  }catch(err){ c.innerHTML=errBlock(err); }
+}
+window.gfChoisirErp=function(id){
+  window._gfErp=id||null;
+  const c=document.getElementById('content'); if(c) viewGestionFormation(c);
 };
 
 /* =====================================================================
