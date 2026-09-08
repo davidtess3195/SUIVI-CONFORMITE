@@ -16246,6 +16246,109 @@ window.dpProfileGet=async function(prestId){
 };
 
 /* ── Bouton « Lire le devis » de la modale PV de réception ── */
+
+// Numéros de devis contenus dans un nom de fichier (5 à 8 chiffres) — sert à
+// reconnaître deux exemplaires du MÊME devis : « DEVIS 261216 du 06 07 2026… »
+// et « Devis_n°DE261216.pdf » partagent le numéro 261216.
+window.dpNumsDoc=function(nom){
+  const an=String(new Date().getFullYear());
+  return [...String(nom||'').matchAll(/\d{5,8}/g)].map(m=>m[0].replace(/^0+/,''))
+    .filter(v=>v.length>=5 && v!==an);
+};
+
+// Autres devis du même prestataire présents dans le Classeur
+window.dpFreres=async function(prestId,exclureId){
+  const {data}=await sb.from('documents')
+    .select('id,nom_original,categorie,date_document,fichier_path,prestataire_id')
+    .eq('prestataire_id',prestId).in('categorie',['devis','devis_signe'])
+    .order('date_document',{ascending:false}).limit(60);
+  return (data||[]).filter(x=>x.id!==exclureId && x.fichier_path);
+};
+
+// Tente une lecture ; renvoie null si le document est illisible ou hors format
+async function dpEssai(doc,cfg){
+  try{
+    const lines=await dpExtractDoc(doc);
+    const r=dpParse(lines,cfg||{});
+    if(r.error||!r.lignes||r.lignes.length<2) return null;
+    return r;
+  }catch(_){ return null; }
+}
+
+// Lecture avec repli : le document choisi d'abord, puis, s'il est illisible
+// (scan sans couche texte), les autres exemplaires du MÊME devis.
+window.dpLireAvecRepli=async function(doc,prof,prestId){
+  const cfg=prof.config||{};
+  let scan=false, msgMarqueur='';
+  try{
+    const lines=await dpExtractDoc(doc);
+    const r=dpParse(lines,cfg);
+    if(!r.error && r.lignes && r.lignes.length>=2) return {ok:true,r,doc};
+    msgMarqueur=r.error||'Moins de 2 prestations détectées.';
+  }catch(e){
+    if(/aucun texte/i.test(e.message||'')) scan=true; else throw e;
+  }
+  const freres=await dpFreres(prestId,doc.id);
+  if(scan){
+    const nums=dpNumsDoc(doc.nom_original);
+    const jumeaux=freres.filter(x=>{ const n=dpNumsDoc(x.nom_original); return nums.some(v=>n.includes(v)); });
+    for(const j of jumeaux){
+      const r=await dpEssai(j,cfg);
+      if(r) return {ok:true,r,doc:j};
+    }
+    return {ok:false,raison:'scan',freres,
+      msg:jumeaux.length
+        ? "Ce devis est un scan, et l'autre exemplaire du même numéro n'est pas lisible non plus."
+        : "Ce devis est un scan : aucune couche texte à lire, et aucun autre exemplaire du même numéro dans le Classeur."};
+  }
+  return {ok:false,raison:'marqueur',freres,msg:msgMarqueur};
+};
+
+// Reporte le résultat dans le formulaire du PV
+window.dpAppliquer=function(r,docLu,docChoisi){
+  const ta=document.getElementById('pv_lignes'); if(ta) ta.value=r.lignes.join('\n');
+  const mt=document.getElementById('pv_montant'); if(mt && !mt.value.trim() && r.montant!=null) mt.value=dpFmtEur(r.montant);
+  const ob=document.getElementById('pv_objet'); if(ob && !ob.value.trim() && r.objet) ob.value=r.objet;
+  const autre=docChoisi && docLu.id!==docChoisi.id;
+  toast('✅ '+r.lignes.length+' prestation(s) reprises du devis'
+    +(r.montant!=null?' · Total HT '+dpFmtEur(r.montant)+' €':'')
+    +(autre?' · lu depuis « '+String(docLu.nom_original||'').replace(/\.[a-zA-Z0-9]+$/,'')+' »':''),'ok');
+};
+
+// Choix manuel du document à lire quand le repli automatique n'a rien donné
+window.dpChoisirSource=function(msg,freres,prestId){
+  window._pvFreres=freres; window._pvPrestLect=prestId;
+  openModal(`<div class="modal-head"><h2>📄 Lire le devis</h2><button class="x" onclick="closeModal()">${I.x}</button></div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+      <div style="background:rgba(217,119,6,.09);border:1px solid rgba(217,119,6,.45);border-radius:10px;padding:11px 13px;font-size:13px;line-height:1.55">
+        ⚠️ ${esc(msg)}</div>
+      ${freres.length?`<div style="font-size:13px;color:var(--muted)">
+        Choisissez un autre exemplaire de ce devis dans le Classeur — la version d'origine du prestataire, non scannée, est généralement lisible.</div>
+      <div style="display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow:auto">
+        ${freres.map(f=>`<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:9px;padding:9px 11px">
+          <div style="flex:1;min-width:0">
+            <b style="font-size:12.8px">${esc(String(f.nom_original||'Devis').replace(/\.[a-zA-Z0-9]+$/,''))}</b>
+            <div style="font-size:11.5px;color:var(--muted)">${f.categorie==='devis_signe'?'Version signée ✍️':'Version d\'origine'}${f.date_document?' — '+new Date(f.date_document).toLocaleDateString('fr-FR'):''}</div>
+          </div>
+          <button class="btn sm" type="button" onclick="dpLireCe('${f.id}')">Lire celui-ci</button>
+        </div>`).join('')}
+      </div>`:`<div style="font-size:13px;color:var(--muted)">
+        Aucun autre devis de ce prestataire dans le Classeur. Déposez-y la version d'origine (non scannée) envoyée par le prestataire, ou saisissez les prestations à la main.</div>`}
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Saisir à la main</button></div>`);
+};
+
+window.dpLireCe=async function(docId){
+  const f=(window._pvFreres||[]).find(x=>x.id===docId); if(!f) return;
+  try{
+    const prof=await dpProfileGet(window._pvPrestLect);
+    const r=await dpEssai(f,prof&&prof.config);
+    if(!r){ toast('Ce document non plus n\'est pas exploitable — saisie manuelle nécessaire.','err'); return; }
+    closeModal();
+    dpAppliquer(r,f,{id:'__autre__'});
+  }catch(e){ toast('Lecture impossible : '+(e.message||e),'err'); }
+};
+
 window.pvReadDevis=async function(){
   const btn=document.getElementById('pv_read_devis');
   const id=document.getElementById('pv_devis_sel')?.value;
@@ -16264,18 +16367,14 @@ window.pvReadDevis=async function(){
     }
     let doc=d;
     if(!doc.fichier_path){ const {data:full}=await sb.from('documents').select('id,fichier_path,nom_original').eq('id',id).maybeSingle(); if(full) doc={...d,...full}; }
-    const lines=await dpExtractDoc(doc);
-    const r=dpParse(lines,prof.config||{});
-    if(r.error){
-      toast('⚠️ '+r.error+' Recalibre le profil dans l\'Administration.','err');
+    const res=await dpLireAvecRepli(doc,prof,prestId);
+    if(res.ok){ dpAppliquer(res.r,res.doc,doc); return; }
+    if(res.raison==='marqueur'){
       try{ await sb.from('devis_profils').update({statut:'a_recalibrer',updated_at:new Date().toISOString()}).eq('id',prof.id); }catch(_){}
+      dpChoisirSource(res.msg+' Le profil a été marqué « à recalibrer » dans l\'Administration.',res.freres,prestId);
       return;
     }
-    if(!r.lignes||r.lignes.length<2){ toast('Moins de 2 prestations détectées — rien n\'a été pré-rempli, vérifie le profil dans l\'Administration','err'); return; }
-    const ta=document.getElementById('pv_lignes'); if(ta) ta.value=r.lignes.join('\n');
-    const mt=document.getElementById('pv_montant'); if(mt && !mt.value.trim() && r.montant!=null) mt.value=dpFmtEur(r.montant);
-    const ob=document.getElementById('pv_objet'); if(ob && !ob.value.trim() && r.objet) ob.value=r.objet;
-    toast('✅ '+r.lignes.length+' prestation(s) reprises du devis'+(r.montant!=null?' · Total HT '+dpFmtEur(r.montant)+' €':''),'ok');
+    dpChoisirSource(res.msg,res.freres,prestId);
   }catch(e){ toast('Lecture impossible : '+(e.message||e),'err'); }
   finally{ btn.disabled=false; btn.innerHTML=old; }
 };
@@ -19942,7 +20041,9 @@ window.AG_TYPES={
   reslim:{label:'Réserves — date limite',color:'#dc2626'},
   resrdv:{label:'Réserves — rendez-vous',color:'#7c3aed'},
   sms:{label:'SMS programmés',color:'#0d9488'},
-  conv:{label:'Issu d\'une conversation',color:'#4f46e5'}
+  conv:{label:'Issu d\'une conversation',color:'#4f46e5'},
+  form:{label:'Sessions de formation',color:'#0891b2'},
+  formech:{label:'Formations — échéances',color:'#be185d'}
 };
 window._agDate=null; window._agSpan=1; window._agOff={}; window._agEvents={};
 function agIso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
@@ -19986,11 +20087,13 @@ window.agReload=async function(){
   const push=(iso,type,label,route)=>{ if(!iso) return; iso=String(iso).slice(0,10); (ev[iso]=ev[iso]||[]).push({type,label,route}); };
   try{
     const erpName=id=>{ const e=(state.erps||[]).find(x=>x.id===id); return e?e.nom:''; };
-    const [ob,it,rs,sm]=await Promise.all([
+    const [ob,it,rs,sm,fs,fe]=await Promise.all([
       erpIds.length?sb.from('obligations').select('libelle,domaine,erp_id,prochaine_echeance').in('erp_id',erpIds).gte('prochaine_echeance',sIso).lte('prochaine_echeance',eIso):{data:[]},
       erpIds.length?sb.from('interventions').select('objet,domaine,type,statut,erp_id,date_prevue,heure_prevue,commentaire').in('erp_id',erpIds).gte('date_prevue',sIso).lte('date_prevue',eIso):{data:[]},
       erpIds.length?sb.from('reserves').select('libelle,statut,erp_id,date_limite,rdv_date').in('erp_id',erpIds).or('and(date_limite.gte.'+sIso+',date_limite.lte.'+eIso+'),and(rdv_date.gte.'+sIso+',rdv_date.lte.'+eIso+')'):{data:[]},
-      sb.from('sms_scheduled').select('destinataire,message,send_at,statut').eq('statut','pending').gte('send_at',sIso).lte('send_at',eIso+'T23:59:59Z')
+      sb.from('sms_scheduled').select('destinataire,message,send_at,statut').eq('statut','pending').gte('send_at',sIso).lte('send_at',eIso+'T23:59:59Z'),
+      (erpIds.length&&gfAutorise())?sb.from('of_sessions').select('id,intitule,erp_id,date_debut,date_fin,horaires,statut').in('erp_id',erpIds).gte('date_debut',sIso).lte('date_debut',eIso):{data:[]},
+      (erpIds.length&&gfAutorise())?sb.from('v_of_couverture_erp').select('erp_id,obligation,echeance,statut').in('erp_id',erpIds).gte('echeance',sIso).lte('echeance',eIso):{data:[]}
     ]);
     (ob.data||[]).forEach(o=>push(o.prochaine_echeance,'verif',(o.libelle||o.domaine||'Vérification')+' — '+erpName(o.erp_id),'/verifications'));
     (it.data||[]).forEach(i=>{ if(/^annul/i.test(i.statut||'')) return;
@@ -20001,6 +20104,15 @@ window.agReload=async function(){
       if(!done && r.date_limite) push(r.date_limite,'reslim','Limite : '+(r.libelle||'réserve')+' — '+erpName(r.erp_id),'/reserves');
       if(r.rdv_date) push(r.rdv_date,'resrdv','RDV : '+(r.libelle||'réserve')+' — '+erpName(r.erp_id),'/reserves'); });
     (sm.data||[]).forEach(s=>push(String(s.send_at).slice(0,10),'sms','SMS '+new Date(s.send_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+' → '+s.destinataire,null));
+    (fs.data||[]).forEach(f=>{ if(f.statut==='annulee') return;
+      const hh=f.horaires?String(f.horaires).split(/[-–]/)[0].trim()+' · ':'';
+      push(f.date_debut,'form',hh+'Formation : '+(f.intitule||'session')+' — '+erpName(f.erp_id),'/gestion-formation'); });
+    const fgrp={};
+    (fe.data||[]).forEach(x=>{ if(x.statut==='a_jour') return;
+      const k=String(x.echeance).slice(0,10)+'|'+x.erp_id+'|'+x.obligation;
+      fgrp[k]=(fgrp[k]||0)+1; });
+    Object.keys(fgrp).forEach(k=>{ const [iso,eid,lib]=k.split('|');
+      push(iso,'formech','Recyclage : '+lib+' ('+fgrp[k]+' agent'+(fgrp[k]>1?'s':'')+') — '+erpName(eid),'/gestion-formation'); });
   }catch(e){ console.warn('agenda:',e); }
   window._agEvents=ev;
   agRecap(first, new Date(base.getFullYear(),base.getMonth()+span,1));
@@ -27685,6 +27797,7 @@ function gfShell(tab){
     ['effectif','Effectif',g.st.filter(s=>s.actif!==false).length],
     ['obligations','Thèmes & obligations',g.ob.filter(o=>o.actif!==false).length],
     ['sessions','Sessions',g.se.length],
+    ['planning','Planning',''],
     ['relances','Relances',(g.rlSms||[]).filter(x=>x.statut==='pending').length+(g.rlMail||[]).filter(x=>x.statut==='pending').length||''],
     ['documents','Documents',g.docs.length]
   ];
@@ -27696,6 +27809,7 @@ function gfShell(tab){
   else if(g.tab==='effectif')    gfTabEffectif(b);
   else if(g.tab==='obligations') gfTabObligations(b);
   else if(g.tab==='sessions')    gfTabSessions(b);
+  else if(g.tab==='planning')    gfTabPlanning(b);
   else if(g.tab==='relances')    gfTabRelances(b);
   else                           gfTabDocuments(b);
   try{ enhanceTables(b); }catch(_){}
@@ -27773,6 +27887,7 @@ function gfTabPilotage(b){
     <button class="btn primary" onclick="gfSessionModal()">＋ Déclencher une formation</button>
     <button class="btn" onclick="gfRappelModal()">🔔 Rappel à la direction</button>
     <button class="btn" onclick="gfRetardModal()">📣 Relancer les salariés en retard</button>
+    <button class="btn" onclick="gfShell('planning')">📅 Planning</button>
     <button class="btn" onclick="gfPdfPlanAnnuel()">📄 Plan annuel de formation</button>
     <button class="btn" onclick="gfPdfBilanAnnuel()">📊 Bilan annuel</button>
     <button class="btn" onclick="gfExportSuivi()">⤓ Export Excel du suivi</button>
@@ -30356,6 +30471,178 @@ async function viewGestionFormation(c){
 window.gfChoisirErp=function(id){
   window._gfErp=id||null;
   const c=document.getElementById('content'); if(c) viewGestionFormation(c);
+};
+
+/* =====================================================================
+   ONGLET PLANNING — calendrier de la programmation de l'établissement
+   Sessions, échéances de recyclage et relances programmées.
+===================================================================== */
+const GF_CAL={
+  session:{lbl:'Sessions',c:'#0891b2'},
+  echeance:{lbl:'Recyclages à prévoir',c:'#be185d'},
+  retard:{lbl:'Retards',c:'#dc2626'},
+  relance:{lbl:'Relances programmées',c:'#0d9488'}
+};
+function gfCalIso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+
+function gfCalEvents(){
+  const g=window._gf, ev={};
+  const push=(iso,type,label,ref)=>{ if(!iso) return; iso=String(iso).slice(0,10); (ev[iso]=ev[iso]||[]).push({type,label,ref}); };
+  (g.se||[]).forEach(s=>{
+    if(s.statut==='annulee') return;
+    const h=s.horaires?String(s.horaires).split(/[-–]/)[0].trim()+' · ':'';
+    push(s.date_debut,'session',h+s.intitule+' ('+(g.ins||[]).filter(i=>i.session_id===s.id).length+' pers.)',s.id);
+  });
+  const grp={};
+  (g.cov||[]).forEach(c=>{
+    if(c.statut==='a_jour') return;
+    if(c.statut==='jamais'){ (grp['JAMAIS|'+c.obligation]=grp['JAMAIS|'+c.obligation]||[]).push(c); return; }
+    if(!c.echeance) return;
+    const k=String(c.echeance).slice(0,10)+'|'+c.obligation;
+    (grp[k]=grp[k]||[]).push(c);
+  });
+  Object.keys(grp).forEach(k=>{
+    const [iso,lib]=k.split('|'); const l=grp[k];
+    if(iso==='JAMAIS') return;
+    const passe=iso<gfToday();
+    push(iso,passe?'retard':'echeance',lib+' — '+l.length+' agent'+(l.length>1?'s':''),null);
+  });
+  (g.rlMail||[]).filter(m=>m.statut==='pending').forEach(m=>
+    push(String(m.send_at).slice(0,10),'relance','E-mail → '+m.destinataires,null));
+  (g.rlSms||[]).filter(m=>m.statut==='pending').forEach(m=>
+    push(String(m.send_at).slice(0,10),'relance','SMS → '+m.destinataire,null));
+  return ev;
+}
+
+function gfTabPlanning(b){
+  const g=window._gf;
+  if(!window._gfCalD) window._gfCalD=new Date();
+  if(!window._gfCalOff) window._gfCalOff={};
+  if(!window._gfCalSpan) window._gfCalSpan=1;
+  const ev=gfCalEvents();
+  window._gfCalEv=ev;
+  const jamais=(g.cov||[]).filter(c=>c.statut==='jamais');
+  const jGrp={}; jamais.forEach(c=>{ (jGrp[c.obligation]=jGrp[c.obligation]||[]).push(c); });
+
+  b.innerHTML=`
+  <div class="gf-row" style="margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:6px">
+      <button class="btn sm" onclick="gfCalNav(-1)">‹</button>
+      <b id="gfcal_m" style="min-width:170px;text-align:center;font-size:14px;text-transform:capitalize"></b>
+      <button class="btn sm" onclick="gfCalNav(1)">›</button>
+    </div>
+    <button class="btn sm" onclick="gfCalToday()">Aujourd'hui</button>
+    <div style="display:flex;gap:3px">
+      ${[[1,'1 mois'],[3,'3 mois'],[6,'6 mois'],[12,'1 an']].map(([v,l])=>
+        `<button class="btn sm ${window._gfCalSpan===v?'primary':''}" onclick="gfCalSpan(${v})">${l}</button>`).join('')}
+    </div>
+    <span style="flex:1"></span>
+    <button class="btn sm primary" onclick="gfSessionModal()">＋ Programmer</button>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+    ${Object.keys(GF_CAL).map(k=>`<button class="btn sm" id="gfcl_${k}" onclick="gfCalToggle('${k}')"
+      style="opacity:${window._gfCalOff[k]?'.45':'1'};display:flex;align-items:center;gap:6px">
+      <span style="width:9px;height:9px;border-radius:50%;background:${GF_CAL[k].c};display:inline-block"></span>${GF_CAL[k].lbl}</button>`).join('')}
+  </div>
+
+  <div id="gfcal_grid"></div>
+
+  ${jamais.length?`<div class="gf-sec">Sans date d'échéance — jamais formés</div>
+    <div class="card" style="padding:0;overflow:hidden"><div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Formation</th><th>Agents concernés</th><th></th></tr></thead>
+      <tbody>${Object.keys(jGrp).map(k=>{
+        const l=jGrp[k]; const ob=(g.ob||[]).find(o=>o.libelle===k);
+        return `<tr><td><b>${gfEsc(k)}</b></td>
+          <td style="font-size:12.5px;color:var(--muted)">${l.slice(0,8).map(c=>gfEsc(gfFullName(c))).join(', ')}${l.length>8?' … (+'+(l.length-8)+')':''}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <span class="gf-st jamais" style="margin-right:8px">${l.length}</span>
+            ${ob?`<button class="btn sm primary" onclick="gfSessionModal('${ob.id}')">Programmer</button>`:''}</td></tr>`;
+      }).join('')}</tbody></table></div></div>`:''}
+
+  <div class="gf-sec">Prochaines dates</div>
+  <div id="gfcal_recap"></div>`;
+  gfCalRender();
+}
+
+window.gfCalNav=function(d){
+  const b=window._gfCalD||new Date(), sp=window._gfCalSpan||1;
+  window._gfCalD=new Date(b.getFullYear(),b.getMonth()+d*sp,1);
+  gfCalRender();
+};
+window.gfCalToday=function(){ window._gfCalD=new Date(); gfCalRender(); };
+window.gfCalSpan=function(v){ window._gfCalSpan=v; gfShell('planning'); };
+window.gfCalToggle=function(k){
+  window._gfCalOff[k]=!window._gfCalOff[k];
+  const b=document.getElementById('gfcl_'+k); if(b) b.style.opacity=window._gfCalOff[k]?'.45':'1';
+  gfCalRender();
+};
+
+window.gfCalRender=function(){
+  const grid=document.getElementById('gfcal_grid'); if(!grid) return;
+  const base=window._gfCalD||new Date(), span=window._gfCalSpan||1, ev=window._gfCalEv||{};
+  const off=window._gfCalOff||{};
+  const lm=d=>d.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  const last=new Date(base.getFullYear(),base.getMonth()+span-1,1);
+  const m=document.getElementById('gfcal_m');
+  if(m) m.textContent=span===1?lm(base):(lm(base)+' → '+lm(last));
+  const today=gfCalIso(new Date());
+  const dow=`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:3px">
+    ${['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].map(d=>`<div style="font-size:10.5px;font-weight:800;color:#8494ab;text-align:center;padding:3px 0">${d}</div>`).join('')}</div>`;
+  let html='';
+  for(let k=0;k<span;k++){
+    const mo=new Date(base.getFullYear(),base.getMonth()+k,1);
+    const gs=new Date(mo); gs.setDate(1-((mo.getDay()+6)%7));
+    if(span>1) html+=`<div style="font-size:12.5px;font-weight:800;color:#334155;margin:14px 0 6px;text-transform:capitalize">${lm(mo)}</div>`;
+    html+=dow+'<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">';
+    for(let i=0;i<42;i++){
+      const d=new Date(gs); d.setDate(gs.getDate()+i);
+      const iso=gfCalIso(d);
+      const list=(ev[iso]||[]).filter(x=>!off[x.type]);
+      const out=d.getMonth()!==mo.getMonth();
+      html+=`<div onclick="gfCalJour('${iso}')" style="min-height:${span>3?44:66}px;border:1px solid ${iso===today?'#2563eb':'#e6eaf1'};border-radius:7px;padding:3px 4px;background:${out?'#fafbfc':'#fff'};opacity:${out?.5:1};cursor:pointer;overflow:hidden">
+        <div style="font-size:10.5px;font-weight:${iso===today?'800':'600'};color:${iso===today?'#2563eb':'#64748b'}">${d.getDate()}</div>
+        ${list.slice(0,span>3?1:2).map(x=>`<div style="font-size:9.5px;line-height:1.25;color:#fff;background:${GF_CAL[x.type].c};border-radius:4px;padding:1.5px 4px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${gfEsc(x.label)}</div>`).join('')}
+        ${list.length>(span>3?1:2)?`<div style="font-size:9px;color:#8494ab;margin-top:1px">+${list.length-(span>3?1:2)}</div>`:''}
+      </div>`;
+    }
+    html+='</div>';
+  }
+  grid.innerHTML=html;
+
+  const rec=document.getElementById('gfcal_recap');
+  if(rec){
+    const from=gfCalIso(new Date(base.getFullYear(),base.getMonth(),1));
+    const to=gfCalIso(new Date(base.getFullYear(),base.getMonth()+span,1));
+    const rows=[];
+    Object.keys(ev).sort().forEach(iso=>{ if(iso<from||iso>=to) return;
+      ev[iso].forEach(x=>{ if(!off[x.type]) rows.push(Object.assign({iso},x)); }); });
+    rec.innerHTML=rows.length?`<div class="card" style="padding:0;overflow:hidden"><div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th style="width:120px">Date</th><th>Événement</th><th></th></tr></thead>
+      <tbody>${rows.map(r=>`<tr>
+        <td style="font-size:12.5px"><b>${gfDateFr(r.iso)}</b></td>
+        <td style="font-size:12.5px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${GF_CAL[r.type].c};margin-right:7px"></span>${gfEsc(r.label)}</td>
+        <td style="text-align:right">${r.ref?`<button class="btn sm" onclick="gfSessionOuvrir('${r.ref}')">Ouvrir</button>`:''}</td></tr>`).join('')}
+      </tbody></table></div></div>`
+     :`<div class="card"><div class="gf-empty">Rien de programmé sur la période affichée.</div></div>`;
+  }
+};
+
+window.gfCalJour=function(iso){
+  const ev=window._gfCalEv||{}, off=window._gfCalOff||{};
+  const list=(ev[iso]||[]).filter(x=>!off[x.type]);
+  const dl=new Date(iso+'T00:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  openModal(`<div class="modal-head"><h3 style="text-transform:capitalize">${dl}</h3><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="modal-body" style="display:flex;flex-direction:column;gap:8px">
+    ${list.length?list.map(x=>`<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--line-2,#e6eaf1);border-radius:10px;padding:10px 12px">
+      <span style="width:10px;height:10px;border-radius:50%;background:${GF_CAL[x.type].c};flex:0 0 auto"></span>
+      <span style="flex:1;font-size:13px">${gfEsc(x.label)}</span>
+      ${x.ref?`<button class="btn sm" onclick="closeModal();gfSessionOuvrir('${x.ref}')">Ouvrir</button>`:''}
+    </div>`).join('')
+    :'<div style="color:var(--muted);font-size:13px;text-align:center;padding:14px 0">Rien de prévu ce jour.</div>'}
+  </div>
+  <div class="modal-foot"><button class="btn" onclick="closeModal()">Fermer</button>
+    <button class="btn primary" onclick="closeModal();gfSessionModal()">＋ Programmer une formation ce mois-ci</button></div>`);
 };
 
 /* =====================================================================
