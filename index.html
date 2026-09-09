@@ -14792,7 +14792,7 @@ async function viewDocuments(c){
         Glissez-déposez ici vos documents (rapports, PV, plans, attestations…)</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
         <input id="ged_search" oninput="gedRenderList()" placeholder="Rechercher un document, un client, un ERP…" style="flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)">
-        <select id="ged_rub" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Toutes les rubriques</option><option value="Commission de sécurité">Commission de sécurité</option><option value="Bureau de contrôle">Bureau de contrôle</option><option value="Maintenance préventive">Maintenance préventive</option><option value="Maintenance corrective">Maintenance corrective</option><option value="Maintenance">Maintenance</option><option value="Compte rendu">Compte rendu</option><option value="Rapport">Rapport</option><option value="Devis">Devis</option><option value="Devis signé">Devis signé</option><option value="Facture">Facture</option><option value="Bon d'intervention">Bon d'intervention</option><option value="PV de réception">PV de réception</option><option value="Courrier mairie">Courrier mairie</option><option value="Mail">Mail</option><option value="Plans">Plans</option><option value="DOE">DOE</option><option value="Attestation">Attestation</option><option value="Sécurité">Sécurité</option><option value="Autres">Autres</option></select>
+        <select id="ged_rub" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Toutes les rubriques</option><option value="Commission de sécurité">Commission de sécurité</option><option value="Bureau de contrôle">Bureau de contrôle</option><option value="Maintenance préventive">Maintenance préventive</option><option value="Maintenance corrective">Maintenance corrective</option><option value="Maintenance">Maintenance</option><option value="Compte rendu">Compte rendu</option><option value="Rapport">Rapport</option><option value="Devis">Devis</option><option value="Devis signé">Devis signé</option><option value="Facture">Facture</option><option value="Bon d'intervention">Bon d'intervention</option><option value="PV de réception">PV de réception</option><option value="Courrier mairie">Courrier mairie</option><option value="Mail">Mail</option><option value="Plans">Plans</option><option value="DOE">DOE</option><option value="Attestation">Attestation</option><option value="Classement au feu">Classement au feu</option><option value="Sécurité">Sécurité</option><option value="Autres">Autres</option></select>
         <select id="ged_prest" onchange="gedRenderList()" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)"><option value="">Tous les prestataires</option>${(prestData||[]).map(p=>`<option value="${p.id}">${esc(p.nom)}</option>`).join('')}</select>
       </div>
       <div id="ged_list"></div>`;
@@ -15643,7 +15643,7 @@ window.gedHandleDrop=function(ev){ ev.preventDefault();
   formDoc(files);
 };
 /* ── Classeur v2 : tuiles par type + lignes de documents repensées (maquette validée) ── */
-const GEDX_ORDER=['Commission de sécurité','Bureau de contrôle','Maintenance préventive','Maintenance corrective','Maintenance','Compte rendu','Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Courrier mairie','Mail','Plans','DOE','Attestation','Sécurité','Autres'];
+const GEDX_ORDER=['Commission de sécurité','Bureau de contrôle','Maintenance préventive','Maintenance corrective','Maintenance','Compte rendu','Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Courrier mairie','Mail','Plans','DOE','Attestation','Classement au feu','Sécurité','Autres'];
 const GEDX_ICO=(()=>{const w=p=>`<svg viewBox="0 0 24 24">${p}</svg>`;
   const doc='<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>';
   return {
@@ -15663,6 +15663,7 @@ const GEDX_ICO=(()=>{const w=p=>`<svg viewBox="0 0 24 24">${p}</svg>`;
   'Mail':w('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>'),
   'Plans':w('<path d="m9 3-6 2v16l6-2 6 2 6-2V3l-6 2z"/><path d="M9 3v16"/><path d="M15 5v16"/>'),
   'DOE':w('<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>'),
+  'Classement au feu':w('<path d="M12 22c3.9 0 6.5-2.6 6.5-6 0-4.2-4-5.4-3.2-9.5C13 8 11.5 9.8 11.5 12c-1-.6-1.6-1.7-1.6-3C8 10.6 5.5 12.6 5.5 16c0 3.4 2.6 6 6.5 6z"/>'),
   'Sécurité':w('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
   'Attestation':w(doc+'<path d="m9 15 2 2 4-4"/>'),
   'Autres':w(doc)
@@ -15748,6 +15749,7 @@ function gedRenderList(){
     if(t==='devis') return 'Devis';
     if(t==='facture') return 'Facture';
     if(t==="bon d'intervention"||t==='bon intervention'||t.indexOf("bon d'intervention")>=0) return "Bon d'intervention";
+      if(t.indexOf('classement au feu')>=0||t==='pv de classement'||t.indexOf('pare flamme')>=0||t.indexOf('pare-flamme')>=0||t.indexOf('coupe-feu')>=0||t.indexOf('coupe feu')>=0||t.indexOf('reaction au feu')>=0||t.indexOf('réaction au feu')>=0||t.indexOf('resistance au feu')>=0||t.indexOf('résistance au feu')>=0) return 'Classement au feu';
     if(t==='pv commission') return 'Commission de sécurité';
     if(t==='rvat'||t.indexOf('contrôle')>=0||t.indexOf('controle')>=0||t.indexOf('vérif')>=0||t.indexOf('verif')>=0||t==='bureau de contrôle') return 'Bureau de contrôle';
     if(t==='maintenance préventive'||t==='maintenance preventive') return 'Maintenance préventive';
@@ -15797,13 +15799,14 @@ function gedRenderList(){
     // En recherche / filtre, les bandeaux affichés sont dépliés : même mise en forme qu'un bandeau ouvert (sinon l'en-tête, avec sa marge négative, recouvrait la première tuile)
     const bandCls = searching ? ' open flt' : (open ? ' open' : (openCid ? ' min' : ''));
     const byType={}; docs.forEach(d=>{ const t=d.type||'Autre'; (byType[t]=byType[t]||[]).push(d); });
-    const CAT_ORDER=['Commission de sécurité','Bureau de contrôle','Maintenance préventive','Maintenance corrective','Maintenance','Compte rendu','Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Courrier mairie','Mail','Plans','DOE','Attestation','Sécurité','Autres'];
-    const CAT_ICON={'Attestation':'✅','Commission de sécurité':'⚖️','Bureau de contrôle':'🔎','Maintenance préventive':'🗓️','Maintenance corrective':'🔧','Maintenance':'🔧','Compte rendu':'📝','Rapport':'📋','Devis':'📝','Devis signé':'✍️','Facture':'🧾',"Bon d'intervention":'🛠️','PV de réception':'🤝','Courrier mairie':'🏛️','Mail':'📧','Plans':'🗺️','DOE':'📐','Sécurité':'🛟','Autres':'📄'};
+    const CAT_ORDER=['Commission de sécurité','Bureau de contrôle','Maintenance préventive','Maintenance corrective','Maintenance','Compte rendu','Rapport','Devis','Devis signé','Facture',"Bon d'intervention",'PV de réception','Courrier mairie','Mail','Plans','DOE','Attestation','Classement au feu','Sécurité','Autres'];
+    const CAT_ICON={'Attestation':'✅','Commission de sécurité':'⚖️','Bureau de contrôle':'🔎','Maintenance préventive':'🗓️','Maintenance corrective':'🔧','Maintenance':'🔧','Compte rendu':'📝','Rapport':'📋','Devis':'📝','Devis signé':'✍️','Facture':'🧾',"Bon d'intervention":'🛠️','PV de réception':'🤝','Courrier mairie':'🏛️','Mail':'📧','Plans':'🗺️','DOE':'📐','Classement au feu':'🔥','Sécurité':'🛟','Autres':'📄'};
     const catOf=(type)=>{ const t=(type||'').toLowerCase();
       if(t==='devis signé'||t==='devis signe') return 'Devis signé';
       if(t==='devis') return 'Devis';
       if(t==='facture') return 'Facture';
       if(t==="bon d'intervention"||t==='bon intervention'||t.indexOf("bon d'intervention")>=0) return "Bon d'intervention";
+      if(t.indexOf('classement au feu')>=0||t==='pv de classement'||t.indexOf('pare flamme')>=0||t.indexOf('pare-flamme')>=0||t.indexOf('coupe-feu')>=0||t.indexOf('coupe feu')>=0||t.indexOf('reaction au feu')>=0||t.indexOf('réaction au feu')>=0||t.indexOf('resistance au feu')>=0||t.indexOf('résistance au feu')>=0) return 'Classement au feu';
       if(t==='pv commission') return 'Commission de sécurité';
       if(t==='rvat'||t.indexOf('contrôle')>=0||t.indexOf('controle')>=0||t.indexOf('vérif')>=0||t.indexOf('verif')>=0||t==='bureau de contrôle') return 'Bureau de contrôle';
       if(t==='maintenance préventive'||t==='maintenance preventive') return 'Maintenance préventive';
