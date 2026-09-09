@@ -7509,14 +7509,23 @@ async function doSearch(v){
   const q='%'+safe+'%';
   const has=s=>(s||'').toLowerCase().includes(v.toLowerCase());
   let docs=[],inters=[],prests=[];
-  try{
-    const [d,i,p]=await Promise.all([
-      sb.from('documents').select('id,nom_original,type,erp_id,client_id,date_document').or(`nom_original.ilike.${q},type.ilike.${q},emetteur.ilike.${q}`).order('created_at',{ascending:false}).limit(15),
-      sb.from('interventions').select('id,objet,domaine,type,statut,erp_id').or(`objet.ilike.${q},domaine.ilike.${q}`).order('created_at',{ascending:false}).limit(15),
-      sb.from('prestataires').select('id,nom').ilike('nom',q).order('nom').limit(10)
-    ]);
-    docs=d.data||[]; inters=i.data||[]; prests=p.data||[];
-  }catch(_){}
+  // Chaque recherche est indépendante : si l'une échoue, les autres remontent quand même
+  const R=await Promise.allSettled([
+    sb.from('documents').select('id,nom_original,type,erp_id,client_id,date_document').or(`nom_original.ilike.${q},type.ilike.${q},emetteur.ilike.${q}`).order('created_at',{ascending:false}).limit(15),
+    sb.from('interventions').select('id,objet,domaine,type,statut,erp_id').or(`objet.ilike.${q},domaine.ilike.${q}`).order('created_at',{ascending:false}).limit(15),
+    sb.from('prestataires').select('id,nom,client_id,categorie,email,telephone').ilike('nom',q).order('nom').limit(20)
+  ]);
+  const val=i=>(R[i].status==='fulfilled'&&R[i].value&&R[i].value.data)||[];
+  docs=val(0); inters=val(1); prests=val(2);
+  // Filet : recherche sans accents ni casse sur tous les prestataires si la requête serveur ne rend rien
+  if(!prests.length){
+    try{
+      const {data:tous}=await sb.from('prestataires').select('id,nom,client_id,categorie,email,telephone').limit(600);
+      const n=x=>String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      const mots=n(v).split(/\s+/).filter(Boolean);
+      prests=(tous||[]).filter(p2=>{const c=n(p2.nom); return mots.every(m=>c.includes(m));}).slice(0,20);
+    }catch(_){}
+  }
   const erps=(state.erps||[]).filter(e=>has(e.nom)||has(e.code_erp)).slice(0,10);
   const clients=(state.clients||[]).filter(c=>has(c.raison_sociale)).slice(0,10);
   const erpN=id=>state.erps.find(e=>e.id===id)?.nom||'';
@@ -7528,7 +7537,10 @@ async function doSearch(v){
   const sections=[
     grp('Établissements',erps.map(e=>row(esc(e.nom),esc(e.code_erp||''),`closeModal();navigate('/erps/${e.id}')`))),
     grp('Clients',clients.map(c=>row(esc(c.raison_sociale),'',`closeModal();navigate('/clients/${c.id}')`))),
-    grp('Prestataires',prests.map(p=>row(esc(p.nom),'',`closeModal();navigate('/prestataires')`))),
+    grp('Prestataires',prests.map(p=>row(esc(p.nom),
+      [p.categorie,(state.clients||[]).find(c=>c.id===p.client_id)?.raison_sociale||(p.client_id?'':'Tous clients'),p.telephone]
+        .filter(Boolean).map(esc).join(' · '),
+      `gsOpenPrest('${p.id}')`))),
     grp('Documents',docs.map(d=>row(esc(d.nom_original||'Document'),[d.type,erpN(d.erp_id),d.date_document?new Date(d.date_document).toLocaleDateString('fr-FR'):''].filter(Boolean).map(esc).join(' · '),`gsOpenDoc('${d.id}')`))),
     grp('Interventions',inters.map(i=>row(esc(i.objet||i.domaine||'Intervention'),[i.type,i.statut,erpN(i.erp_id)].filter(Boolean).map(esc).join(' · '),`gsOpenInter('${i.id}')`)))
   ].filter(Boolean);
@@ -7537,6 +7549,13 @@ async function doSearch(v){
     :`<div style="text-align:center;color:var(--muted);padding:26px 10px;font-size:13.5px">Aucun résultat pour « ${esc(v)} ».<br><span style="font-size:12px">Recherche dans : établissements, clients, prestataires, documents, interventions.</span></div>`;
 }
 window.doSearch=doSearch;
+
+// Ouvre directement la fiche du prestataire trouvé
+window.gsOpenPrest=async function(id){
+  closeModal();
+  try{ await formPrest({id}); }
+  catch(_){ navigate('/prestataires'); setTimeout(()=>{ try{ formPrest({id}); }catch(__){} },500); }
+};
 
 // Ouvre un document trouvé : va sur la GED puis ouvre sa fiche (avec quelques tentatives le temps du chargement)
 window.gsOpenDoc=function(id){
@@ -25513,8 +25532,23 @@ function renderPrestTable(rows, categorie){
   }
 
   const labelCat = cat==='bureau_de_controle'?'bureau de contrôle':'prestataire';
+  // Le même nom peut être rangé dans l'autre rubrique : on le signale au lieu de dire « aucun résultat »
+  const autreCat = cat==='bureau_de_controle' ? rows.filter(r=>r.categorie!=='bureau_de_controle') : rows.filter(r=>r.categorie==='bureau_de_controle');
+  const dansAutre = (A.q||A.client!=='all'||A.spec!=='all') ? autreCat.filter(p=>{
+      if(A.client!=='all'){ const ids=Array.isArray(p.client_ids)&&p.client_ids.length?p.client_ids:(p.client_id?[p.client_id]:[]); if(ids.length&&!ids.includes(A.client)) return false; }
+      if(!A.q) return true;
+      const ci=prestContactInfo(p);
+      return (p.nom||'').toLowerCase().includes(A.q)||(p.type||'').toLowerCase().includes(A.q)
+        ||(ci.email||'').toLowerCase().includes(A.q)||(ci.from||'').toLowerCase().includes(A.q)||(ci.tel||'').includes(A.q);
+    }) : [];
   if(!filtered.length){
-    target.innerHTML = inCat.length
+    const autreLbl = cat==='bureau_de_controle' ? 'Prestataires' : 'Bureaux de contrôle';
+    target.innerHTML = dansAutre.length
+      ? emptyBlock(I.search,'Rangé dans l\'autre rubrique',
+        (dansAutre.length===1?'« '+esc(dansAutre[0].nom)+' » est enregistré':(dansAutre.length+' fiches correspondent, mais elles sont enregistrées'))
+          +' dans la rubrique <b>'+autreLbl+'</b>, pas dans '+(cat==='bureau_de_controle'?'les bureaux de contrôle':'les prestataires')+'.',
+        `<button class="btn primary" onclick="switchPrestOnglet('${cat==='bureau_de_controle'?'prestataire':'bureau_de_controle'}')">Ouvrir ${autreLbl}</button>`)
+      : inCat.length
       ? emptyBlock(I.search,'Aucun résultat','Aucun '+labelCat+' ne correspond à cette recherche ou à ces filtres.',
         `<button class="btn" onclick="document.getElementById('anx-q').value='';document.getElementById('anx-client').value='all';document.getElementById('anx-spec').value='all';anxFilter()">Réinitialiser les filtres</button>`)
       : emptyBlock(I.prest,'Aucun '+labelCat,
